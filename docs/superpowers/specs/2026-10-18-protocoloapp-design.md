@@ -41,6 +41,7 @@ Também é projeto de estudo/portfólio: offline-first, sync idempotente, extra�
 | Tema | Decisão | Motivo |
 |---|---|---|
 | Front mobile + web | **React + Vite + Capacitor** (um front) | Reaproveita o stack do Fechamento; APK + web com um código |
+| iPhone | **PWA** instalada pelo Safari (Adicionar à Tela de Início), offline-first (service worker + SQLite WASM); o APK segue para Android | Sem conta de desenvolvedor Apple nem loja; o mesmo front |
 | Back | **.NET 10 Minimal APIs + EF Core + Postgres 18** | Mesmo padrão do Fechamento |
 | Banco local | **SQLite** via `@capacitor-community/sqlite` (web via jeep-sqlite/WASM) | Leve e maduro no Android; mesmo código na web |
 | Registro de treino | Completo (séries/carga/reps/timer) | Necessário para calcular evolução de força por grupo |
@@ -48,7 +49,7 @@ Também é projeto de estudo/portfólio: offline-first, sync idempotente, extra�
 | Questionário | Objetivas calculadas; subjetivas via **check-in diário + rascunho por IA** | Evita responder de memória no dia |
 | Aderência | Check por item: `done` / `partial` / `missed` + motivo + nota | Gera % de erro e o "por quê" |
 | Fotos e PDFs | **Cloudflare R2** (bucket privado, URLs pré-assinadas) | Grátis no volume esperado, sem egress; MinIO CE foi arquivado. Acesso via API S3 → trocável (Garage/SeaweedFS) |
-| Lembretes | **Notificações locais** do Capacitor | Funcionam offline; sem servidor de push |
+| Lembretes | **Notificações locais** do Capacitor (Android); no iPhone, **Web Push do servidor** (PWA instalada, iOS 16.4+) — desenho adiado para o subprojeto 3 | Locais funcionam offline; o iOS não tem notificação local em PWA |
 | Auth | Identity com **Bearer token** (access curto + refresh em secure storage) | Cookie não funciona bem a partir do APK |
 | Entrega | Coolify (push na `main`) + APK assinado em GitHub Release | Igual ao Fechamento + APK sem loja |
 
@@ -203,6 +204,7 @@ Falha da IA (timeout / JSON inválido) → 1 retry → senão draft vazio com o 
 ## 8. Entrega
 
 - **Web/API:** Coolify faz deploy a cada push na `main` (imagem `backend/Dockerfile`), subdomínio `protocolo.frauchesgabriel.work` (a confirmar).
+- **iPhone (PWA):** o mesmo build web é instalável (manifest + service worker; Safari, Compartilhar, Adicionar à Tela de Início). O shell do app fica em cache para abrir offline e uma versão nova aparece como "Nova versão disponível". O back serve `sw.js`, `manifest.webmanifest` e `index.html` com `no-cache` e `/assets/*` como `immutable`. Lembretes no iOS virão de Web Push do servidor (subprojeto 3); o APK continua só para Android.
 - **APK:** job no CI gera APK assinado (keystore nos secrets do GitHub) e publica como GitHub Release; o app consulta a última release e avisa quando há versão nova.
 - **Limites do ambiente na nuvem (iguais ao Fechamento):** Claude não altera workflows do GitHub — escreve o `.yml` e o Gabriel commita; migrations e `gen:api` rodam no PC ou no dev box; testes do back só no CI.
 - **Segredos (Coolify / GitHub secrets):** `ConnectionStrings__Db`, `R2__AccountId`, `R2__AccessKeyId`, `R2__SecretAccessKey`, `R2__Bucket`, `Anthropic__ApiKey`, `Auth__SigningKey`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
