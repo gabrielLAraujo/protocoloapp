@@ -8,7 +8,13 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
 function watch(page: Page) {
   const seen: string[] = []
   page.on('response', (response) => {
-    if (response.url().includes('/api/')) seen.push(`${response.request().method()} ${new URL(response.url()).pathname} ${response.status()}`)
+    if (!response.url().includes('/api/')) return
+    const line = `${response.request().method()} ${new URL(response.url()).pathname} ${response.status()}`
+    if (!response.url().includes('/api/sync/pull')) return void seen.push(line)
+    void response.json().then(
+      (body: { records?: unknown[] }) => seen.push(`${line} records=${body.records?.length ?? '?'}`),
+      () => seen.push(line),
+    )
   })
   page.on('requestfailed', (request) => seen.push(`FAILED ${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`))
   page.on('console', (message) => {
@@ -75,15 +81,20 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   // Device B: another browser profile signs in and receives the same check-in.
   const contextB = await browser.newContext()
   const b = await contextB.newPage()
+  const seenByB = watch(b)
   await login(b)
 
   // The form reads the local database when it opens, so leave the screen and come back until the first pull has landed.
   // (In-app navigation, not a reload: a reload would restart the token refresh and could cut it halfway.)
-  await expect(async () => {
-    await b.getByRole('link', { name: 'Diagnóstico' }).click()
-    await b.goBack()
-    await expect(option(b, 'Sono (1–5)', '4')).toBeChecked({ timeout: 2_000 })
-  }).toPass({ timeout: 45_000 })
+  try {
+    await expect(async () => {
+      await b.getByRole('link', { name: 'Diagnóstico' }).click()
+      await b.goBack()
+      await expect(option(b, 'Sono (1–5)', '4')).toBeChecked({ timeout: 2_000 })
+    }).toPass({ timeout: 45_000 })
+  } catch (error) {
+    throw new Error(`B API[${seenByB.join(' ; ')}] ${(error as Error).message}`)
+  }
 
   await expect(option(b, 'Intestino', 'Normal')).toBeChecked()
   await expect(option(b, 'Disposição ao acordar (1–5)', '3')).toBeChecked()
