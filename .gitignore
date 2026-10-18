@@ -11,6 +11,8 @@ TestResults/
 # Front
 node_modules/
 dist/
+frontend/playwright-report/
+frontend/test-results/
 frontend/android/.gradle/
 frontend/android/build/
 frontend/android/app/build/

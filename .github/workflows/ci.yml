@@ -190,6 +190,122 @@ jobs:
         run: |
           tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
 
+  # The offline-first promise end to end: the real API (published like the image, serving the built front) on a real Postgres,
+  # and two browsers. Nothing is mocked except R2, which this flow never touches (the settings are only checked for presence).
+  e2e:
+    name: E2E smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: protocoloapp
+          POSTGRES_PASSWORD: e2e-only-password
+          POSTGRES_DB: protocoloapp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U protocoloapp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The OpenAPI document is committed and checked by the backend job; building here must not regenerate it.
+      OpenApiGenerateDocumentsOnBuild: 'false'
+      ConnectionStrings__Db: Host=localhost;Port=5432;Database=protocoloapp;Username=protocoloapp;Password=e2e-only-password
+      Auth__SigningKey: e2e-only-signing-key-0123456789-abcdefghijklmnop
+      R2__AccountId: e2e-account
+      R2__AccessKeyId: e2e-access-key
+      R2__SecretAccessKey: e2e-secret-key-not-real
+      R2__Bucket: e2e-bucket
+      ASPNETCORE_URLS: http://localhost:5091
+      E2E_BASE_URL: http://localhost:5091
+      E2E_EMAIL: e2e@example.com
+      E2E_PASSWORD: Senha-e2e-123456
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build the front
+        working-directory: frontend
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+
+      # Same layout as the Docker image: the API publish output with the front in wwwroot.
+      - name: Publish the API with the front
+        working-directory: backend
+        run: |
+          dotnet publish src/ProtocoloApp.Api/ProtocoloApp.Api.csproj -c Release -o "$RUNNER_TEMP/api" -nologo
+          cp -r ../frontend/dist "$RUNNER_TEMP/api/wwwroot"
+
+      - name: Apply migrations
+        working-directory: backend
+        run: |
+          dotnet tool restore
+          dotnet ef database update --project src/ProtocoloApp.Api --startup-project src/ProtocoloApp.Api --connection "$ConnectionStrings__Db"
+
+      # The only way to get a user, as in production.
+      - name: Create the user
+        working-directory: ${{ runner.temp }}/api
+        env:
+          PROTOCOLOAPP_PASSWORD: ${{ env.E2E_PASSWORD }}
+        run: dotnet ProtocoloApp.Api.dll create-user "$E2E_EMAIL"
+
+      - name: Start the API
+        working-directory: ${{ runner.temp }}/api
+        run: |
+          nohup dotnet ProtocoloApp.Api.dll > "$RUNNER_TEMP/api.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:5091/health > /dev/null 2>&1; then echo "API is up"; exit 0; fi
+            sleep 1
+          done
+          echo "API did not start"; tail -n 30 "$RUNNER_TEMP/api.log"; exit 1
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright smoke
+        working-directory: frontend
+        run: |
+          set -o pipefail
+          npx playwright test 2>&1 | tee "$RUNNER_TEMP/playwright.log"
+
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # Artifacts and job logs are not downloadable through the API, annotations are.
+      - name: E2E errors
+        if: ${{ failure() }}
+        run: |
+          echo "::error title=Playwright::$(tail -n 40 "$RUNNER_TEMP/playwright.log" 2>/dev/null | tr '\n' '|' | cut -c1-900)"
+          echo "::error title=API log::$(tail -n 15 "$RUNNER_TEMP/api.log" 2>/dev/null | tr '\n' '|' | cut -c1-900)"
+
   # Debug APK on every run (artifact to install and test). The signed release is a separate job below.
   android:
     name: Android APK
@@ -199,6 +315,8 @@ jobs:
     env:
       VITE_API_URL: https://protocolo.frauchesgabriel.work
       VERSION_NAME: 0.1.${{ github.run_number }}
+      # The update check compares this with the latest GitHub release.
+      VITE_APP_VERSION: 0.1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -252,6 +370,8 @@ jobs:
     env:
       VITE_API_URL: https://protocolo.frauchesgabriel.work
       VERSION_NAME: 0.1.${{ github.run_number }}
+      # The update check compares this with the latest GitHub release.
+      VITE_APP_VERSION: 0.1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
         with:

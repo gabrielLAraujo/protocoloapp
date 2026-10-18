@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 // Local API (the "http" launch profile). The browser only talks to Vite, so dev behaves like production, where the API
 // serves the front on the same origin.
@@ -22,6 +22,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // The Playwright specs under e2e/ run with `playwright test` against a real API, not in jsdom.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     // An inherited NODE_ENV=production would load React's production build, which has no `act`.
     env: { NODE_ENV: 'test' },
   },
