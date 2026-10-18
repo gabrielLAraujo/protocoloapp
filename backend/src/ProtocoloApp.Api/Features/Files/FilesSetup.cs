@@ -1,5 +1,5 @@
 using System.Reflection;
-using Microsoft.Extensions.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProtocoloApp.Api.Shared.Storage;
 
