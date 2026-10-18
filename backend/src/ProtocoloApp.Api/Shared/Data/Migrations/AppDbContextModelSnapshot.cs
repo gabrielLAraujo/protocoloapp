@@ -22,6 +22,8 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("sync_version_seq");
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
                 {
                     b.Property<Guid>("Id")
@@ -182,6 +184,107 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasName("pk_asp_net_user_tokens");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.DailyCheckins.DailyCheckin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Anxiety")
+                        .HasColumnType("integer")
+                        .HasColumnName("anxiety");
+
+                    b.Property<string>("Bowel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("bowel");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<int>("EnergyDay")
+                        .HasColumnType("integer")
+                        .HasColumnName("energy_day");
+
+                    b.Property<int>("EnergyWake")
+                        .HasColumnType("integer")
+                        .HasColumnName("energy_wake");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<int>("SleepQuality")
+                        .HasColumnType("integer")
+                        .HasColumnName("sleep_quality");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<decimal>("WaterL")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("numeric(4,2)")
+                        .HasColumnName("water_l");
+
+                    b.Property<decimal?>("WeightKg")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("weight_kg");
+
+                    b.HasKey("Id")
+                        .HasName("pk_daily_checkins");
+
+                    b.HasIndex("UserId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("ix_daily_checkins_user_id_date")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_daily_checkins_user_id_version");
+
+                    b.ToTable("daily_checkins", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_daily_checkins_anxiety", "anxiety BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_daily_checkins_bowel", "bowel IN ('normal', 'loose', 'constipated')");
+
+                            t.HasCheckConstraint("ck_daily_checkins_energy_day", "energy_day BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_daily_checkins_energy_wake", "energy_wake BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_daily_checkins_sleep_quality", "sleep_quality BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_daily_checkins_water_l", "water_l BETWEEN 0 AND 15");
+
+                            t.HasCheckConstraint("ck_daily_checkins_weight_kg", "weight_kg IS NULL OR weight_kg BETWEEN 30 AND 300");
+                        });
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Shared.Data.AppUser", b =>
@@ -368,6 +471,16 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_asp_net_user_tokens_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.DailyCheckins.DailyCheckin", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_daily_checkins_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Shared.Data.RefreshToken", b =>
