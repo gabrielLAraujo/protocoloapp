@@ -1,9 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
 import { outbox } from '../../data/outbox'
-import { mockFetch } from '../../test/fetch-mock'
+import type { SyncRecord } from '../../data/apiClient'
+import { checkinIdForDate } from '../../data/ids'
+import { json, mockFetch } from '../../test/fetch-mock'
+import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { DailyCheckinPage } from './DailyCheckinPage'
 
@@ -101,5 +104,172 @@ describe('DailyCheckinPage', () => {
 
     expect(await screen.findByText('Informe a água em litros')).toBeInTheDocument()
     expect(screen.getAllByText('Escolha uma opção')).toHaveLength(5)
+  })
+
+  describe('keeps up with other devices and the clock', () => {
+    const remote = (note: string, clientUpdatedAt = '2026-10-18T23:00:00.000000+00:00', version = 7): SyncRecord => ({
+      entity: 'daily_checkin',
+      id: checkinIdForDate(USER_A, '2026-10-18'),
+      version,
+      payload: {
+        date: '2026-10-18',
+        sleep_quality: 2,
+        bowel: 'constipated',
+        energy_wake: 1,
+        energy_day: 1,
+        anxiety: 5,
+        water_l: 3,
+        weight_kg: 81,
+        note,
+      },
+      deletedAt: null,
+      clientUpdatedAt,
+    })
+
+    /** The fake server's pull answers `records` once, then nothing. */
+    const serve = (records: SyncRecord[]) => {
+      let sent = false
+      mockFetch({
+        'GET /api/sync/pull': () => {
+          const page = sent ? [] : records
+          sent = true
+          return json({ records: page, nextSince: page.length ? 7 : 0, hasMore: false })
+        },
+      })
+    }
+
+    it('a pull refreshes a form with no unsaved input', async () => {
+      const { engine, view } = await setupApp()
+      view(<DailyCheckinPage />)
+      await screen.findByRole('button', { name: 'Salvar' })
+      expect(screen.getByLabelText('Água (litros)')).toHaveValue('')
+
+      serve([remote('do outro aparelho')])
+      await act(() => engine.runOnce())
+
+      await waitFor(() => expect(screen.getByLabelText('Água (litros)')).toHaveValue('3'))
+      expect(screen.getByLabelText('Observações')).toHaveValue('do outro aparelho')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('a pull never overwrites unsaved input: it offers to reload instead', async () => {
+      const { engine, view } = await setupApp()
+      const user = userEvent.setup()
+      view(<DailyCheckinPage />)
+      await screen.findByRole('button', { name: 'Salvar' })
+      await user.type(screen.getByLabelText('Observações'), 'digitando')
+
+      serve([remote('do outro aparelho')])
+      await act(() => engine.runOnce())
+
+      expect(await screen.findByText('Atualizado em outro aparelho —')).toBeInTheDocument()
+      expect(screen.getByLabelText('Observações')).toHaveValue('digitando')
+
+      await user.click(screen.getByRole('button', { name: 'recarregar' }))
+      await waitFor(() => expect(screen.getByLabelText('Observações')).toHaveValue('do outro aparelho'))
+      expect(screen.queryByText('Atualizado em outro aparelho —')).not.toBeInTheDocument()
+    })
+
+    it('does not save over a row that changed since the form loaded it', async () => {
+      const { db, view } = await setupApp()
+      const user = userEvent.setup()
+      view(<DailyCheckinPage />)
+      await screen.findByRole('button', { name: 'Salvar' })
+      // Written behind the screen's back (no dataVersion bump): only the save-time check can catch it.
+      await dailyCheckinRepo.applyRemote(db, remote('do outro aparelho'))
+
+      await fillAll(user)
+      await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+      expect(await screen.findByText('Atualizado em outro aparelho —')).toBeInTheDocument()
+      expect(screen.queryByText('Salvo — será sincronizado')).not.toBeInTheDocument()
+      expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ note: 'do outro aparelho' })
+      expect(await outbox.pendingCount(db)).toBe(0)
+    })
+
+    it('saving twice in a row is not mistaken for another device', async () => {
+      const { db, view } = await setupApp()
+      const user = userEvent.setup()
+      view(<DailyCheckinPage />)
+      await screen.findByRole('button', { name: 'Salvar' })
+      await fillAll(user)
+      await user.click(screen.getByRole('button', { name: 'Salvar' }))
+      await screen.findByText('Salvo — será sincronizado')
+
+      await user.type(screen.getByLabelText('Observações'), 'mais')
+      await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(async () => expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ note: 'mais' }))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    describe('across midnight', () => {
+      beforeEach(() => {
+        vi.useRealTimers()
+        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'], shouldAdvanceTime: true })
+        vi.setSystemTime(new Date(2026, 9, 18, 23, 59, 58))
+      })
+
+      it('switches to the new day at midnight when nothing is being typed', async () => {
+        const { view } = await setupApp()
+        view(<DailyCheckinPage />)
+        await screen.findByText('domingo, 18 de outubro')
+
+        await act(() => vi.advanceTimersByTimeAsync(3_000))
+
+        expect(await screen.findByText('segunda-feira, 19 de outubro')).toBeInTheDocument()
+      })
+
+      it('keeps unsaved input, refuses to save it under the new day and offers to open it', async () => {
+        const { db, view } = await setupApp()
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+        view(<DailyCheckinPage />)
+        await screen.findByText('domingo, 18 de outubro')
+        await fillAll(user)
+
+        await act(() => vi.advanceTimersByTimeAsync(3_000))
+
+        expect(await screen.findByText('O dia mudou — recarregue o check-in')).toBeInTheDocument()
+        expect(screen.getByText('domingo, 18 de outubro')).toBeInTheDocument()
+        expect(screen.getByLabelText('Água (litros)')).toHaveValue('2,5')
+
+        await user.click(screen.getByRole('button', { name: 'Salvar' }))
+        expect(screen.queryByText('Salvo — será sincronizado')).not.toBeInTheDocument()
+        expect(await dailyCheckinRepo.get(db, '2026-10-18')).toBeNull()
+        expect(await dailyCheckinRepo.get(db, '2026-10-19')).toBeNull()
+
+        await user.click(screen.getByRole('button', { name: 'Abrir o check-in de hoje' }))
+        expect(await screen.findByText('segunda-feira, 19 de outubro')).toBeInTheDocument()
+        expect(screen.getByLabelText('Água (litros)')).toHaveValue('')
+      })
+
+      it('a save after midnight is refused even before the timer noticed', async () => {
+        const { db, view } = await setupApp()
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+        view(<DailyCheckinPage />)
+        await screen.findByText('domingo, 18 de outubro')
+        await fillAll(user)
+        // The clock jumps (device asleep) without the timer firing.
+        vi.setSystemTime(new Date(2026, 9, 19, 7, 0))
+
+        await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+        expect(await screen.findByText('O dia mudou — recarregue o check-in')).toBeInTheDocument()
+        expect(await dailyCheckinRepo.get(db, '2026-10-18')).toBeNull()
+      })
+
+      it('recomputes the day when the window gets focus', async () => {
+        const { view } = await setupApp()
+        view(<DailyCheckinPage />)
+        await screen.findByText('domingo, 18 de outubro')
+        vi.setSystemTime(new Date(2026, 9, 19, 7, 0))
+
+        act(() => {
+          window.dispatchEvent(new Event('focus'))
+        })
+
+        expect(await screen.findByText('segunda-feira, 19 de outubro')).toBeInTheDocument()
+      })
+    })
   })
 })

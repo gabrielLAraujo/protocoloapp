@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { newLocalDb, USER_A } from '../test/localDb'
-import { dailyCheckinRepo, type DailyCheckinFields } from './dailyCheckinRepo'
+import { dailyCheckinRepo, StaleCheckinError, type DailyCheckinFields } from './dailyCheckinRepo'
 import { checkinIdForDate } from './ids'
 import { outbox } from './outbox'
 
@@ -89,6 +89,21 @@ describe('dailyCheckinRepo', () => {
     await dailyCheckinRepo.upsert(db, USER_A, DATE, { ...fields, anxiety: 5 }, new Date('2026-10-18T11:00:00.000Z'))
 
     expect((await dailyCheckinRepo.get(db, DATE))?.clientUpdatedAt).toBe('2026-10-18T12:00:00.001Z')
+  })
+
+  it('upsert with `expected` refuses to overwrite a row that changed since it was read', async () => {
+    const db = await newLocalDb()
+    // Nothing was there when the screen loaded, but a pull brought a row in meanwhile.
+    await dailyCheckinRepo.applyRemote(db, remote())
+    await expect(dailyCheckinRepo.upsert(db, USER_A, DATE, fields, T0, { expected: null })).rejects.toBeInstanceOf(StaleCheckinError)
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ note: null, waterL: 1.5 })
+    expect(await outbox.pendingCount(db)).toBe(0)
+
+    // With the stamp it really holds, the save goes through and returns the new stamp.
+    const loaded = (await dailyCheckinRepo.get(db, DATE))!.clientUpdatedAt
+    const stamp = await dailyCheckinRepo.upsert(db, USER_A, DATE, fields, T0, { expected: loaded })
+    expect(stamp > loaded).toBe(true)
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ note: 'Dia de teste', clientUpdatedAt: stamp })
   })
 
   it('remove soft-deletes and queues a delete', async () => {

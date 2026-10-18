@@ -106,6 +106,14 @@ async function writeRow(db: LocalDb, id: string, p: DailyCheckinPayload, clientU
   )
 }
 
+/** The stored check-in changed since the screen read it (a pull from another device): saving would overwrite it. */
+export class StaleCheckinError extends Error {
+  constructor() {
+    super('The check-in changed since it was read.')
+    this.name = 'StaleCheckinError'
+  }
+}
+
 export const dailyCheckinRepo = {
   async get(db: LocalDb, date: string): Promise<DailyCheckin | null> {
     const [row] = await db.query<Row>(
@@ -115,14 +123,31 @@ export const dailyCheckinRepo = {
     return row ? toCheckin(row) : null
   },
 
-  /** Saves the day's check-in and queues it for the server, in one transaction. */
-  async upsert(db: LocalDb, userId: string, date: string, fields: DailyCheckinFields, now: Date): Promise<void> {
+  /**
+   * Saves the day's check-in and queues it for the server, in one transaction. Returns the row's new client_updated_at.
+   * With `expected` (the client_updated_at the screen loaded, null when there was no live row), throws
+   * StaleCheckinError instead of saving when the stored row is no longer that one.
+   */
+  async upsert(
+    db: LocalDb,
+    userId: string,
+    date: string,
+    fields: DailyCheckinFields,
+    now: Date,
+    options: { expected?: string | null } = {},
+  ): Promise<string> {
     const id = checkinIdForDate(userId, date)
     const payload = toPayload(date, fields)
-    await db.transaction(async (tx) => {
-      const clientUpdatedAt = nextClientUpdatedAt(now, (await byId(tx, id))?.client_updated_at)
+    return db.transaction(async (tx) => {
+      const row = await byId(tx, id)
+      if (options.expected !== undefined) {
+        const live = row && row.deleted_at === null ? row.client_updated_at : null
+        if (live !== options.expected) throw new StaleCheckinError()
+      }
+      const clientUpdatedAt = nextClientUpdatedAt(now, row?.client_updated_at)
       await writeRow(tx, id, payload, clientUpdatedAt, null)
       await outbox.enqueue(tx, { entity: DAILY_CHECKIN_ENTITY, id, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+      return clientUpdatedAt
     })
   },
 
