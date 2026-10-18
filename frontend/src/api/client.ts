@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import createClient, { type Middleware } from 'openapi-fetch'
 import { tokenStore, type TokenResponse } from '../auth/tokenStore'
+import { REFRESH_LOCK, withLock } from '../platform/locks'
 import type { paths } from './schema'
 
 export const LOGOUT_EVENT = 'auth:logout'
@@ -28,20 +29,24 @@ const NO_REFRESH_PATHS = new Set(['/api/auth/login', '/api/auth/refresh', '/api/
 
 /**
  * Single-flight refresh. The server revokes the whole token family when a refresh token is reused, so two concurrent
- * refreshes would log the user out: every caller shares the one in flight.
+ * refreshes would log the user out: every caller in this tab shares the one in flight, and across tabs the refresh
+ * runs under the `protocolo-refresh` Web Lock (directly when the browser has none).
  * Resolves true when new tokens are in place, false otherwise.
  */
 let refreshing: Promise<boolean> | null = null
 
 export function refreshTokens(): Promise<boolean> {
-  refreshing ??= doRefresh().finally(() => {
+  // Read before waiting for the lock: a sign-out while waiting discards the refresh instead of announcing it twice.
+  const epoch = tokenStore.getEpoch()
+  refreshing ??= withLock(REFRESH_LOCK, () => doRefresh(epoch)).finally(() => {
     refreshing = null
   })
   return refreshing
 }
 
-async function doRefresh(): Promise<boolean> {
-  const epoch = tokenStore.getEpoch()
+async function doRefresh(epoch: number): Promise<boolean> {
+  // Read inside the lock: if another tab rotated the token while this one waited, the stored token is already the new
+  // one, and presenting the old one would count as reuse.
   const refreshToken = await tokenStore.getRefreshToken()
   if (!refreshToken) return fail(epoch)
 

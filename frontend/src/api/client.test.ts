@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { tokenStore } from '../auth/tokenStore'
+import { getLocks, REFRESH_LOCK } from '../platform/locks'
 import { json, mockFetch, problem, tokenResponse } from '../test/fetch-mock'
+import { fakeLocks, installLocks } from '../test/fakeLocks'
 import { api } from './client'
 
 beforeEach(async () => {
@@ -143,5 +145,56 @@ describe('api client', () => {
     expect(response.status).toBe(401)
     expect(tokenStore.getAccessToken()).toBeNull()
     expect(await tokenStore.getRefreshToken()).toBeNull()
+  })
+
+  describe('refresh across tabs', () => {
+    const meAndRefresh = () => {
+      const refreshed: string[] = []
+      mockFetch({
+        'GET /api/auth/me': (call) =>
+          call.headers.get('Authorization') === 'Bearer access-new' ? json({ id: 'x', email: 'a@example.com' }) : problem(401),
+        'POST /api/auth/refresh': (call) => {
+          refreshed.push((JSON.parse(call.body) as { refreshToken: string }).refreshToken)
+          return json(tokenResponse('new'))
+        },
+      })
+      return refreshed
+    }
+
+    it('waits for the refresh lock and presents the token stored meanwhile', async () => {
+      const locks = fakeLocks()
+      const uninstall = installLocks(locks)
+      try {
+        const refreshed = meAndRefresh()
+        const release = await locks.hold(REFRESH_LOCK) // another tab is refreshing
+
+        const pending = api.GET('/api/auth/me')
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(refreshed).toEqual([])
+
+        // That tab stored its rotated refresh token, then let go of the lock.
+        localStorage.setItem('protocolo.refreshToken', 'refresh-other')
+        release()
+
+        expect((await pending).response.status).toBe(200)
+        expect(refreshed).toEqual(['refresh-other'])
+        expect(locks.held.has(REFRESH_LOCK)).toBe(false)
+      } finally {
+        uninstall()
+      }
+    })
+
+    it('refreshes without a lock when the browser has no Web Locks', async () => {
+      const uninstall = installLocks(undefined)
+      try {
+        expect(getLocks()).toBeUndefined()
+        const refreshed = meAndRefresh()
+
+        expect((await api.GET('/api/auth/me')).response.status).toBe(200)
+        expect(refreshed).toEqual(['refresh-old'])
+      } finally {
+        uninstall()
+      }
+    })
   })
 })
