@@ -190,21 +190,19 @@ jobs:
         run: |
           tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
 
-  # APK. Debug on PRs and feature branches (artifact to install and test). On main: signed release published as a GitHub
-  # Release when the signing secrets exist (see docs/ci/README.md); without them it falls back to debug with a warning.
+  # Debug APK on every run (artifact to install and test). The signed release is a separate job below.
   android:
     name: Android APK
     needs: frontend
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Write access only here, and only used by the release step on main.
-    permissions:
-      contents: write
     env:
       VITE_API_URL: https://protocolo.frauchesgabriel.work
       VERSION_NAME: 0.1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@v5
         with:
@@ -228,6 +226,37 @@ jobs:
         working-directory: frontend
         run: npm run cap:sync
 
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName="$VERSION_NAME" --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocolo-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+          if-no-files-found: error
+
+  # Signed release as a GitHub Release, only on main and only after the debug build passed (see docs/ci/README.md).
+  # Without the signing secrets it warns and does nothing.
+  release:
+    name: Android release
+    needs: android
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The only job with write access.
+    permissions:
+      contents: write
+    env:
+      VITE_API_URL: https://protocolo.frauchesgabriel.work
+      VERSION_NAME: 0.1.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
       # Secrets cannot be tested in `if`, so a step turns them into an output.
       - name: Check signing secrets
         id: signing
@@ -237,32 +266,41 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          release=false
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
-              release=true
-            else
-              echo "::warning title=Android release skipped::One or more signing secrets are missing (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Building the debug APK only."
-            fi
+          if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Android release skipped::One or more signing secrets are missing (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "release=$release" >> "$GITHUB_OUTPUT"
 
-      - name: Build debug APK
-        if: ${{ steps.signing.outputs.release != 'true' }}
-        working-directory: frontend/android
-        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName="$VERSION_NAME" --no-daemon
-
-      - name: Upload debug APK
-        if: ${{ steps.signing.outputs.release != 'true' }}
-        uses: actions/upload-artifact@v4
+      - uses: actions/setup-java@v5
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
         with:
-          name: protocolo-debug-apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-          if-no-files-found: error
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v5
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: gradle/actions/setup-gradle@v5
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
+
+      - name: Install
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
+        working-directory: frontend
+        run: npm ci --no-fund --no-audit
+
+      - name: Build web app and sync Capacitor
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
+        working-directory: frontend
+        run: npm run cap:sync
 
       - name: Write keystore
-        if: ${{ steps.signing.outputs.release == 'true' }}
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
         working-directory: frontend/android
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -279,14 +317,14 @@ jobs:
           } > keystore.properties
 
       - name: Build signed release APK
-        if: ${{ steps.signing.outputs.release == 'true' }}
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
         working-directory: frontend/android
         run: |
           ./gradlew assembleRelease -PversionCode=${{ github.run_number }} -PversionName="$VERSION_NAME" --no-daemon
           cp app/build/outputs/apk/release/app-release.apk "protocolo-$VERSION_NAME.apk"
 
       - name: Publish GitHub Release
-        if: ${{ steps.signing.outputs.release == 'true' }}
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION_NAME }}
@@ -294,8 +332,9 @@ jobs:
           name: Protocolo ${{ env.VERSION_NAME }}
           files: frontend/android/protocolo-${{ env.VERSION_NAME }}.apk
           fail_on_unmatched_files: true
+          token: ${{ github.token }}
 
       - name: Remove signing material
-        if: ${{ always() && steps.signing.outputs.release == 'true' }}
+        if: ${{ always() && steps.signing.outputs.enabled == 'true' }}
         working-directory: frontend/android
         run: rm -f release.jks keystore.properties

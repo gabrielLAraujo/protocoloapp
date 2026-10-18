@@ -5,8 +5,8 @@ The `android` job in `.github/workflows/ci.yml` builds the APK.
 | Event | Result |
 | --- | --- |
 | Pull request, push to `feat/**` | Debug APK as the workflow artifact `protocolo-debug-apk` (kept 7 days) |
-| Push to `main`, signing secrets set | Signed release APK published as GitHub Release `v0.1.<run number>` with the file `protocolo-0.1.<run number>.apk` |
-| Push to `main`, a secret missing | Debug APK artifact and a `::warning::` annotation; the job still passes |
+| Push to `main`, signing secrets set | Separate `release` job (after `android`): signed release APK published as GitHub Release `v0.1.<run number>` with the file `protocolo-0.1.<run number>.apk` |
+| Push to `main`, a secret missing | `release` job warns and does nothing; debug artifact still produced |
 
 `versionCode` is the run number and `versionName` is `0.1.<run number>`, passed to Gradle with `-P`.
 

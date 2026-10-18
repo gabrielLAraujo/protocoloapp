@@ -52,7 +52,8 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 builder.Services.AddCors(options => options.AddPolicy(AppCorsPolicy, policy => policy
     .WithOrigins(allowedOrigins)
     .AllowAnyHeader()
-    .AllowAnyMethod()));
+    .AllowAnyMethod()
+    .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
 
 builder.Services.AddAuth(builder.Configuration);
 builder.Services.AddAppRateLimiting();
