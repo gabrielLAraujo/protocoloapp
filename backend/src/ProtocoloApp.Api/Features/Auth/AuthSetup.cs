@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -16,13 +17,15 @@ public static class AuthSetup
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        // Fails the startup (not the build-time OpenAPI/EF host build, which never starts) on a missing or short key.
-        services.AddOptions<AuthOptions>()
+        // A missing or short key fails the startup. The build-time tools (OpenAPI document generation runs the app's host,
+        // `dotnet ef` builds it) have no key and need none: they are exempt from the startup check.
+        var options = services.AddOptions<AuthOptions>()
             .Bind(configuration.GetSection(AuthOptions.Section))
             .Validate(
                 o => Encoding.UTF8.GetByteCount(o.SigningKey) >= AuthOptions.MinimumSigningKeyBytes,
-                $"Auth:SigningKey must have at least {AuthOptions.MinimumSigningKeyBytes} bytes.")
-            .ValidateOnStart();
+                $"Auth:SigningKey must have at least {AuthOptions.MinimumSigningKeyBytes} bytes.");
+        if (!IsBuildTool())
+            options.ValidateOnStart();
 
         services.AddIdentityCore<AppUser>(options =>
             {
@@ -70,6 +73,9 @@ public static class AuthSetup
 
         return services;
     }
+
+    private static bool IsBuildTool() =>
+        Assembly.GetEntryAssembly()?.GetName().Name is "GetDocument.Insider" or "ef" or "dotnet-ef";
 
     /// <summary>The id of the logged-in user (the <c>sub</c> claim). Features use it to scope every query to its owner.</summary>
     /// <exception cref="InvalidOperationException">The principal carries no valid <c>sub</c> (not authenticated).</exception>
