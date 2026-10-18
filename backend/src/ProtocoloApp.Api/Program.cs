@@ -1,9 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Sync;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
@@ -47,9 +49,12 @@ builder.Services.AddAppRateLimiting();
 builder.Services.AddSync()
     .AddSyncHandler<DailyCheckinSyncHandler>();
 
+builder.Services.AddFiles(builder.Configuration);
+
 builder.Services.AddOpenApi();
+// Tags: /health (liveness) runs the "live" checks, /health/ready runs the "ready" ones (Postgres and the storage bucket).
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>();
+    .AddDbContextCheck<AppDbContext>(tags: ["live", FilesSetup.ReadyTag]);
 
 var app = builder.Build();
 
@@ -71,14 +76,16 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-// Liveness: the process is up and Postgres answers. (/health/ready, with the storage check, comes with the files feature.)
-app.MapHealthChecks("/health");
+// Liveness: the process is up and Postgres answers. Readiness adds the object storage bucket.
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = check => check.Tags.Contains("live") });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(FilesSetup.ReadyTag) });
 
 // Every /api endpoint needs a logged-in user unless it says AllowAnonymous() (login, refresh, logout). Features map their
 // endpoints on this group. (A fallback policy would also gate unknown routes with 401 instead of 404, and /health and the SPA.)
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuth();
 api.MapSync();
+api.MapFiles();
 
 app.MapSpaFallback();
 
