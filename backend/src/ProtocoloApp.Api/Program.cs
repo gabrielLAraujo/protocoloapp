@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Auth;
+using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.Sync;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
 using Scalar.AspNetCore;
@@ -37,6 +39,8 @@ builder.Services.AddDbContext<AppDbContext>(options => options
 
 builder.Services.AddAuth(builder.Configuration);
 builder.Services.AddAppRateLimiting();
+builder.Services.AddSync()
+    .AddSyncHandler<DailyCheckinSyncHandler>();
 
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks()
@@ -69,6 +73,7 @@ app.MapHealthChecks("/health");
 // endpoints on this group. (A fallback policy would also gate unknown routes with 401 instead of 404, and /health and the SPA.)
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuth();
+api.MapSync();
 
 app.MapSpaFallback();
 
