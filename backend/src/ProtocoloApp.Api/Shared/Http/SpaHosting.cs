@@ -13,8 +13,13 @@ public static class SpaHosting
     // Files under /assets carry a content hash in their name (Vite renames them on every change), so they never change.
     private const string ImmutableCache = "public,max-age=31536000,immutable";
 
-    // Everything else (index.html, icons) is revalidated on every visit: a new deploy shows up at once, and the ETag avoids the download.
+    // Everything else is revalidated on every visit: a new deploy shows up at once, and the ETag avoids the download. This
+    // includes the files with a fixed name that the PWA depends on (sw.js, registerSW.js, manifest.webmanifest, index.html):
+    // a browser that cached sw.js for a day would keep serving the old app for a day.
     private const string RevalidateCache = "no-cache";
+
+    // Not in the default table of the content-type provider on every version; the manifest must be served as this type.
+    private static readonly FileExtensionContentTypeProvider ContentTypes = CreateContentTypes();
 
     // Front routes: any path without a file extension that belongs neither to the API nor to the docs/health endpoints.
     // The fallback must never swallow /api (unknown routes must keep returning the API's 404), /health, /openapi or /scalar;
@@ -26,7 +31,7 @@ public static class SpaHosting
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        return app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = PrepareFileResponse });
+        return app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = PrepareFileResponse, ContentTypeProvider = ContentTypes });
     }
 
     /// <summary>
@@ -40,7 +45,7 @@ public static class SpaHosting
         if (!app.Environment.WebRootFileProvider.GetFileInfo(IndexFile).Exists)
             return;
 
-        var options = new StaticFileOptions { OnPrepareResponse = PrepareIndexResponse };
+        var options = new StaticFileOptions { OnPrepareResponse = PrepareIndexResponse, ContentTypeProvider = ContentTypes };
 
         // The root is mapped separately: the regex of FallbackPattern only accepts paths with a value, and "/" has none.
         app.MapFallbackToFile("/", IndexFile, options).ExcludeFromDescription();
@@ -55,4 +60,11 @@ public static class SpaHosting
     // index.html standing in for a front route is always revalidated, whatever path was requested.
     private static void PrepareIndexResponse(StaticFileResponseContext context) =>
         context.Context.Response.Headers.CacheControl = RevalidateCache;
+
+    private static FileExtensionContentTypeProvider CreateContentTypes()
+    {
+        var provider = new FileExtensionContentTypeProvider();
+        provider.Mappings[".webmanifest"] = "application/manifest+json";
+        return provider;
+    }
 }
