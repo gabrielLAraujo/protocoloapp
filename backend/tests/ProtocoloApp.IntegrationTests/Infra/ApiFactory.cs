@@ -3,10 +3,13 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Shared.Data;
+using ProtocoloApp.Api.Shared.Storage;
 
 namespace ProtocoloApp.IntegrationTests.Infra;
 
@@ -26,6 +29,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private static int _ipCounter;
 
     private readonly PostgresFixture _postgres = new();
+
+    /// <summary>The storage every test talks to: no R2 settings are needed because this replaces the real one.</summary>
+    public FakeFileStorage Storage { get; } = new();
 
     public string ConnectionString => _postgres.ConnectionString;
 
@@ -51,6 +57,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Db", ConnectionString);
         builder.UseSetting("Auth:SigningKey", "test-only-signing-key-0123456789-abcdefghij");
+        builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IFileStorage>(Storage)));
     }
 
     /// <summary>A client whose requests come from an IP no other client of this factory uses (own rate-limit bucket).</summary>
