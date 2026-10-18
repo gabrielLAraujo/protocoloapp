@@ -1,0 +1,45 @@
+# Build context = repository root (docker build -f backend/Dockerfile .). Only what the image uses goes in:
+# frontend/ (without node_modules/dist) and backend/ (without tests, bin and obj).
+
+# Version control and agent tooling
+.git/
+.gitattributes
+.gitignore
+.claude/
+.superpowers/
+
+# Documentation and infra
+docs/
+infra/
+**/*.md
+
+# Build artifacts and dependencies (the image rebuilds everything)
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/coverage/
+**/wwwroot/
+**/.vite/
+**/*.tsbuildinfo
+frontend/android/
+
+# Back-end tests (the Dockerfile only restores and publishes ProtocoloApp.Api)
+backend/tests/
+
+# Local data: never goes into an image
+**/*.local.*
+
+# Secrets and local files
+**/.env
+**/.env.*
+**/*.user
+**/*.local
+**/*.log
+
+# Editors
+**/.vs/
+**/.vscode/
+**/.idea/
+**/.DS_Store

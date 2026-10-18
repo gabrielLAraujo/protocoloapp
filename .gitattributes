@@ -1,0 +1,8 @@
+* text=auto
+*.pdf binary
+*.png binary
+*.jpg binary
+*.sh text eol=lf
+*.jpeg binary
+*.heic binary
+frontend/openapi.json text eol=lf

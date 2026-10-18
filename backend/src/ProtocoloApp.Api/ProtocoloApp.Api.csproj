@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>7b2e4c90-5a1d-4f3b-8c6e-0d9a2f1e4b73</UserSecretsId>
+    <!-- The OpenAPI document is generated on every build (Microsoft.Extensions.ApiDescription.Server) and committed:
+         the front generates its client types from it, and CI fails when the committed file is stale. -->
+    <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)../../../frontend</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name openapi --document-name v1</OpenApiGenerateDocumentsOptions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ProtocoloApp.UnitTests" />
+    <InternalsVisibleTo Include="ProtocoloApp.IntegrationTests" />
+  </ItemGroup>
+
+  <!-- The tool writes into frontend/, which does not exist until the front is scaffolded. -->
+  <Target Name="EnsureOpenApiDirectory" BeforeTargets="CoreCompile" Condition="'$(OpenApiGenerateDocumentsOnBuild)' != 'false'">
+    <MakeDir Directories="$(OpenApiDocumentsDirectory)" />
+  </Target>
+
+</Project>

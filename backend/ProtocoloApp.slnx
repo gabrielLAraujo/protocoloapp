@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ProtocoloApp.Api/ProtocoloApp.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ProtocoloApp.IntegrationTests/ProtocoloApp.IntegrationTests.csproj" />
+    <Project Path="tests/ProtocoloApp.UnitTests/ProtocoloApp.UnitTests.csproj" />
+  </Folder>
+</Solution>

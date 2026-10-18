@@ -1,0 +1,51 @@
+# Coolify: New Resource → Docker Compose → this file (build context: infra/devbox).
+# Services:
+#   devbox   – the agents' workstation (.NET 10, Node 24, dotnet-ef, gh, Claude Code, Chromium)
+#   dind     – isolated Docker daemon for Testcontainers (integration tests start Postgres containers here)
+#   postgres – long-lived dev database with fictitious data, for running the API, `npm run gen:api` and visual checks
+services:
+  devbox:
+    build:
+      context: .
+      args:
+        INSTALL_PLAYWRIGHT: "true"
+    restart: unless-stopped
+    environment:
+      DOCKER_HOST: tcp://dind:2375
+      TESTCONTAINERS_HOST_OVERRIDE: dind
+      ConnectionStrings__Db: Host=postgres;Database=protocoloapp;Username=protocoloapp;Password=${POSTGRES_PASSWORD}
+    volumes:
+      - devbox-home:/home/dev
+    depends_on:
+      - dind
+      - postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+
+  dind:
+    image: docker:27-dind
+    restart: unless-stopped
+    privileged: true # required by Docker-in-Docker; it only runs the test containers, never the host's
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command: ["--host=tcp://0.0.0.0:2375"]
+    volumes:
+      - dind-data:/var/lib/docker
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: protocoloapp
+      POSTGRES_USER: protocoloapp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+
+volumes:
+  devbox-home:
+  dind-data:
+  postgres-data:

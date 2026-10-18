@@ -1,0 +1,136 @@
+# Build and tests for every PR, feature branch and main. The three jobs run in parallel; merging waits for all green.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/**']
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore
+
+      # TreatWarningsAsErrors comes from Directory.Build.props: a warning breaks the build.
+      # The build also writes frontend/openapi.json (Microsoft.Extensions.ApiDescription.Server).
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Upload generated OpenAPI
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: frontend/openapi.json
+          if-no-files-found: warn
+
+      # The integration tests start a Postgres in a container (Testcontainers); the runner already has Docker.
+      - name: Tests
+        run: dotnet test --no-build --logger "trx" --results-directory TestResults
+
+      # Counts and each failed test become job annotations, readable through the API without downloading the log.
+      - name: Test summary
+        if: ${{ !cancelled() }}
+        shell: python
+        run: |
+          import glob
+          import xml.etree.ElementTree as ET
+
+          ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+
+          def prop(text):
+              return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A").replace(":", "%3A").replace(",", "%2C")
+
+          def message(text):
+              return " ".join(text.split())[:900].replace("%", "%25")
+
+          counts = {"Passed": 0, "Failed": 0}
+          others = 0
+          for path in glob.glob("TestResults/*.trx"):
+              for result in ET.parse(path).getroot().iterfind(".//t:UnitTestResult", ns):
+                  outcome = result.get("outcome")
+                  if outcome in counts:
+                      counts[outcome] += 1
+                  else:
+                      others += 1
+                  if outcome == "Failed":
+                      error = result.findtext(".//t:ErrorInfo/t:Message", default="", namespaces=ns)
+                      print(f"::error title={prop(result.get('testName', '?'))}::{message(error)}")
+
+          print(f"::notice title=Backend tests::{counts['Passed']} passed, {counts['Failed']} failed, {others} skipped.")
+
+      # Fails when the committed frontend/openapi.json differs from the one this build generated. Intent-to-add makes a
+      # generated-but-never-committed file count as a difference too.
+      - name: OpenAPI is up to date
+        working-directory: .
+        run: |
+          git add --intent-to-add frontend/openapi.json
+          git diff --exit-code -- frontend/openapi.json
+
+  frontend:
+    name: Frontend
+    # The front does not exist yet; the job is skipped until frontend/package.json shows up.
+    if: ${{ hashFiles('frontend/package.json') != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci --no-fund --no-audit
+
+      - name: Lint and types
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      # Same image Coolify builds on every push to main. Here we only check that it builds; nothing is published.
+      - name: Build the image
+        run: docker build -f backend/Dockerfile -t protocoloapp:ci .
