@@ -374,8 +374,6 @@ jobs:
       VERSION_NAME: 0.1.${{ github.run_number }}
       # The update check compares this with the latest GitHub release.
       VITE_APP_VERSION: 0.1.${{ github.run_number }}
-      # Signing material lives outside the workspace and is deleted right after the build (app/build.gradle reads this).
-      ANDROID_KEYSTORE_PROPERTIES: ${{ runner.temp }}/signing/keystore.properties
     steps:
       - uses: actions/checkout@v5
         with:
@@ -430,6 +428,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # Outside the workspace, deleted right after the build. app/build.gradle finds it through ANDROID_KEYSTORE_PROPERTIES
+        # (set here: the runner context is not available in a job-level env).
         run: |
           dir="$RUNNER_TEMP/signing"
           mkdir -p "$dir"
@@ -440,7 +440,8 @@ jobs:
             echo "storePassword=$KEYSTORE_PASSWORD"
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PASSWORD"
-          } > "$ANDROID_KEYSTORE_PROPERTIES"
+          } > "$dir/keystore.properties"
+          echo "ANDROID_KEYSTORE_PROPERTIES=$dir/keystore.properties" >> "$GITHUB_ENV"
 
       - name: Build signed release APK
         if: ${{ steps.signing.outputs.enabled == 'true' }}
