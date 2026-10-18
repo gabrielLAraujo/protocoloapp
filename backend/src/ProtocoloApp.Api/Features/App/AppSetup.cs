@@ -19,6 +19,7 @@ public static class AppSetup
             })
             // Redirects are followed by hand: the asset API redirects to a signed URL on another host, which must not get the token.
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddSingleton<ReleaseGate>();
         services.AddScoped<ReleaseCache>();
         return services;
     }

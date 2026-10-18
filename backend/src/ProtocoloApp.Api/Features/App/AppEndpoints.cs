@@ -45,8 +45,9 @@ public static class AppEndpoints
         }
     }
 
-    private static async Task<IResult> ApkAsync(ReleaseCache releases, GitHubReleaseClient github, CancellationToken ct)
+    private static async Task<IResult> ApkAsync(HttpContext http, ReleaseCache releases, GitHubReleaseClient github, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(releases);
         ArgumentNullException.ThrowIfNull(github);
 
@@ -66,14 +67,16 @@ public static class AppEndpoints
             return Unavailable();
         }
 
+        // Disposed with the request even if the stream callback never runs.
+        http.Response.RegisterForDispose(response);
+        if (response.Content.Headers.ContentLength is { } length)
+            http.Response.ContentLength = length;
+
         return Results.Stream(
             async output =>
             {
-                using (response)
-                {
-                    await using var source = await response.Content.ReadAsStreamAsync(ct);
-                    await source.CopyToAsync(output, ct);
-                }
+                await using var source = await response.Content.ReadAsStreamAsync(ct);
+                await source.CopyToAsync(output, ct);
             },
             ApkContentType,
             $"protocolo-{release.Version}.apk");

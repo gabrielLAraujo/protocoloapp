@@ -14,10 +14,13 @@ public sealed class FakeGitHubHandler(Func<RecordedRequest, HttpResponseMessage>
 
     public IReadOnlyCollection<RecordedRequest> Requests => _requests;
 
+    /// <summary>How long GitHub takes to answer (to make concurrent requests overlap).</summary>
+    public TimeSpan Delay { get; init; }
+
     public static HttpResponseMessage Json(string json, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -27,6 +30,8 @@ public sealed class FakeGitHubHandler(Func<RecordedRequest, HttpResponseMessage>
             request.Headers.Authorization?.ToString(),
             request.Headers.Accept.ToString());
         _requests.Enqueue(recorded);
-        return Task.FromResult(responder(recorded));
+        if (Delay > TimeSpan.Zero)
+            await Task.Delay(Delay, cancellationToken);
+        return responder(recorded);
     }
 }

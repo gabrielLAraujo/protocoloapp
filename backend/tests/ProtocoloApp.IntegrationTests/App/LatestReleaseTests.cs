@@ -56,6 +56,46 @@ public sealed class LatestReleaseTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Concurrent_requests_on_a_cold_cache_make_one_github_call()
+    {
+        var github = new FakeGitHubHandler(_ => FakeGitHubHandler.Json(ReleaseJson)) { Delay = TimeSpan.FromMilliseconds(300) };
+        using var app = AppWith(github, token: "test-token");
+        using var client = await LoggedInClientAsync(app);
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 5)
+            .Select(_ => client.GetAsync(new Uri("/api/app/latest-release", UriKind.Relative))));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Single(github.Requests);
+    }
+
+    [Fact]
+    public async Task A_github_failure_is_remembered_for_a_minute()
+    {
+        var github = new FakeGitHubHandler(_ => FakeGitHubHandler.Json("{}", HttpStatusCode.BadGateway));
+        using var app = AppWith(github, token: "test-token");
+        using var client = await LoggedInClientAsync(app);
+
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.GetAsync(new Uri("/api/app/latest-release", UriKind.Relative))).StatusCode);
+
+        Assert.Single(github.Requests);
+    }
+
+    [Fact]
+    public async Task No_release_yet_is_remembered_for_a_minute()
+    {
+        var github = new FakeGitHubHandler(_ => FakeGitHubHandler.Json("{}", HttpStatusCode.NotFound));
+        using var app = AppWith(github, token: "test-token");
+        using var client = await LoggedInClientAsync(app);
+
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri("/api/app/latest-release", UriKind.Relative))).StatusCode);
+
+        Assert.Single(github.Requests);
+    }
+
+    [Fact]
     public async Task Returns_503_problem_when_github_is_down()
     {
         var github = new FakeGitHubHandler(_ => FakeGitHubHandler.Json("{}", HttpStatusCode.BadGateway));
@@ -125,6 +165,9 @@ public sealed class LatestReleaseTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/vnd.android.package-archive", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(ApkBytes, await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal(ApkBytes.Length, response.Content.Headers.ContentLength);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Equal("protocolo-0.1.12.apk", response.Content.Headers.ContentDisposition?.FileName);
 
         var asset = Assert.Single(github.Requests, r => r.Uri.AbsolutePath == AssetPath);
         Assert.Equal("Bearer test-token", asset.Authorization);
