@@ -35,22 +35,59 @@ public sealed class RefreshTests(ApiFactory factory)
         Assert.False(string.IsNullOrWhiteSpace(second.AccessToken));
         Assert.NotEqual(first.RefreshToken, second.RefreshToken);
 
-        var replay = await AuthApi.RefreshAsync(client, first.RefreshToken);
-        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        var next = await AuthApi.RefreshAsync(client, second.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
     }
 
     [Fact]
-    public async Task Reused_refresh_token_revokes_family()
+    public async Task Retry_within_grace_after_a_lost_response_succeeds_and_revokes_the_unused_successor()
     {
         var (client, first) = await LoginNewUserAsync();
         using var _ = client;
-        var second = await (await AuthApi.RefreshAsync(client, first.RefreshToken)).Content.ReadFromJsonAsync<TokenResponse>();
+        // The server rotated, but the answer never reached the phone.
+        var lost = await ReadTokensAsync(await AuthApi.RefreshAsync(client, first.RefreshToken));
 
-        // The old token comes back (leaked, or a race between two requests): 401 and the whole family dies.
+        var retry = await AuthApi.RefreshAsync(client, first.RefreshToken);
+
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        var retried = await ReadTokensAsync(retry);
+        Assert.NotEqual(lost.RefreshToken, retried.RefreshToken);
+        Assert.Equal(1, await LiveTokensInFamilyAsync(retried.RefreshToken));
+        Assert.NotNull(await RevokedAtAsync(lost.RefreshToken));
+
+        var next = await AuthApi.RefreshAsync(client, retried.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reuse_after_the_grace_revokes_family()
+    {
+        var (client, first) = await LoginNewUserAsync();
+        using var _ = client;
+        var second = await ReadTokensAsync(await AuthApi.RefreshAsync(client, first.RefreshToken));
+        await MoveSpendBackAsync(first.RefreshToken, TokenService.ReuseGrace + TimeSpan.FromSeconds(1));
+
+        // The old token comes back after the grace (leaked): 401 and the whole family dies.
         var reuse = await AuthApi.RefreshAsync(client, first.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, reuse.StatusCode);
 
-        var newest = await AuthApi.RefreshAsync(client, second!.RefreshToken);
+        var newest = await AuthApi.RefreshAsync(client, second.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, newest.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reuse_after_the_successor_was_used_revokes_family()
+    {
+        var (client, first) = await LoginNewUserAsync();
+        using var _ = client;
+        var second = await ReadTokensAsync(await AuthApi.RefreshAsync(client, first.RefreshToken));
+        var third = await ReadTokensAsync(await AuthApi.RefreshAsync(client, second.RefreshToken));
+
+        // Within the grace, but the successor was used: someone else holds the chain. 401 and the family dies.
+        var reuse = await AuthApi.RefreshAsync(client, first.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, reuse.StatusCode);
+
+        var newest = await AuthApi.RefreshAsync(client, third.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, newest.StatusCode);
     }
 
@@ -94,7 +131,7 @@ public sealed class RefreshTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Concurrent_refreshes_with_same_token_yield_one_winner_and_revoke_family()
+    public async Task Concurrent_refreshes_with_same_token_leave_exactly_one_live_token()
     {
         var (client, first) = await LoginNewUserAsync();
         using var _ = client;
@@ -103,13 +140,19 @@ public sealed class RefreshTests(ApiFactory factory)
             AuthApi.RefreshAsync(client, first.RefreshToken),
             AuthApi.RefreshAsync(client, first.RefreshToken));
 
-        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
-        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Unauthorized);
+        // Serialized by the family lock, the second is a retry within the grace: both succeed, and the second revokes
+        // the first one's successor. Exactly one refresh token stays alive, and it is one of the two returned.
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        var returned = await Task.WhenAll(responses.Select(ReadTokensAsync));
+        Assert.NotEqual(returned[0].RefreshToken, returned[1].RefreshToken);
+        Assert.Equal(1, await LiveTokensInFamilyAsync(returned[0].RefreshToken));
 
-        // The loser counts as a reuse: the winner's new token dies with the family.
-        var winner = await responses.Single(r => r.IsSuccessStatusCode).Content.ReadFromJsonAsync<TokenResponse>();
-        var next = await AuthApi.RefreshAsync(client, winner!.RefreshToken);
-        Assert.Equal(HttpStatusCode.Unauthorized, next.StatusCode);
+        var states = await Task.WhenAll(returned.Select(t => RevokedAtAsync(t.RefreshToken)));
+        Assert.Single(states, revokedAt => revokedAt is null);
+        var live = returned[Array.FindIndex(states, revokedAt => revokedAt is null)];
+
+        var next = await AuthApi.RefreshAsync(client, live.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
     }
 
     [Theory]
@@ -125,5 +168,43 @@ public sealed class RefreshTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    private static async Task<TokenResponse> ReadTokensAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<TokenResponse>())!;
+    }
+
+    private static string Hash(string raw) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
+
+    private async Task<DateTimeOffset?> RevokedAtAsync(string rawToken)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hash = Hash(rawToken);
+        return await db.RefreshTokens.Where(t => t.TokenHash == hash).Select(t => t.RevokedAt).SingleAsync();
+    }
+
+    /// <summary>Unrevoked tokens in the family of <paramref name="rawToken"/>.</summary>
+    private async Task<int> LiveTokensInFamilyAsync(string rawToken)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hash = Hash(rawToken);
+        var familyId = await db.RefreshTokens.Where(t => t.TokenHash == hash).Select(t => t.FamilyId).SingleAsync();
+        return await db.RefreshTokens.CountAsync(t => t.FamilyId == familyId && t.RevokedAt == null);
+    }
+
+    /// <summary>Makes the spend of <paramref name="rawToken"/> look <paramref name="ago"/> old (instead of waiting).</summary>
+    private async Task MoveSpendBackAsync(string rawToken, TimeSpan ago)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hash = Hash(rawToken);
+        var spentAt = DateTimeOffset.UtcNow - ago;
+        var updated = await db.RefreshTokens.Where(t => t.TokenHash == hash)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, spentAt));
+        Assert.Equal(1, updated);
     }
 }

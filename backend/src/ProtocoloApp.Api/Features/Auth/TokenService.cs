@@ -16,6 +16,12 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
 
+    /// <summary>
+    /// How long after a token was spent its owner may present it again (the response with the successor was lost: weak
+    /// signal at the gym) as long as that successor was never used.
+    /// </summary>
+    public static readonly TimeSpan ReuseGrace = TimeSpan.FromSeconds(60);
+
     private const int RefreshTokenBytes = 32;
 
     public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(AppUser user)
@@ -51,7 +57,10 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
 
     /// <summary>
     /// Spends <paramref name="rawToken"/> and issues the next one in its family. A token that was already spent is a reuse
-    /// (leak or race): the whole family is revoked and the call fails.
+    /// (leak or race): the whole family is revoked and the call fails, except within <see cref="ReuseGrace"/> of the spend
+    /// while its successor was never used. Then the successor is revoked and the family rotates again, so at most one live
+    /// refresh token exists per family at any time (two simultaneous refreshes both succeed, but only the later one's
+    /// token stays alive; using the earlier one afterwards is a reuse).
     /// </summary>
     /// <exception cref="InvalidRefreshTokenException">Unknown, expired, revoked or reused token.</exception>
     public async Task<(Guid UserId, string RefreshToken)> RotateAsync(string rawToken, CancellationToken cancellationToken = default)
@@ -71,21 +80,54 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
 
         if (spent == 0)
         {
+            // Read again under the lock: the copy above may predate the spend.
+            var current = await db.RefreshTokens.AsNoTracking().SingleAsync(t => t.Id == token.Id, cancellationToken);
+            if (await TryRevokeUnusedSuccessorAsync(current, now, cancellationToken))
+            {
+                var retried = await IssueSuccessorAsync(current, cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return (current.UserId, retried);
+            }
+
             // The row was unrevoked when read, so 0 rows means someone spent or revoked it in between: that is a reuse
             // too. Only a plainly expired token fails without taking the family down.
-            if (token.ExpiresAt > now)
-                await RevokeFamilyRowsAsync(token.FamilyId, cancellationToken);
+            if (current.ExpiresAt > now)
+                await RevokeFamilyRowsAsync(current.FamilyId, cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
             throw new InvalidRefreshTokenException();
         }
 
+        var nextRaw = await IssueSuccessorAsync(token, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (token.UserId, nextRaw);
+    }
+
+    /// <summary>
+    /// The grace for a lost response: <paramref name="token"/> was spent (not revoked: it has a successor) at most
+    /// <see cref="ReuseGrace"/> ago, and its successor is still unused. Revokes that successor and returns true.
+    /// </summary>
+    private async Task<bool> TryRevokeUnusedSuccessorAsync(RefreshToken token, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (token.ExpiresAt <= now || token.RevokedAt is not { } spentAt || token.ReplacedById is not { } successorId)
+            return false;
+        if (now - spentAt > ReuseGrace)
+            return false;
+
+        // Unused = never spent nor revoked. Conditional, under the family lock: nobody can use it meanwhile.
+        var revoked = await db.RefreshTokens
+            .Where(t => t.Id == successorId && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), cancellationToken);
+        return revoked == 1;
+    }
+
+    /// <summary>Issues the next token of <paramref name="token"/>'s family and records it as its successor.</summary>
+    private async Task<string> IssueSuccessorAsync(RefreshToken token, CancellationToken cancellationToken)
+    {
         var (nextId, nextRaw) = await IssueAsync(token.UserId, token.FamilyId, cancellationToken);
         await db.RefreshTokens.Where(t => t.Id == token.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.ReplacedById, nextId), cancellationToken);
-
-        await transaction.CommitAsync(cancellationToken);
-        return (token.UserId, nextRaw);
+        return nextRaw;
     }
 
     /// <summary>Logout: revokes the family of the token. Unknown tokens are ignored (idempotent, reveals nothing).</summary>
