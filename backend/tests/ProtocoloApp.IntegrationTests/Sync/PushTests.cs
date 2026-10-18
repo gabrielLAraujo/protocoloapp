@@ -222,6 +222,26 @@ public sealed class PushTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Upsert_older_than_delete_is_stale_and_record_stays_deleted()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+        var t2 = SyncApi.Past(5);
+        var t1 = t2.AddMinutes(-1);
+
+        await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, t2.AddMinutes(-10)));
+        Assert.Equal(SyncResultStatus.Applied, (await SyncApi.PushOneAsync(client, SyncApi.Delete(id, t2))).Status);
+        var result = await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, t1, sleepQuality: 1));
+
+        Assert.Equal(SyncResultStatus.Stale, result.Status);
+        var record = Assert.Single(await SyncApi.PullAllAsync(client));
+        Assert.Equal(id, record.Id);
+        Assert.NotNull(record.DeletedAt);
+        Assert.Null(record.Payload);
+        Assert.NotNull(Assert.Single(await SyncApi.RowsAsync(factory, id)).DeletedAt);
+    }
+
+    [Fact]
     public async Task Other_user_cannot_overwrite_record()
     {
         using var owner = await NewUserAsync();
