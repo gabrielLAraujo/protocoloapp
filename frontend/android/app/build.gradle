@@ -1,7 +1,10 @@
 apply plugin: 'com.android.application'
 
-// Release signing comes from android/keystore.properties, which CI writes from secrets (gitignored; see docs/ci/README.md).
-def keystorePropertiesFile = rootProject.file('keystore.properties')
+// Release signing comes from a keystore.properties file: the one named by ANDROID_KEYSTORE_PROPERTIES (CI writes it from
+// secrets under the runner's temp dir, outside the workspace), else android/keystore.properties (gitignored; see
+// docs/ci/README.md). Its storeFile may be absolute.
+def keystorePropertiesPath = System.getenv('ANDROID_KEYSTORE_PROPERTIES')
+def keystorePropertiesFile = keystorePropertiesPath ? new File(keystorePropertiesPath) : rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }

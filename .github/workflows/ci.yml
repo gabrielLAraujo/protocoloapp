@@ -7,8 +7,10 @@ on:
     branches: [main, 'feat/**']
   workflow_dispatch:
 
+# Keyed on the branch (head_ref for PRs, ref_name for pushes), so the push run and the pull_request run of the same commit
+# collapse into one: the later one cancels the other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   # A newer push replaces a running check, but never a run on main: it may be in the middle of publishing a release.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
@@ -356,11 +358,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # Signed release as a GitHub Release, only on main and only after the debug build passed (see docs/ci/README.md).
+  # Signed release as a GitHub Release, only on main and only after every other job passed (see docs/ci/README.md).
   # Without the signing secrets it warns and does nothing.
   release:
     name: Android release
-    needs: android
+    needs: [android, backend, frontend, image, e2e]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -372,6 +374,8 @@ jobs:
       VERSION_NAME: 0.1.${{ github.run_number }}
       # The update check compares this with the latest GitHub release.
       VITE_APP_VERSION: 0.1.${{ github.run_number }}
+      # Signing material lives outside the workspace and is deleted right after the build (app/build.gradle reads this).
+      ANDROID_KEYSTORE_PROPERTIES: ${{ runner.temp }}/signing/keystore.properties
     steps:
       - uses: actions/checkout@v5
         with:
@@ -421,40 +425,46 @@ jobs:
 
       - name: Write keystore
         if: ${{ steps.signing.outputs.enabled == 'true' }}
-        working-directory: frontend/android
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE" | base64 -d > release.jks
+          dir="$RUNNER_TEMP/signing"
+          mkdir -p "$dir"
+          chmod 700 "$dir"
+          echo "$KEYSTORE" | base64 -d > "$dir/release.jks"
           {
-            echo "storeFile=release.jks"
+            echo "storeFile=$dir/release.jks"
             echo "storePassword=$KEYSTORE_PASSWORD"
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PASSWORD"
-          } > keystore.properties
+          } > "$ANDROID_KEYSTORE_PROPERTIES"
 
       - name: Build signed release APK
         if: ${{ steps.signing.outputs.enabled == 'true' }}
         working-directory: frontend/android
         run: |
           ./gradlew assembleRelease -PversionCode=${{ github.run_number }} -PversionName="$VERSION_NAME" --no-daemon
-          cp app/build/outputs/apk/release/app-release.apk "protocolo-$VERSION_NAME.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/protocolo-$VERSION_NAME.apk"
 
-      - name: Publish GitHub Release
-        if: ${{ steps.signing.outputs.enabled == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION_NAME }}
-          target_commitish: ${{ github.sha }}
-          name: Protocolo ${{ env.VERSION_NAME }}
-          files: frontend/android/protocolo-${{ env.VERSION_NAME }}.apk
-          fail_on_unmatched_files: true
-          token: ${{ github.token }}
-
+      # Right after the build (even a failed one) and before anything is published.
       - name: Remove signing material
         if: ${{ always() && steps.signing.outputs.enabled == 'true' }}
-        working-directory: frontend/android
-        run: rm -f release.jks keystore.properties
+        run: rm -rf "$RUNNER_TEMP/signing"
+
+      # gh instead of a third-party action: the token only goes to GitHub's own CLI.
+      - name: Publish GitHub Release
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ env.VERSION_NAME }}
+        run: |
+          apk="$RUNNER_TEMP/protocolo-$VERSION_NAME.apk"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$apk" --clobber
+          else
+            gh release create "$TAG" "$apk" --target "$GITHUB_SHA" --title "Protocolo $VERSION_NAME" --notes "Build ${GITHUB_SHA::7}."
+          fi

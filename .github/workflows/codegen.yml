@@ -28,7 +28,10 @@ jobs:
       run:
         working-directory: backend
     steps:
+      # No token left in .git/config: only the push step below gets it, through its environment.
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -80,6 +83,7 @@ jobs:
         working-directory: .
         env:
           BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -89,5 +93,7 @@ jobs:
             exit 0
           fi
           git commit -m "chore(codegen): generated migration and OpenAPI"
-          git pull --rebase origin "$BRANCH"
-          git push origin "HEAD:$BRANCH"
+          # The token only lives in this variable (never echoed; Actions masks it anyway).
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull --rebase "$remote" "$BRANCH"
+          git push "$remote" "HEAD:$BRANCH"
