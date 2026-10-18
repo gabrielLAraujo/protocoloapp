@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Response } from '@playwright/test'
 
 // The user is created beforehand with `create-user` (CI does it); fictitious credentials.
 const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
@@ -23,10 +23,25 @@ function watch(page: Page) {
   return seen
 }
 
-/** Waits for the header to say "Sincronizado"; on timeout the error carries the header text and the recent API calls. */
+const isPull = (response: Response) => response.url().includes('/api/sync/pull') && response.request().method() === 'GET'
+const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
+
+/** A pull answered 200 with at least one record. */
+async function pullWithRecords(response: Response) {
+  if (!isPull(response) || response.status() !== 200) return false
+  const body = (await response.json().catch(() => ({}))) as { records?: unknown[] }
+  return (body.records?.length ?? 0) >= 1
+}
+
+/**
+ * Waits for the header to say "Sincronizado" with nothing pending. The label only appears after a complete run (push and
+ * pull) that did not fail, so it is a real sync, not the idle state. On timeout the error carries the header text and the
+ * recent API calls.
+ */
 async function expectSynced(page: Page, seen: string[]) {
   try {
-    await expect(page.getByText('Sincronizado', { exact: true })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: /^Sincronizado$/ })).toBeVisible()
+    await expect(page.locator('header').getByText(/pendente/)).toHaveCount(0)
   } catch (error) {
     const header = (await page.locator('header').innerText()).replace(/\s+/g, ' ')
     throw new Error(`HEADER[${header}] API[${seen.slice(-12).join(' ; ')}] ${(error as Error).message}`)
@@ -56,8 +71,10 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   const contextA = await browser.newContext()
   const a = await contextA.newPage()
   const seenByA = watch(a)
+  const firstPull = a.waitForResponse((r) => isPull(r) && r.status() === 200)
   await login(a)
-  await expect(a.getByText('Sincronizado', { exact: true })).toBeVisible()
+  await firstPull
+  await expectSynced(a, seenByA)
 
   await contextA.setOffline(true)
   await choose(a, 'Sono (1–5)', '4')
@@ -73,25 +90,23 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   await expect(a.getByText('Salvo — será sincronizado')).toBeVisible()
   await expect(a.getByText('Offline — 1 pendente')).toBeVisible()
 
-  // The network comes back: the pending change is sent.
+  // The network comes back: the pending change is sent (the 'online' event may already start the run).
+  const pushed = a.waitForResponse(isPush)
   await contextA.setOffline(false)
   await a.getByRole('button', { name: 'Sincronizar agora' }).click()
+  expect((await pushed).status()).toBe(200)
   await expectSynced(a, seenByA)
 
-  // Device B: another browser profile signs in and receives the same check-in.
+  // Device B: another browser profile signs in and receives the same check-in. Its first pull brings the record and the
+  // open form refreshes itself (no navigation needed).
   const contextB = await browser.newContext()
   const b = await contextB.newPage()
   const seenByB = watch(b)
+  const pulled = b.waitForResponse(pullWithRecords)
   await login(b)
-
-  // The form reads the local database when it opens, so leave the screen and come back until the first pull has landed.
-  // (In-app navigation, not a reload: a reload would restart the token refresh and could cut it halfway.)
   try {
-    await expect(async () => {
-      await b.getByRole('link', { name: 'Diagnóstico' }).click()
-      await b.goBack()
-      await expect(option(b, 'Sono (1–5)', '4')).toBeChecked({ timeout: 2_000 })
-    }).toPass({ timeout: 45_000 })
+    await pulled
+    await expect(option(b, 'Sono (1–5)', '4')).toBeChecked()
   } catch (error) {
     throw new Error(`B API[${seenByB.join(' ; ')}] ${(error as Error).message}`)
   }
