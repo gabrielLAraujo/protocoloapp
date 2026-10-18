@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using ProtocoloApp.Api.Features.App;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
@@ -61,6 +62,7 @@ builder.Services.AddSync()
     .AddSyncHandler<DailyCheckinSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
+builder.Services.AddAppUpdates(builder.Configuration);
 
 builder.Services.AddOpenApi();
 // Tags: /health (liveness) runs the "live" checks, /health/ready runs the "ready" ones (Postgres and the storage bucket).
@@ -99,6 +101,7 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuth();
 api.MapSync();
 api.MapFiles();
+api.MapApp();
 
 app.MapSpaFallback();
 
