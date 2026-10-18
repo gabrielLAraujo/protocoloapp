@@ -1,0 +1,48 @@
+@import 'tailwindcss';
+
+/* Minimal, dark-friendly: follows the system theme. Colors are tokens; components use only these. */
+@theme {
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --radius-control: 10px;
+}
+
+:root {
+  color-scheme: light dark;
+  --surface: #ffffff;
+  --page: #f6f7f9;
+  --ink: #14181f;
+  --muted: #5b6573;
+  --line: #dde1e7;
+  --accent: #0f766e;
+  --on-accent: #ffffff;
+  --danger: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #171a21;
+    --page: #0f1115;
+    --ink: #eceff4;
+    --muted: #9aa4b2;
+    --line: #2a2f3a;
+    --accent: #5eead4;
+    --on-accent: #06201d;
+    --danger: #f97066;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}

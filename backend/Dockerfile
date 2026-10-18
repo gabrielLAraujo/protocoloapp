@@ -5,17 +5,16 @@
 #   docker build -f backend/Dockerfile -t protocoloapp .
 
 # ---- frontend ----
-# TODO(frontend task): enable this stage and the `COPY --from=frontend` line below once frontend/ exists.
-# FROM node:24-alpine AS frontend
-# WORKDIR /src/frontend
-#
-# COPY frontend/package.json frontend/package-lock.json ./
-# # --include=dev: tsc and Vite are devDependencies; without it an inherited NODE_ENV=production (Coolify passes the
-# # app variables as build args) would install runtime dependencies only and the build would break.
-# RUN npm ci --include=dev --no-fund --no-audit
-#
-# COPY frontend/ ./
-# RUN npm run build
+FROM node:24-alpine AS frontend
+WORKDIR /src/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+# --include=dev: tsc and Vite are devDependencies; without it an inherited NODE_ENV=production (Coolify passes the
+# app variables as build args) would install runtime dependencies only and the build would break.
+RUN npm ci --include=dev --no-fund --no-audit
+
+COPY frontend/ ./
+RUN npm run build
 
 # ---- build ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -51,8 +50,8 @@ WORKDIR /app
 COPY --from=build /app/publish .
 COPY --from=build --chmod=755 /app/efbundle ./efbundle
 COPY --chmod=755 backend/docker-entrypoint.sh ./docker-entrypoint.sh
-# TODO(frontend task): the compiled front goes into the API's webroot (SpaHosting serves it and falls back to index.html)
-# COPY --from=frontend /src/frontend/dist ./wwwroot
+# The compiled front goes into the API's webroot (SpaHosting serves it and falls back to index.html)
+COPY --from=frontend /src/frontend/dist ./wwwroot
 
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080

@@ -4,7 +4,7 @@ App pessoal para acompanhar a consultoria de bodybuilding: protocolos, treinos e
 (SQLite no aparelho, sincronização com a API quando há rede).
 
 - `backend/`: API .NET 10 (ASP.NET, EF Core, PostgreSQL 18) que também serve o build web.
-- `frontend/`: React + Capacitor (APK Android e web). Ainda não existe; chega na tarefa 5 do plano de fundação.
+- `frontend/`: React + Capacitor (APK Android e web). Desenvolvimento: `cd frontend && npm ci && npm run dev` (proxy para a API em `localhost:5091`); `npm run gen:api` regenera `src/api/schema.d.ts` de `openapi.json`.
 - `infra/devbox/`: estação de trabalho dos agentes (Coolify). Veja o README da pasta.
 - `docs/superpowers/`: specs e planos.
 

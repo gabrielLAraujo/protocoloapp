@@ -1,0 +1,28 @@
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vitest/config'
+
+// Local API (the "http" launch profile). The browser only talks to Vite, so dev behaves like production, where the API
+// serves the front on the same origin.
+const api = 'http://localhost:5091'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: {
+    proxy: { '/api': api, '/openapi': api, '/scalar': api },
+  },
+  build: {
+    rolldownOptions: {
+      output: {
+        // React in its own file: it rarely changes, so browsers keep it cached between deploys.
+        codeSplitting: { groups: [{ name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ }] },
+      },
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    // An inherited NODE_ENV=production would load React's production build, which has no `act`.
+    env: { NODE_ENV: 'test' },
+  },
+})
