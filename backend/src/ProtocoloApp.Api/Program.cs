@@ -21,7 +21,12 @@ builder.Services.AddSerilog((services, logger) => logger
 
 builder.Services.AddAppProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+    // Numbers are JSON numbers only (the web default also reads them from strings, which makes OpenAPI type every
+    // integer as "integer | string" in the generated front types).
+    options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+});
 
 // The API runs behind a reverse proxy (Traefik on Coolify) that terminates TLS and is the only thing reaching it:
 // trust its headers for the scheme and the client IP.
