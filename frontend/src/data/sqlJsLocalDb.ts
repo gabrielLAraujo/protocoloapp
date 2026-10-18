@@ -1,12 +1,17 @@
 import initSqlJs, { type SqlValue } from 'sql.js'
-import { createSerializedLocalDb, type LocalDb } from './localDb'
+import { createSerializedLocalDb, type LocalDb, type LocalDbDriver } from './localDb'
 
 /** In-memory SQLite (sql.js) behind the same LocalDb as the app. For the tests. */
 export async function createSqlJsLocalDb(): Promise<LocalDb> {
+  return createSerializedLocalDb(await createSqlJsDriver())
+}
+
+/** The raw sql.js connection, for tests that wrap the driver (e.g. to make a commit fail). */
+export async function createSqlJsDriver(): Promise<LocalDbDriver> {
   const SQL = await initSqlJs()
   const db = new SQL.Database()
 
-  return createSerializedLocalDb({
+  return {
     run: async (sql, params) => {
       db.run(sql, params as SqlValue[])
     },
@@ -30,5 +35,5 @@ export async function createSqlJsLocalDb(): Promise<LocalDb> {
     rollback: async () => {
       db.run('ROLLBACK')
     },
-  })
+  }
 }

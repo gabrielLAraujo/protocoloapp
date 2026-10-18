@@ -70,8 +70,11 @@ export class SyncEngine {
     while (this.current) await this.current.catch(() => undefined)
   }
 
-  /** Runs now, every 60 s, when the device comes back online and when the app returns to the foreground. */
-  start(): () => void {
+  /**
+   * Runs now, every 60 s, when the device comes back online and when the app returns to the foreground. The returned
+   * stop() ends the schedule and resolves once the run in flight (if any) has finished writing.
+   */
+  start(): () => Promise<void> {
     const kick = () => {
       this.runOnce().catch((error: unknown) => console.error('sync failed', error))
     }
@@ -83,6 +86,7 @@ export class SyncEngine {
       clearInterval(timer)
       offOnline()
       offResume()
+      return this.whenIdle()
     }
   }
 
@@ -115,47 +119,58 @@ export class SyncEngine {
     for (;;) {
       const entries = await outbox.due(this.db, this.clock(), PUSH_BATCH)
       if (entries.length === 0) return
-      const seqs = entries.map((e) => e.seq)
-
-      let response
-      try {
-        response = await this.api.POST('/api/sync/push', { body: { changes: entries.map(toChange) } })
-      } catch {
-        await outbox.fail(this.db, seqs, this.clock())
-        throw new StopRun('offline')
-      }
-
-      if (response.response.status === 401) throw new StopRun('unauthorized')
-      // The whole batch refused as malformed: retrying would block every later change forever (they go in order).
-      if (response.response.status === 400) {
-        await this.db.transaction(async (tx) => {
-          for (const seq of seqs) await outbox.reject(tx, seq, ['invalid_request'])
-        })
-        result.rejected += seqs.length
-        continue
-      }
-      const results = response.data?.results
-      // 5xx, 429 or an answer that does not line up with it: keep the entries, retry later.
-      if (!response.response.ok || !results || results.length !== entries.length || results.some((r, i) => r.id !== entries[i]!.id)) {
-        await outbox.fail(this.db, seqs, this.clock())
-        throw new StopRun('server')
-      }
-
-      await this.db.transaction(async (tx) => {
-        const done: number[] = []
-        for (const [i, r] of results.entries()) {
-          const entry = entries[i]!
-          if (r.status === 'rejected') {
-            await outbox.reject(tx, entry.seq, r.errors ?? [])
-            result.rejected++
-          } else {
-            done.push(entry.seq)
-            result.pushed++
-          }
-        }
-        await outbox.ack(tx, done)
-      })
+      await this.send(entries, result)
     }
+  }
+
+  /**
+   * Sends one batch. A 400 refuses the whole batch for one malformed change: the batch is split in halves (in order)
+   * until the culprit is alone, and only that one goes to the attention list.
+   */
+  private async send(entries: OutboxEntry[], result: SyncRunResult): Promise<void> {
+    const seqs = entries.map((e) => e.seq)
+
+    let response
+    try {
+      response = await this.api.POST('/api/sync/push', { body: { changes: entries.map(toChange) } })
+    } catch {
+      await outbox.fail(this.db, seqs, this.clock())
+      throw new StopRun('offline')
+    }
+
+    if (response.response.status === 401) throw new StopRun('unauthorized')
+    if (response.response.status === 400) {
+      if (entries.length === 1) {
+        await outbox.reject(this.db, entries[0]!.seq, ['invalid_request'])
+        result.rejected++
+        return
+      }
+      const middle = Math.ceil(entries.length / 2)
+      await this.send(entries.slice(0, middle), result)
+      await this.send(entries.slice(middle), result)
+      return
+    }
+    const results = response.data?.results
+    // 5xx, 429 or an answer that does not line up with the batch: keep the entries, retry later.
+    if (!response.response.ok || !results || results.length !== entries.length || results.some((r, i) => r.id !== entries[i]!.id)) {
+      await outbox.fail(this.db, seqs, this.clock())
+      throw new StopRun('server')
+    }
+
+    await this.db.transaction(async (tx) => {
+      const done: number[] = []
+      for (const [i, r] of results.entries()) {
+        const entry = entries[i]!
+        if (r.status === 'rejected') {
+          await outbox.reject(tx, entry.seq, r.errors ?? [])
+          result.rejected++
+        } else {
+          done.push(entry.seq)
+          result.pushed++
+        }
+      }
+      await outbox.ack(tx, done)
+    })
   }
 
   private async pull(result: SyncRunResult): Promise<void> {

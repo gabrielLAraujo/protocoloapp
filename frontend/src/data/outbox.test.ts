@@ -103,4 +103,19 @@ describe('outbox', () => {
     expect(await outbox.hasPending(db, 'daily_checkin', ID)).toBe(true)
     expect(await outbox.hasPending(db, 'other', ID)).toBe(false)
   })
+
+  it('retry puts a rejected entry back in the queue, attempts reset', async () => {
+    const db = await newLocalDb()
+    await outbox.enqueue(db, upsert())
+    const [entry] = await outbox.due(db, T0, 500)
+    await outbox.fail(db, [entry!.seq], T0)
+    await outbox.reject(db, entry!.seq, ['invalid_request'])
+
+    await outbox.retry(db, entry!.seq)
+
+    expect(await outbox.rejected(db)).toEqual([])
+    expect(await outbox.due(db, T0, 500)).toEqual([
+      expect.objectContaining({ seq: entry!.seq, status: 'pending', attempts: 0, errors: null }),
+    ])
+  })
 })

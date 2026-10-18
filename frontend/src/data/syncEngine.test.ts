@@ -358,17 +358,85 @@ describe('SyncEngine', () => {
     expect(await outbox.due(db, clock(), 500)).toEqual([])
   })
 
-  it('a batch refused as malformed (400) goes to the attention list instead of blocking the queue', async () => {
+  it('a 400 batch is bisected: only the offending entry is rejected, the others are applied', async () => {
     const db = await newLocalDb()
     const { clock } = testClock()
-    await seed(db, ['2026-10-18'], clock())
-    mockFetch({ 'POST /api/sync/push': () => problem(400), 'GET /api/sync/pull': emptyPull })
+    await seed(db, ['2026-10-16', '2026-10-17', '2026-10-18'], clock())
+    const bad = checkinIdForDate(USER_A, '2026-10-17')
+    const applied: string[] = []
+    const calls = mockFetch({
+      'POST /api/sync/push': (call) => {
+        const changes = changesOf(call)
+        if (changes.some((c) => c.id === bad)) return problem(400)
+        applied.push(...changes.map((c) => c.id))
+        return json({ results: changes.map((c) => ({ id: c.id, status: 'applied', errors: null })) })
+      },
+      'GET /api/sync/pull': emptyPull,
+    })
 
     const result = await new SyncEngine(db, newTestApi(), clock).runOnce()
 
-    expect(result).toMatchObject({ rejected: 1, offline: false })
+    expect(result).toMatchObject({ pushed: 2, rejected: 1, offline: false })
+    expect(applied).toEqual([checkinIdForDate(USER_A, '2026-10-16'), checkinIdForDate(USER_A, '2026-10-18')])
     expect(await outbox.pendingCount(db)).toBe(0)
-    expect((await outbox.rejected(db))[0]).toMatchObject({ errors: '["invalid_request"]' })
+    const rejected = await outbox.rejected(db)
+    expect(rejected.map((e) => [e.id, e.errors])).toEqual([[bad, '["invalid_request"]']])
+    expect(pushes(calls).length).toBeGreaterThan(1)
+  })
+
+  it('a rejected entry put back with retry() is sent again', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    await seed(db, ['2026-10-18'], clock())
+    let refuse = true
+    const calls = mockFetch({
+      'POST /api/sync/push': (call) =>
+        refuse
+          ? problem(400)
+          : json({ results: changesOf(call).map((c) => ({ id: c.id, status: 'applied', errors: null })) }),
+      'GET /api/sync/pull': emptyPull,
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+    await engine.runOnce()
+    const [rejected] = await outbox.rejected(db)
+
+    refuse = false
+    await outbox.retry(db, rejected!.seq)
+    const result = await engine.runOnce()
+
+    expect(result).toMatchObject({ pushed: 1, rejected: 0 })
+    expect(pushes(calls)).toHaveLength(2)
+    expect(await outbox.rejected(db)).toEqual([])
+    expect(await outbox.pendingCount(db)).toBe(0)
+  })
+
+  it('stop() resolves only after the run in flight has finished', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    mockFetch({
+      'GET /api/sync/pull': async () => {
+        await held
+        return json({ records: [remoteRecord('2026-10-18', 3)], nextSince: 3, hasMore: false })
+      },
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+
+    const stop = engine.start()
+    let stopped = false
+    const stopping = stop().then(() => {
+      stopped = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(stopped).toBe(false)
+
+    release()
+    await stopping
+    // Everything the run wrote is in place before stop() resolves: a wipe after it cannot be undone by this run.
+    expect(await syncState.get(db, 'last_since')).toBe('3')
   })
 
   it('keeps records of entities it does not know yet and applies them once it does', async () => {

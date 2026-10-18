@@ -54,7 +54,13 @@ export function createSerializedLocalDb(driver: LocalDbDriver): LocalDb {
           await driver.rollback().catch(() => undefined)
           throw error
         }
-        await driver.commit()
+        try {
+          await driver.commit()
+        } catch (error) {
+          // Never leave the connection inside a transaction: every later BEGIN would fail.
+          await driver.rollback().catch(() => undefined)
+          throw error
+        }
         return result
       }),
   }

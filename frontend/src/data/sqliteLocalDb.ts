@@ -39,10 +39,16 @@ export async function createSqliteLocalDb(name = 'protocolo'): Promise<LocalDb> 
   const connection = await connect(name)
 
   // On the web the database lives in memory and is written to IndexedDB on demand: after every commit and every
-  // statement outside a transaction.
+  // statement outside a transaction. A failed save is reported on its own: the data is committed (in memory) and the
+  // connection is not in a transaction, so the next save writes it.
   let inTransaction = false
   const persist = async () => {
-    if (web && !inTransaction) await sqlite.saveToStore(name)
+    if (!web || inTransaction) return
+    try {
+      await sqlite.saveToStore(name)
+    } catch (cause) {
+      throw new Error('Committed, but saving the web database to IndexedDB failed.', { cause })
+    }
   }
 
   return createSerializedLocalDb({
@@ -57,13 +63,19 @@ export async function createSqliteLocalDb(name = 'protocolo'): Promise<LocalDb> 
       inTransaction = true
     },
     commit: async () => {
-      await connection.commitTransaction()
-      inTransaction = false
+      try {
+        await connection.commitTransaction()
+      } finally {
+        inTransaction = false
+      }
       await persist()
     },
     rollback: async () => {
-      inTransaction = false
-      await connection.rollbackTransaction()
+      try {
+        await connection.rollbackTransaction()
+      } finally {
+        inTransaction = false
+      }
     },
   })
 }

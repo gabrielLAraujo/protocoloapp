@@ -105,6 +105,14 @@ export const outbox = {
     await db.execute("UPDATE outbox SET status = 'rejected', errors = ? WHERE seq = ?", [JSON.stringify(errors), seq])
   },
 
+  /** Puts a rejected entry back in the queue (attempts reset), e.g. after the user fixed the cause. */
+  async retry(db: LocalDb, seq: number): Promise<void> {
+    await db.execute(
+      "UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = ?, errors = NULL WHERE seq = ? AND status = 'rejected'",
+      [DUE_NOW, seq],
+    )
+  },
+
   async rejected(db: LocalDb): Promise<OutboxEntry[]> {
     return (await db.query<Row>("SELECT * FROM outbox WHERE status = 'rejected' ORDER BY seq")).map(toEntry)
   },

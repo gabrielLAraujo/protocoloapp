@@ -17,6 +17,9 @@ const openDb = () =>
     return db
   })())
 
+// Setup and teardown of the signed-in session, strictly in order.
+let lifecycle: Promise<void> = Promise.resolve()
+
 /** While signed in: opens the local database, binds it to the user and keeps the sync engine running. */
 export function DataProvider({ children }: { children: ReactNode }) {
   const { status } = useAuth()
@@ -25,8 +28,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status !== 'signedIn') return
     let cancelled = false
-    let stop: (() => void) | undefined
-    void (async () => {
+    let stop: (() => Promise<void>) | undefined
+    // Chained after the previous session's teardown: its sync run must finish writing before this user is bound
+    // (bindLocalUser may wipe the database), or it could store the old user's records and cursor after the wipe.
+    lifecycle = lifecycle.then(async () => {
+      if (cancelled) return
       try {
         const db = await openDb()
         const userId = await resolveLocalUser(db, api)
@@ -37,11 +43,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('local database unavailable', error)
       }
-    })()
+    })
     return () => {
       cancelled = true
-      stop?.()
       setData(null)
+      lifecycle = lifecycle.then(() => stop?.())
     }
   }, [status])
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LATEST_LOCAL_VERSION, migrateLocalDb } from './migrations'
-import { createSqlJsLocalDb } from './sqlJsLocalDb'
+import { createSerializedLocalDb } from './localDb'
+import { createSqlJsDriver, createSqlJsLocalDb } from './sqlJsLocalDb'
 
 describe('migrateLocalDb', () => {
   it('migrate is idempotent', async () => {
@@ -51,5 +52,30 @@ describe('migrateLocalDb', () => {
     ])
 
     expect(order).toEqual(['a:start', 'a:end', 'b:start', 'b:end'])
+  })
+
+  it('a failed commit rolls back and the next transaction works', async () => {
+    const driver = await createSqlJsDriver()
+    let failCommit = false
+    const db = createSerializedLocalDb({
+      ...driver,
+      // Fails without ending the transaction, like a commit that errors out (e.g. SQLITE_BUSY).
+      commit: async () => {
+        if (failCommit) {
+          failCommit = false
+          throw new Error('commit failed')
+        }
+        await driver.commit()
+      },
+    })
+    await migrateLocalDb(db)
+    failCommit = true
+
+    await expect(db.transaction((tx) => tx.execute("INSERT INTO sync_state (key, value) VALUES ('a', '1')"))).rejects.toThrow(
+      'commit failed',
+    )
+    await db.transaction((tx) => tx.execute("INSERT INTO sync_state (key, value) VALUES ('b', '1')"))
+
+    expect(await db.query('SELECT key FROM sync_state')).toEqual([{ key: 'b' }])
   })
 })
