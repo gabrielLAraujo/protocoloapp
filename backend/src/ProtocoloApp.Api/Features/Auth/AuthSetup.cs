@@ -61,12 +61,7 @@ public static class AuthSetup
                 };
             });
 
-        // Secure by default: whatever has no explicit authorization metadata needs a logged-in user.
-        // Public endpoints (login, health, SPA, docs) opt out with AllowAnonymous().
-        services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .Build());
+        services.AddAuthorization();
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<TokenService>();

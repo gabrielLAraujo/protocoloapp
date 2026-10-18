@@ -43,8 +43,8 @@ public static class SpaHosting
         var options = new StaticFileOptions { OnPrepareResponse = PrepareIndexResponse };
 
         // The root is mapped separately: the regex of FallbackPattern only accepts paths with a value, and "/" has none.
-        app.MapFallbackToFile("/", IndexFile, options).ExcludeFromDescription().AllowAnonymous();
-        app.MapFallbackToFile(FallbackPattern, IndexFile, options).ExcludeFromDescription().AllowAnonymous();
+        app.MapFallbackToFile("/", IndexFile, options).ExcludeFromDescription();
+        app.MapFallbackToFile(FallbackPattern, IndexFile, options).ExcludeFromDescription();
     }
 
     // Only files that exist in wwwroot get here; under /assets, the hashed build output.

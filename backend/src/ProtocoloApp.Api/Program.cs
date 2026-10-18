@@ -58,16 +58,16 @@ app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi().AllowAnonymous();
-    app.MapScalarApiReference().AllowAnonymous();
+    app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 // Liveness: the process is up and Postgres answers. (/health/ready, with the storage check, comes with the files feature.)
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/health");
 
-// Every endpoint needs a logged-in user unless it says AllowAnonymous() (fallback policy, see AddAuth). Features map their
-// endpoints on this group: app.MapGroup("/api") is the only prefix.
-var api = app.MapGroup("/api");
+// Every /api endpoint needs a logged-in user unless it says AllowAnonymous() (login, refresh, logout). Features map their
+// endpoints on this group. (A fallback policy would also gate unknown routes with 401 instead of 404, and /health and the SPA.)
+var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuth();
 
 app.MapSpaFallback();
