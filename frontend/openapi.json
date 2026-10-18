@@ -296,6 +296,57 @@
           }
         }
       }
+    },
+    "/api/app/latest-release": {
+      "get": {
+        "tags": [
+          "App"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LatestReleaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/apk": {
+      "get": {
+        "tags": [
+          "App"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -373,6 +424,22 @@
         }
       },
       "JsonElement": { },
+      "LatestReleaseResponse": {
+        "required": [
+          "version",
+          "apkUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "apkUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
       "LoginRequest": {
         "required": [
           "email",
@@ -385,6 +452,42 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -623,6 +726,9 @@
     },
     {
       "name": "Files"
+    },
+    {
+      "name": "App"
     }
   ]
 }
