@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import createClient, { type Middleware } from 'openapi-fetch'
 import { tokenStore, type TokenResponse } from '../auth/tokenStore'
 import type { paths } from './schema'
@@ -6,7 +7,15 @@ export const LOGOUT_EVENT = 'auth:logout'
 
 // Same origin by default (the API serves the front; in dev Vite proxies). Explicit instead of '' because Node's Request,
 // used by the tests, rejects relative URLs. The APK sets VITE_API_URL at build time.
-const baseUrl: string = import.meta.env.VITE_API_URL ?? window.location.origin
+const configuredUrl: string | undefined = import.meta.env.VITE_API_URL
+
+// In the APK the origin is the app's own https://localhost, not the API: without VITE_API_URL every call would silently
+// hit the wrong server.
+if (Capacitor.isNativePlatform() && !configuredUrl) {
+  throw new Error('VITE_API_URL must be set in native builds.')
+}
+
+const baseUrl: string = configuredUrl ?? window.location.origin
 
 export const api = createClient<paths>({
   baseUrl,
@@ -32,8 +41,9 @@ export function refreshTokens(): Promise<boolean> {
 }
 
 async function doRefresh(): Promise<boolean> {
+  const epoch = tokenStore.getEpoch()
   const refreshToken = await tokenStore.getRefreshToken()
-  if (!refreshToken) return fail()
+  if (!refreshToken) return fail(epoch)
 
   let response: Response
   try {
@@ -50,13 +60,25 @@ async function doRefresh(): Promise<boolean> {
     return false
   }
 
-  if (!response.ok) return fail()
+  // Only a definitive rejection ends the session. 5xx, 429 and the like are transient: keep the tokens.
+  if (response.status === 400 || response.status === 401) return fail(epoch)
+  if (!response.ok) return false
 
-  await tokenStore.setTokens((await response.json()) as TokenResponse)
-  return true
+  let tokens: TokenResponse
+  try {
+    tokens = (await response.json()) as TokenResponse
+  } catch {
+    return false
+  }
+  if (!tokens.accessToken || !tokens.refreshToken) return false
+
+  // False when the user signed out while this was in flight: the result is discarded.
+  return tokenStore.setTokens(tokens, epoch)
 }
 
-async function fail(): Promise<false> {
+async function fail(epoch: number): Promise<false> {
+  // Already signed out meanwhile: nothing left to clear or announce.
+  if (epoch !== tokenStore.getEpoch()) return false
   await tokenStore.clear()
   window.dispatchEvent(new Event(LOGOUT_EVENT))
   return false

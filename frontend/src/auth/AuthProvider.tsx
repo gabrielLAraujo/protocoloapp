@@ -8,19 +8,20 @@ import { tokenStore, type TokenResponse } from './tokenStore'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
 
-  // Restore: a stored refresh token means "probably signed in". /me settles it; a 401 there makes the client refresh.
+  // Restore: a stored refresh token means signed in. /me only warms the session (a 401 there makes the client refresh);
+  // its outcome does not decide: offline-first, so a 5xx or no network keeps the user in. Only the definitive refresh
+  // rejection (the auth:logout event) or the absence of a stored token signs out.
   useEffect(() => {
     let cancelled = false
+    const settle = (next: Status) => {
+      // Never overrides a logout event that arrived while /me was in flight.
+      if (!cancelled) setStatus((current) => (current === 'loading' ? next : current))
+    }
     void (async () => {
       const stored = await tokenStore.getRefreshToken()
-      if (!stored) return !cancelled && setStatus('signedOut')
-      try {
-        const { response } = await api.GET('/api/auth/me')
-        if (!cancelled) setStatus(response.ok ? 'signedIn' : 'signedOut')
-      } catch {
-        // Offline at startup: the app is offline-first, so trust the stored session.
-        if (!cancelled) setStatus('signedIn')
-      }
+      if (!stored) return settle('signedOut')
+      await api.GET('/api/auth/me').catch(() => undefined)
+      settle('signedIn')
     })()
     return () => {
       cancelled = true

@@ -69,4 +69,27 @@ describe('login', () => {
 
     expect(await screen.findByRole('banner')).toBeInTheDocument()
   })
+
+  it('stays signed in when /me fails with a server error at startup', async () => {
+    await tokenStore.setTokens(tokenResponse('stored'))
+    mockFetch({ 'GET /api/auth/me': () => problem(503) })
+
+    renderApp('/')
+
+    expect(await screen.findByRole('banner')).toBeInTheDocument()
+    expect(await tokenStore.getRefreshToken()).toBe('refresh-stored')
+  })
+
+  it('signs out when the stored session is rejected for good', async () => {
+    await tokenStore.setTokens(tokenResponse('stored'))
+    mockFetch({
+      'GET /api/auth/me': () => problem(401),
+      'POST /api/auth/refresh': () => problem(401),
+    })
+
+    const router = renderApp('/')
+
+    expect(await screen.findByLabelText('E-mail')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/login')
+  })
 })

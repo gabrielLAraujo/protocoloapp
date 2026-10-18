@@ -86,4 +86,62 @@ describe('api client', () => {
     expect(response.status).toBe(401)
     expect(clear).not.toHaveBeenCalled()
   })
+
+  it.each([503, 429])('keeps the session when the refresh answers %i', async (status) => {
+    mockFetch({
+      'GET /api/auth/me': () => problem(401),
+      'POST /api/auth/refresh': () => problem(status),
+    })
+    const clear = vi.spyOn(tokenStore, 'clear')
+    const onLogout = vi.fn()
+    window.addEventListener('auth:logout', onLogout)
+
+    const { response } = await api.GET('/api/auth/me')
+    window.removeEventListener('auth:logout', onLogout)
+
+    expect(response.status).toBe(401)
+    expect(clear).not.toHaveBeenCalled()
+    expect(onLogout).not.toHaveBeenCalled()
+    expect(await tokenStore.getRefreshToken()).toBe('refresh-old')
+  })
+
+  it('keeps the session when the refresh answers 200 with a malformed body', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => problem(401),
+      'POST /api/auth/refresh': () => new Response('not json', { status: 200 }),
+    })
+    const clear = vi.spyOn(tokenStore, 'clear')
+    const onLogout = vi.fn()
+    window.addEventListener('auth:logout', onLogout)
+
+    const { response } = await api.GET('/api/auth/me')
+    window.removeEventListener('auth:logout', onLogout)
+
+    expect(response.status).toBe(401)
+    expect(clear).not.toHaveBeenCalled()
+    expect(onLogout).not.toHaveBeenCalled()
+    expect(await tokenStore.getRefreshToken()).toBe('refresh-old')
+  })
+
+  it('discards a refresh that finishes after the user signed out', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const calls = mockFetch({
+      'GET /api/auth/me': () => problem(401),
+      'POST /api/auth/refresh': async () => {
+        await gate
+        return json(tokenResponse('late'))
+      },
+    })
+
+    const pending = api.GET('/api/auth/me')
+    await vi.waitFor(() => expect(calls.map((call) => call.path)).toContain('/api/auth/refresh'))
+    await tokenStore.clear() // the user signs out while the refresh is in flight
+    release()
+    const { response } = await pending
+
+    expect(response.status).toBe(401)
+    expect(tokenStore.getAccessToken()).toBeNull()
+    expect(await tokenStore.getRefreshToken()).toBeNull()
+  })
 })
