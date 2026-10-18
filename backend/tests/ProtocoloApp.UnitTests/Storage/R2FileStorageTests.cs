@@ -1,10 +1,14 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using ProtocoloApp.Api.Shared.Storage;
 
 namespace ProtocoloApp.UnitTests.Storage;
 
-/// <summary>Presigning is computed offline: nothing here touches the network (fictitious credentials).</summary>
+/// <summary>
+/// Presigning is computed offline: nothing here touches the network (fictitious credentials). The clock is fixed on a
+/// whole second: with the system clock the expiry came out 1 s short when a second boundary fell during signing.
+/// </summary>
 public sealed partial class R2FileStorageTests : IDisposable
 {
     private readonly R2FileStorage _storage = new(Options.Create(new StorageOptions
@@ -13,7 +17,7 @@ public sealed partial class R2FileStorageTests : IDisposable
         AccessKeyId = "test-access-key",
         SecretAccessKey = "test-secret-key-not-real",
         Bucket = "test-bucket",
-    }), TimeProvider.System);
+    }), new FakeTimeProvider(new DateTimeOffset(2026, 10, 18, 12, 0, 0, TimeSpan.Zero)));
 
     [Fact]
     public void Upload_url_points_to_account_endpoint_and_bucket()
