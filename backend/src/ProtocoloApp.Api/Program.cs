@@ -44,6 +44,16 @@ builder.Services.AddDbContext<AppDbContext>(options => options
     .UseNpgsql(builder.Configuration.GetConnectionString("Db"))
     .UseSnakeCaseNamingConvention());
 
+// The Android app's WebView calls the API cross-origin: Capacitor serves it from https://localhost (androidScheme "https")
+// or capacitor://localhost. The web build is same-origin and does not need CORS. Override with Cors:AllowedOrigins.
+const string AppCorsPolicy = "app";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["https://localhost", "capacitor://localhost"];
+builder.Services.AddCors(options => options.AddPolicy(AppCorsPolicy, policy => policy
+    .WithOrigins(allowedOrigins)
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
+
 builder.Services.AddAuth(builder.Configuration);
 builder.Services.AddAppRateLimiting();
 builder.Services.AddSync()
@@ -66,6 +76,8 @@ app.UseForwardedHeaders();
 app.UseAppProblemDetails();
 app.UseRequestLogging();
 app.UseSpaStaticFiles();
+// CORS for /api only, before authentication so that a preflight (no credentials by definition) is answered, not rejected.
+app.UseWhen(context => context.Request.Path.StartsWithSegments("/api"), branch => branch.UseCors(AppCorsPolicy));
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

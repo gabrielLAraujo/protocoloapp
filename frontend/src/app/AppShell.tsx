@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router'
+import { Link, Outlet } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { SyncProvider } from '../features/sync/SyncProvider'
 import { SyncStatus } from '../features/sync/SyncStatus'
@@ -13,6 +13,12 @@ export function AppShell() {
           <span className="text-lg font-semibold tracking-tight">Protocolo</span>
           <div className="flex items-center gap-3">
             <SyncStatus />
+            <Link
+              to="/settings/diagnostics"
+              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Diagnóstico
+            </Link>
             <button
               type="button"
               onClick={() => void logout()}

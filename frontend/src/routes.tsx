@@ -3,6 +3,7 @@ import { AppShell } from './app/AppShell'
 import { RequireAuth } from './auth/RequireAuth'
 import { DailyCheckinPage } from './features/checkin/DailyCheckinPage'
 import { LoginPage } from './features/login/LoginPage'
+import { DiagnosticsPage } from './features/settings/DiagnosticsPage'
 import { AttentionList } from './features/sync/AttentionList'
 
 export const routes: RouteObject[] = [
@@ -16,6 +17,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <DailyCheckinPage /> },
           { path: '/sync', element: <AttentionList /> },
+          { path: '/settings/diagnostics', element: <DiagnosticsPage /> },
         ],
       },
     ],

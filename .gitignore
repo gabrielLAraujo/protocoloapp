@@ -38,3 +38,8 @@ frontend/android/local.properties
 
 # Copied from sql.js at dev/build time (scripts/copy-sql-wasm.mjs)
 frontend/public/assets/sql-wasm.wasm
+
+# Android signing material (CI writes keystore.properties from secrets)
+frontend/android/keystore.properties
+*.jks
+*.keystore
