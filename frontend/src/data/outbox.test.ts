@@ -118,4 +118,20 @@ describe('outbox', () => {
       expect.objectContaining({ seq: entry!.seq, status: 'pending', attempts: 0, errors: null }),
     ])
   })
+
+  it('releaseBackoff makes pending entries due at once and leaves rejected ones alone', async () => {
+    const db = await newLocalDb()
+    await outbox.enqueue(db, upsert('7d1f2a10-0000-5000-8000-00000000000a'))
+    await outbox.enqueue(db, upsert('7d1f2a10-0000-5000-8000-00000000000b'))
+    const [first, second] = await outbox.due(db, T0, 500)
+    await outbox.reject(db, second!.seq, ['invalid'])
+    await outbox.fail(db, [first!.seq], T0)
+    expect(await outbox.due(db, T0, 500)).toEqual([])
+
+    await outbox.releaseBackoff(db)
+
+    const [due] = await outbox.due(db, T0, 500)
+    expect(due).toMatchObject({ id: first!.id, attempts: 0 })
+    expect(await outbox.rejectedCount(db)).toBe(1)
+  })
 })

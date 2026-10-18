@@ -100,6 +100,14 @@ export const outbox = {
     })
   },
 
+  /**
+   * Forgets the backoff of every pending entry (attempts back to 0, due now). For moments when the wait is known to be
+   * pointless: the user asked to sync, the network came back, the app returned to the foreground.
+   */
+  async releaseBackoff(db: LocalDb): Promise<void> {
+    await db.execute("UPDATE outbox SET attempts = 0, next_attempt_at = ? WHERE status = 'pending'", [DUE_NOW])
+  },
+
   /** The server refused the change: kept for the user's attention, never retried. */
   async reject(db: LocalDb, seq: number, errors: string[]): Promise<void> {
     await db.execute("UPDATE outbox SET status = 'rejected', errors = ? WHERE seq = ?", [JSON.stringify(errors), seq])

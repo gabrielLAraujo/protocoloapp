@@ -179,6 +179,60 @@ describe('SyncEngine', () => {
     expect(pushes(calls)).toHaveLength(2)
   })
 
+  it('an explicit run ignores the backoff', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    await seed(db, ['2026-10-18'], clock())
+    let fail = true
+    const calls = mockFetch({
+      'POST /api/sync/push': (call) => {
+        if (fail) throw new TypeError('Failed to fetch')
+        return json({ results: changesOf(call).map((c) => ({ id: c.id, status: 'applied', errors: null })) })
+      },
+      'GET /api/sync/pull': emptyPull,
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+
+    await engine.runOnce()
+    fail = false
+    // The clock did not move: the entry is still in backoff for a plain run, but not for the user's "sync now".
+    expect(await engine.runOnce()).toMatchObject({ pushed: 0 })
+    expect(await engine.runOnce({ ignoreBackoff: true })).toMatchObject({ pushed: 1, offline: false })
+    expect(pushes(calls)).toHaveLength(2)
+    expect(await outbox.pendingCount(db)).toBe(0)
+  })
+
+  it('start: coming back online sends at once, the 60 s tick still waits for the backoff', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    await seed(db, ['2026-10-18'], clock())
+    let fail = true
+    const calls = mockFetch({
+      'POST /api/sync/push': (call) => {
+        if (fail) throw new TypeError('Failed to fetch')
+        return json({ results: changesOf(call).map((c) => ({ id: c.id, status: 'applied', errors: null })) })
+      },
+      'GET /api/sync/pull': emptyPull,
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+
+    const stop = engine.start()
+    await engine.whenIdle()
+    expect(pushes(calls)).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    await engine.whenIdle()
+    expect(pushes(calls)).toHaveLength(1)
+
+    fail = false
+    window.dispatchEvent(new Event('online'))
+    await engine.whenIdle()
+    expect(pushes(calls)).toHaveLength(2)
+    expect(await outbox.pendingCount(db)).toBe(0)
+    await stop()
+  })
+
   it('entries survive engine crash before ack', async () => {
     const db = await newLocalDb()
     const { clock, advance } = testClock()

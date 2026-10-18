@@ -27,7 +27,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const syncNow = useCallback(async () => {
     try {
-      await engine?.runOnce()
+      await engine?.runOnce({ ignoreBackoff: true })
     } catch (error) {
       console.error('sync failed', error)
     }

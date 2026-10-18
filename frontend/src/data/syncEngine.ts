@@ -53,10 +53,15 @@ export class SyncEngine {
     this.adapters = new Map(adapters.map((adapter) => [adapter.entity, adapter]))
   }
 
-  runOnce(): Promise<SyncRunResult> {
+  /**
+   * Runs the sync, or joins the run in flight. A plain run honors the retry backoff of failed entries (the timer uses it);
+   * `ignoreBackoff` is for moments when waiting is pointless (the user pressed "sync now", the network came back) and
+   * sends them at once.
+   */
+  runOnce(options: { ignoreBackoff?: boolean } = {}): Promise<SyncRunResult> {
     this.current ??= (async () => {
       try {
-        return await this.run()
+        return await this.run(options.ignoreBackoff === true)
       } finally {
         await this.publish({ running: false }).catch(() => undefined)
         this.current = null
@@ -71,17 +76,17 @@ export class SyncEngine {
   }
 
   /**
-   * Runs now, every 60 s, when the device comes back online and when the app returns to the foreground. The returned
-   * stop() ends the schedule and resolves once the run in flight (if any) has finished writing.
+   * Runs now, every 60 s, when the device comes back online and when the app returns to the foreground (all but the
+   * timer ignore the retry backoff). The returned stop() ends the schedule and resolves once the run in flight (if any) has finished writing.
    */
   start(): () => Promise<void> {
-    const kick = () => {
-      this.runOnce().catch((error: unknown) => console.error('sync failed', error))
+    const kick = (ignoreBackoff: boolean) => {
+      this.runOnce({ ignoreBackoff }).catch((error: unknown) => console.error('sync failed', error))
     }
-    kick()
-    const timer = setInterval(kick, SYNC_INTERVAL_MS)
-    const offOnline = onOnline(kick)
-    const offResume = onResume(kick)
+    kick(true)
+    const timer = setInterval(() => kick(false), SYNC_INTERVAL_MS)
+    const offOnline = onOnline(() => kick(true))
+    const offResume = onResume(() => kick(true))
     return () => {
       clearInterval(timer)
       offOnline()
@@ -99,10 +104,11 @@ export class SyncEngine {
     }
   }
 
-  private async run(): Promise<SyncRunResult> {
+  private async run(ignoreBackoff: boolean): Promise<SyncRunResult> {
     await this.publish({ running: true })
     const result: SyncRunResult = { pushed: 0, pulled: 0, rejected: 0, offline: false }
     try {
+      if (ignoreBackoff) await outbox.releaseBackoff(this.db)
       await this.replayUnknown()
       await this.push(result)
       await this.pull(result)
