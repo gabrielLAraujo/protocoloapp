@@ -103,6 +103,17 @@ jobs:
           git add --intent-to-add frontend/openapi.json
           git diff --exit-code -- frontend/openapi.json
 
+      # Artifacts and job logs are not downloadable through the API, annotations are: show the generated file there.
+      - name: Show generated OpenAPI
+        if: ${{ failure() }}
+        working-directory: .
+        shell: python
+        run: |
+          import pathlib
+
+          text = pathlib.Path("frontend/openapi.json").read_text() if pathlib.Path("frontend/openapi.json").exists() else "(missing)"
+          print("::error title=Generated frontend/openapi.json::" + text[:60000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+
   # hashFiles() is not available in a job-level `if`, so a tiny job tells whether the front exists yet.
   detect-frontend:
     name: Detect frontend
