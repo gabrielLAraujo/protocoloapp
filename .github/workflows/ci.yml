@@ -60,6 +60,19 @@ jobs:
           path: frontend/openapi.json
           if-no-files-found: warn
 
+      # Fails when the EF model changed without a migration (generate it with a [migration:<Name>] commit, see codegen.yml).
+      - name: EF model matches the migrations
+        run: |
+          set -o pipefail
+          dotnet tool restore
+          dotnet ef migrations has-pending-model-changes --project src/ProtocoloApp.Api --startup-project src/ProtocoloApp.Api --no-build 2>&1 | tee ../ef.log
+
+      - name: EF check errors
+        if: ${{ failure() }}
+        working-directory: .
+        run: |
+          grep -v '^\s*$' ef.log | tail -n 8 | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
+
       # The integration tests start a Postgres in a container (Testcontainers); the runner already has Docker.
       - name: Tests
         run: dotnet test --no-build --logger "trx" --results-directory TestResults

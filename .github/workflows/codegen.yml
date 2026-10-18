@@ -1,0 +1,93 @@
+# Generated code that cannot be produced where Claude works (no dotnet there): EF migrations and frontend/openapi.json.
+# Runs on a push to feat/** ONLY when the head commit message asks for it:
+#   [codegen]            regenerate frontend/openapi.json
+#   [migration:<Name>]   also run `dotnet ef migrations add <Name>`
+# The result is committed back to the branch with GITHUB_TOKEN. Commits made with GITHUB_TOKEN do not trigger other
+# workflows, so push a follow-up commit (or an empty one) afterwards to run CI on the generated files.
+name: Codegen
+
+on:
+  push:
+    branches: ['feat/**']
+
+# The only workflow that writes to the repository.
+permissions:
+  contents: write
+
+concurrency:
+  group: codegen-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  codegen:
+    name: Codegen
+    if: ${{ contains(github.event.head_commit.message, '[codegen]') || contains(github.event.head_commit.message, '[migration:') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: backend/global.json
+
+      # The message goes through the environment, never interpolated into the script.
+      - name: Parse the commit message
+        id: parse
+        working-directory: .
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          name=""
+          if [[ "$MESSAGE" =~ \[migration:([A-Za-z0-9_]+)\] ]]; then
+            name="${BASH_REMATCH[1]}"
+          fi
+          echo "migration=$name" >> "$GITHUB_OUTPUT"
+          echo "Migration requested: '${name}'"
+
+      - name: Restore
+        run: |
+          dotnet tool restore
+          dotnet restore
+
+      - name: Add migration
+        if: ${{ steps.parse.outputs.migration != '' }}
+        env:
+          MIGRATION: ${{ steps.parse.outputs.migration }}
+        run: |
+          set -o pipefail
+          dotnet ef migrations add "$MIGRATION" \
+            --project src/ProtocoloApp.Api --startup-project src/ProtocoloApp.Api \
+            --output-dir Shared/Data/Migrations 2>&1 | tee ../codegen.log
+
+      # The build writes frontend/openapi.json (Microsoft.Extensions.ApiDescription.Server).
+      - name: Build (regenerates OpenAPI)
+        run: |
+          set -o pipefail
+          dotnet build --no-restore -nologo 2>&1 | tee -a ../codegen.log
+
+      # Job logs are not downloadable through the API, annotations are.
+      - name: Errors
+        if: ${{ failure() }}
+        working-directory: .
+        run: |
+          grep -E ': (error|warning) |Unable|Exception' codegen.log | sort -u | head -9 | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
+
+      - name: Commit and push generated files
+        working-directory: .
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src frontend/openapi.json
+          if git diff --cached --quiet; then
+            echo "Nothing generated."
+            exit 0
+          fi
+          git commit -m "chore(codegen): generated migration and OpenAPI"
+          git pull --rebase origin "$BRANCH"
+          git push origin "HEAD:$BRANCH"
