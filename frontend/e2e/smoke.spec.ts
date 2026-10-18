@@ -4,6 +4,29 @@ import { expect, test, type Page } from '@playwright/test'
 const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
 const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
 
+/** Remembers what the page asked of the API, so a failed wait can say what happened (CI cannot download traces). */
+function watch(page: Page) {
+  const seen: string[] = []
+  page.on('response', (response) => {
+    if (response.url().includes('/api/')) seen.push(`${response.request().method()} ${new URL(response.url()).pathname} ${response.status()}`)
+  })
+  page.on('requestfailed', (request) => seen.push(`FAILED ${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`))
+  page.on('console', (message) => {
+    if (message.type() === 'error') seen.push(`console.error ${message.text().slice(0, 160)}`)
+  })
+  return seen
+}
+
+/** Waits for the header to say "Sincronizado"; on timeout the error carries the header text and the recent API calls. */
+async function expectSynced(page: Page, seen: string[]) {
+  try {
+    await expect(page.getByText('Sincronizado', { exact: true })).toBeVisible()
+  } catch (error) {
+    const header = (await page.locator('header').innerText()).replace(/\s+/g, ' ')
+    throw new Error(`HEADER[${header}] API[${seen.slice(-12).join(' ; ')}] ${(error as Error).message}`)
+  }
+}
+
 async function login(page: Page) {
   await page.goto('/')
   await expect(page).toHaveURL(/\/login$/)
@@ -26,6 +49,7 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   // Device A: signs in online, then loses the network and saves today's check-in.
   const contextA = await browser.newContext()
   const a = await contextA.newPage()
+  const seenByA = watch(a)
   await login(a)
   await expect(a.getByText('Sincronizado', { exact: true })).toBeVisible()
 
@@ -46,7 +70,7 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   // The network comes back: the pending change is sent.
   await contextA.setOffline(false)
   await a.getByRole('button', { name: 'Sincronizar agora' }).click()
-  await expect(a.getByText('Sincronizado', { exact: true })).toBeVisible()
+  await expectSynced(a, seenByA)
 
   // Device B: another browser profile signs in and receives the same check-in.
   const contextB = await browser.newContext()

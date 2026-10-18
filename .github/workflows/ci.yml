@@ -304,7 +304,7 @@ jobs:
         if: ${{ failure() }}
         run: |
           echo "::error title=Playwright::$(tail -n 40 "$RUNNER_TEMP/playwright.log" 2>/dev/null | tr '\n' '|' | cut -c1-900)"
-          echo "::error title=API log::$(tail -n 15 "$RUNNER_TEMP/api.log" 2>/dev/null | tr '\n' '|' | cut -c1-900)"
+          echo "::error title=API log::$(grep -E '"RequestPath":"/api' "$RUNNER_TEMP/api.log" 2>/dev/null | jq -r '"\(.RequestMethod) \(.RequestPath) \(.StatusCode)"' | tail -n 25 | tr '\n' '|' | cut -c1-900)"
 
   # Debug APK on every run (artifact to install and test). The signed release is a separate job below.
   android:
