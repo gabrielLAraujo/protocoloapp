@@ -13,7 +13,7 @@ public sealed partial class R2FileStorageTests : IDisposable
         AccessKeyId = "test-access-key",
         SecretAccessKey = "test-secret-key-not-real",
         Bucket = "test-bucket",
-    }));
+    }), TimeProvider.System);
 
     [Fact]
     public void Upload_url_points_to_account_endpoint_and_bucket()

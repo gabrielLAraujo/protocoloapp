@@ -11,10 +11,17 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
 {
     private readonly AmazonS3Client _client;
     private readonly string _bucket;
+    private readonly TimeProvider _clock;
 
-    public R2FileStorage(IOptions<StorageOptions> options)
+    /// <summary>How long the readiness probe waits for the bucket.</summary>
+    public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
+
+    public R2FileStorage(IOptions<StorageOptions> options, TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        _clock = clock;
 
         var settings = options.Value;
         _bucket = settings.Bucket;
@@ -25,6 +32,9 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
                 ServiceURL = settings.Endpoint.AbsoluteUri,
                 ForcePathStyle = true,
                 AuthenticationRegion = "auto",
+                // A hanging R2 must not hold requests for minutes (the SDK defaults are 100 s and 4 retries).
+                Timeout = TimeSpan.FromSeconds(10),
+                MaxErrorRetry = 1,
                 // R2 does not accept the optional checksums the v4 SDK adds by default.
                 RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
                 ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
@@ -62,12 +72,23 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
 
     public async Task<bool> CanReachBucketAsync(CancellationToken ct)
     {
+        using var probe = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        probe.CancelAfter(ProbeTimeout);
         try
         {
-            await _client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = _bucket, MaxKeys = 1 }, ct);
+            await _client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = _bucket, MaxKeys = 1 }, probe.Token);
             return true;
         }
         catch (AmazonServiceException)
+        {
+            return false;
+        }
+        catch (AmazonClientException)
+        {
+            return false;
+        }
+        // The probe's own timeout is "not reachable"; the caller giving up is not swallowed.
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             return false;
         }
@@ -83,7 +104,7 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
     {
         // Whole seconds: the SDK turns the expiry into X-Amz-Expires by subtracting epoch seconds, so a sub-second tail
         // would make 10 minutes come out as 599 or 600 depending on the clock.
-        var now = DateTime.UtcNow;
+        var now = _clock.GetUtcNow().UtcDateTime;
         var expires = new DateTime(now.Ticks - (now.Ticks % TimeSpan.TicksPerSecond), DateTimeKind.Utc) + ttl;
         var request = new GetPreSignedUrlRequest { BucketName = _bucket, Key = key, Verb = verb, Expires = expires };
         if (contentType is not null)

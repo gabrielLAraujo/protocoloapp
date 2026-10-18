@@ -29,7 +29,7 @@ public static class FilesSetup
         if (!IsBuildTool())
             services.AddHostedService<StorageStartupCheck>();
 
-        services.AddHealthChecks().AddCheck<StorageHealthCheck>("storage", tags: [ReadyTag]);
+        services.AddHealthChecks().AddCheck<StorageHealthCheck>("storage", failureStatus: null, tags: [ReadyTag], timeout: TimeSpan.FromSeconds(5));
         return services;
     }
 

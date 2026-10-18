@@ -49,6 +49,25 @@ public sealed class HealthTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Ready_returns_503_within_seconds_when_the_bucket_check_hangs()
+    {
+        using var client = factory.CreateClient();
+        factory.Storage.HangBucketCheck = true;
+        try
+        {
+            var started = DateTimeOffset.UtcNow;
+            var ready = await client.GetAsync(new Uri("/health/ready", UriKind.Relative));
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
+            Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(8), "The readiness probe must time out in about 5 s.");
+        }
+        finally
+        {
+            factory.Storage.HangBucketCheck = false;
+        }
+    }
+
+    [Fact]
     public async Task Unknown_api_route_returns_problem_details()
     {
         using var client = factory.CreateClient();

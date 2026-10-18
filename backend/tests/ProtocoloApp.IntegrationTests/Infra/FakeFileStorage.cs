@@ -11,6 +11,9 @@ public sealed class FakeFileStorage : IFileStorage
     /// <summary>What <see cref="CanReachBucketAsync"/> answers (the readiness test flips it and restores it).</summary>
     public volatile bool BucketReachable = true;
 
+    /// <summary>When set, the readiness probe never answers (until its token is cancelled).</summary>
+    public volatile bool HangBucketCheck;
+
     public void Put(string key, long sizeBytes, string contentType = "application/pdf") =>
         _objects[key] = new StoredObjectInfo(sizeBytes, contentType);
 
@@ -22,5 +25,11 @@ public sealed class FakeFileStorage : IFileStorage
     public Task<StoredObjectInfo?> HeadAsync(string key, CancellationToken ct) =>
         Task.FromResult(_objects.TryGetValue(key, out var info) ? info : null);
 
-    public Task<bool> CanReachBucketAsync(CancellationToken ct) => Task.FromResult(BucketReachable);
+    public async Task<bool> CanReachBucketAsync(CancellationToken ct)
+    {
+        if (HangBucketCheck)
+            await Task.Delay(Timeout.Infinite, ct);
+
+        return BucketReachable;
+    }
 }
