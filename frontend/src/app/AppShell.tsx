@@ -2,6 +2,7 @@ import { Link, Outlet } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { SyncProvider } from '../features/sync/SyncProvider'
 import { SyncStatus } from '../features/sync/SyncStatus'
+import { UpdateBanner } from './UpdateBanner'
 
 export function AppShell() {
   const { logout } = useAuth()
@@ -28,6 +29,7 @@ export function AppShell() {
             </button>
           </div>
         </header>
+        <UpdateBanner />
         <main className="mx-auto max-w-2xl px-4 py-6">
           <Outlet />
         </main>
