@@ -87,6 +87,17 @@ Android fala com a mesma API.
    `ConnectionStrings__Db`.
 4. Backup: ative **Scheduled Backups** na página do banco (diário) apontando para um destino S3/R2 separado do bucket de
    arquivos. Os dados de saúde moram aqui e no celular; o banco é a única cópia do servidor.
+5. **Depois de restaurar um backup**, antes de abrir o app, avance a sequência de versões do sync:
+
+   ```sql
+   SELECT setval('sync_version_seq', (SELECT COALESCE(MAX(version), 0) FROM daily_checkins) + 1000000);
+   ```
+
+   Por quê: cada aparelho guarda o último `version` que puxou (`since`) e só pede registros com versão maior. O backup é
+   de um momento anterior; os aparelhos podem já ter visto versões mais altas que as do dump. Sem o salto, as próximas
+   gravações receberiam versões que os aparelhos acham que já têm, e nunca seriam puxadas. O `+ 1000000` deixa a
+   sequência acima de qualquer `since` que um aparelho possa ter (a sequência é global e só cresce; buracos são
+   inofensivos). Ao criar uma nova tabela sincronizada, inclua o `MAX(version)` dela na conta (`GREATEST(...)`).
 
 ## 3. App no Coolify
 
