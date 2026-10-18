@@ -35,3 +35,6 @@ frontend/android/local.properties
 .env
 .env.*
 !.env.example
+
+# Copied from sql.js at dev/build time (scripts/copy-sql-wasm.mjs)
+frontend/public/assets/sql-wasm.wasm

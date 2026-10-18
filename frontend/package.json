@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-sql-wasm.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-sql-wasm.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -14,12 +16,17 @@
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor-community/sqlite": "~8.1.1",
     "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.0",
+    "jeep-sqlite": "^2.8.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-router": "^8.4.0"
+    "react-router": "^8.4.0",
+    "sql.js": "1.12.0",
+    "uuid": "^14.0.3"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",
@@ -31,6 +38,7 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^29.1.1",
     "openapi-typescript": "^7.13.0",
