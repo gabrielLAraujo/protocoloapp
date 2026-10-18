@@ -41,7 +41,15 @@ jobs:
       # TreatWarningsAsErrors comes from Directory.Build.props: a warning breaks the build.
       # The build also writes frontend/openapi.json (Microsoft.Extensions.ApiDescription.Server).
       - name: Build
-        run: dotnet build --no-restore
+        run: |
+          set -o pipefail
+          dotnet build --no-restore -nologo 2>&1 | tee ../build.log
+
+      # Build errors become annotations: job logs are not downloadable through the API, annotations are.
+      - name: Build errors
+        if: ${{ failure() }}
+        working-directory: .
+        run: grep -E ': (error|warning) ' build.log | sort -u | head -9 | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
 
       - name: Upload generated OpenAPI
         if: ${{ !cancelled() }}
@@ -147,4 +155,10 @@ jobs:
 
       # Same image Coolify builds on every push to main. Here we only check that it builds; nothing is published.
       - name: Build the image
-        run: docker build -f backend/Dockerfile -t protocoloapp:ci .
+        run: |
+          set -o pipefail
+          docker build --progress=plain -f backend/Dockerfile -t protocoloapp:ci . 2>&1 | tee docker.log
+
+      - name: Image build errors
+        if: ${{ failure() }}
+        run: tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
