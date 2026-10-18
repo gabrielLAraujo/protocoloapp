@@ -226,7 +226,7 @@ Falha da IA (timeout / JSON inválido) → 1 retry → senão draft vazio com o 
 **Inclui:**
 1. **Repositório** com a estrutura da seção 3, `README`, `.editorconfig`, `.gitignore` (inclui `*.pdf`, `*.jpg` fora de `fixtures/`), `infra/devbox` copiado do Fechamento (PR #14).
 2. **Back:** projeto .NET 10, `Shared/Db` (EF Core, Npgsql, snake_case, enums texto), migration inicial, problem details, logs estruturados, rate limiting, `/health`, OpenAPI.
-3. **Auth:** Identity com um usuário criado por *seed* via variável de ambiente (sem cadastro público); `POST /auth/login` → access token (15 min) + refresh token (30 dias, rotativo, revogável); `POST /auth/refresh`; `POST /auth/logout`.
+3. **Auth:** Identity com um usuário criado pelo comando `create-user` (mesmo padrão do Fechamento; sem cadastro público); `POST /auth/login` → access token (15 min) + refresh token (30 dias, rotativo, revogável); `POST /auth/refresh`; `POST /auth/logout`.
 4. **Sync engine:** tabela `sync_change` / coluna `version` com sequência global; endpoints `push`/`pull` da seção 4.5; validado com uma entidade de prova `daily_checkin` (já é do domínio e é simples).
 5. **Storage:** `Shared/Storage` com cliente S3 apontando para R2; `POST /files/upload-url`, `POST /files/{id}/confirm`, `GET /files/{id}/download-url`.
 6. **Front:** Vite + React + TanStack Query + openapi-fetch + react-hook-form/zod; SQLite local com migrations do schema local; repositório `daily_checkin`; fila de sync com retry/backoff e lista de rejeitados; tela de login; tela mínima de check-in diário; indicador de sync.
