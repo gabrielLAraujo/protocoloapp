@@ -5,7 +5,10 @@ import { bootstrap } from './app/bootstrap'
 import { AuthProvider } from './auth/AuthProvider'
 import { DataProvider } from './data/DataProvider'
 import './index.css'
+import { registerServiceWorker } from './pwa/serviceWorker'
 import { routes } from './routes'
+
+registerServiceWorker()
 
 void bootstrap(document.getElementById('root')!, (root) => {
   const router = createBrowserRouter(routes)
