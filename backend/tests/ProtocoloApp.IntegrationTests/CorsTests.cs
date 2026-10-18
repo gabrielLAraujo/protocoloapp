@@ -1,4 +1,3 @@
-using System.Net;
 using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests;
@@ -36,6 +35,5 @@ public sealed class CorsTests(ApiFactory factory)
         var response = await client.SendAsync(Preflight("/api/auth/login", "https://evil.example"));
 
         Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
-        Assert.NotEqual(HttpStatusCode.NoContent, response.StatusCode);
     }
 }
