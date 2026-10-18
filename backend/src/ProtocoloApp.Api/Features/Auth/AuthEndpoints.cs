@@ -26,9 +26,9 @@ public static class AuthEndpoints
         group.MapGet("/me", MeAsync);
     }
 
-    private static async Task<IResult> LoginAsync(LoginRequest request, UserManager<AppUser> users, TokenService tokens, CancellationToken ct)
+    private static async Task<IResult> LoginAsync(LoginRequest? request, UserManager<AppUser> users, TokenService tokens, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrEmpty(request.Password))
+        if (request is null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrEmpty(request.Password))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["credentials"] = ["Informe e-mail e senha."] });
 
         var user = await users.FindByEmailAsync(request.Email);
@@ -53,8 +53,11 @@ public static class AuthEndpoints
         return Results.Ok(Issue(user, await tokens.IssueRefreshTokenAsync(user.Id, null, ct), tokens));
     }
 
-    private static async Task<IResult> RefreshAsync(RefreshRequest request, UserManager<AppUser> users, TokenService tokens, CancellationToken ct)
+    private static async Task<IResult> RefreshAsync(RefreshRequest? request, UserManager<AppUser> users, TokenService tokens, CancellationToken ct)
     {
+        if (request is null)
+            return BadRequest();
+
         try
         {
             var (userId, refreshToken) = await tokens.RotateAsync(request.RefreshToken ?? "", ct);
@@ -67,8 +70,11 @@ public static class AuthEndpoints
         }
     }
 
-    private static async Task<IResult> LogoutAsync(RefreshRequest request, TokenService tokens, CancellationToken ct)
+    private static async Task<IResult> LogoutAsync(RefreshRequest? request, TokenService tokens, CancellationToken ct)
     {
+        if (request is null)
+            return BadRequest();
+
         await tokens.RevokeFamilyAsync(request.RefreshToken ?? "", ct);
         return Results.NoContent();
     }
@@ -84,6 +90,9 @@ public static class AuthEndpoints
         var (accessToken, expiresAt) = tokens.CreateAccessToken(user);
         return new TokenResponse(accessToken, expiresAt, refreshToken);
     }
+
+    private static IResult BadRequest() =>
+        Results.ValidationProblem(new Dictionary<string, string[]> { ["body"] = ["Corpo da requisição inválido."] });
 
     private static IResult Unauthorized(string detail) =>
         Results.Problem(title: "Não autorizado", detail: detail, statusCode: StatusCodes.Status401Unauthorized);

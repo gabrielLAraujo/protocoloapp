@@ -92,4 +92,38 @@ public sealed class RefreshTests(ApiFactory factory)
         Assert.False(await db.RefreshTokens.AnyAsync(t => t.TokenHash == tokens.RefreshToken));
         Assert.True(await db.RefreshTokens.AnyAsync(t => t.TokenHash == expectedHash));
     }
+
+    [Fact]
+    public async Task Concurrent_refreshes_with_same_token_yield_one_winner_and_revoke_family()
+    {
+        var (client, first) = await LoginNewUserAsync();
+        using var _ = client;
+
+        var responses = await Task.WhenAll(
+            AuthApi.RefreshAsync(client, first.RefreshToken),
+            AuthApi.RefreshAsync(client, first.RefreshToken));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Unauthorized);
+
+        // The loser counts as a reuse: the winner's new token dies with the family.
+        var winner = await responses.Single(r => r.IsSuccessStatusCode).Content.ReadFromJsonAsync<TokenResponse>();
+        var next = await AuthApi.RefreshAsync(client, winner!.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, next.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/auth/login")]
+    [InlineData("/api/auth/refresh")]
+    [InlineData("/api/auth/logout")]
+    public async Task Null_json_body_returns_400_problem(string path)
+    {
+        using var client = factory.CreateClientWithOwnIp();
+        using var content = new StringContent("null", Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync(new Uri(path, UriKind.Relative), content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
 }

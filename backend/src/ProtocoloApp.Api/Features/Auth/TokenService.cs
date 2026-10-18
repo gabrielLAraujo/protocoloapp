@@ -59,16 +59,24 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
         var token = await FindAsync(rawToken, cancellationToken) ?? throw new InvalidRefreshTokenException();
         var now = clock.GetUtcNow();
 
-        // Single conditional UPDATE: of two concurrent uses of the same token only one wins, the other sees 0 rows.
+        // Rotation and family revocation serialize on the family's advisory lock, so a token issued here can never
+        // survive a concurrent revoke of its family.
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await LockFamilyAsync(token.FamilyId, cancellationToken);
+
+        // Single conditional UPDATE: of two concurrent uses of the same token only one wins.
         var spent = await db.RefreshTokens
             .Where(t => t.Id == token.Id && t.RevokedAt == null && t.ExpiresAt > now)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), cancellationToken);
 
         if (spent == 0)
         {
-            if (token.RevokedAt is not null)
-                await RevokeFamilyAsync(token.FamilyId, cancellationToken);
+            // The row was unrevoked when read, so 0 rows means someone spent or revoked it in between: that is a reuse
+            // too. Only a plainly expired token fails without taking the family down.
+            if (token.ExpiresAt > now)
+                await RevokeFamilyRowsAsync(token.FamilyId, cancellationToken);
 
+            await transaction.CommitAsync(cancellationToken);
             throw new InvalidRefreshTokenException();
         }
 
@@ -76,6 +84,7 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
         await db.RefreshTokens.Where(t => t.Id == token.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.ReplacedById, nextId), cancellationToken);
 
+        await transaction.CommitAsync(cancellationToken);
         return (token.UserId, nextRaw);
     }
 
@@ -83,8 +92,13 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
     public async Task RevokeFamilyAsync(string rawToken, CancellationToken cancellationToken = default)
     {
         var token = await FindAsync(rawToken, cancellationToken);
-        if (token is not null)
-            await RevokeFamilyAsync(token.FamilyId, cancellationToken);
+        if (token is null)
+            return;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await LockFamilyAsync(token.FamilyId, cancellationToken);
+        await RevokeFamilyRowsAsync(token.FamilyId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task<(Guid Id, string Raw)> IssueAsync(Guid userId, Guid familyId, CancellationToken cancellationToken)
@@ -103,7 +117,14 @@ public sealed class TokenService(AppDbContext db, IOptions<AuthOptions> options,
         return (id, raw);
     }
 
-    private async Task RevokeFamilyAsync(Guid familyId, CancellationToken cancellationToken)
+    // Transaction-scoped: released on commit or rollback.
+    private Task<int> LockFamilyAsync(Guid familyId, CancellationToken cancellationToken)
+    {
+        var key = familyId.ToString();
+        return db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({key}))", cancellationToken);
+    }
+
+    private async Task RevokeFamilyRowsAsync(Guid familyId, CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
         await db.RefreshTokens
