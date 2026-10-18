@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
 using Scalar.AspNetCore;
@@ -34,29 +35,44 @@ builder.Services.AddDbContext<AppDbContext>(options => options
     .UseNpgsql(builder.Configuration.GetConnectionString("Db"))
     .UseSnakeCaseNamingConvention());
 
+builder.Services.AddAuth(builder.Configuration);
+builder.Services.AddAppRateLimiting();
+
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
 
 var app = builder.Build();
 
+// Administrative command instead of serving: `create-user <email>` (password from PROTOCOLOAPP_PASSWORD or stdin).
+if (args is ["create-user", var email])
+    return await CreateUserCli.RunAsync(app.Services, email, CreateUserCli.ReadPassword(Console.In), Console.Out);
+
 app.UseForwardedHeaders();
 app.UseAppProblemDetails();
 app.UseRequestLogging();
 app.UseSpaStaticFiles();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 // Liveness: the process is up and Postgres answers. (/health/ready, with the storage check, comes with the files feature.)
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 
-// Feature endpoints go under /api (app.MapGroup("/api")) as features land.
+// Every endpoint needs a logged-in user unless it says AllowAnonymous() (fallback policy, see AddAuth). Features map their
+// endpoints on this group: app.MapGroup("/api") is the only prefix.
+var api = app.MapGroup("/api");
+api.MapAuth();
+
 app.MapSpaFallback();
 
 app.Run();
+return 0;
 
 public partial class Program;
