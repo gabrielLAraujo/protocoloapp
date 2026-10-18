@@ -1,41 +1,80 @@
 # ProtocoloApp
 
-App pessoal para acompanhar a consultoria de bodybuilding: protocolos, treinos e atualizações. Funciona offline
-(SQLite no aparelho, sincronização com a API quando há rede).
+App pessoal para acompanhar a consultoria de bodybuilding: protocolos, treinos e atualizações. Um usuário só,
+offline-first (SQLite no aparelho, sincronização com a API quando há rede).
 
-- `backend/`: API .NET 10 (ASP.NET, EF Core, PostgreSQL 18) que também serve o build web.
-- `frontend/`: React + Capacitor (APK Android e web). Desenvolvimento: `cd frontend && npm ci && npm run dev` (proxy para a API em `localhost:5091`); `npm run gen:api` regenera `src/api/schema.d.ts` de `openapi.json`.
-- `infra/devbox/`: estação de trabalho dos agentes (Coolify). Veja o README da pasta.
-- `docs/superpowers/`: specs e planos.
+- `backend/`: API .NET 10 (ASP.NET, EF Core, PostgreSQL 18) que também serve o build web na mesma origem.
+- `frontend/`: React + Capacitor (web e APK Android).
+- `infra/devbox/`: estação de trabalho dos agentes (Coolify), com Postgres e Docker para os testes.
+- Arquivos (PDFs, fotos) ficam num bucket Cloudflare R2, acessados por URLs pré-assinadas.
 
-## Back-end
+## Documentação
+
+| O quê | Onde |
+| --- | --- |
+| Spec (decisões e escopo) | [docs/superpowers/specs/2026-10-18-protocoloapp-design.md](docs/superpowers/specs/2026-10-18-protocoloapp-design.md) |
+| Plano da Fundação | [docs/superpowers/plans/2026-10-18-fundacao.md](docs/superpowers/plans/2026-10-18-fundacao.md) |
+| Deploy no Coolify (passo a passo) | [docs/runbooks/deploy-coolify.md](docs/runbooks/deploy-coolify.md) |
+| CI, APK e release | [docs/ci/README.md](docs/ci/README.md) |
+| Dev box | [infra/devbox/README.md](infra/devbox/README.md) |
+
+## Rodar localmente (dev box)
+
+Precisa de .NET 10, Node 24 e de um Postgres (o do dev box serve; o Docker do dev box roda os testes de integração).
 
 ```bash
+# API em http://localhost:5190 (usa appsettings.Development.json: chaves e R2 fictícios)
 cd backend
-dotnet build                         # também gera ../frontend/openapi.json
-dotnet test                          # integração usa Testcontainers (precisa de Docker)
-ConnectionStrings__Db="Host=localhost;Database=protocoloapp;Username=protocoloapp;Password=..." \
-  dotnet run --project src/ProtocoloApp.Api
+ConnectionStrings__Db="Host=<postgres>;Database=protocoloapp;Username=protocoloapp;Password=<senha>" \
+  dotnet run --project src/ProtocoloApp.Api --launch-profile http
+
+# Primeiro usuário (não há cadastro público)
+PROTOCOLOAPP_PASSWORD='uma-senha-com-10-ou-mais' \
+  dotnet run --project src/ProtocoloApp.Api -- create-user voce@example.com
+
+# Front com recarga automática (o Vite faz proxy de /api para a API)
+cd frontend && npm ci && npm run dev
 ```
 
-- `GET /health`: liveness (a API responde e o Postgres está no ar).
-- Em Development: OpenAPI em `/openapi/v1.json` e Scalar em `/scalar`.
-- `frontend/openapi.json` é gerado a cada build e versionado. Se a API mudar, faça o build e commite o arquivo; o CI
-  falha quando o arquivo versionado diverge do gerado.
+Em Development a API expõe o OpenAPI em `/openapi/v1.json` e o Scalar em `/scalar`.
 
-## Imagem Docker
+## Comandos do dia a dia
 
 ```bash
-docker build -f backend/Dockerfile -t protocoloapp .   # contexto = raiz do repositório
+# Back-end
+cd backend && dotnet build            # também gera frontend/openapi.json (versionado; o CI falha se divergir)
+cd backend && dotnet test             # integração usa Testcontainers (precisa de Docker)
+dotnet ef migrations add <Nome> --project src/ProtocoloApp.Api --output-dir Shared/Data/Migrations
+
+# Front
+cd frontend && npm run gen:api        # regenera src/api/schema.d.ts a partir de openapi.json
+cd frontend && npm run lint && npm test && npm run build
+VITE_API_URL=https://protocolo.frauchesgabriel.work npm run cap:sync   # copia o build para o projeto Android
+
+# E2E (Playwright): precisa da API servindo o front e de um usuário criado
+cd frontend && npx playwright install chromium
+E2E_BASE_URL=http://localhost:5190 E2E_EMAIL=... E2E_PASSWORD=... npx playwright test
+
+# Imagem Docker (contexto = raiz do repositório)
+docker build -f backend/Dockerfile -t protocoloapp .
 ```
 
-Nota: o estágio do front no `backend/Dockerfile` está **comentado** até a tarefa 5 (quando `frontend/` passa a existir).
-Ao criar o front, descomente o estágio `frontend` e a linha `COPY --from=frontend ... ./wwwroot`.
-
-Variáveis de ambiente: `ConnectionStrings__Db` (obrigatória) e `MIGRATE_ON_START` (padrão `true`: aplica as migrations
-antes de subir a API).
+Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inclui o bucket R2).
 
 ## CI
 
-`.github/workflows/ci.yml`: back-end (build, testes, conferência do OpenAPI), front (só quando `frontend/package.json`
-existe) e imagem Docker.
+`.github/workflows/ci.yml`, em PRs e em pushes para `main` e `feat/**`:
+
+- **Backend:** build, testes (Testcontainers), checagem das migrations e do `openapi.json`.
+- **Frontend:** lint, testes e build.
+- **Docker image:** o mesmo build que o Coolify faz.
+- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores (check-in offline que sincroniza).
+- **Android APK:** APK de debug como artifact; na `main`, o job **Android release** publica o APK assinado numa GitHub Release.
+
+`.github/workflows/codegen.yml` gera migrations e `openapi.json` quando a mensagem do commit tem `[codegen]` ou
+`[migration:<Nome>]`.
+
+## Regras do projeto
+
+Veja [CLAUDE.md](CLAUDE.md): código em inglês, textos de UI em pt-BR, nenhum dado real no repositório, commits sem marca do
+Claude, uma branch por subprojeto e `main` só recebe merge com OK do Gabriel.

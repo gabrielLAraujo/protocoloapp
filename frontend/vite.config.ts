@@ -4,7 +4,7 @@ import { configDefaults, defineConfig } from 'vitest/config'
 
 // Local API (the "http" launch profile). The browser only talks to Vite, so dev behaves like production, where the API
 // serves the front on the same origin.
-const api = 'http://localhost:5091'
+const api = 'http://localhost:5190'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

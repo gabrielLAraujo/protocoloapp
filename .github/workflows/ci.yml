@@ -219,8 +219,8 @@ jobs:
       R2__AccessKeyId: e2e-access-key
       R2__SecretAccessKey: e2e-secret-key-not-real
       R2__Bucket: e2e-bucket
-      ASPNETCORE_URLS: http://localhost:5091
-      E2E_BASE_URL: http://localhost:5091
+      ASPNETCORE_URLS: http://localhost:5190
+      E2E_BASE_URL: http://localhost:5190
       E2E_EMAIL: e2e@example.com
       E2E_PASSWORD: Senha-e2e-123456
     steps:
@@ -273,7 +273,7 @@ jobs:
         run: |
           nohup dotnet ProtocoloApp.Api.dll > "$RUNNER_TEMP/api.log" 2>&1 &
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:5091/health > /dev/null 2>&1; then echo "API is up"; exit 0; fi
+            if curl -fsS http://localhost:5190/health > /dev/null 2>&1; then echo "API is up"; exit 0; fi
             sleep 1
           done
           echo "API did not start"; tail -n 30 "$RUNNER_TEMP/api.log"; exit 1
