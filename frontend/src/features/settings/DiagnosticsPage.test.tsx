@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DiagnosticsPage } from './DiagnosticsPage'
+import * as storageCheck from '../../data/storageCheck'
 import { camera } from '../../platform/camera'
 import { notifications } from '../../platform/notifications'
 
@@ -53,5 +54,23 @@ describe('DiagnosticsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Permissão da câmera' }))
 
     expect(await screen.findByText(/Permissão da câmera negada/)).toBeInTheDocument()
+  })
+
+  it('reports a working storage', async () => {
+    vi.spyOn(storageCheck, 'runStorageCheck').mockResolvedValue()
+    open()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Testar armazenamento' }))
+
+    expect(await screen.findByText(/Armazenamento OK/)).toBeInTheDocument()
+  })
+
+  it('says which storage step failed', async () => {
+    vi.spyOn(storageCheck, 'runStorageCheck').mockRejectedValue(new storageCheck.StorageCheckError('upload'))
+    open()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Testar armazenamento' }))
+
+    expect(await screen.findByText(/envio ao bucket falhou/)).toBeInTheDocument()
   })
 })
