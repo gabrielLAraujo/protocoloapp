@@ -94,10 +94,24 @@ jobs:
           git add --intent-to-add frontend/openapi.json
           git diff --exit-code -- frontend/openapi.json
 
+  # hashFiles() is not available in a job-level `if`, so a tiny job tells whether the front exists yet.
+  detect-frontend:
+    name: Detect frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      present: ${{ steps.detect.outputs.present }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: detect
+        run: echo "present=$([ -f frontend/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   frontend:
     name: Frontend
-    # The front does not exist yet; the job is skipped until frontend/package.json shows up.
-    if: ${{ hashFiles('frontend/package.json') != '' }}
+    # The front does not exist until its task; the job is skipped while frontend/package.json is absent.
+    needs: detect-frontend
+    if: ${{ needs.detect-frontend.outputs.present == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
