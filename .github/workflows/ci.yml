@@ -49,7 +49,8 @@ jobs:
       - name: Build errors
         if: ${{ failure() }}
         working-directory: .
-        run: grep -E ': (error|warning) ' build.log | sort -u | head -9 | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
+        run: |
+          grep -E ': (error|warning) ' build.log | sort -u | head -9 | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
 
       - name: Upload generated OpenAPI
         if: ${{ !cancelled() }}
@@ -161,4 +162,5 @@ jobs:
 
       - name: Image build errors
         if: ${{ failure() }}
-        run: tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
+        run: |
+          tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
