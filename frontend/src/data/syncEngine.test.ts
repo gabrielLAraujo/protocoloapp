@@ -533,7 +533,65 @@ describe('SyncEngine', () => {
     unsubscribe()
 
     expect(seen.some((s) => s.running)).toBe(true)
-    expect(seen.at(-1)).toEqual({ pending: 0, rejected: 1, running: false, lastSyncAt: '2026-10-18T12:00:00.000Z' })
+    expect(seen.at(-1)).toEqual({
+      pending: 0,
+      rejected: 1,
+      running: false,
+      lastSyncAt: '2026-10-18T12:00:00.000Z',
+      lastError: null,
+      dataVersion: 0,
+    })
+  })
+
+  it('dataVersion is bumped only when a pull page writes records', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    let page = 0
+    mockFetch({
+      'GET /api/sync/pull': () => {
+        page++
+        if (page === 1) return json({ records: [remoteRecord('2026-10-18', 1)], nextSince: 1, hasMore: true })
+        if (page === 2) return json({ records: [remoteRecord('2026-10-17', 2)], nextSince: 2, hasMore: false })
+        return json({ records: [], nextSince: 2, hasMore: false })
+      },
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+    const seen: SyncStatus[] = []
+    engine.subscribe((s) => seen.push(s))
+
+    await engine.runOnce()
+    expect(seen.at(-1)?.dataVersion).toBe(2)
+
+    await engine.runOnce()
+    expect(seen.at(-1)?.dataVersion).toBe(2)
+  })
+
+  it('lastError: network when offline, server on 5xx, cleared by a complete run', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    let mode: 'offline' | 'down' | 'up' = 'offline'
+    mockFetch({
+      'GET /api/sync/pull': () => {
+        if (mode === 'offline') throw new TypeError('Failed to fetch')
+        if (mode === 'down') return problem(503)
+        return emptyPull()
+      },
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+    let last: SyncStatus | undefined
+    engine.subscribe((s) => (last = s))
+
+    await engine.runOnce()
+    expect(last).toMatchObject({ lastError: 'network', running: false })
+    expect(last?.lastSyncAt).toBeUndefined()
+
+    mode = 'down'
+    await engine.runOnce()
+    expect(last).toMatchObject({ lastError: 'server' })
+
+    mode = 'up'
+    await engine.runOnce()
+    expect(last).toMatchObject({ lastError: null, lastSyncAt: '2026-10-18T12:00:00.000Z' })
   })
 
   it('start runs now, every 60 s and when the device comes back online; stop ends it', async () => {

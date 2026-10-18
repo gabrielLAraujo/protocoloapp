@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { dailyCheckinRepo, type DailyCheckinFields } from '../../data/dailyCheckinRepo'
 import { outbox } from '../../data/outbox'
 import { json, mockFetch } from '../../test/fetch-mock'
+import { syncState } from '../../data/syncState'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { AttentionList } from './AttentionList'
@@ -26,11 +27,41 @@ const fields: DailyCheckinFields = {
 const at = new Date('2026-10-18T12:00:00Z')
 
 describe('SyncStatus', () => {
-  it('shows "Sincronizado" when nothing is pending', async () => {
+  it('shows "Sincronizado" when nothing is pending after a complete run', async () => {
+    mockFetch({})
+    const { db, view } = await setupApp()
+    await syncState.set(db, 'last_sync_at', '2026-10-18T12:00:00.000Z')
+    view(<SyncStatus />)
+    expect(await screen.findByText('Sincronizado')).toBeInTheDocument()
+  })
+
+  it('shows "Nunca sincronizado" before the first complete run', async () => {
     mockFetch({})
     const { view } = await setupApp()
     view(<SyncStatus />)
-    expect(await screen.findByText('Sincronizado')).toBeInTheDocument()
+    expect(await screen.findByText('Nunca sincronizado')).toBeInTheDocument()
+    expect(screen.queryByText('Sincronizado')).not.toBeInTheDocument()
+  })
+
+  it('shows "Erro ao sincronizar" when the last run failed, even after an earlier success', async () => {
+    mockFetch({
+      'POST /api/sync/push': () => new Response(null, { status: 503 }),
+      'GET /api/sync/pull': () => json({ records: [], nextSince: 0, hasMore: false }),
+    })
+    const { db, engine, view } = await setupApp()
+    await syncState.set(db, 'last_sync_at', '2026-10-18T12:00:00.000Z')
+    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-17', fields, at)
+    view(<SyncStatus />)
+    await engine.runOnce()
+    expect(await screen.findByText('Erro ao sincronizar — 1 pendente')).toBeInTheDocument()
+  })
+
+  it('shows "Erro ao sincronizar" when the server cannot be reached', async () => {
+    mockFetch({}) // every request fails like a dropped connection
+    const { engine, view } = await setupApp()
+    view(<SyncStatus />)
+    await engine.runOnce()
+    expect(await screen.findByText('Erro ao sincronizar')).toBeInTheDocument()
   })
 
   it.each([
@@ -56,6 +87,7 @@ describe('SyncStatus', () => {
   it('shows attention badge when there are rejected entries', async () => {
     mockFetch({})
     const { db, view } = await setupApp()
+    await syncState.set(db, 'last_sync_at', '2026-10-18T12:00:00.000Z')
     await dailyCheckinRepo.upsert(db, USER_A, '2026-10-17', fields, at)
     const [entry] = await db.query<{ seq: number }>('SELECT seq FROM outbox')
     await outbox.reject(db, entry!.seq, ['date_conflict'])

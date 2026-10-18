@@ -8,7 +8,20 @@ import { onOnline, onResume } from '../platform/lifecycle'
 
 export type SyncRunResult = { pushed: number; pulled: number; rejected: number; offline: boolean }
 
-export type SyncStatus = { pending: number; rejected: number; lastSyncAt?: string; running: boolean }
+/** Why the last run failed: no network (or the server did not answer), or the server refused or failed. */
+export type SyncError = 'network' | 'server'
+
+export type SyncStatus = {
+  pending: number
+  rejected: number
+  /** When the last complete run (push and pull) ended. Absent until the first one. */
+  lastSyncAt?: string
+  running: boolean
+  /** Set when the last run stopped early; null after a complete run (or before any run). */
+  lastError: SyncError | null
+  /** Bumped whenever a pull page (or a replay of kept records) wrote at least one record: screens re-read on change. */
+  dataVersion: number
+}
 
 /** Server limits: at most 500 changes per push and 500 records per pull page. */
 export const PUSH_BATCH = 500
@@ -44,7 +57,8 @@ export class SyncEngine {
   private readonly listeners = new Set<(status: SyncStatus) => void>()
   private current: Promise<SyncRunResult> | null = null
   private publishing: Promise<void> = Promise.resolve()
-  private status: SyncStatus = { pending: 0, rejected: 0, running: false }
+  private status: SyncStatus = { pending: 0, rejected: 0, running: false, lastError: null, dataVersion: 0 }
+  private dataVersion = 0
 
   constructor(db: LocalDb, api: ApiClient, clock: () => Date = () => new Date(), adapters: readonly SyncEntityAdapter[] = syncEntities) {
     this.db = db
@@ -60,10 +74,14 @@ export class SyncEngine {
    */
   runOnce(options: { ignoreBackoff?: boolean } = {}): Promise<SyncRunResult> {
     this.current ??= (async () => {
+      // Anything but a complete run counts as a failure; an unexpected error is the server's (or ours).
+      let lastError: SyncError | null = 'server'
       try {
-        return await this.run(options.ignoreBackoff === true)
+        const result = await this.run(options.ignoreBackoff === true)
+        lastError = result.error
+        return result.run
       } finally {
-        await this.publish({ running: false }).catch(() => undefined)
+        await this.publish({ running: false, lastError }).catch(() => undefined)
         this.current = null
       }
     })()
@@ -104,7 +122,7 @@ export class SyncEngine {
     }
   }
 
-  private async run(ignoreBackoff: boolean): Promise<SyncRunResult> {
+  private async run(ignoreBackoff: boolean): Promise<{ run: SyncRunResult; error: SyncError | null }> {
     await this.publish({ running: true })
     const result: SyncRunResult = { pushed: 0, pulled: 0, rejected: 0, offline: false }
     try {
@@ -117,8 +135,14 @@ export class SyncEngine {
     } catch (error) {
       if (!(error instanceof StopRun)) throw error
       result.offline = error.reason === 'offline'
+      return { run: result, error: error.reason === 'offline' ? 'network' : 'server' }
     }
-    return result
+    return { run: result, error: null }
+  }
+
+  /** Tells the screens that records they show may have changed. */
+  private async dataChanged(): Promise<void> {
+    await this.publish({ dataVersion: ++this.dataVersion }).catch(() => undefined)
   }
 
   private async push(result: SyncRunResult): Promise<void> {
@@ -197,6 +221,7 @@ export class SyncEngine {
         await syncState.set(tx, 'last_since', String(page.nextSince))
       })
       result.pulled += page.records.length
+      if (page.records.length > 0) await this.dataChanged()
       if (!page.hasMore || page.nextSince === since) return
       since = page.nextSince
     }
@@ -218,13 +243,15 @@ export class SyncEngine {
     if (this.adapters.size === 0) return
     const entities = [...this.adapters.keys()]
     const marks = entities.map(() => '?').join(', ')
-    await this.db.transaction(async (tx) => {
+    const replayed = await this.db.transaction(async (tx) => {
       const rows = await tx.query<{ record: string }>(`SELECT record FROM sync_unknown WHERE entity IN (${marks})`, entities)
-      if (rows.length === 0) return
+      if (rows.length === 0) return false
       const records = rows.map((row) => JSON.parse(row.record) as SyncRecord).sort((a, b) => a.version - b.version)
       for (const record of records) await this.apply(tx, record)
       await tx.execute(`DELETE FROM sync_unknown WHERE entity IN (${marks})`, entities)
+      return true
     })
+    if (replayed) await this.dataChanged()
   }
 
   /** Publishes in call order (each waits for the previous), so a slow read never overwrites a newer status. */

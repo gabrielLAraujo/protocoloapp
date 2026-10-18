@@ -3,7 +3,7 @@ import { useData } from '../../data/dataContext'
 import type { SyncStatus } from '../../data/syncEngine'
 import { SyncContext, type Sync } from './syncContext'
 
-const idle: SyncStatus = { pending: 0, rejected: 0, running: false }
+const idle: SyncStatus = { pending: 0, rejected: 0, running: false, lastError: null, dataVersion: 0 }
 
 const subscribeOnline = (notify: () => void) => {
   window.addEventListener('online', notify)

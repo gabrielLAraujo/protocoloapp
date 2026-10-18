@@ -3,14 +3,21 @@ import { useSync } from './syncContext'
 
 const pendingLabel = (n: number) => `${n} ${n === 1 ? 'pendente' : 'pendentes'}`
 
-/** Compact sync state for the header: what is waiting, whether it is running, and what needs attention. */
+const withPending = (text: string, n: number) => (n > 0 ? `${text} — ${pendingLabel(n)}` : text)
+
+/**
+ * Compact sync state for the header: what is waiting, whether it is running, and what needs attention.
+ * "Sincronizado" only after a complete run, and never while the last run failed.
+ */
 export function SyncStatus() {
-  const { pending, rejected, running, online, syncNow } = useSync()
+  const { pending, rejected, running, online, lastError, lastSyncAt, syncNow } = useSync()
 
   let label = 'Sincronizado'
   if (running) label = 'Sincronizando…'
-  else if (!online) label = pending > 0 ? `Offline — ${pendingLabel(pending)}` : 'Offline'
+  else if (!online) label = withPending('Offline', pending)
+  else if (lastError) label = withPending('Erro ao sincronizar', pending)
   else if (pending > 0) label = pendingLabel(pending)
+  else if (!lastSyncAt) label = 'Nunca sincronizado'
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
