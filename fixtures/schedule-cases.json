@@ -8236,6 +8236,187 @@
           }
         ]
       }
+    },
+    {
+      "name": "schedule_type_null_is_daily",
+      "description": "An explicit null schedule type counts as daily on both sides.",
+      "input": {
+        "date": "2026-10-20",
+        "protocol": {
+          "phaseName": "Fase exemplo",
+          "meals": [],
+          "items": [
+            {
+              "key": "item_null",
+              "category": "supplement",
+              "name": "Item Tipo Nulo",
+              "timing": "fasting",
+              "schedule": {
+                "type": null
+              }
+            }
+          ],
+          "cardio": null,
+          "guidelines": []
+        },
+        "workouts": [
+          {
+            "planVersionId": "w1",
+            "activatedAt": "2026-10-19T12:00:00Z",
+            "activatedOn": "2026-10-19",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "A",
+                "B",
+                "off",
+                "C"
+              ]
+            }
+          }
+        ],
+        "overrides": [],
+        "slots": [
+          {
+            "slot": "meal_1",
+            "dayType": "training",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_1",
+            "dayType": "off",
+            "time": "08:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "training",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "off",
+            "time": "11:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "training",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "off",
+            "time": "14:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "fasting",
+            "dayType": "training",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "fasting",
+            "dayType": "off",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "training",
+            "time": "22:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "off",
+            "time": "23:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "training",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "off",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "training",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "off",
+            "time": "09:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "training",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "off",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "training",
+        "workoutDayKey": "B",
+        "targets": [
+          {
+            "type": "protocol_item",
+            "key": "item_null",
+            "label": "Item Tipo Nulo",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "workout",
+            "key": "workout",
+            "label": "Treino B",
+            "slot": "workout",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin",
+            "label": "Check-in",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      }
     }
   ]
 }

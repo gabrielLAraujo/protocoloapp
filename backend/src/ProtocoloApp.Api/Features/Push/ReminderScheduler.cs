@@ -165,8 +165,10 @@ public sealed class ReminderScheduler(
         var workouts = new List<WorkoutPlanAt>();
         foreach (var v in versions.Where(v => v.Kind == PlanKind.Workout))
         {
-            PlanDocuments.TryRead<WorkoutDocument>(v.Document.RootElement, out var workout, out _);
-            workouts.Add(new WorkoutPlanAt(v.ActivatedAt!.Value, LocalDate(v.ActivatedAt.Value, zone), workout?.Rotation));
+            // Same as the client: an unreadable version is skipped, so the previous one keeps applying.
+            if (!PlanDocuments.TryRead<WorkoutDocument>(v.Document.RootElement, out var workout, out _) || workout is null)
+                continue;
+            workouts.Add(new WorkoutPlanAt(v.ActivatedAt!.Value, LocalDate(v.ActivatedAt.Value, zone), workout.Rotation));
         }
 
         var overrides = (await db.RotationOverrides.AsNoTracking()

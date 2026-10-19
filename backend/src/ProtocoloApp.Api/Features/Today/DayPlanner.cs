@@ -206,7 +206,7 @@ public static class DayPlanner
         if (schedule is null)
             return true;
 
-        switch (schedule.Type)
+        switch (schedule.Type ?? "daily")
         {
             case "daily":
                 return true;

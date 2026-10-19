@@ -1,3 +1,4 @@
+import { isCalendarDate } from '../domain/calendarDate'
 import type { AdherenceTargetType } from '../domain/dayPlan'
 import { applyPulled, nextClientUpdatedAt, type SyncEntityAdapter } from './entities'
 import { adherenceLogId } from './ids'
@@ -62,7 +63,6 @@ type Row = {
   deleted_at: string | null
 }
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const toLog = (row: Row): AdherenceLogLocal => ({
   id: row.id,
@@ -89,7 +89,7 @@ async function writeRow(db: LocalDb, id: string, p: AdherenceLogPayload, clientU
 
 /** Same rules as the server's validator: anything else would be rejected on push. */
 function toPayload(mark: AdherenceMark): AdherenceLogPayload {
-  if (!DATE.test(mark.date)) throw new RangeError(`Invalid date: ${mark.date}`)
+  if (!isCalendarDate(mark.date)) throw new RangeError(`Invalid date: ${mark.date}`)
   if (!TARGET_TYPES.includes(mark.targetType)) throw new RangeError(`Invalid target type: ${mark.targetType}`)
   if (!SLOT_KEY.test(mark.targetKey)) throw new RangeError(`Invalid target key: ${mark.targetKey}`)
   if (!STATUSES.includes(mark.status)) throw new RangeError(`Invalid status: ${mark.status}`)
