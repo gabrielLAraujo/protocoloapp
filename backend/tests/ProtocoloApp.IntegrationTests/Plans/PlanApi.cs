@@ -19,7 +19,7 @@ public static class PlanSamples
         {"rotation":{"type":"sequence","items":["a","b","off"]},
          "days":[
            {"key":"a","name":"Treino A","exercises":[
-             {"key":"bench","name":"Supino Inclinado C/ Halteres","sets":[{"repsMin":8,"repsMax":10},{"repsMin":8,"repsMax":10}],"restSeconds":90}]},
+             {"key":"bench","name":"Rosca Alternada C/ Halteres","sets":[{"repsMin":8,"repsMax":10},{"repsMin":8,"repsMax":10}],"restSeconds":90}]},
            {"key":"b","name":"Treino B","exercises":[
              {"key":"row","name":"Remada Curvada","sets":[{"repsMin":8,"repsMax":12}]}]}]}
         """;

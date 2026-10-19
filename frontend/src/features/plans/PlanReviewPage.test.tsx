@@ -133,16 +133,16 @@ describe('PlanReviewPage', () => {
     const day = within(screen.getByRole('region', { name: 'Dia 1' }))
     const name = within(day.getByRole('region', { name: 'Exercício 1' })).getByLabelText('Nome')
     await user.clear(name)
-    await user.type(name, 'Supino inclinado')
+    await user.type(name, 'Rosca alternada')
     await user.click(activate())
 
     expect(await screen.findByText('LISTA DE PLANOS')).toBeInTheDocument()
     const writes = calls.filter((c) => c.method !== 'GET')
     expect(writes.map((c) => `${c.method} ${c.path}`)).toEqual([`PUT /api/plans/${PLAN_ID}`, `POST /api/plans/${PLAN_ID}/activate`])
     const put = JSON.parse(writes[0]!.body) as { document: ReturnType<typeof workoutDocument>; newExercises: unknown }
-    expect(put.document.days[0]!.exercises[0]!.name).toBe('Supino inclinado')
+    expect(put.document.days[0]!.exercises[0]!.name).toBe('Rosca alternada')
     expect(put.newExercises).toEqual([
-      { name: 'Supino inclinado', group: 'other' }, // renamed to something the catalog does not know
+      { name: 'Rosca alternada', group: 'other' }, // renamed to something the catalog does not know
       { name: 'Crucifixo novo', group: 'shoulders' },
     ])
     expect(JSON.parse(writes[1]!.body)).toEqual({ cycleStart: null }) // only a protocol has a cycle start

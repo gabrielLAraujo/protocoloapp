@@ -5,8 +5,8 @@ using System.Text.RegularExpressions;
 namespace ProtocoloApp.Api.Features.Plans;
 
 /// <summary>
-/// The key that matches the same exercise written differently in different PDFs ("Supino inclinado c/ halteres" and
-/// "supino inclinado halteres").
+/// The key that matches the same exercise written differently in different PDFs ("Rosca alternada c/ halteres" and
+/// "rosca alternada halteres").
 /// </summary>
 public static partial class ExerciseNames
 {

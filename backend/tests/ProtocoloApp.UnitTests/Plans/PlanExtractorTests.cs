@@ -55,7 +55,7 @@ public sealed class PlanExtractorTests
     [Fact]
     public async Task Valid_workout_reply_returns_document_low_confidence_and_new_exercises()
     {
-        var known = new ExerciseHint(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Supino inclinado halteres", MuscleGroup.Chest);
+        var known = new ExerciseHint(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Rosca alternada halteres", MuscleGroup.Chest);
         var handler = new FakeHandler((_, _) => Json(Fixture("anthropic-workout-response.json")));
 
         var result = await Extract(Create(handler), PlanKind.Workout, known);
@@ -308,7 +308,7 @@ public sealed class PlanExtractorTests
     [Fact]
     public async Task Request_forces_the_tool_and_carries_headers_pdf_schema_and_prompt()
     {
-        var known = new ExerciseHint(Guid.Parse("22222222-2222-2222-2222-222222222222"), "Leg 45", MuscleGroup.Quads);
+        var known = new ExerciseHint(Guid.Parse("22222222-2222-2222-2222-222222222222"), "Leg press", MuscleGroup.Quads);
         var handler = new FakeHandler((_, _) => Json(Fixture("anthropic-workout-response.json")));
 
         await Extract(Create(handler), PlanKind.Workout, known);
@@ -337,7 +337,7 @@ public sealed class PlanExtractorTests
         Assert.Equal(Convert.ToBase64String(PdfBytes), document.GetProperty("source").GetProperty("data").GetString());
         var prompt = content[1].GetProperty("text").GetString()!;
         Assert.Contains("2026-10-18", prompt);
-        Assert.Contains("22222222-2222-2222-2222-222222222222 | Leg 45 | quads", prompt);
+        Assert.Contains("22222222-2222-2222-2222-222222222222 | Leg press | quads", prompt);
         Assert.Contains("DESCANSO", prompt);
     }
 }

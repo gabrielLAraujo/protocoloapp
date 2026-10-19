@@ -16,7 +16,7 @@
 1. Linha de exercício quebrada em duas linhas do PDF → um exercício só (Task 2).
 2. Bloco sem séries no cabeçalho ou exercício sem séries → herda/vazio com `lowConfidence`, nunca quebra (Task 2).
 3. Suplemento na coluna da direita sem refeição na mesma linha → `any` + `lowConfidence` (Task 3).
-4. Data "29 de outubro" quando o upload é em dezembro → ano seguinte (Task 3).
+4. Data "3 de fevereiro" quando o upload é em dezembro → ano seguinte (Task 3).
 5. PDF escaneado (sem texto) → mensagem "Esse PDF não tem texto selecionável; preencha à mão" (Task 4).
 
 ---

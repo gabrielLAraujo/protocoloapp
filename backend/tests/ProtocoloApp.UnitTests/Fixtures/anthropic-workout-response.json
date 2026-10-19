@@ -22,11 +22,11 @@
                 {
                   "key": "A1",
                   "exerciseId": null,
-                  "name": "Supino inclinado c/ halteres",
+                  "name": "Rosca alternada c/ halteres",
                   "sets": [
-                    { "repsMin": 15, "repsMax": 20, "technique": null },
-                    { "repsMin": 10, "repsMax": 15, "technique": null },
-                    { "repsMin": 6, "repsMax": 10, "technique": "drop" }
+                    { "repsMin": 12, "repsMax": 14, "technique": null },
+                    { "repsMin": 9, "repsMax": 11, "technique": null },
+                    { "repsMin": 6, "repsMax": 8, "technique": "drop" }
                   ],
                   "restSeconds": 90,
                   "restSequence": null,
@@ -44,7 +44,7 @@
                     { "repsMin": 8, "repsMax": 12, "technique": null }
                   ],
                   "restSeconds": null,
-                  "restSequence": [45, 30, 15],
+                  "restSequence": [40, 25, 10],
                   "technique": null,
                   "supersetWith": null
                 }

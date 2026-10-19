@@ -51,8 +51,8 @@ public sealed class PlanDraftTests(ApiFactory factory)
     {
         using var api = await PlanApi.CreateAsync(factory);
         var bench = Guid.NewGuid();
-        // "Supino Inclinado C/ Halteres" in the sample normalizes to this name.
-        await AddExerciseAsync(api, bench, "Supino inclinado halteres");
+        // "Rosca Alternada C/ Halteres" in the sample normalizes to this name.
+        await AddExerciseAsync(api, bench, "Rosca alternada halteres");
         var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
 
         var response = await api.CreateDraftAsync(
@@ -60,7 +60,7 @@ public sealed class PlanDraftTests(ApiFactory factory)
             PlanKind.Workout,
             PlanSamples.Workout,
             ["$.days[1].exercises[0].sets", "days[0].name", "days[9].name"],
-            [new NewExerciseSuggestion(" Remada Curvada ", MuscleGroup.Back), new NewExerciseSuggestion("Supino Inclinado c/ Halteres", MuscleGroup.Chest)]);
+            [new NewExerciseSuggestion(" Remada Curvada ", MuscleGroup.Back), new NewExerciseSuggestion("Rosca Alternada c/ Halteres", MuscleGroup.Chest)]);
 
         var id = await CreatedIdAsync(response);
         var plan = await api.GetAsync(id);
@@ -89,7 +89,7 @@ public sealed class PlanDraftTests(ApiFactory factory)
     {
         using var api = await PlanApi.CreateAsync(factory);
         var bench = Guid.NewGuid();
-        await AddExerciseAsync(api, bench, "Supino inclinado halteres");
+        await AddExerciseAsync(api, bench, "Rosca alternada halteres");
         var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
         var document = PlanSamples.Workout.Replace(
             "\"key\":\"bench\",", "\"key\":\"bench\",\"exerciseId\":\"99999999-9999-9999-9999-999999999999\",", StringComparison.Ordinal);

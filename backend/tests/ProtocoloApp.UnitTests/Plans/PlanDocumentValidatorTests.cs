@@ -12,13 +12,13 @@ public sealed class PlanDocumentValidatorTests
           "rotation": { "type": "sequence", "items": ["A", "B", "off"] },
           "days": [
             { "key": "A", "name": "Pernas", "notes": null, "exercises": [
-              { "key": "A1", "exerciseId": null, "name": "Leg 45",
+              { "key": "A1", "exerciseId": null, "name": "Leg press",
                 "sets": [ { "repsMin": 8, "repsMax": 12, "technique": null } ],
                 "restSeconds": 90, "restSequence": null, "technique": null, "supersetWith": null } ] },
             { "key": "B", "name": "Costas", "notes": null, "exercises": [
               { "key": "B1", "exerciseId": null, "name": "Puxada",
                 "sets": [ { "repsMin": 10, "repsMax": 10, "technique": "drop" } ],
-                "restSeconds": null, "restSequence": [45, 30, 15], "technique": null, "supersetWith": null } ] }
+                "restSeconds": null, "restSequence": [40, 25, 10], "technique": null, "supersetWith": null } ] }
           ]
         }
         """;
@@ -188,8 +188,8 @@ public sealed class PlanDocumentValidatorTests
     [Theory]
     [InlineData("\"restSeconds\": 90", "\"restSeconds\": 901")]
     [InlineData("\"restSeconds\": 90", "\"restSeconds\": -1")]
-    [InlineData("\"restSequence\": [45, 30, 15]", "\"restSequence\": [45, 1000]")]
-    [InlineData("\"restSequence\": [45, 30, 15]", "\"restSequence\": []")]
+    [InlineData("\"restSequence\": [40, 25, 10]", "\"restSequence\": [40, 1000]")]
+    [InlineData("\"restSequence\": [40, 25, 10]", "\"restSequence\": []")]
     public void Rest_out_of_range_is_an_error(string from, string to)
     {
         var doc = Doc(ValidWorkout.Replace(from, to, StringComparison.Ordinal));
@@ -210,12 +210,12 @@ public sealed class PlanDocumentValidatorTests
     public void Full_protocol_is_valid()
     {
         var doc = PlanDocuments.Deserialize<ProtocolDocument>("""
-            { "phaseName": "Fase exemplo", "updateDate": "2026-11-15", "billingDate": "2026-11-29",
+            { "phaseName": "Fase exemplo", "updateDate": "2026-12-05", "billingDate": "2026-11-29",
               "meals": [ { "key": "meal_1", "label": "REF 1", "items": [ { "food": "aveia", "grams": 90, "alternatives": [] } ], "notes": null } ],
               "items": [ { "key": "it_1", "category": "supplement", "name": "Creatina", "doseText": "6 g", "timing": "any", "schedule": { "type": "daily" } },
                          { "key": "it_2", "category": "supplement", "name": "Item B", "doseText": "1 cp", "timing": "with_meal:meal_1", "schedule": { "type": "weekdays", "days": ["mon", "fri"] } } ],
               "cardio": { "sessionsPerWeek": 7, "durationMin": 15, "intensity": "HIIT", "preferredTime": "manha" },
-              "guidelines": [ { "kind": "water_min_l", "value": 4.2 }, { "kind": "text", "text": "Exemplo." } ],
+              "guidelines": [ { "kind": "water_min_l", "value": 3.5 }, { "kind": "text", "text": "Exemplo." } ],
               "trainingSplitNote": null }
             """)!;
 
@@ -240,7 +240,7 @@ public sealed class PlanDocumentValidatorTests
     [Fact]
     public void Billing_before_update_is_valid()
     {
-        var doc = PlanDocuments.Deserialize<ProtocolDocument>("""{ "updateDate": "2026-11-15", "billingDate": "2026-11-01" }""")!;
+        var doc = PlanDocuments.Deserialize<ProtocolDocument>("""{ "updateDate": "2026-12-05", "billingDate": "2026-11-01" }""")!;
 
         Assert.Empty(Protocol.Validate(doc).Errors);
     }

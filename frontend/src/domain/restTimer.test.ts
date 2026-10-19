@@ -47,7 +47,7 @@ describe('rest timer', () => {
 
   it('advances through the SST sequence', () => {
     const c = clock()
-    const seq = [45, 30, 15, 5, 5, 15, 30, 45]
+    const seq = [40, 25, 10, 10, 25, 40]
     const timer = createRestTimer({ durations: seq, now: c.now })
     const seen: number[] = []
     for (let i = 0; i < seq.length + 1; i++) {
@@ -55,8 +55,8 @@ describe('rest timer', () => {
       seen.push(timer.remaining())
       timer.next()
     }
-    expect(seen).toEqual([...seq, 45]) // stays on the last step
-    expect(timer.index()).toBe(7)
+    expect(seen).toEqual([...seq, 40]) // stays on the last step
+    expect(timer.index()).toBe(5)
   })
 })
 
