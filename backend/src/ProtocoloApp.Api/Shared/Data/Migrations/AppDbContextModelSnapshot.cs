@@ -459,6 +459,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("low_confidence");
 
+                    b.Property<JsonDocument>("NewExercises")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("new_exercises");
+
                     b.Property<JsonDocument>("RawExtraction")
                         .HasColumnType("jsonb")
                         .HasColumnName("raw_extraction");
