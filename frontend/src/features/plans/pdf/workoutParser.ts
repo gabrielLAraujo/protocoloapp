@@ -4,7 +4,7 @@ import type { PdfLine } from './pdfText'
 /**
  * Reads the consultancy's workout sheet (a Word document exported to PDF) into a draft `WorkoutDocument`:
  *
- * - `(<name>) 3x 8 a 12` opens a day (keys A, B, C… in order); the sets after the name are the day's default sets.
+ * - `(<name>) 4x 6 a 10` opens a day (keys A, B, C… in order); the sets after the name are the day's default sets.
  * - `DESCANSO` is a rest day (`off`) in the `sequence` rotation, at its place between the days.
  * - A line starting with `-` is an exercise. A following line that continues it (the previous one left a parenthesis or the
  *   rest open, or this one starts in lowercase, with `(` or with a unit) is joined to it.
@@ -98,15 +98,15 @@ type DefaultSets = { count: number; repsMin: number; repsMax: number }
 type DayDraft = { name: string; defaults: DefaultSets | null; notes: string[]; exercises: ExerciseDraft[]; inferredName: boolean }
 type ExerciseDraft = { text: string; dashless: boolean }
 
-const REST_DAY = /^descanso\b/i
+const REST_DAY = /^descanso\s*$/i
 const DASH = /^[-–—]\s*/
-/** `3x 8 a 12`, `3 x 8 a 12`, `4 series 10 a 15`, `5x10`. */
+/** `4x 6 a 10`, `4 x 6 a 10`, `2 series 9 a 11`, `5x7`. */
 const SETS = String.raw`(\d+)\s*(?:x|s[eé]ries)\s*(?:(\d+)(?:\s*(?:a|-|–)\s*(\d+))?|(RM)\b)`
 const SETS_ANYWHERE = new RegExp(String.raw`(?:^|[^\w])${SETS}`, 'i')
 const INTERVAL = /\bintervalo\s+(?:alongado\s+)?(?:de\s+)?\d/i
 const UNIT_START = /^(?:min(?:uto)?s?|seg(?:undo)?s?)\b/i
 
-/** Lowercase letters (any accent): "aumento", "das cargas", "minuto)". */
+/** Starts with a lowercase letter (any accent). */
 const startsLowercase = (text: string) => /^\p{Ll}/u.test(text)
 
 function clean(text: string): string {
@@ -128,7 +128,7 @@ function parseHeader(text: string): { name: string; defaults: DefaultSets | null
   const match = /^\(([^()]+)\)\s*(.*)$/.exec(text)
   if (!match) return null
   const [, inner, after] = match
-  // "(intervalo 1 min)" or "(1x6 a 10 + drop)" at the start of a line continue an exercise; they are not days.
+  // "(intervalo 3 min)" or "(2x5 a 7 + drop)" at the start of a line continue an exercise; they are not days.
   if (/\bintervalo\b/i.test(inner) || new RegExp(SETS, 'i').test(inner)) return null
   const sets = new RegExp(String.raw`^${SETS}\s*`, 'i').exec(after)
   if (after !== '' && !sets) return null
@@ -146,10 +146,15 @@ function continues(previous: string, text: string): boolean {
   if (open) return true
   if (/\bintervalo(?:\s+alongado)?(?:\s+de)?(?:\s+[\d\s,]+)?$/i.test(previous)) return true
   if (/[+,]$/.test(previous)) return true
-  // A line that is only the rest ("INTERVALO 2 MIN") belongs to the exercise above it.
-  if (/^\(?\s*intervalo\b/i.test(text)) return true
-  return startsLowercase(text) || /^[(\d]/.test(text) || UNIT_START.test(text)
+  // A line that is only the rest or its unit belongs to the exercise above it.
+  if (/^\(?\s*intervalo\b/i.test(text) || UNIT_START.test(text)) return true
+  // A lowercase, digit or "(" start only continues an exercise that is still unfinished: no rest yet, or cut mid-phrase.
+  if (startsLowercase(text) || /^[(\d]/.test(text)) return !INTERVAL.test(previous) || MID_PHRASE.test(previous)
+  return false
 }
+
+/** Ends on a word that cannot close a phrase ("… de", "… com", "… fazer"). */
+const MID_PHRASE = /\s(?:de|do|da|dos|das|com|c|e|ou|no|na|em|para|fazer|ate|até)$/i
 
 function looksLikeExercise(text: string): boolean {
   return INTERVAL.test(text) || SETS_ANYWHERE.test(text)
@@ -174,7 +179,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
       onMatch(m as RegExpExecArray)
     }
   }
-  // The text with the parsed spans blanked out by a private-use character (), keeping every index in place.
+  // The text with the parsed spans blanked out by a private-use character (U+E000), keeping every index in place.
   const masked = () => {
     let out = text
     for (const s of spans) out = out.slice(0, s.start) + '\uE000'.repeat(s.end - s.start) + out.slice(s.end)
@@ -184,7 +189,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
   const techniques: string[] = []
   let stretchedRest = false
 
-  // Rest: an SST sequence first ("intervalo 45, 30, 15"), then a single value.
+  // Rest: an SST sequence first ("intervalo 40, 20, 10"), then a single value.
   let restSequence: number[] | null = null
   take(/\(?\s*intervalo\s+(?:de\s+)?(\d+(?:\s*,\s*\d+)+)\s*\)?/i, text, (m) => {
     restSequence ??= m[1].split(',').map((v) => Number(v.trim()))
@@ -200,7 +205,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
       const value = Number(m[2].replace(',', '.'))
       const unit = (m[3] ?? '').toLowerCase()
       if (unit.startsWith('m')) {
-        // "intervalo 30 minuto" is a slip for seconds: nobody rests half an hour between sets.
+        // "intervalo 20 minuto" is a slip for seconds: nobody rests half an hour between sets.
         if (value > 5) {
           restSeconds = Math.round(value)
           lowRest = true
@@ -213,7 +218,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
     },
   )
 
-  // Sets: "(1x15 a 20)" groups, then a bare "4x 10 a 15" / "4 series 10 a 15" / "3x RM".
+  // Sets: "(1x12 a 18)" groups, then a bare "5x 7 a 9" / "2 series 9 a 11" / "2x RM".
   const sets: PlannedSet[] = []
   let lowSets = false
   const addSets = (m: RegExpExecArray, drop: string | undefined) => {
@@ -280,7 +285,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
 }
 
 /** Drops empty or unmatched parentheses and stray punctuation left where the sets and the rest were cut out. */
-function tidy(text: string): string {
+export function tidy(text: string): string {
   let out = clean(text)
   for (let previous = ''; previous !== out; ) {
     previous = out
