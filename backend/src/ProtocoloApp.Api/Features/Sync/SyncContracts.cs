@@ -69,6 +69,9 @@ public static class SyncErrors
     /// <summary>Missing payload, not a JSON object, or a field that is invalid (<c>invalid_payload:&lt;field&gt;</c>).</summary>
     public const string InvalidPayload = "invalid_payload";
 
+    /// <summary>The entity is written by the server only (plan_version, exercise); clients can pull it but not push it.</summary>
+    public const string ReadOnly = "read_only";
+
     /// <summary>The database refused the row (a constraint the validation did not anticipate).</summary>
     public const string ConstraintViolation = "constraint_violation";
 

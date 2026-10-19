@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
+using ProtocoloApp.Api.Features.Plans;
 
 namespace ProtocoloApp.Api.Shared.Data;
 
@@ -15,6 +16,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DailyCheckin> DailyCheckins => Set<DailyCheckin>();
 
     public DbSet<FileRecord> Files => Set<FileRecord>();
+
+    public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
+
+    public DbSet<Exercise> Exercises => Set<Exercise>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
