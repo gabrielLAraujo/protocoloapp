@@ -222,7 +222,6 @@ public sealed class PlanDocumentValidatorTests
     [Theory]
     [InlineData("""{ "rotation": null, "days": null }""", "days")]
     [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [null] }""", "days[0]")]
-    [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": null } ] }""", "days")]
     [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": [ { "key": "A1", "name": "x", "sets": null } ] } ] }""", "days[0].exercises[0].sets")]
     [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": [ { "key": "A1", "name": "x", "sets": [null] } ] } ] }""", "days[0].exercises[0].sets[0]")]
     public void Workout_with_explicit_nulls_reports_errors_without_throwing(string json, string expectedPath)
@@ -232,6 +231,15 @@ public sealed class PlanDocumentValidatorTests
         var errors = Workout.Validate(doc).Errors.Select(e => e.PropertyName).ToList();
 
         Assert.Contains(expectedPath, errors);
+    }
+
+    [Fact]
+    public void Day_with_null_exercises_is_treated_as_empty()
+    {
+        var doc = PlanDocuments.Deserialize<WorkoutDocument>(
+            """{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": null } ] }""")!;
+
+        Assert.Empty(Errors(doc));
     }
 
     [Fact]
