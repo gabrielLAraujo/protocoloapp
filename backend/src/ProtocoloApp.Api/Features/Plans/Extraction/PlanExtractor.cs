@@ -124,12 +124,12 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
         foreach (var hint in known)
             byName.TryAdd(ExerciseNames.Normalize(hint.Name), hint.Id);
 
-        var days = (workout.Days ?? []).Select((day, i) => day is null ? day : day with
+        var days = (workout.Days ?? []).Select((day, i) => day is null ? day! : day with
         {
             Exercises = (day.Exercises ?? []).Select((exercise, j) =>
             {
                 if (exercise is null)
-                    return exercise;
+                    return exercise!; // kept as is: the validator reports the null element
 
                 var id = exercise.ExerciseId;
                 if (id is { } given && !byId.Contains(given))
@@ -145,7 +145,7 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             }).ToList(),
         }).ToList();
 
-        return workout with { Days = days! };
+        return workout with { Days = days };
     }
 
     private static IEnumerable<NewExerciseSuggestion> ReadNewExercises(JsonElement input, IReadOnlyList<ExerciseHint> known)
