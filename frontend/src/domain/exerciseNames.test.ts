@@ -3,8 +3,8 @@ import { normalizeExerciseName } from './exerciseNames'
 
 describe('normalizeExerciseName', () => {
   it('matches the same exercise written differently', () => {
-    expect(normalizeExerciseName('Supino inclinado c/ halteres')).toBe(normalizeExerciseName('supino inclinado halteres'))
-    expect(normalizeExerciseName('Supino inclinado com halteres')).toBe('supino inclinado halteres')
+    expect(normalizeExerciseName('Rosca alternada c/ halteres')).toBe(normalizeExerciseName('rosca alternada halteres'))
+    expect(normalizeExerciseName('Rosca alternada com halteres')).toBe('rosca alternada halteres')
   })
   it('drops accents, punctuation and filler words', () => {
     expect(normalizeExerciseName('  Elevação (lateral) no Cabo! ')).toBe('elevacao lateral cabo')

@@ -1,13 +1,11 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { expect, test, type Page, type Response } from '@playwright/test'
+// @ts-expect-error plain JS fixture builder, no types
+import { protocolPdf, scannedPdf, workoutPdf } from './fixtures/make-pdfs.mjs'
 import { login } from './support/auth.ts'
 
 // The Anthropic stand-in the API talks to (CI starts it); it also lists what it received.
 const ANTHROPIC_STUB = process.env.E2E_ANTHROPIC_STUB_URL ?? 'http://127.0.0.1:9100'
-
-const FIXTURE = fileURLToPath(new URL('./fixtures/ficha-ficticia.pdf', import.meta.url))
 
 interface StubRequest {
   tool: string | null
@@ -16,6 +14,8 @@ interface StubRequest {
   pdfIsPdf: boolean
   pdfSha256: string | null
 }
+
+const pdfFile = (name: string, buffer: Buffer) => ({ name, mimeType: 'application/pdf', buffer })
 
 const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
 
@@ -27,21 +27,23 @@ async function expectSynced(page: Page) {
 
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
 
-/** Sends the fictitious PDF in the card of `title`, reviews the draft the stub produced and activates it. */
-async function importAndActivate(page: Page, title: 'Protocolo' | 'Treino') {
+/** Sends a PDF in the card of `title`: the device reads it (pdf.js worker) and creates the draft; the review opens. */
+async function importOnDevice(page: Page, title: 'Protocolo' | 'Treino', file: { name: string; mimeType: string; buffer: Buffer }) {
   await nav(page, 'Planejamento').click()
   await expect(page.getByRole('heading', { name: 'Planejamento' })).toBeVisible()
-  const imported = page.waitForResponse((r) => r.url().includes('/api/plans/import') && r.request().method() === 'POST')
-  await page.getByRole('region', { name: title }).locator('input[type=file]').setInputFiles(FIXTURE)
-  expect((await imported).status()).toBe(201)
-
+  const created = page.waitForResponse((r) => r.url().endsWith('/api/plans/drafts') && r.request().method() === 'POST')
+  await page.getByRole('region', { name: title }).locator('input[type=file]').setInputFiles(file)
+  expect((await created).status()).toBe(201)
   await expect(page).toHaveURL(/\/planejamento\/revisao\//)
-  const activate = page.getByRole('button', { name: 'Ativar', exact: true })
-  await expect(activate).toBeEnabled()
-  const activated = page.waitForResponse((r) => /\/api\/plans\/[^/]+\/activate$/.test(r.url()) && r.request().method() === 'POST')
-  await activate.click()
-  expect((await activated).status()).toBe(200)
+}
 
+/** Activates the draft on screen and waits for the planning page to show it active. */
+async function activate(page: Page, title: 'Protocolo' | 'Treino') {
+  const button = page.getByRole('button', { name: 'Ativar', exact: true })
+  await expect(button).toBeEnabled()
+  const activated = page.waitForResponse((r) => /\/api\/plans\/[^/]+\/activate$/.test(r.url()) && r.request().method() === 'POST')
+  await button.click()
+  expect((await activated).status()).toBe(200)
   await expect(page).toHaveURL(/\/planejamento$/)
   await expect(page.getByRole('region', { name: title }).getByText(/^Ativo desde/)).toBeVisible()
 }
@@ -51,26 +53,32 @@ async function importAndActivate(page: Page, title: 'Protocolo' | 'Treino') {
 test('imports a workout plan, logs a session offline and sees it in the summary', async ({ browser }) => {
   const context = await browser.newContext()
   const page = await context.newPage()
-  const pdfSha256 = createHash('sha256').update(readFileSync(FIXTURE)).digest('hex')
-
   const before = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
 
   await login(page)
   await expectSynced(page)
 
-  // Protocol (with its update date, so the summary shows the cycle) and workout: each PDF goes to the storage stub, the API
-  // reads it through the Anthropic stub, and the draft is reviewed and activated.
-  await importAndActivate(page, 'Protocolo')
-  await importAndActivate(page, 'Treino')
+  // Protocol (its update date in 30 days, so the summary shows the cycle) and workout, both read on the device.
+  await importOnDevice(page, 'Protocolo', pdfFile('protocolo-ficticio.pdf', protocolPdf()))
+  await expect(page.getByRole('heading', { name: 'Revisar protocolo' })).toBeVisible()
+  await expect(page.getByLabel('Fase', { exact: true })).toHaveValue('Fase Ficticia')
+  await expect(page.getByLabel('Nome da refeição').first()).toHaveValue('Refeicao 1')
+  // The dates have no year in the PDF: inferred, so marked for review.
+  await expect(page.getByText('Confira').first()).toBeVisible()
+  await activate(page, 'Protocolo')
 
-  // The stub received both PDFs, byte for byte, with the forced tool of each kind.
-  const received = ((await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]).slice(before.length)
-  expect(received.map((r) => r.tool)).toEqual(['submit_protocol', 'submit_workout'])
-  for (const request of received) {
-    expect(request.pdfMediaType).toBe('application/pdf')
-    expect(request.pdfIsPdf).toBe(true)
-    expect(request.pdfSha256).toBe(pdfSha256)
-  }
+  await importOnDevice(page, 'Treino', pdfFile('treino-ficticio.pdf', workoutPdf()))
+  await expect(page.getByRole('heading', { name: 'Revisar treino' })).toBeVisible()
+  await expect(page.getByLabel('Nome do dia').first()).toHaveValue('Treino A - Exemplo')
+  // The wrapped line is one exercise with its rest; the exercise without sets inherits the day's, marked for review.
+  const day1 = page.getByRole('region', { name: 'Dia 1' })
+  await expect(day1.getByRole('region', { name: 'Exercício 2' }).getByLabel('Descanso (s)', { exact: true })).toHaveValue('60')
+  await expect(page.getByRole('region', { name: 'Dia 2' }).getByText('Confira').first()).toBeVisible()
+  await activate(page, 'Treino')
+
+  // Nothing went to the AI.
+  const after = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
+  expect(after.length).toBe(before.length)
 
   // The rotation is anchored on the activation date, so day A is today whatever the weekday.
   await nav(page, 'Treino').click()
@@ -115,6 +123,37 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   await expect(page.getByText(/Faltam \d+ dias para a atualização/)).toBeVisible()
   await expect(page.getByText('1 de 1', { exact: true })).toBeVisible()
   await expect(page.locator('[aria-label*="hoje, treino feito"]')).toBeVisible()
+
+  await context.close()
+})
+
+// Runs after the test above (same project, file order): the plans are active, so this only leaves drafts behind.
+test('a scanned PDF opens an empty draft to fill in, and "Ler com IA" reads the same file', async ({ browser }) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const scan = scannedPdf()
+  const scanSha256 = createHash('sha256').update(scan).digest('hex')
+  const before = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
+
+  await login(page)
+  await expectSynced(page)
+
+  await importOnDevice(page, 'Treino', pdfFile('escaneado.pdf', scan))
+  await expect(page.getByText('Esse PDF não tem texto selecionável. Preencha à mão.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ativar', exact: true })).toBeDisabled()
+  const firstDraft = page.url()
+
+  // CI configures the AI (pointing at the stub): the review offers it on the same file.
+  const imported = page.waitForResponse((r) => r.url().endsWith('/api/plans/import') && r.request().method() === 'POST')
+  await page.getByRole('button', { name: 'Ler com IA' }).click()
+  expect((await imported).status()).toBe(201)
+  await expect(page).not.toHaveURL(firstDraft)
+  await expect(page.getByLabel('Nome do dia').first()).toHaveValue('Treino A - Exemplo')
+  await expect(page.getByText('Esse PDF não tem texto selecionável. Preencha à mão.')).toHaveCount(0)
+
+  const received = ((await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]).slice(before.length)
+  expect(received.map((r) => r.tool)).toEqual(['submit_workout'])
+  expect(received[0]).toMatchObject({ pdfMediaType: 'application/pdf', pdfIsPdf: true, pdfSha256: scanSha256 })
 
   await context.close()
 })

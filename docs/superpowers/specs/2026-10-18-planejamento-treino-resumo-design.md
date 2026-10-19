@@ -57,25 +57,25 @@ Espelho das tabelas acima (`plan_versions` só com `document`/`status`/`activate
 ```jsonc
 // kind = protocol
 {
-  "phaseName": "Bulk 2026",
-  "updateDate": "2026-11-15",
+  "phaseName": "Fase exemplo",
+  "updateDate": "2026-12-05",
   "billingDate": "2026-11-29",
   "meals": [{ "key": "meal_1", "label": "REF 1", "items": [{ "food": "aveia", "grams": 90, "alternatives": [] }], "notes": null }],
   "items": [{ "key": "it_1", "category": "supplement|compound|hormone|thermogenic|sleep_optional",
               "name": "Creatina", "doseText": "6 g", "timing": "any|fasting|after_meal|before_bed|pre_workout|intra_workout|post_workout",
               "schedule": { "type": "daily" } }],
   "cardio": { "sessionsPerWeek": 7, "durationMin": 15, "intensity": "HIIT", "preferredTime": "manhã" },
-  "guidelines": [{ "kind": "water_min_l", "value": 4.2 }, { "kind": "free_meals_per_week", "value": 2 }, { "kind": "text", "text": "..." }],
+  "guidelines": [{ "kind": "water_min_l", "value": 3.5 }, { "kind": "free_meals_per_week", "value": 2 }, { "kind": "text", "text": "..." }],
   "trainingSplitNote": "3 treinos para 1 off"
 }
 // kind = workout
 {
   "rotation": { "type": "sequence", "items": ["A","B","C","off","D","E","F","off"] }
            | { "type": "fixed_weekdays", "map": { "mon": "A", "tue": "B", "...": "off" } },
-  "days": [{ "key": "A", "name": "Pernas", "notes": "Trabalho de flexibilidade peitoral",
-             "exercises": [{ "key": "A1", "exerciseId": "uuid", "name": "Leg 45",
+  "days": [{ "key": "A", "name": "Pernas", "notes": "Alongamento leve ao final",
+             "exercises": [{ "key": "A1", "exerciseId": "uuid", "name": "Leg press",
                "sets": [{ "repsMin": 8, "repsMax": 12, "technique": null }],
-               "restSeconds": 90, "restSequence": null, "technique": "com elástico + 10 parciais após a falha",
+               "restSeconds": 90, "restSequence": null, "technique": "pausa de 2 s embaixo",
                "supersetWith": null }] }]
 }
 ```

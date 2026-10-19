@@ -1,13 +1,26 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, Route, Routes } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Link, Route, Routes, useLocation } from 'react-router'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SyncRecord } from '../../data/apiClient'
 import { planVersionSync } from '../../data/planRepo'
 import { json, mockFetch, problem } from '../../test/fetch-mock'
 import { setupApp } from '../testSupport'
 import { ACTIVE_ID, FILE_ID, PLAN_ID, protocolDocument, workoutDocument } from './fixtures'
+import * as pdfText from './pdf/pdfText'
+import type { PdfLine } from './pdf/pdfText'
 import { PlansPage } from './PlansPage'
+
+vi.mock('./pdf/pdfText', () => ({ extractPdfLines: vi.fn() }))
+
+// Invented sheet lines: what pdf.js would give for a fictitious workout PDF.
+const sheet = (...texts: string[]): PdfLine[] => texts.map((text, i) => ({ page: 1, y: 800 - i * 14, items: [{ x: 72, text }], text }))
+const workoutSheet = () => sheet('(grupo um) 3x 8 a 12', '- Movimento alfa (2x9 a 11) (intervalo 2 min)', 'DESCANSO')
+
+function ReviewStub() {
+  const notice = (useLocation().state as { notice?: string } | null)?.notice
+  return <p>TELA DE REVISÃO{notice ? ` · ${notice}` : ''}</p>
+}
 
 const planRecord = (id: string, kind: string, status: string, document: unknown, activatedAt: string | null): SyncRecord => ({
   entity: 'plan_version',
@@ -20,11 +33,11 @@ const planRecord = (id: string, kind: string, status: string, document: unknown,
 
 const pdf = () => new File(['%PDF-1.4 fake'], 'ficha.pdf', { type: 'application/pdf' })
 
-const routes = (importHandler: () => Response | Promise<Response>) => ({
+const routes = (draftHandler: () => Response | Promise<Response>) => ({
   'POST /api/files/upload-url': () => json({ fileId: FILE_ID, uploadUrl: 'http://storage.test/up', expiresAt: '2026-10-18T12:00:00Z' }),
   'PUT /up': () => new Response(null, { status: 200 }),
   [`POST /api/files/${FILE_ID}/confirm`]: () => new Response(null, { status: 204 }),
-  'POST /api/plans/import': importHandler,
+  'POST /api/plans/drafts': draftHandler,
 })
 
 async function renderPage() {
@@ -43,13 +56,14 @@ async function renderPage() {
         }
       />
       <Route path="/outra" element={<p>OUTRA TELA</p>} />
-      <Route path="/planejamento/revisao/:id" element={<p>TELA DE REVISÃO</p>} />
+      <Route path="/planejamento/revisao/:id" element={<ReviewStub />} />
     </Routes>,
   )
   return app
 }
 
 afterEach(() => vi.restoreAllMocks())
+beforeEach(() => vi.mocked(pdfText.extractPdfLines).mockResolvedValue(workoutSheet()))
 
 const card = (name: string) => within(screen.getByRole('region', { name }))
 
@@ -67,39 +81,59 @@ describe('PlansPage', () => {
     expect(card('Protocolo').getByRole('link', { name: 'Ver protocolo' })).toHaveAttribute('href', '/planejamento/protocolo')
   })
 
-  it('sending a PDF shows "Lendo o PDF…", blocks a second import and opens the review', async () => {
+  it('sending a PDF reads it on the device, shows "Lendo o PDF…", blocks a second import and opens the review', async () => {
     let finish!: () => void
     const gate = new Promise<void>((resolve) => (finish = resolve))
-    const calls = mockFetch(routes(async () => (await gate, json({ id: PLAN_ID }, 201))))
+    const calls = mockFetch(routes(async () => (await gate, json({ planVersionId: PLAN_ID }, 201))))
     const user = userEvent.setup()
     await renderPage()
     await screen.findByRole('heading', { name: 'Treino' })
 
     await user.upload(card('Treino').getByLabelText('Enviar novo PDF'), pdf())
 
-    expect(await card('Treino').findByText(/Lendo o PDF…/)).toBeInTheDocument()
-    expect(card('Treino').getByText(/até 90 segundos/)).toBeInTheDocument()
+    expect(await card('Treino').findByText('Lendo o PDF…')).toBeInTheDocument()
     expect(card('Treino').getByLabelText('Enviar novo PDF')).toBeDisabled()
     expect(card('Protocolo').getByLabelText('Enviar novo PDF')).toBeDisabled()
 
     finish()
     expect(await screen.findByText('TELA DE REVISÃO')).toBeInTheDocument()
-    expect(calls.filter((c) => c.path === '/api/plans/import')).toHaveLength(1)
+    const drafts = calls.filter((c) => c.path === '/api/plans/drafts')
+    expect(drafts).toHaveLength(1)
+    const body = JSON.parse(drafts[0]!.body)
+    expect(body).toMatchObject({ fileId: FILE_ID, kind: 'workout', newExercises: [] })
+    expect(body.document.days[0].exercises[0]).toMatchObject({ name: 'Movimento alfa', restSeconds: 120 })
+    // Read on the device: the AI import is never called.
+    expect(calls.some((c) => c.path === '/api/plans/import')).toBe(false)
+    expect(vi.mocked(pdfText.extractPdfLines)).toHaveBeenCalledTimes(1)
+  })
+
+  it('a PDF without selectable text still opens an empty draft with the notice', async () => {
+    vi.mocked(pdfText.extractPdfLines).mockResolvedValue([])
+    const calls = mockFetch(routes(() => json({ planVersionId: PLAN_ID }, 201)))
+    const user = userEvent.setup()
+    await renderPage()
+    await screen.findByRole('heading', { name: 'Protocolo' })
+
+    await user.upload(card('Protocolo').getByLabelText('Enviar novo PDF'), pdf())
+
+    expect(await screen.findByText('TELA DE REVISÃO · Esse PDF não tem texto selecionável. Preencha à mão.')).toBeInTheDocument()
+    const body = JSON.parse(calls.find((c) => c.path === '/api/plans/drafts')!.body)
+    expect(body).toMatchObject({ kind: 'protocol', document: { meals: [], items: [], guidelines: [] }, lowConfidence: [] })
   })
 
   it('an import that ends after the user went elsewhere does not take them to the review', async () => {
     let finish!: () => void
     const gate = new Promise<void>((resolve) => (finish = resolve))
-    const calls = mockFetch(routes(async () => (await gate, json({ id: PLAN_ID }, 201))))
+    const calls = mockFetch(routes(async () => (await gate, json({ planVersionId: PLAN_ID }, 201))))
     const user = userEvent.setup()
     await renderPage()
     await screen.findByRole('heading', { name: 'Treino' })
     await user.upload(card('Treino').getByLabelText('Enviar novo PDF'), pdf())
-    await card('Treino').findByText(/Lendo o PDF…/)
+    await card('Treino').findByText('Lendo o PDF…')
 
     await user.click(screen.getByRole('link', { name: 'Ir para outra tela' }))
     finish()
-    await waitFor(() => expect(calls.some((c) => c.path === '/api/plans/import')).toBe(true))
+    await waitFor(() => expect(calls.some((c) => c.path === '/api/plans/drafts')).toBe(true))
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(screen.getByText('OUTRA TELA')).toBeInTheDocument()

@@ -110,8 +110,8 @@ Todas as entidades sincronizáveis têm: `id uuid` (gerado no cliente), `created
   - **`cardio_plan`** — `sessions_per_week` ou `daily`, `duration_min`, `intensity`, `preferred_time`.
   - **`guideline`** — `kind` (`water_min_l` | `free_meals_per_week` | `text`), `value`, `text`.
 - **`workout_plan_version`** — `status`, `source_file_id`, `extracted_json`, `rotation` (ver 4.2).
-  - **`workout_day`** — `label` (ex.: "B"), `name` (ex.: "Peito, ombros e abdômen"), `position`, `notes` (ex.: "flexibilidade peitoral").
-    - **`planned_exercise`** — `exercise_id`, `position`, `set_scheme` (lista de `{reps_min, reps_max, technique?}` — ex.: `[{15,20},{10,15},{8,12},{6,10,"drop"}]`), `rest_seconds` ou `rest_sequence` (ex.: SST `[45,30,15,5,5,15,30,45]`), `technique_notes` (pico de contração, ponto zero, parciais…), `combined_with` (bi-set).
+  - **`workout_day`** — `label` (ex.: "B"), `name` (ex.: "Superiores A"), `position`, `notes` (ex.: "Alongamento leve ao final").
+    - **`planned_exercise`** — `exercise_id`, `position`, `set_scheme` (lista de `{reps_min, reps_max, technique?}` — ex.: `[{12,14},{9,11},{7,9},{6,8,"drop"}]`), `rest_seconds` ou `rest_sequence` (ex.: SST `[40,25,10,10,25,40]`), `technique_notes` (cadência, pausa isométrica…), `combined_with` (bi-set).
 - **`exercise`** — catálogo: `name`, `primary_muscle_group` (`chest` | `back` | `shoulders` | `biceps` | `triceps` | `quads` | `hamstrings` | `glutes` | `calves` | `abs` | `forearms` | `mobility`), `aliases`.
 
 ### 4.2 Regras de agenda (JSON tipado, validado no back e no front)

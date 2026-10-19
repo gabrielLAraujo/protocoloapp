@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { createMemoryRouter, MemoryRouter, type RouteObject } from 'react-router'
+import { createMemoryRouter, MemoryRouter, type InitialEntry, type RouteObject } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { DataContext } from '../data/dataContext'
 import { SyncEngine } from '../data/syncEngine'
@@ -8,7 +8,7 @@ import { newLocalDb, newTestApi, USER_A } from '../test/localDb'
 import { SyncProvider } from './sync/SyncProvider'
 
 /** A migrated in-memory database, a real sync engine over the fake `fetch`, and the providers the screens need. */
-export async function setupApp(initialEntries?: string[]) {
+export async function setupApp(initialEntries?: InitialEntry[]) {
   const db = await newLocalDb()
   const engine = new SyncEngine(db, newTestApi())
   const wrap = (children: ReactNode) => (

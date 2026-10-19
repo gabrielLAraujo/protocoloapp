@@ -31,7 +31,7 @@ internal static class ExtractionPrompts
         {
             text.AppendLine("- Chaves: dias \"A\", \"B\", \"C\", ...; exercícios \"A1\", \"A2\", ... (letra do dia + posição).");
             text.AppendLine("- rotation: copie a rotação como está no PDF. DESCANSO vira \"off\". Os valores da rotação devem ser chaves de dias existentes ou \"off\".");
-            text.AppendLine("- Séries: gere um item em sets por série. \"4x 8 a 12\" vira quatro séries com repsMin 8 e repsMax 12. \"(1x15 a 20) (1x10 a 15) (1x6 a 10 + drop)\" vira três séries, a última com technique \"drop\".");
+            text.AppendLine("- Séries: gere um item em sets por série. \"5x 7 a 9\" vira cinco séries com repsMin 7 e repsMax 9. \"(1x14 a 16) (1x9 a 11) (1x4 a 6 + drop)\" vira três séries, a última com technique \"drop\".");
             text.AppendLine("- Intervalos de descanso: restSeconds para um valor único; restSequence para listas de intervalos (estilo SST), em segundos.");
             text.AppendLine("- Bi-sets: preencha supersetWith com a chave do outro exercício.");
             text.AppendLine("- Quando o nome do exercício casar com um de knownExercises (ignorando acentos, maiúsculas, pontuação e \"c/\"/\"com\"), use o exerciseId dele. Caso contrário deixe exerciseId null e inclua o exercício em newExercises com o grupo muscular sugerido.");

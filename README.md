@@ -40,6 +40,16 @@ Bom saber:
   do aparelho e os lembretes continuam no horário de Brasília.
 - Restaurou ou limpou o banco do servidor? Toque em "Ativar lembretes" de novo em cada aparelho.
 
+## Importar PDF (sem IA)
+
+Em **Planejamento**, "Enviar novo PDF" sobe o arquivo para o R2 (precisa de internet) e o próprio aparelho lê o texto
+(`pdfjs-dist`, em `frontend/src/features/plans/pdf/`): a ficha de treino (blocos `(nome) séries`, linhas `- exercício`,
+`DESCANSO`) e o protocolo (colunas de refeições, alimentos e suplementos; datas, fase, cardio, água, compostos) viram um
+rascunho (`POST /api/plans/drafts`) que abre na revisão. O que foi inferido (ano das datas, horário pela posição, séries
+herdadas) aparece com "Confira". Um PDF sem texto selecionável (escaneado) ou fora do modelo abre um rascunho vazio para
+preencher à mão. Nada é enviado a uma IA; se a API tiver `Anthropic__ApiKey`, a revisão mostra também "Ler com IA", que
+lê o mesmo arquivo pelo servidor e abre um novo rascunho.
+
 ## Documentação
 
 | O quê | Onde |
@@ -103,8 +113,8 @@ Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inc
 - **Frontend:** lint, testes e build.
 - **Docker image:** o mesmo build que o Coolify faz.
 - **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores: check-in offline que sincroniza e, em
-  outro teste, importação de um protocolo e de uma ficha (PDF fictício gerado por `frontend/scripts/make-fixture-pdf.mjs`),
-  treino registrado offline e Resumo; depois, uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do
+  outro teste, importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`,
+  lidos no navegador pelo leitor local), treino registrado offline e Resumo; um PDF sem texto e o botão "Ler com IA"; depois, uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do
   Resumo. Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Dois stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs` e `storage-stub.mjs`)
   fazem o papel da API da Anthropic e do bucket R2 (`Anthropic__BaseUrl`, `R2__ServiceUrl`); nada de rede externa.
 - **Android APK:** APK de debug como artifact; na `main`, o job **Android release** publica o APK assinado numa GitHub Release.

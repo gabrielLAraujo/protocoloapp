@@ -432,6 +432,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["CreateDraftRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreateDraftResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/extraction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanExtractionInfo"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans": {
         parameters: {
             query?: never;
@@ -1001,6 +1091,18 @@ export interface components {
             /** Format: date */
             cycleStart: null | string;
         };
+        CreateDraftRequest: {
+            /** Format: uuid */
+            fileId: string;
+            kind: components["schemas"]["PlanKind"];
+            document: components["schemas"]["JsonElement"];
+            lowConfidence: null | string[];
+            newExercises: null | components["schemas"]["NewExerciseSuggestion"][];
+        };
+        CreateDraftResponse: {
+            /** Format: uuid */
+            planVersionId: string;
+        };
         CycleDatesRequest: {
             /** Format: date */
             updateDate: null | string;
@@ -1063,6 +1165,9 @@ export interface components {
             added: string[];
             removed: string[];
             changed: components["schemas"]["PlanChange"][];
+        };
+        PlanExtractionInfo: {
+            ai: boolean;
         };
         /** @enum {unknown} */
         PlanKind: "protocol" | "workout";

@@ -28,7 +28,7 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
 
         var list = await ListAsync(api.Client);
 
-        Assert.Equal(["Remada Curvada", "Supino Inclinado C/ Halteres"], list.Select(e => e.Name));
+        Assert.Equal(["Remada Curvada", "Rosca Alternada C/ Halteres"], list.Select(e => e.Name));
         Assert.All(list, e => Assert.Equal(MuscleGroup.Other, e.Group));
     }
 

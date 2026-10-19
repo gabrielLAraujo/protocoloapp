@@ -111,6 +111,8 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/api"), branch =
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// Body caps declared by endpoints (RequestSizeLimit metadata), on any server.
+app.UseEndpointBodySizeLimit();
 
 if (app.Environment.IsDevelopment())
 {
