@@ -6,6 +6,9 @@ import { workoutRepo, type SetLocal } from '../../data/workoutRepo'
 import { bestSet, e1rm } from '../../domain/strength'
 import { E1rmChart, type E1rmPoint } from './E1rmChart'
 import { formatDate, formatKg } from './format'
+import { buttonClasses, cardClasses } from '../../ui/styles'
+import { EmptyState } from '../../ui/EmptyState'
+import { Icon } from '../../ui/Icon'
 
 interface SessionRow {
   sessionId: string
@@ -65,17 +68,22 @@ export function ExerciseHistoryPage() {
   const points: E1rmPoint[] = rows.flatMap((r) => (r.best === null ? [] : [{ date: r.date, value: r.best }]))
 
   return (
-    <div className="grid gap-5">
-      <h1 className="text-xl font-semibold">{exercise?.name ?? 'Exercício'}</h1>
-      <Link to="/treino/historico" className="text-sm font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent">
-        Voltar para o histórico
-      </Link>
-      <E1rmChart points={points} />
+    <div className="grid gap-6">
+      <div className="grid gap-1">
+        <Link to="/treino/historico" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
+          <Icon name="chevronLeft" size={18} />
+          Voltar para o histórico
+        </Link>
+        <h1 className="text-xl font-bold tracking-tight">{exercise?.name ?? 'Exercício'}</h1>
+      </div>
+      <div className={cardClasses({ padding: 'sm' })}>
+        <E1rmChart points={points} />
+      </div>
 
       {rows.length === 0 ? (
-        <p className="text-muted">Nenhuma série registrada neste exercício.</p>
+        <EmptyState icon="dumbbell">Nenhuma série registrada neste exercício.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cardClasses({ padding: 'sm', className: 'overflow-x-auto' })}>
           <table className="w-full text-left text-sm">
             <caption className="pb-2 text-left text-base font-semibold">Sessões</caption>
             <thead className="text-muted">

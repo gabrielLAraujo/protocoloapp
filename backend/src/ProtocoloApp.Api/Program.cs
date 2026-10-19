@@ -9,7 +9,9 @@ using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Plans.Extraction;
+using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Features.Sync;
+using ProtocoloApp.Api.Features.Today;
 using ProtocoloApp.Api.Features.Workouts;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
@@ -68,11 +70,14 @@ builder.Services.AddSync()
     .AddSyncHandler<WorkoutSessionSyncHandler>()
     .AddSyncHandler<SetLogSyncHandler>()
     .AddSyncHandler<ExerciseChangeSyncHandler>()
-    .AddSyncHandler<RotationOverrideSyncHandler>();
+    .AddSyncHandler<RotationOverrideSyncHandler>()
+    .AddSyncHandler<ScheduleSlotSyncHandler>()
+    .AddSyncHandler<AdherenceLogSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
 builder.Services.AddPlanExtraction(builder.Configuration);
 builder.Services.AddAppUpdates(builder.Configuration);
+builder.Services.AddPush(builder.Configuration);
 
 builder.Services.AddOpenApi();
 // Tags: /health (liveness) runs the "live" checks, /health/ready runs the "ready" ones (Postgres and the storage bucket).
@@ -125,6 +130,7 @@ api.MapSync();
 api.MapFiles();
 api.MapPlans();
 api.MapApp();
+api.MapPush();
 
 app.MapSpaFallback();
 

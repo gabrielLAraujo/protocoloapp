@@ -5,6 +5,9 @@ import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { workoutRepo, type SessionSummary } from '../../data/workoutRepo'
 import { muscleGroupLabel } from '../../domain/muscleGroups'
 import { buttonClass } from '../plans/styles'
+import { buttonClasses, cardClasses } from '../../ui/styles'
+import { EmptyState } from '../../ui/EmptyState'
+import { Icon } from '../../ui/Icon'
 import { formatDate, formatVolume } from './format'
 import { loadWorkoutPlans } from './workoutPlans'
 
@@ -71,19 +74,22 @@ export function HistoryPage() {
   if (!data || !loaded) return <p className="text-muted">Carregando…</p>
 
   return (
-    <div className="grid gap-5">
-      <h1 className="text-xl font-semibold">Histórico de treinos</h1>
-      <Link to="/treino" className="text-sm font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent">
-        Voltar para o treino de hoje
-      </Link>
+    <div className="grid gap-6">
+      <div className="grid gap-1">
+        <Link to="/treino" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
+          <Icon name="chevronLeft" size={18} />
+          Voltar para o treino de hoje
+        </Link>
+        <h1 className="text-xl font-bold tracking-tight">Histórico de treinos</h1>
+      </div>
 
       <section aria-label="Sessões" className="grid gap-2">
         {loaded.rows.length === 0 ? (
-          <p className="text-muted">Nenhum treino registrado ainda.</p>
+          <EmptyState icon="history">Nenhum treino registrado ainda.</EmptyState>
         ) : (
           <ul className="grid gap-2">
             {loaded.rows.map(({ session, setCount, volume }) => (
-              <li key={session.id} className="flex items-center justify-between gap-3 rounded-control border border-line px-3 py-2">
+              <li key={session.id} className={cardClasses({ padding: 'sm', className: 'flex items-center justify-between gap-3' })}>
                 <div>
                   <p className="font-medium">{formatDate(session.date)}</p>
                   <p className="text-sm text-muted">
@@ -91,7 +97,7 @@ export function HistoryPage() {
                     {session.endedAt === null ? ' · em andamento' : ''}
                   </p>
                 </div>
-                <p className="shrink-0 tabular-nums">{formatVolume(volume)}</p>
+                <p className="shrink-0 font-semibold tabular-nums">{formatVolume(volume)}</p>
               </li>
             ))}
           </ul>
@@ -106,15 +112,18 @@ export function HistoryPage() {
       {loaded.exercises.length > 0 && (
         <section aria-label="Exercícios" className="grid gap-2">
           <h2 className="text-base font-semibold">Exercícios</h2>
-          <ul className="grid gap-1">
+          <ul className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line overflow-hidden' })}>
             {loaded.exercises.map((e) => (
               <li key={e.id}>
                 <Link
                   to={`/treino/exercicio/${e.id}`}
-                  className="flex min-h-11 items-center justify-between gap-3 rounded-control border border-line px-3 focus-visible:outline-2 focus-visible:outline-accent"
+                  className="flex min-h-12 items-center justify-between gap-3 px-4 hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                 >
-                  <span>{e.name}</span>
-                  <span className="text-xs text-muted">{muscleGroupLabel(e.primaryMuscleGroup)}</span>
+                  <span className="font-medium">{e.name}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted">
+                    {muscleGroupLabel(e.primaryMuscleGroup)}
+                    <Icon name="chevronRight" size={16} />
+                  </span>
                 </Link>
               </li>
             ))}

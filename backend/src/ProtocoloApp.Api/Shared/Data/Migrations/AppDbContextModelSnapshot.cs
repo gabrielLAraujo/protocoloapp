@@ -522,6 +522,268 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Push.AppSecret", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Name")
+                        .HasName("pk_app_secrets");
+
+                    b.ToTable("app_secrets", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Push.PushSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("auth");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("endpoint");
+
+                    b.Property<int>("FailureCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("failure_count");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("p256dh");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("user_agent");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_push_subscriptions");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique()
+                        .HasDatabaseName("ix_push_subscriptions_endpoint");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_push_subscriptions_user_id");
+
+                    b.ToTable("push_subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Push.ReminderSend", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("slot");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_reminder_sends");
+
+                    b.HasIndex("UserId", "Date", "Slot")
+                        .IsUnique()
+                        .HasDatabaseName("ix_reminder_sends_user_id_date_slot");
+
+                    b.ToTable("reminder_sends", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Today.AdherenceLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TargetKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_key");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("target_type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_adherence_logs");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_adherence_logs_user_id_version");
+
+                    b.HasIndex("UserId", "Date", "TargetType", "TargetKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_adherence_logs_user_id_date_target_type_target_key")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.ToTable("adherence_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_adherence_logs_reason", "reason IS NULL OR (status <> 'done' AND reason IN ('no_appetite', 'no_time', 'felt_sick', 'free_meal', 'other'))");
+
+                            t.HasCheckConstraint("ck_adherence_logs_status", "status IN ('done', 'partial', 'missed')");
+
+                            t.HasCheckConstraint("ck_adherence_logs_target_type", "target_type IN ('meal', 'protocol_item', 'cardio', 'workout', 'checkin')");
+                        });
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Today.ScheduleSlot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DayType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("day_type");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("ReminderEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reminder_enabled");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("slot");
+
+                    b.Property<TimeOnly>("Time")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("time");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_schedule_slots");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_schedule_slots_user_id_version");
+
+                    b.HasIndex("UserId", "Slot", "DayType")
+                        .IsUnique()
+                        .HasDatabaseName("ix_schedule_slots_user_id_slot_day_type")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.ToTable("schedule_slots", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_schedule_slots_day_type", "day_type IN ('training', 'off')");
+                        });
+                });
+
             modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.ExerciseChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1068,6 +1330,46 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_plan_versions_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Push.PushSubscription", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_push_subscriptions_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Push.ReminderSend", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_reminder_sends_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Today.AdherenceLog", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_adherence_logs_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Today.ScheduleSlot", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_schedule_slots_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.ExerciseChange", b =>

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, Outlet } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
@@ -18,7 +18,7 @@ function setup(entry = '/') {
             <BottomNav />
           </>
         ),
-        children: ['/', '/treino', '/checkin', '/planejamento', '/settings/diagnostics'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
+        children: ['/', '/hoje', '/treino', '/checkin', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
       },
     ],
     { initialEntries: [entry] },
@@ -38,12 +38,29 @@ describe('BottomNav', () => {
     const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
     expect(screen.getByRole('link', { name: 'Resumo' })).toHaveAttribute('aria-current', 'page')
 
-    for (const [name, path] of [['Treino', '/treino'], ['Check-in', '/checkin'], ['Planejamento', '/planejamento'], ['Resumo', '/']] as const) {
+    for (const [name, path] of [['Hoje', '/hoje'], ['Treino', '/treino'], ['Planejamento', '/planejamento'], ['Resumo', '/']] as const) {
       await user.click(screen.getByRole('link', { name }))
       expect(router.state.location.pathname).toBe(path)
       expect(screen.getByRole('link', { name })).toHaveAttribute('aria-current', 'page')
       expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
     }
+  })
+
+  it('has Resumo, Hoje, Treino, Planejamento and Mais, and no Check-in tab', () => {
+    setup()
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    const names = within(nav).getAllByRole('link').map((l) => l.textContent)
+    expect(names).toEqual(['Resumo', 'Hoje', 'Treino', 'Planejamento'])
+    expect(within(nav).getByRole('button', { name: 'Mais' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Check-in' })).not.toBeInTheDocument()
+  })
+
+  it('"Hoje" is highlighted on the check-in it opens', () => {
+    setup('/checkin')
+    expect(screen.getByRole('link', { name: 'Hoje' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Hoje' }).className).toContain('text-accent')
+    expect(screen.getByRole('link', { name: 'Resumo' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Resumo' }).className).not.toContain('text-accent')
   })
 
   it('"Resumo" is not current on other routes', () => {
@@ -52,7 +69,7 @@ describe('BottomNav', () => {
     expect(screen.getByRole('link', { name: 'Treino' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('"Mais" opens Diagnóstico and Sair', async () => {
+  it('"Mais" opens Configurações and Sair', async () => {
     const user = userEvent.setup()
     const router = setup()
     expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
@@ -60,8 +77,8 @@ describe('BottomNav', () => {
     await user.click(screen.getByRole('button', { name: 'Sair' }))
     expect(logout).toHaveBeenCalled()
 
-    await user.click(screen.getByRole('link', { name: 'Diagnóstico' }))
-    expect(router.state.location.pathname).toBe('/settings/diagnostics')
+    await user.click(screen.getByRole('link', { name: 'Configurações' }))
+    expect(router.state.location.pathname).toBe('/configuracoes')
     expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
   })
 
@@ -77,7 +94,7 @@ describe('BottomNav', () => {
     await user.click(more)
     const dialog = screen.getByRole('dialog', { name: 'Mais' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    const diag = screen.getByRole('link', { name: 'Diagnóstico' })
+    const diag = screen.getByRole('link', { name: 'Configurações' })
     const exit = screen.getByRole('button', { name: 'Sair' })
     expect(diag).toHaveFocus()
 

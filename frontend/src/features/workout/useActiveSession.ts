@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { finishSessionAndMark } from '../../data/adherenceLinks'
 import type { Data } from '../../data/dataContext'
 import { workoutRepo, type ExerciseChangeLocal, type SetKind, type SetLocal } from '../../data/workoutRepo'
 import { useSync } from '../sync/syncContext'
@@ -146,7 +147,8 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
       await after()
     },
     async finish(at) {
-      await workoutRepo.finishSession(db, userId, sessionId, at ?? now())
+      const time = now()
+      await finishSessionAndMark(db, userId, sessionId, at ?? time, time)
       void syncNow()
     },
   }

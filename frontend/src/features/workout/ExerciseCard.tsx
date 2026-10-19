@@ -3,6 +3,9 @@ import type { ExerciseLocal } from '../../data/exerciseRepo'
 import { MAX_EXERCISE_NOTE_LENGTH, type ExerciseChangeLocal, type SetKind, type SetLocal } from '../../data/workoutRepo'
 import type { PlannedExercise } from '../../domain/planDocuments'
 import { buttonClass, inputClass } from '../plans/styles'
+import { Button } from '../../ui/Button'
+import { cardClasses } from '../../ui/styles'
+import { Icon } from '../../ui/Icon'
 import { formatKg } from './format'
 import { SetRow } from './SetRow'
 import { SwapExerciseDialog } from './SwapExerciseDialog'
@@ -82,20 +85,25 @@ export function ExerciseCard(props: Props) {
   }
 
   return (
-    <section aria-label={name} className="grid gap-2 rounded-control border border-line bg-surface p-3">
-      <header className="grid gap-0.5">
-        <h2 className="text-base font-semibold">{name}</h2>
+    <section aria-label={name} className={cardClasses({ className: 'grid gap-3' })}>
+      <header className="grid gap-1">
+        <h2 className="text-lg font-bold tracking-tight">{name}</h2>
         {change?.action === 'swapped' && exercise && exercise.id !== props.plannedExerciseId && <p className="text-xs text-muted">Trocado de “{planned.name}”</p>}
         {planned.technique && <p className="text-sm text-muted">{planned.technique}</p>}
         {supersetName && <p className="text-sm text-muted">Bi-set com {supersetName}</p>}
         {rest && <p className="text-sm text-muted">{rest}</p>}
-        {lastTime && lastTime.length > 0 && <p className="text-sm text-muted">Última vez: {lastTimeText(lastTime)}</p>}
+        {lastTime && lastTime.length > 0 && (
+          <p className="text-sm text-muted">
+            <Icon name="history" size={16} className="mr-1 inline-block align-[-3px]" />
+            <span className="tabular-nums">Última vez: {lastTimeText(lastTime)}</span>
+          </p>
+        )}
       </header>
 
       {props.otherSets.map((group) => (
-        <section key={group.exerciseName} aria-label={`Feitas em ${group.exerciseName}`} className="grid gap-1 rounded-control border border-line px-2 py-2 text-sm">
+        <section key={group.exerciseName} aria-label={`Feitas em ${group.exerciseName}`} className="grid gap-1 rounded-control border border-line bg-raised p-3 text-sm">
           <h3 className="font-medium">Feitas em {group.exerciseName}</h3>
-          <ul className="grid gap-0.5 text-muted">
+          <ul className="grid gap-1 text-muted">
             {group.sets.map((s) => (
               <li key={s.id}>
                 Série {s.setIndex + 1}: {formatKg(s.weightKg)} kg × {s.reps}
@@ -108,7 +116,10 @@ export function ExerciseCard(props: Props) {
 
       {skipped ? (
         <div className="grid gap-2">
-          <p className="text-sm font-medium text-warn">Exercício pulado{change.note ? ` — ${change.note}` : ''}</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-warn">
+            <Icon name="skip" size={16} />
+            <span>Exercício pulado{change.note ? ` — ${change.note}` : ''}</span>
+          </p>
           <button type="button" className={buttonClass} onClick={() => void run(props.onClearSkip)}>
             Desfazer pulo
           </button>
@@ -134,23 +145,23 @@ export function ExerciseCard(props: Props) {
       )}
 
       {!skipped && exercise !== null && rows < MAX_SET_INDEX + 1 && (
-        <button type="button" className={buttonClass} onClick={() => setExtra(rows + 1 - planned.sets.length)}>
+        <Button variant="ghost" icon="plus" className="justify-self-start" onClick={() => setExtra(rows + 1 - planned.sets.length)}>
           Adicionar série
-        </button>
+        </Button>
       )}
 
       {!skipped && !skipping && (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={buttonClass} onClick={() => setSwapping(true)}>
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="sm" onClick={() => setSwapping(true)}>
             Trocar exercício
-          </button>
-          <button type="button" className={buttonClass} onClick={() => setSkipping(true)}>
+          </Button>
+          <Button size="sm" onClick={() => setSkipping(true)}>
             Pular exercício
-          </button>
+          </Button>
         </div>
       )}
 
-      <label className="grid gap-1 text-sm">
+      <label className="grid gap-1 text-sm font-medium">
         Anotação
         <textarea
           className={`${inputClass} min-h-16`}
@@ -175,8 +186,8 @@ export function ExerciseCard(props: Props) {
       )}
 
       {skipping && (
-        <div className="grid gap-2 rounded-control border border-line p-2">
-          <label className="grid gap-1 text-sm">
+        <div className="grid gap-3 rounded-control border border-line bg-raised p-3">
+          <label className="grid gap-1 text-sm font-medium">
             Motivo (opcional)
             <input className={inputClass} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>

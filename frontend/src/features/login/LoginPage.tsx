@@ -1,6 +1,8 @@
 import { useState, type SyntheticEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { LoginError, useAuth } from '../../auth/authContext'
+import { Button } from '../../ui/Button'
+import { inputClass } from '../plans/styles'
 
 function messageFor(error: unknown): string {
   if (error instanceof LoginError) {
@@ -35,15 +37,16 @@ export function LoginPage() {
     }
   }
 
-  const inputClass =
-    'w-full rounded-control border border-line bg-surface px-3 py-2.5 text-base text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent'
-
   return (
-    <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-8 px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(2.5rem+env(safe-area-inset-top))]">
-      <h1 className="text-3xl font-semibold tracking-tight">Protocolo</h1>
+    <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-6 px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(2.5rem+env(safe-area-inset-top))]">
+      <div className="grid gap-2">
+        <span aria-hidden="true" className="h-8 w-2 rounded-full bg-accent" />
+        <h1 className="text-xl font-bold tracking-tight">Protocolo</h1>
+        <p className="text-sm text-muted">Seu protocolo, treino e check-ins num lugar só.</p>
+      </div>
 
-      <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-        <label className="grid gap-1.5 text-sm font-medium">
+      <form onSubmit={onSubmit} className="grid gap-4 rounded-card border border-line bg-surface p-4 shadow-card" noValidate>
+        <label className="grid gap-2 text-sm font-medium">
           E-mail
           <input
             type="email"
@@ -57,7 +60,7 @@ export function LoginPage() {
           />
         </label>
 
-        <label className="grid gap-1.5 text-sm font-medium">
+        <label className="grid gap-2 text-sm font-medium">
           Senha
           <input
             type="password"
@@ -71,18 +74,14 @@ export function LoginPage() {
         </label>
 
         {error && (
-          <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting || !email || !password}
-          className="rounded-control bg-accent px-4 py-3 text-base font-semibold text-on-accent disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
+        <Button type="submit" variant="primary" size="lg" disabled={submitting || !email || !password}>
           {submitting ? 'Entrando…' : 'Entrar'}
-        </button>
+        </Button>
       </form>
     </main>
   )

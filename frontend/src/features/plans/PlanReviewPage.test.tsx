@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from '@testing-library/react'
 import { exerciseRepo, exerciseSync } from '../../data/exerciseRepo'
+import { scheduleRepo } from '../../data/scheduleRepo'
 import { json, mockFetch, problem } from '../../test/fetch-mock'
 import { setupApp } from '../testSupport'
 import { planVersion, PLAN_ID, protocolDocument, workoutDocument, type PlanVersion } from './fixtures'
@@ -119,7 +120,7 @@ describe('PlanReviewPage', () => {
 
   it('activating saves the edits, activates with the cycle start and triggers a sync', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
-    const { calls, runOnce } = await renderReview(
+    const { calls, db, runOnce } = await renderReview(
       planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }], extractionError: 'timeout' }),
       {
         [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion()),
@@ -147,15 +148,16 @@ describe('PlanReviewPage', () => {
     expect(JSON.parse(writes[1]!.body)).toEqual({ cycleStart: null }) // only a protocol has a cycle start
     expect(screen.queryByLabelText('Início do ciclo')).not.toBeInTheDocument()
     expect(runOnce).toHaveBeenCalledTimes(1)
+    expect(await scheduleRepo.all(db)).toEqual([]) // a workout plan has no schedule of its own
   })
 
   it('protocol review edits the dates and activates', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
-    const { calls } = await renderReview(
+    const { calls, db, runOnce } = await renderReview(
       planVersion({ kind: 'protocol', document: { ...protocolDocument(), updateDate: undefined }, lowConfidence: ['updateDate'] }),
       {
         [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ kind: 'protocol' })),
-        [`POST /api/plans/${PLAN_ID}/activate`]: () => json(planVersion({ kind: 'protocol', status: 'active' })),
+        [`POST /api/plans/${PLAN_ID}/activate`]: () => json(planVersion({ kind: 'protocol', status: 'active', document: protocolDocument() })),
       },
     )
 
@@ -174,6 +176,13 @@ describe('PlanReviewPage', () => {
     expect(put.document).toMatchObject({ phaseName: 'Fase 3', updateDate: '2026-12-01', billingDate: '2026-12-05' })
     expect(put.newExercises).toBeNull()
     expect(JSON.parse(calls.find((c) => c.path.endsWith('/activate'))!.body)).toEqual({ cycleStart: '2026-10-18' })
+    // The meals of the activated protocol get their suggested times before the sync sends them (reminders read them).
+    const slots = await scheduleRepo.all(db)
+    expect(slots.filter((s) => s.slot === 'meal_m1').map((s) => [s.dayType, s.time])).toEqual([
+      ['off', '07:00'],
+      ['training', '07:00'],
+    ])
+    expect(runOnce).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the diff on screen after saving the draft (the PUT answers without one)', async () => {

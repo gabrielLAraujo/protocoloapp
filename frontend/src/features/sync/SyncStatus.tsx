@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { Icon } from '../../ui/Icon'
 import { useSync } from './syncContext'
 
 const pendingLabel = (n: number) => `${n} ${n === 1 ? 'pendente' : 'pendentes'}`
@@ -13,22 +14,28 @@ export function SyncStatus() {
   const { pending, rejected, running, online, lastError, lastSyncAt, syncNow } = useSync()
 
   let label = 'Sincronizado'
-  if (running) label = 'Sincronizando…'
-  else if (!online) label = withPending('Offline', pending)
-  else if (lastError) label = withPending('Erro ao sincronizar', pending)
-  else if (pending > 0) label = pendingLabel(pending)
-  else if (!lastSyncAt) label = 'Nunca sincronizado'
+  // The dot repeats the state in color; the text says it.
+  let dot = 'bg-ok'
+  if (running) [label, dot] = ['Sincronizando…', 'bg-accent']
+  else if (!online) [label, dot] = [withPending('Offline', pending), 'bg-muted']
+  else if (lastError) [label, dot] = [withPending('Erro ao sincronizar', pending), 'bg-danger']
+  else if (pending > 0) [label, dot] = [pendingLabel(pending), 'bg-warn']
+  else if (!lastSyncAt) [label, dot] = ['Nunca sincronizado', 'bg-muted']
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
-      <span role="status" className="text-muted">
-        {label}
+    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-sm">
+      <span className="flex items-center gap-2">
+        <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${dot}`} />
+        <span role="status" className="text-muted">
+          {label}
+        </span>
       </span>
       {rejected > 0 && (
         <Link
           to="/sync"
-          className="rounded-control bg-danger/10 px-2 py-1 font-medium text-danger focus-visible:outline-2 focus-visible:outline-danger"
+          className="flex min-h-11 items-center gap-1 rounded-control px-2 font-semibold text-danger focus-visible:outline-2 focus-visible:outline-danger"
         >
+          <Icon name="alert" size={18} />
           {rejected} com problema
         </Link>
       )}
@@ -36,9 +43,11 @@ export function SyncStatus() {
         type="button"
         onClick={() => void syncNow()}
         disabled={running}
-        className="rounded-control px-2 py-1 text-accent disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
+        aria-label="Sincronizar agora"
+        title="Sincronizar agora"
+        className="grid size-11 place-items-center rounded-control text-accent hover:bg-accent-soft disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
       >
-        Sincronizar agora
+        <Icon name="sync" size={20} className={running ? 'animate-spin motion-reduce:animate-none [animation-direction:reverse]' : ''} />
       </button>
     </div>
   )

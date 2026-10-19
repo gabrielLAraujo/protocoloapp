@@ -1,22 +1,33 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
-import { NavLink, useLocation } from 'react-router'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Link, NavLink, useLocation } from 'react-router'
 import { useAuth } from '../auth/authContext'
+import { Icon, type IconName } from '../ui/Icon'
 
-const icon = (children: ReactNode) => (
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {children}
-  </svg>
-)
-
-const TABS = [
-  { to: '/', label: 'Resumo', end: true, icon: icon(<><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-8" /><path d="M22 20H2" /></>) },
-  { to: '/treino', label: 'Treino', end: false, icon: icon(<><path d="M6 8v8" /><path d="M18 8v8" /><path d="M3 10v4" /><path d="M21 10v4" /><path d="M6 12h12" /></>) },
-  { to: '/checkin', label: 'Check-in', end: false, icon: icon(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>) },
-  { to: '/planejamento', label: 'Planejamento', end: false, icon: icon(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" /></>) },
+/** `also`: other paths that belong to the tab (the check-in is opened from Hoje). */
+const TABS: { to: string; label: string; end: boolean; also?: string[]; icon: IconName }[] = [
+  { to: '/', label: 'Resumo', end: true, icon: 'summary' },
+  { to: '/hoje', label: 'Hoje', end: false, also: ['/checkin'], icon: 'today' },
+  { to: '/treino', label: 'Treino', end: false, icon: 'dumbbell' },
+  { to: '/planejamento', label: 'Planejamento', end: false, icon: 'plan' },
 ]
 
+/** Its own path (exactly, with `end`, or with sub-paths) or one of `also`. */
+const isTabActive = (tab: (typeof TABS)[number], pathname: string) =>
+  (tab.end ? pathname === tab.to : pathname === tab.to || pathname.startsWith(`${tab.to}/`)) ||
+  (tab.also?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? false)
+
 const tabClass = (active: boolean) =>
-  `flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-accent ${active ? 'text-accent' : 'text-muted hover:text-ink'}`
+  `group flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center gap-1 px-0.5 pt-1.5 pb-1 text-xs tracking-tight focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${active ? 'font-semibold text-accent' : 'font-medium text-muted hover:text-ink'}`
+
+/** The icon sits in a pill that fills in for the current tab. */
+const TabIcon = ({ name, active }: { name: IconName; active: boolean }) => (
+  <span className={`grid h-7 w-12 place-items-center rounded-full transition-colors ${active ? 'bg-accent-soft' : ''}`}>
+    <Icon name={name} size={22} strokeWidth={active ? 2.2 : 1.9} />
+  </span>
+)
+
+const MENU_ITEM =
+  'flex min-h-12 items-center gap-3 rounded-control px-3 text-base font-medium hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent'
 
 /**
  * Fixed bottom navigation. It publishes its height as `--bottom-nav-height` (the rest-timer bar sits above it) and owns the
@@ -78,11 +89,11 @@ export function BottomNav() {
     }
   }
 
-  const moreActive = location.pathname.startsWith('/settings')
+  const moreActive = location.pathname.startsWith('/configuracoes') || location.pathname.startsWith('/settings')
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-30" onClick={closeAndRestore}>
+        <div className="fixed inset-0 z-30 bg-scrim" onClick={closeAndRestore}>
           <div
             id="more-menu"
             ref={menu}
@@ -91,16 +102,18 @@ export function BottomNav() {
             onKeyDown={onMenuKey}
             aria-label="Mais"
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-0 bottom-[var(--bottom-nav-height,0px)] grid gap-1 rounded-t-2xl border-t border-line bg-surface p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.12)]"
+            className="absolute inset-x-0 bottom-[var(--bottom-nav-height,0px)] mx-auto grid max-w-2xl gap-1 rounded-t-sheet border-t border-line bg-surface p-3 shadow-raised"
           >
-            <NavLink to="/settings/diagnostics" className="flex min-h-11 items-center rounded-control px-3 text-base hover:bg-line/40 focus-visible:outline-2 focus-visible:outline-accent">
-              Diagnóstico
+            <NavLink to="/configuracoes" className={MENU_ITEM}>
+              <Icon name="settings" className="text-muted" />
+              Configurações
             </NavLink>
             <button
               type="button"
               onClick={() => void logout()}
-              className="flex min-h-11 items-center rounded-control px-3 text-left text-base hover:bg-line/40 focus-visible:outline-2 focus-visible:outline-accent"
+              className={`${MENU_ITEM} text-left`}
             >
+              <Icon name="logout" className="text-muted" />
               Sair
             </button>
           </div>
@@ -109,14 +122,18 @@ export function BottomNav() {
       <nav
         ref={nav}
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
       >
-        {TABS.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => tabClass(isActive)}>
-            {tab.icon}
-            <span>{tab.label}</span>
-          </NavLink>
-        ))}
+        <div className="mx-auto flex max-w-2xl">
+        {TABS.map((tab) => {
+          const active = isTabActive(tab, location.pathname)
+          return (
+            <Link key={tab.to} to={tab.to} aria-current={active ? 'page' : undefined} className={tabClass(active)}>
+              <TabIcon name={tab.icon} active={active} />
+              <span>{tab.label}</span>
+            </Link>
+          )
+        })}
         <button
           ref={moreButton}
           type="button"
@@ -126,9 +143,10 @@ export function BottomNav() {
           onClick={() => (open ? closeAndRestore() : setOpen(true))}
           className={tabClass(moreActive || open)}
         >
-          {icon(<><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>)}
+          <TabIcon name="more" active={moreActive || open} />
           <span>Mais</span>
         </button>
+        </div>
       </nav>
     </>
   )

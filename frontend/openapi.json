@@ -732,6 +732,108 @@
           }
         }
       }
+    },
+    "/api/push/public-key": {
+      "get": {
+        "tags": [
+          "Push"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicKeyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/subscribe": {
+      "post": {
+        "tags": [
+          "Push"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SubscribeRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Push"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UnsubscribeRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/push/test": {
+      "post": {
+        "tags": [
+          "Push"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestPushResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1178,6 +1280,17 @@
           }
         }
       },
+      "PublicKeyResponse": {
+        "required": [
+          "publicKey"
+        ],
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string"
+          }
+        }
+      },
       "RefreshRequest": {
         "required": [
           "refreshToken"
@@ -1185,6 +1298,42 @@
         "type": "object",
         "properties": {
           "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "SubscribeRequest": {
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/SubscriptionKeys"
+          },
+          "userAgent": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SubscriptionKeys": {
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string"
+          },
+          "auth": {
             "type": "string"
           }
         }
@@ -1360,6 +1509,34 @@
           "rejected"
         ]
       },
+      "TestPushResponse": {
+        "required": [
+          "sent",
+          "removed"
+        ],
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UnsubscribeRequest": {
+        "required": [
+          "endpoint"
+        ],
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateExerciseRequest": {
         "required": [
           "group",
@@ -1461,6 +1638,9 @@
     },
     {
       "name": "App"
+    },
+    {
+      "name": "Push"
     }
   ]
 }

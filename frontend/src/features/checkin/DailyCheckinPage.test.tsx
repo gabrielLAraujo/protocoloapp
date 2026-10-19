@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { adherenceRepo } from '../../data/adherenceRepo'
 import { outbox } from '../../data/outbox'
 import type { SyncRecord } from '../../data/apiClient'
 import { checkinIdForDate } from '../../data/ids'
@@ -57,7 +58,9 @@ describe('DailyCheckinPage', () => {
       weightKg: 82.4,
       note: 'Dormi bem',
     })
-    await waitFor(async () => expect(await outbox.pendingCount(db)).toBe(1))
+    // The check-in and its adherence mark (which silences the "Check-in do dia" reminder).
+    await waitFor(async () => expect(await outbox.pendingCount(db)).toBe(2))
+    expect(await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).toMatchObject([{ targetType: 'checkin', targetKey: 'checkin', status: 'done' }])
   })
 
   it('reopening the page loads the saved values', async () => {
@@ -113,6 +116,8 @@ describe('DailyCheckinPage', () => {
     await user.click(screen.getByRole('button', { name: 'Salvar' }))
     await screen.findByText('Salvo — será sincronizado')
     expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ cardioDone: true, cardioMinutes: 40 })
+    // "Sim" also marks cardio done for the day (Hoje and the server's cardio reminder read that mark).
+    expect((await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).find((l) => l.targetType === 'cardio')).toMatchObject({ status: 'done' })
 
     await pick(user, 'Cardio feito?', 'Não')
     expect(screen.queryByLabelText('Minutos de cardio')).not.toBeInTheDocument()
@@ -120,6 +125,35 @@ describe('DailyCheckinPage', () => {
     await waitFor(async () =>
       expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ cardioDone: false, cardioMinutes: null }),
     )
+    expect((await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).find((l) => l.targetType === 'cardio')).toMatchObject({ status: 'missed', reason: null })
+  })
+
+  it.each([
+    ['done', 'Sim'],
+    ['missed', 'Não'],
+  ] as const)('prefills cardio from a %s mark on Hoje while the check-in has not answered it', async (status, answer) => {
+    const { db, view } = await setupApp()
+    await adherenceRepo.mark(db, USER_A, { date: '2026-10-18', targetType: 'cardio', targetKey: 'cardio', status }, new Date())
+    view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    expect(within(screen.getByRole('radiogroup', { name: 'Cardio feito?' })).getByRole('radio', { name: answer })).toBeChecked()
+  })
+
+  it('a partial cardio mark leaves cardio empty, and an answered check-in wins over the mark', async () => {
+    const { db, view } = await setupApp()
+    await adherenceRepo.mark(db, USER_A, { date: '2026-10-18', targetType: 'cardio', targetKey: 'cardio', status: 'partial' }, new Date())
+    const first = view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    for (const radio of within(screen.getByRole('radiogroup', { name: 'Cardio feito?' })).getAllByRole('radio')) expect(radio).not.toBeChecked()
+    first.unmount()
+
+    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-18', {
+      sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone: false, cardioMinutes: null,
+    }, new Date())
+    await adherenceRepo.mark(db, USER_A, { date: '2026-10-18', targetType: 'cardio', targetKey: 'cardio', status: 'done' }, new Date())
+    view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    expect(within(screen.getByRole('radiogroup', { name: 'Cardio feito?' })).getByRole('radio', { name: 'Não' })).toBeChecked()
   })
 
   it('asks for the required answers', async () => {

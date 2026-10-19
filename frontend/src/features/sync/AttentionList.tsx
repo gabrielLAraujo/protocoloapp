@@ -4,6 +4,8 @@ import { useData } from '../../data/dataContext'
 import { outbox, type OutboxEntry } from '../../data/outbox'
 import { useSync } from './syncContext'
 import { describeSyncError } from './syncErrors'
+import { buttonClasses } from '../../ui/styles'
+import { EmptyState } from '../../ui/EmptyState'
 
 const parseErrors = (raw: string | null): string[] => {
   try {
@@ -64,8 +66,8 @@ export function AttentionList() {
   return (
     <section className="grid gap-4">
       <div className="flex items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">Registros com problema</h1>
-        <Link to="/" className="text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent">
+        <h1 className="text-xl font-bold tracking-tight">Registros com problema</h1>
+        <Link to="/" className={buttonClasses({ variant: 'ghost', size: 'sm' })}>
           Voltar
         </Link>
       </div>
@@ -73,11 +75,11 @@ export function AttentionList() {
       {entries === null ? (
         <p className="text-muted">Carregando…</p>
       ) : entries.length === 0 ? (
-        <p className="text-muted">Nada com problema.</p>
+        <EmptyState icon="check">Nada com problema.</EmptyState>
       ) : (
         <ul className="grid gap-3">
           {entries.map((entry) => (
-            <li key={entry.seq} className="grid gap-2 rounded-control border border-danger/40 bg-surface p-4">
+            <li key={entry.seq} className="grid gap-2 rounded-card border border-danger/40 bg-surface p-4 shadow-card">
               <p className="font-medium">{titleOf(entry)}</p>
               <ul className="grid gap-1 text-sm text-danger">
                 {(parseErrors(entry.errors).length > 0 ? parseErrors(entry.errors) : ['']).map((code, i) => (
@@ -87,7 +89,7 @@ export function AttentionList() {
               <button
                 type="button"
                 onClick={() => void retry(entry.seq)}
-                className="min-h-11 justify-self-start rounded-control border border-line px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent"
+                className={buttonClasses({ variant: 'secondary', className: 'justify-self-start' })}
               >
                 Tentar de novo
               </button>

@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SyncRecord } from '../../data/apiClient'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
+import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { json, mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
@@ -132,5 +134,73 @@ describe('SummaryPage', () => {
     app.view(<SummaryPage />)
     expect(await screen.findByText('Atualização atrasada há 2 dias')).toBeInTheDocument()
     expect(screen.queryByText(/Faltam/)).not.toBeInTheDocument()
+  })
+
+  it('applies rotation overrides set before the protocol cycle started, like /treino does', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'off']) // anchored on 2026-10-18 (a), so 2026-10-28 would be a workout day
+    await seedProtocol(app.db, { updateDate: '2026-11-15' }) // cycle starts on the 20th
+    // Before the cycle start but after the workout version was activated (10-10): postpones the rotation by one day.
+    await rotationOverrideRepo.set(app.db, USER_A, '2026-10-12', 'off', new Date(2026, 9, 12, 8))
+    app.view(<SummaryPage />)
+
+    const calendar = await screen.findByRole('table', { name: 'Calendário do ciclo' })
+    expect(within(calendar).getByRole('cell', { name: '28/10, ainda não chegou' })).toBeInTheDocument()
+  })
+
+  it('shows Dieta and Itens do protocolo for the cycle so far: 2 done + 1 partial of 4 planned meals is "63%"', async () => {
+    vi.setSystemTime(new Date(2026, 9, 23, 12, 0)) // cycle 20..23: four days
+    const app = await setupApp()
+    await seedProtocol(app.db, {
+      updateDate: '2026-11-15',
+      meals: [{ key: '1', label: 'REF 1', items: [] }],
+      items: [{ key: 'creatina', category: 'supplement', name: 'Creatina', timing: 'any', schedule: { type: 'daily' } }],
+    })
+    const mark = (date: string, targetType: 'meal' | 'protocol_item', targetKey: string, status: 'done' | 'partial' | 'missed') =>
+      adherenceRepo.mark(app.db, USER_A, { date, targetType, targetKey, status }, new Date(2026, 9, 23, 12))
+    await mark('2026-10-20', 'meal', '1', 'done')
+    await mark('2026-10-21', 'meal', '1', 'done')
+    await mark('2026-10-22', 'meal', '1', 'partial')
+    await mark('2026-10-23', 'meal', '1', 'missed')
+    await mark('2026-10-21', 'protocol_item', 'creatina', 'done')
+    await mark('2026-10-19', 'meal', '1', 'done') // before the cycle
+    app.view(<SummaryPage />)
+
+    const diet = (await screen.findByText('Dieta')).parentElement!
+    expect(within(diet).getByText('63%')).toBeInTheDocument()
+    expect(within(diet).getByText('2 feitas · 1 parcial de 4 previstas')).toBeInTheDocument()
+    const items = screen.getByText('Itens do protocolo').parentElement!
+    // Today (the 23rd) the untimed, unmarked item is not due yet: 3 planned.
+    expect(within(items).getByText('33%')).toBeInTheDocument()
+    expect(within(items).getByText('1 feito · 0 parciais de 3 previstos')).toBeInTheDocument()
+  })
+
+  it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-11-15', cardio: { daily: true } })
+    const checkin = (date: string, cardioDone: boolean) =>
+      dailyCheckinRepo.upsert(app.db, USER_A, date, {
+        sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone, cardioMinutes: null,
+      }, new Date(2026, 9, 27, 12))
+    const cardio = (date: string, status: 'done' | 'missed') =>
+      adherenceRepo.mark(app.db, USER_A, { date, targetType: 'cardio', targetKey: 'cardio', status }, new Date(2026, 9, 27, 12))
+    await checkin('2026-10-21', true)
+    await cardio('2026-10-21', 'done') // same day: once
+    await cardio('2026-10-22', 'done') // mark only
+    await checkin('2026-10-23', false)
+    await cardio('2026-10-24', 'missed')
+    app.view(<SummaryPage />)
+
+    const card = (await screen.findByText('Cardio')).parentElement!
+    expect(within(card).getByText('2 de 8')).toBeInTheDocument()
+  })
+
+  it('Dieta shows "—" when the protocol has no meals', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    app.view(<SummaryPage />)
+    const diet = (await screen.findByText('Dieta')).parentElement!
+    expect(within(diet).getByText('—')).toBeInTheDocument()
   })
 })

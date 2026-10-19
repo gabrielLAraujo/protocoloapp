@@ -5,6 +5,9 @@ import { planRepo } from '../../data/planRepo'
 import { parseProtocolDocument, type ProtocolDocument } from '../../domain/planDocuments'
 import { useSync } from '../sync/syncContext'
 import { CATEGORY_LABELS, formatDayMonth, formatInstantDayMonth, scheduleSummary, timingLabel } from './labels'
+import { buttonClasses, cardClasses } from '../../ui/styles'
+import { EmptyState } from '../../ui/EmptyState'
+import { Icon } from '../../ui/Icon'
 
 type State = { status: 'loading' } | { status: 'none' } | { status: 'unreadable' } | { status: 'ok'; doc: ProtocolDocument; since: string | null }
 
@@ -41,7 +44,8 @@ export function ProtocolView() {
   }, [data, dataVersion])
 
   const back = (
-    <Link to="/planejamento" className="text-sm font-semibold text-accent underline">
+    <Link to="/planejamento" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
+      <Icon name="chevronLeft" size={18} />
       Planejamento
     </Link>
   )
@@ -49,27 +53,27 @@ export function ProtocolView() {
   if (state.status === 'none') {
     return (
       <div className="grid gap-2">
-        <p>Nenhum protocolo ativo. Envie o PDF em Planejamento.</p>
         {back}
+        <EmptyState icon="plan">Nenhum protocolo ativo. Envie o PDF em Planejamento.</EmptyState>
       </div>
     )
   }
   if (state.status === 'unreadable') {
     return (
       <div className="grid gap-2">
-        <p>Não foi possível ler o protocolo ativo.</p>
         {back}
+        <EmptyState icon="alert">Não foi possível ler o protocolo ativo.</EmptyState>
       </div>
     )
   }
 
   const { doc, since } = state
-  const card = 'grid gap-2 rounded-control border border-line bg-surface p-4'
+  const card = cardClasses({ className: 'grid gap-3' })
   return (
     <div className="grid gap-4">
-      {back}
-      <header className="grid gap-0.5">
-        <h1 className="text-xl font-semibold">{doc.phaseName || 'Protocolo'}</h1>
+      <header className="grid gap-1">
+        {back}
+        <h1 className="text-xl font-bold tracking-tight">{doc.phaseName || 'Protocolo'}</h1>
         <p className="text-sm text-muted">
           {[
             doc.updateDate && `Atualização em ${formatDayMonth(doc.updateDate)}`,
@@ -83,7 +87,7 @@ export function ProtocolView() {
 
       {doc.meals.length > 0 && (
         <section aria-label="Refeições" className={card}>
-          <h2 className="text-lg font-semibold">Refeições</h2>
+          <h2 className="text-lg font-bold tracking-tight">Refeições</h2>
           {doc.meals.map((meal) => (
             <div key={meal.key}>
               <h3 className="font-medium">{meal.label || meal.key}</h3>
@@ -103,7 +107,7 @@ export function ProtocolView() {
 
       {doc.items.length > 0 && (
         <section aria-label="Suplementos e compostos" className={card}>
-          <h2 className="text-lg font-semibold">Suplementos e compostos</h2>
+          <h2 className="text-lg font-bold tracking-tight">Suplementos e compostos</h2>
           <ul className="grid gap-2">
             {doc.items.map((item) => (
               <li key={item.key}>
@@ -122,7 +126,7 @@ export function ProtocolView() {
 
       {doc.cardio && (
         <section aria-label="Cardio" className={card}>
-          <h2 className="text-lg font-semibold">Cardio</h2>
+          <h2 className="text-lg font-bold tracking-tight">Cardio</h2>
           <p className="text-sm text-muted">
             {[
               doc.cardio.daily ? 'Todos os dias' : doc.cardio.sessionsPerWeek != null && `${doc.cardio.sessionsPerWeek}x por semana`,
@@ -138,7 +142,7 @@ export function ProtocolView() {
 
       {(doc.guidelines.length > 0 || doc.trainingSplitNote) && (
         <section aria-label="Orientações" className={card}>
-          <h2 className="text-lg font-semibold">Orientações</h2>
+          <h2 className="text-lg font-bold tracking-tight">Orientações</h2>
           <ul className="grid gap-1 text-sm">
             {doc.guidelines.map((g, i) => (
               <li key={i}>{guidelineText(g)}</li>
