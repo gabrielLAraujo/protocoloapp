@@ -153,6 +153,8 @@ entram na imagem).
 | `Anthropic__BaseUrl` | não | URL base da API. Padrão: `https://api.anthropic.com`. Só muda em testes (o e2e do CI aponta para um stub). |
 | `R2__ServiceUrl` | não | Troca o endpoint do R2 por outro servidor S3. **Não defina em produção**: existe só para o e2e do CI. |
 | `MIGRATE_ON_START` | não | `true` (padrão): aplica as migrations antes de subir a API. |
+| `Push__Subject` | não | Contato VAPID dos lembretes (`mailto:` ou `https:`). Padrão: `mailto:admin@frauchesgabriel.work`. Veja o passo 8. |
+| `Reminders__Enabled` | não | `true` (padrão). `false` desliga o agendador de lembretes; o envio de teste continua funcionando. |
 
 Pontos de atenção:
 
@@ -236,6 +238,34 @@ O repositório é privado; o app não consegue ver as releases sozinho. A API co
 As secrets do **GitHub Actions** (assinatura do APK) são outra coisa: veja [docs/ci/README.md](../ci/README.md). A release só
 é criada em push na `main`, com as quatro secrets de assinatura configuradas.
 
+## 8. Lembretes (Web Push)
+
+Os lembretes da tela **Hoje** chegam como notificação Web Push (no iPhone, só com o app instalado na Tela de Início, iOS
+16.4 ou mais novo). No servidor não há nada para configurar:
+
+- **Chaves VAPID:** geradas automaticamente na primeira vez que são usadas (primeiro pedido da chave pública ou primeiro
+  envio) e guardadas no banco, tabela `app_secrets` (linha `vapid`). Não existe variável nem segredo manual. Não apague
+  essa linha: com um par novo, as inscrições antigas param de valer e cada aparelho precisa tocar em "Ativar lembretes" de
+  novo. Um backup do Postgres leva as chaves junto.
+- **`Push__Subject` (opcional):** contato que vai no token VAPID (`mailto:voce@exemplo.com` ou uma URL `https:`). O padrão
+  serve; troque só se quiser outro endereço.
+- **`Reminders__Enabled` (opcional):** `false` desliga o agendador (nenhum lembrete automático). As rotas `/api/push/*` e o
+  botão "Enviar teste" continuam funcionando.
+- **Agendador:** roda dentro da API, a cada minuto, no fuso **America/Sao_Paulo** (fixo, independe do fuso do container).
+  Manda um lembrete por horário (slot) quando o horário chegou (tolerância de 2 minutos) e ainda há item do slot sem
+  marcação. Cada slot é enviado no máximo uma vez por dia, mesmo com reinício ou mais de uma instância. Um slot às 23:59
+  não é reenviado depois da meia-noite.
+- **Texto da notificação:** só o nome da refeição ou do tipo de item e o horário ("Refeicao 1 — 07:00", "Itens em jejum").
+  Nunca nomes de compostos nem doses.
+- **Inscrições inválidas:** o serviço de push respondendo 404/410 remove a inscrição na hora; outras falhas contam, e na
+  5ª seguida a inscrição é removida. Os logs só registram status e tipo de erro, nunca o conteúdo.
+
+**Testar:** no iPhone, com o app instalado e logado, **Mais → Configurações → Ativar lembretes** (aceite a permissão) e
+depois **Enviar teste**. Esperado: a notificação "Lembretes ativados ✓" chega e a tela diz para quantos aparelhos foi
+enviada. "Nenhum aparelho recebeu" quer dizer que a inscrição não está no servidor: toque em "Ativar lembretes" de novo.
+Para um lembrete de verdade, em **Configurações → Horários** ponha um horário 2 minutos à frente num item ainda não marcado
+de hoje e espere.
+
 ## Verificação pós-deploy
 
 Critérios do spec (seção 9.1). Marque um a um.
@@ -243,18 +273,20 @@ Critérios do spec (seção 9.1). Marque um a um.
 - [ ] **Saúde:** `curl https://protocolo.frauchesgabriel.work/health` responde 200 com `Healthy`.
 - [ ] **Bucket:** `curl https://protocolo.frauchesgabriel.work/health/ready` responde 200 com `Healthy`. Se vier 503 com o
   `/health` ok, o problema é o R2: chaves, nome do bucket, `R2__AccountId` ou a permissão de listagem do token.
-- [ ] **Login na web:** abra `https://protocolo.frauchesgabriel.work`, entre com o usuário do passo 6. A tela "Check-in de
-  hoje" abre e o cabeçalho mostra "Sincronizado".
+- [ ] **Login na web:** abra `https://protocolo.frauchesgabriel.work`, entre com o usuário do passo 6. A tela "Resumo" abre
+  e o cabeçalho mostra "Sincronizado".
 - [ ] **Login no APK:** instale o APK da release (Releases do GitHub; veja [docs/ci/README.md](../ci/README.md)) e entre com o
   mesmo usuário.
-- [ ] **Offline no APK:** coloque o celular em modo avião, salve o check-in de hoje (aparece "Offline — 1 pendente"),
-  desligue o modo avião e espere "Sincronizado". Abra a web: o mesmo check-in aparece (abra a tela de novo se já estava
+- [ ] **Offline no APK:** coloque o celular em modo avião, salve o check-in de hoje (Hoje → "Check-in do dia"; aparece
+  "Offline — 2 pendentes": o check-in e a marcação dele em Hoje), desligue o modo avião e espere "Sincronizado". Abra a web: o mesmo check-in aparece (abra a tela de novo se já estava
   aberta).
 - [ ] **Sem duplicar:** toque em "Sincronizar agora" mais de uma vez; a web continua com um único check-in do dia e a tela
   `/sync` não lista pendências nem itens com problema.
 - [ ] **Arquivos:** no APK e na web, Diagnóstico, **Testar armazenamento**. Esperado: "Armazenamento OK: envio, confirmação e
   download funcionaram." Se falhar, a mensagem diz a etapa; "o envio ao bucket falhou" aponta para a regra de CORS do bucket
   (origens, `PUT`, `Content-Type`) ou para as chaves do R2.
+- [ ] **Lembretes:** no iPhone (app na Tela de Início), Configurações, **Ativar lembretes** e **Enviar teste**: a notificação
+  chega (passo 8).
 - [ ] **Deploy automático:** um push na `main` dispara um deploy no Coolify e o `/health` volta a responder 200.
 - [ ] **Release do APK:** o CI da `main` publicou a release `v0.1.<n>` com o arquivo `protocolo-0.1.<n>.apk`.
 - [ ] **Aviso de atualização:** com um APK mais antigo instalado, ao abrir o app aparece "Nova versão disponível" e o botão
@@ -273,6 +305,9 @@ Critérios do spec (seção 9.1). Marque um a um.
 | Upload falha só no APK/web, "Testar armazenamento" aponta o envio | Regra de CORS do bucket (origens, `PUT`, header `Content-Type`) |
 | Login responde 429 | Limite de 5 tentativas por minuto por IP; espere 1 minuto |
 | Conta bloqueada | 5 senhas erradas; espere 15 minutos |
+| "Enviar teste" diz que nenhum aparelho recebeu | Inscrição removida ou nunca enviada: "Ativar lembretes" de novo. No iPhone, só funciona com o app aberto pela Tela de Início |
+| Nenhum lembrete automático chega, o teste funciona | `Reminders__Enabled=false`, item já marcado, lembrete desligado em Horários, ou horário pensado em outro fuso (o servidor usa America/Sao_Paulo) |
+| Lembretes pararam depois de restaurar/limpar o banco | Chaves VAPID novas: "Ativar lembretes" de novo em cada aparelho |
 | Banner de atualização nunca aparece | `GitHub__Token` ausente/expirado (a API responde 503 a `/api/app/latest-release`) ou ainda não há release |
 
 ## Operação

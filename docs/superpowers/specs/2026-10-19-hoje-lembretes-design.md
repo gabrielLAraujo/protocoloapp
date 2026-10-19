@@ -1,7 +1,7 @@
 # Subprojeto 3 — Hoje, lembretes (Web Push) e acabamento visual
 
 - **Data:** 2026-10-19
-- **Status:** decisões tomadas pelo Claude com delegação explícita do Gabriel ("tome as decisões seguras na minha ausência"); revisar antes do merge.
+- **Status:** implementado na branch `feat/hoje` (tarefas 1–9 do plano). Decisões tomadas pelo Claude com delegação explícita do Gabriel ("tome as decisões seguras na minha ausência"); revisar antes do merge.
 - **Base:** spec geral (seção 5.1) e `2026-10-18-planejamento-treino-resumo-design.md`. iPhone usa a PWA instalada (iOS 16.4+).
 
 ## 1. Objetivo
