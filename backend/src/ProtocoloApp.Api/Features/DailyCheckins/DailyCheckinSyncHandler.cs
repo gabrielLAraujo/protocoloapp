@@ -19,23 +19,47 @@ public sealed class DailyCheckinSyncHandler(AppDbContext db, TimeProvider clock)
 
     protected override DailyCheckin Create(Guid id, Guid userId) => new() { Id = id, UserId = userId };
 
-    // Only called with a payload the validator accepted: the required fields are present.
+    // Field-wise merge (the check-in is saved in parts, possibly from different devices before a pull): a null field keeps the
+    // stored value, a present one replaces it. "" clears the note. The base class has already applied the stale rule (an
+    // older client_updated_at never gets here). Only called with a payload the validator accepted.
     protected override void Apply(DailyCheckinPayload payload, DailyCheckin entity)
     {
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(entity);
 
+        // A newer upsert revives a soft-deleted row: the deleted values must not leak into the new check-in.
+        if (entity.DeletedAt is not null)
+            ClearFields(entity);
+
         entity.Date = payload.Date!.Value;
-        entity.SleepQuality = payload.SleepQuality!.Value;
-        entity.Bowel = BowelText.Parse(payload.Bowel!);
-        entity.EnergyWake = payload.EnergyWake!.Value;
-        entity.EnergyDay = payload.EnergyDay!.Value;
-        entity.Anxiety = payload.Anxiety!.Value;
-        entity.WaterL = payload.WaterL!.Value;
-        entity.WeightKg = payload.WeightKg;
-        entity.Note = payload.Note;
-        entity.CardioDone = payload.CardioDone;
-        entity.CardioMinutes = payload.CardioMinutes;
+        entity.SleepQuality = payload.SleepQuality ?? entity.SleepQuality;
+        entity.Bowel = payload.Bowel is null ? entity.Bowel : BowelText.Parse(payload.Bowel);
+        entity.EnergyWake = payload.EnergyWake ?? entity.EnergyWake;
+        entity.EnergyDay = payload.EnergyDay ?? entity.EnergyDay;
+        entity.Anxiety = payload.Anxiety ?? entity.Anxiety;
+        entity.WaterL = payload.WaterL ?? entity.WaterL;
+        entity.WeightKg = payload.WeightKg ?? entity.WeightKg;
+        if (payload.Note is not null)
+            entity.Note = payload.Note.Length == 0 ? null : payload.Note;
+        entity.CardioDone = payload.CardioDone ?? entity.CardioDone;
+        entity.CardioMinutes = payload.CardioMinutes ?? entity.CardioMinutes;
+        // Minutes only make sense with cardio done (also a check constraint): "not done" drops minutes stored earlier.
+        if (entity.CardioDone != true)
+            entity.CardioMinutes = null;
+    }
+
+    private static void ClearFields(DailyCheckin entity)
+    {
+        entity.SleepQuality = null;
+        entity.Bowel = null;
+        entity.EnergyWake = null;
+        entity.EnergyDay = null;
+        entity.Anxiety = null;
+        entity.WaterL = null;
+        entity.WeightKg = null;
+        entity.Note = null;
+        entity.CardioDone = null;
+        entity.CardioMinutes = null;
     }
 
     protected override DailyCheckinPayload CreatePayload(DailyCheckin entity)
@@ -46,7 +70,7 @@ public sealed class DailyCheckinSyncHandler(AppDbContext db, TimeProvider clock)
         {
             Date = entity.Date,
             SleepQuality = entity.SleepQuality,
-            Bowel = BowelText.ToText(entity.Bowel),
+            Bowel = entity.Bowel is { } bowel ? BowelText.ToText(bowel) : null,
             EnergyWake = entity.EnergyWake,
             EnergyDay = entity.EnergyDay,
             Anxiety = entity.Anxiety,

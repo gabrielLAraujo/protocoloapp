@@ -62,13 +62,22 @@ public sealed class DailyCheckinPayloadValidatorTests
     }
 
     [Fact]
-    public void Required_fields_must_be_present()
+    public void Only_date_is_required()
     {
         var empty = new DailyCheckinPayload();
 
-        Assert.Equal(
-            new[] { "anxiety", "bowel", "date", "energy_day", "energy_wake", "sleep_quality", "water_l" },
-            Errors(empty).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "date" }, Errors(empty));
+        Assert.Empty(Errors(empty with { Date = new DateOnly(2026, 2, 3) }));
+    }
+
+    [Fact]
+    public void A_single_part_or_cardio_alone_is_valid()
+    {
+        var date = new DateOnly(2026, 2, 3);
+
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = date, SleepQuality = 4, EnergyWake = 3, Bowel = "loose", WeightKg = 80m }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = date, EnergyDay = 4, Anxiety = 2, WaterL = 3m, Note = "" }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = date, CardioDone = true, CardioMinutes = 30 }));
     }
 
     [Theory]

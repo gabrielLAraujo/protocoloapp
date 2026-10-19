@@ -7,21 +7,21 @@ namespace ProtocoloApp.Api.Features.DailyCheckins;
 /// <code>
 /// {
 ///   "date": "2026-01-31",        // required, yyyy-MM-dd; one live check-in per user and date
-///   "sleep_quality": 4,          // required, integer 1–5
-///   "bowel": "normal",           // required, "normal" | "loose" | "constipated"
-///   "energy_wake": 3,            // required, integer 1–5
-///   "energy_day": 4,             // required, integer 1–5
-///   "anxiety": 2,                // required, integer 1–5
-///   "water_l": 2.5,              // required, liters 0–15, at most 2 decimals
-///   "weight_kg": 80.4,           // optional (null), kg 30–300, at most 2 decimals
-///   "note": "...",               // optional (null), up to 2000 characters
-///   "cardio_done": true,         // optional (null = not answered)
-///   "cardio_minutes": 30         // optional (null), integer 0–300, only with cardio_done == true
+///   "sleep_quality": 4,          // morning part, integer 1–5
+///   "bowel": "normal",           // morning part, "normal" | "loose" | "constipated"
+///   "energy_wake": 3,            // morning part, integer 1–5
+///   "weight_kg": 80.4,           // morning part (optional), kg 30–300, at most 2 decimals
+///   "energy_day": 4,             // evening part, integer 1–5
+///   "anxiety": 2,                // evening part, integer 1–5
+///   "water_l": 2.5,              // evening part, liters 0–15, at most 2 decimals
+///   "note": "...",               // evening part (optional), up to 2000 characters; "" clears the stored note
+///   "cardio_done": true,         // from the Today cardio item (null = not answered)
+///   "cardio_minutes": 30         // integer 0–300, only with cardio_done == true in the same payload
 /// }
 /// </code>
-/// Last write wins over the whole payload: a check-in sent without the cardio fields (an older client) stores them as null.
-/// Every property is nullable here so that a missing field is reported as <c>invalid_payload:&lt;field&gt;</c> by
-/// <see cref="DailyCheckinPayloadValidator"/> instead of silently becoming 0. Unknown properties are ignored.
+/// Only <c>date</c> is required; every other field is validated only when present. The handler merges field by field: a
+/// null (or missing) field keeps the stored value, so the morning part saved on one device and the evening part on another
+/// never erase each other. Unknown properties are ignored. In pull every field is written, null when not stored.
 /// </summary>
 public sealed record DailyCheckinPayload
 {
@@ -54,12 +54,13 @@ public sealed class DailyCheckinPayloadValidator : AbstractValidator<DailyChecki
     public DailyCheckinPayloadValidator()
     {
         RuleFor(p => p.Date).NotNull().OverridePropertyName("date");
-        RuleFor(p => p.SleepQuality).NotNull().InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("sleep_quality");
-        RuleFor(p => p.Bowel).Must(BowelText.IsValid).OverridePropertyName("bowel");
-        RuleFor(p => p.EnergyWake).NotNull().InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_wake");
-        RuleFor(p => p.EnergyDay).NotNull().InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_day");
-        RuleFor(p => p.Anxiety).NotNull().InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("anxiety");
-        RuleFor(p => p.WaterL).NotNull().InclusiveBetween(0m, (decimal)DailyCheckin.MaxWaterL).PrecisionScale(4, 2, true).OverridePropertyName("water_l");
+        // Null means "not in this payload" (the stored value is kept); FluentValidation's range rules pass on null.
+        RuleFor(p => p.SleepQuality).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("sleep_quality");
+        RuleFor(p => p.Bowel).Must(BowelText.IsValid).When(p => p.Bowel is not null).OverridePropertyName("bowel");
+        RuleFor(p => p.EnergyWake).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_wake");
+        RuleFor(p => p.EnergyDay).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_day");
+        RuleFor(p => p.Anxiety).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("anxiety");
+        RuleFor(p => p.WaterL).InclusiveBetween(0m, (decimal)DailyCheckin.MaxWaterL).PrecisionScale(4, 2, true).OverridePropertyName("water_l");
         RuleFor(p => p.WeightKg).InclusiveBetween((decimal)DailyCheckin.MinWeightKg, (decimal)DailyCheckin.MaxWeightKg).PrecisionScale(5, 2, true).OverridePropertyName("weight_kg");
         RuleFor(p => p.Note).MaximumLength(DailyCheckin.MaxNoteLength).OverridePropertyName("note");
         RuleFor(p => p.CardioMinutes).InclusiveBetween(0, DailyCheckin.MaxCardioMinutes).OverridePropertyName("cardio_minutes");

@@ -29,22 +29,26 @@ public sealed class DailyCheckin : ISyncEntity
 
     public DateOnly Date { get; set; }
 
-    /// <summary>1–5.</summary>
-    public int SleepQuality { get; set; }
+    // The check-in is saved in two parts (morning: sleep, energy on waking, bowel; evening: energy during the day, anxiety,
+    // water), so each part field is null until its part is saved. A row created only by the cardio item has all of them null.
 
-    public Bowel Bowel { get; set; }
+    /// <summary>1–5. Morning part.</summary>
+    public int? SleepQuality { get; set; }
 
-    /// <summary>1–5.</summary>
-    public int EnergyWake { get; set; }
+    /// <summary>Morning part.</summary>
+    public Bowel? Bowel { get; set; }
 
-    /// <summary>1–5.</summary>
-    public int EnergyDay { get; set; }
+    /// <summary>1–5. Morning part.</summary>
+    public int? EnergyWake { get; set; }
 
-    /// <summary>1–5.</summary>
-    public int Anxiety { get; set; }
+    /// <summary>1–5. Evening part.</summary>
+    public int? EnergyDay { get; set; }
 
-    /// <summary>Liters, 0–15, two decimals.</summary>
-    public decimal WaterL { get; set; }
+    /// <summary>1–5. Evening part.</summary>
+    public int? Anxiety { get; set; }
+
+    /// <summary>Liters, 0–15, two decimals. Evening part.</summary>
+    public decimal? WaterL { get; set; }
 
     /// <summary>Kilograms, 30–300, two decimals. Optional.</summary>
     public decimal? WeightKg { get; set; }

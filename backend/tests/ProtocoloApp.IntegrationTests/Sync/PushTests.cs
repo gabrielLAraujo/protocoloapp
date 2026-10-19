@@ -80,13 +80,13 @@ public sealed class PushTests(ApiFactory factory)
 
         await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, t1, sleepQuality: 2));
         var v1 = Assert.Single(await SyncApi.RowsAsync(factory, id)).Version;
-        var result = await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, t1.AddMinutes(1), sleepQuality: 3, weightKg: null));
+        var result = await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, t1.AddMinutes(1), sleepQuality: 3, weightKg: 81.2m));
 
         Assert.Equal(SyncResultStatus.Applied, result.Status);
         var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
         Assert.True(row.Version > v1);
         Assert.Equal(3, row.SleepQuality);
-        Assert.Null(row.WeightKg);
+        Assert.Equal(81.2m, row.WeightKg);
     }
 
     [Fact]
