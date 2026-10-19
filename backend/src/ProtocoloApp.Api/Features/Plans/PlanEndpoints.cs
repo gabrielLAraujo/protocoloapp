@@ -12,8 +12,8 @@ using ProtocoloApp.Api.Shared.Storage;
 namespace ProtocoloApp.Api.Features.Plans;
 
 /// <summary>
-/// Import of a protocol or workout PDF into a draft, its review (<c>GET</c>/<c>PUT</c>) and activation. Rows of other users
-/// are 404. The content of documents is never logged.
+/// Import of a protocol or workout PDF into a draft (by the AI, or a document the device read itself), its review
+/// (<c>GET</c>/<c>PUT</c>) and activation. Rows of other users are 404. The content of documents is never logged.
 /// </summary>
 public static class PlanEndpoints
 {
@@ -23,6 +23,8 @@ public static class PlanEndpoints
 
         var group = api.MapGroup("/plans").WithTags("Plans");
         group.MapPost("/import", ImportAsync);
+        group.MapPost("/drafts", CreateDraftAsync);
+        group.MapGet("/extraction", GetExtraction);
         group.MapGet("/", ListAsync);
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPut("/{id:guid}", UpdateAsync);
@@ -51,22 +53,18 @@ public static class PlanEndpoints
             return Invalid("kind", "Tipo de plano inválido.");
 
         var userId = principal.GetUserId();
-        var file = await db.Files.AsNoTracking().SingleOrDefaultAsync(f => f.Id == request.FileId && f.UserId == userId, ct);
-        if (file is null)
-            return TypedResults.NotFound();
+        var (file, check) = await FindSourceFileAsync(db, userId, request.FileId, request.Kind, ct);
+        switch (check)
+        {
+            case SourceFileCheck.NotFound:
+                return TypedResults.NotFound();
+            case SourceFileCheck.WrongKind:
+                return Invalid("fileId", WrongKindMessage);
+            case SourceFileCheck.NotConfirmed:
+                return Problem(StatusCodes.Status409Conflict, "Conflito", NotConfirmedMessage);
+        }
 
-        var expected = request.Kind == PlanKind.Protocol ? FileKind.ProtocolPdf : FileKind.WorkoutPdf;
-        if (file.Kind != expected)
-            return Invalid("fileId", "O arquivo não é do tipo esperado para este plano.");
-        if (file.Status != FileStatus.Confirmed)
-            return Problem(StatusCodes.Status409Conflict, "Conflito", "O envio do arquivo ainda não foi confirmado.");
-
-        var known = (await db.Exercises.AsNoTracking()
-                .Where(e => e.UserId == userId && e.DeletedAt == null)
-                .Select(e => new { e.Id, e.Name, e.PrimaryMuscleGroup })
-                .ToListAsync(ct))
-            .Select(e => new ExerciseHint(e.Id, e.Name, e.PrimaryMuscleGroup))
-            .ToList();
+        var known = await ExerciseLinking.LoadHintsAsync(db, userId, ct);
 
         // One cap on the whole import, on top of the extractor's per-attempt timeout.
         using var total = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -78,7 +76,7 @@ public static class PlanEndpoints
             Stream pdf;
             try
             {
-                pdf = await storage.OpenReadAsync(file.StorageKey, total.Token);
+                pdf = await storage.OpenReadAsync(file!.StorageKey, total.Token);
             }
             catch (FileNotFoundException)
             {
@@ -104,7 +102,7 @@ public static class PlanEndpoints
             UserId = userId,
             Kind = request.Kind,
             Status = PlanStatus.Draft,
-            SourceFileId = file.Id,
+            SourceFileId = file!.Id,
         };
         if (result.IsSuccess)
         {
@@ -129,6 +127,91 @@ public static class PlanEndpoints
         }
 
         return TypedResults.Created($"/api/plans/{plan.Id}", PlanMapping.ToResponse(plan, null));
+    }
+
+    /// <summary>
+    /// A draft from a document the device read itself (no AI). Same checks as the import for the file, same rules as a
+    /// <c>PUT</c> of a draft for the document; exercises are linked to the catalog like the AI extraction does, and the new
+    /// ones are created at activation.
+    /// </summary>
+    private static async Task<Results<Created<CreateDraftResponse>, NotFound, ValidationProblem, ProblemHttpResult>> CreateDraftAsync(
+        CreateDraftRequest? request,
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        if (request is null || !Enum.IsDefined(request.Kind))
+            return Invalid("kind", "Tipo de plano inválido.");
+
+        var userId = principal.GetUserId();
+        var (file, check) = await FindSourceFileAsync(db, userId, request.FileId, request.Kind, ct);
+        switch (check)
+        {
+            case SourceFileCheck.NotFound:
+                return TypedResults.NotFound();
+            case SourceFileCheck.WrongKind:
+                return Invalid("fileId", WrongKindMessage);
+            case SourceFileCheck.NotConfirmed:
+                return Problem(StatusCodes.Status409Conflict, "Conflito", NotConfirmedMessage);
+        }
+
+        var errors = ValidateSuggestions(request.NewExercises ?? []);
+        if (request.LowConfidence is { Count: > MaxLowConfidence })
+            errors["lowConfidence"] = [$"No máximo {MaxLowConfidence} campos incertos."];
+        if (errors.Count > 0)
+            return TypedResults.ValidationProblem(errors);
+
+        var normalized = Normalize(request.Kind, request.Document, out var documentErrors);
+        if (normalized is null)
+            return TypedResults.ValidationProblem(documentErrors);
+
+        var document = normalized.Value;
+        var lowConfidence = new List<string>((request.LowConfidence ?? []).Where(p => p is not null));
+        IReadOnlyList<NewExerciseSuggestion> newExercises = [];
+        if (request.Kind == PlanKind.Workout)
+        {
+            // Normalized above, so it reads.
+            PlanDocuments.TryRead<WorkoutDocument>(document, out var workout, out _);
+            var known = await ExerciseLinking.LoadHintsAsync(db, userId, ct);
+            document = PlanDocuments.Serialize(ExerciseLinking.LinkExercises(workout!, known, lowConfidence));
+            newExercises = [.. ExerciseLinking.WithoutKnown(request.NewExercises ?? [], known)];
+        }
+
+        var plan = new PlanVersion
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Kind = request.Kind,
+            Status = PlanStatus.Draft,
+            SourceFileId = file!.Id,
+            Document = JsonDocument.Parse(document.GetRawText()),
+            // No AI answer to keep: only where the draft came from.
+            RawExtraction = JsonDocument.Parse("""{"source":"local"}"""),
+            LowConfidence = [.. ExerciseLinking.CleanLowConfidence(lowConfidence, document)],
+            NewExercises = PlanMapping.WriteNewExercises(newExercises),
+        };
+
+        await using (var transaction = await SyncWrites.BeginAsync(db, userId, ct))
+        {
+            await SyncWrites.StampAsync(db, plan, userId, clock, ct);
+            db.PlanVersions.Add(plan);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        return TypedResults.Created($"/api/plans/{plan.Id}", new CreateDraftResponse(plan.Id));
+    }
+
+    /// <summary>Whether the import screen can offer the AI reader (the on-device reader is always there).</summary>
+    private static Ok<PlanExtractionInfo> GetExtraction(IOptions<AnthropicOptions> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return TypedResults.Ok(new PlanExtractionInfo(options.Value.IsConfigured));
     }
 
     private static async Task<Results<Ok<IReadOnlyList<PlanVersionSummary>>, ValidationProblem>> ListAsync(
@@ -233,16 +316,7 @@ public static class PlanEndpoints
         JsonDocument? newExercises = plan.NewExercises;
         if (request.NewExercises is { } suggestions)
         {
-            var problems = new Dictionary<string, string[]>();
-            for (var i = 0; i < suggestions.Count; i++)
-            {
-                var suggestion = suggestions[i];
-                if (suggestion is null || !ExerciseNames.IsUsable(ExerciseNames.Normalize(suggestion.Name ?? "")))
-                    problems[$"newExercises[{i}].name"] = ["Nome de exercício inválido."];
-                else if (!Enum.IsDefined(suggestion.Group))
-                    problems[$"newExercises[{i}].group"] = ["Grupo muscular inválido."];
-            }
-
+            var problems = ValidateSuggestions(suggestions);
             if (problems.Count > 0)
                 return TypedResults.ValidationProblem(problems);
             newExercises = PlanMapping.WriteNewExercises(suggestions);
@@ -334,6 +408,50 @@ public static class PlanEndpoints
         await transaction.CommitAsync(ct);
 
         return TypedResults.Ok(PlanMapping.ToResponse(plan, null));
+    }
+
+    private const int MaxLowConfidence = 500;
+
+    private const string WrongKindMessage = "O arquivo não é do tipo esperado para este plano.";
+
+    private const string NotConfirmedMessage = "O envio do arquivo ainda não foi confirmado.";
+
+    private enum SourceFileCheck
+    {
+        Ok,
+        NotFound,
+        WrongKind,
+        NotConfirmed,
+    }
+
+    /// <summary>The user's PDF a draft of <paramref name="kind"/> comes from: of the matching kind and confirmed.</summary>
+    private static async Task<(FileRecord? File, SourceFileCheck Check)> FindSourceFileAsync(
+        AppDbContext db, Guid userId, Guid fileId, PlanKind kind, CancellationToken ct)
+    {
+        var file = await db.Files.AsNoTracking().SingleOrDefaultAsync(f => f.Id == fileId && f.UserId == userId, ct);
+        if (file is null)
+            return (null, SourceFileCheck.NotFound);
+
+        var expected = kind == PlanKind.Protocol ? FileKind.ProtocolPdf : FileKind.WorkoutPdf;
+        if (file.Kind != expected)
+            return (file, SourceFileCheck.WrongKind);
+        return file.Status != FileStatus.Confirmed ? (file, SourceFileCheck.NotConfirmed) : (file, SourceFileCheck.Ok);
+    }
+
+    /// <summary>Suggested new exercises: a usable name and a known muscle group each; keys are <c>newExercises[i].name|group</c>.</summary>
+    private static Dictionary<string, string[]> ValidateSuggestions(IReadOnlyList<NewExerciseSuggestion?> suggestions)
+    {
+        var problems = new Dictionary<string, string[]>();
+        for (var i = 0; i < suggestions.Count; i++)
+        {
+            var suggestion = suggestions[i];
+            if (suggestion is null || !ExerciseNames.IsUsable(ExerciseNames.Normalize(suggestion.Name ?? "")))
+                problems[$"newExercises[{i}].name"] = ["Nome de exercício inválido."];
+            else if (!Enum.IsDefined(suggestion.Group))
+                problems[$"newExercises[{i}].group"] = ["Grupo muscular inválido."];
+        }
+
+        return problems;
     }
 
     /// <summary>The document read through <see cref="PlanDocuments.TryRead{T}"/> and written back in its canonical form.</summary>

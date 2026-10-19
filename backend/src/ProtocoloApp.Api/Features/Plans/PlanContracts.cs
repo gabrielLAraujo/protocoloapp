@@ -5,6 +5,22 @@ namespace ProtocoloApp.Api.Features.Plans;
 
 public sealed record ImportPlanRequest(Guid FileId, PlanKind Kind);
 
+/// <summary>
+/// A draft read on the device (no AI): the document is checked like a <c>PUT</c> of a draft, exercises are linked to the
+/// catalog by normalized name or alias, and <see cref="NewExercises"/> are created at activation.
+/// </summary>
+public sealed record CreateDraftRequest(
+    Guid FileId,
+    PlanKind Kind,
+    JsonElement Document,
+    IReadOnlyList<string>? LowConfidence,
+    IReadOnlyList<NewExerciseSuggestion>? NewExercises);
+
+public sealed record CreateDraftResponse(Guid PlanVersionId);
+
+/// <summary>Which readers the import screen can offer: <see cref="Ai"/> is true when the AI extraction is configured.</summary>
+public sealed record PlanExtractionInfo(bool Ai);
+
 public sealed record UpdatePlanRequest(JsonElement Document, IReadOnlyList<NewExerciseSuggestion>? NewExercises);
 
 public sealed record ActivatePlanRequest(DateOnly? CycleStart);

@@ -93,6 +93,21 @@ internal sealed class PlanApi(ApiFactory factory) : IDisposable
         return (await response.Content.ReadFromJsonAsync<PlanVersionResponse>(Json))!;
     }
 
+    /// <summary>A draft read on the device: <c>POST /api/plans/drafts</c>.</summary>
+    public Task<HttpResponseMessage> CreateDraftAsync(
+        Guid fileId,
+        PlanKind kind,
+        string documentJson,
+        IReadOnlyList<string>? lowConfidence = null,
+        IReadOnlyList<ProtocoloApp.Api.Features.Plans.Extraction.NewExerciseSuggestion>? newExercises = null)
+    {
+        using var document = JsonDocument.Parse(documentJson);
+        return Client.PostAsJsonAsync(
+            new Uri("/api/plans/drafts", UriKind.Relative),
+            new CreateDraftRequest(fileId, kind, document.RootElement.Clone(), lowConfidence, newExercises),
+            Json);
+    }
+
     public Task<HttpResponseMessage> ActivateAsync(Guid id, DateOnly? cycleStart = null) =>
         Client.PostAsJsonAsync(new Uri($"/api/plans/{id}/activate", UriKind.Relative), new ActivatePlanRequest(cycleStart), Json);
 
