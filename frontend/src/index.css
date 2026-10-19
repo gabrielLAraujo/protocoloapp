@@ -1,47 +1,88 @@
 @import 'tailwindcss';
 
-/* Minimal, dark-friendly: follows the system theme. Colors are tokens; components use only these. */
+/*
+ * Calm, athletic, legible at arm's length in the gym. Cool chalk-and-slate neutrals, one teal accent, and the semantic
+ * colors (ok / warn / danger) reserved for the state of things. Follows the system theme. Components use only these tokens.
+ *
+ * Type scale (the only five sizes): xs 12 · sm 14 · base 16 · lg 20 · xl 28. Spacing: 4 · 8 · 12 · 16 · 24 (Tailwind 1/2/3/4/6).
+ * Radii by hierarchy: control 10 (buttons, inputs, chips) · card 16 · sheet 24 (bottom sheets).
+ */
 @theme {
+  --color-page: var(--page);
   --color-surface: var(--surface);
+  --color-raised: var(--raised);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-control-line: var(--control-line);
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
+  --color-scrim: var(--scrim);
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.75rem;
+  --text-xl--line-height: 2.125rem;
+
   --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-sheet: 24px;
+
+  --shadow-card: var(--shadow-card-value);
+  --shadow-raised: var(--shadow-raised-value);
 }
 
 :root {
   color-scheme: light dark;
+  --page: #f1f4f3;
   --surface: #ffffff;
-  --page: #f6f7f9;
-  --ink: #14181f;
-  --muted: #5b6573;
-  --line: #dde1e7;
-  --accent: #0f766e;
+  --raised: #f7f9f8;
+  --ink: #111816;
+  --muted: #55625d;
+  --line: #d6ddda;
+  /* Borders that identify a control (inputs, choices): 3:1 against surface and page. */
+  --control-line: #7a8984;
+  --accent: #0e6f68;
+  --accent-soft: #e2f3f0;
   --on-accent: #ffffff;
   --danger: #b42318;
-  --ok: #15803d;
-  --warn: #b45309;
+  --ok: #12703a;
+  --warn: #a14a0a;
+  --scrim: rgb(9 14 13 / 0.45);
+  --shadow-card-value: 0 1px 2px rgb(17 24 22 / 0.05), 0 1px 1px rgb(17 24 22 / 0.03);
+  --shadow-raised-value: 0 -6px 24px rgb(17 24 22 / 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: #171a21;
-    --page: #0f1115;
-    --ink: #eceff4;
-    --muted: #9aa4b2;
-    --line: #2a2f3a;
+    --page: #0c1211;
+    --surface: #141c1a;
+    --raised: #1b2522;
+    --ink: #e7eeeb;
+    --muted: #9eaca6;
+    --line: #2a3632;
+    --control-line: #62736d;
     --accent: #5eead4;
-    --on-accent: #06201d;
+    --accent-soft: #123430;
+    --on-accent: #062420;
     --danger: #f97066;
     --ok: #4ade80;
     --warn: #fbbf24;
+    --scrim: rgb(0 0 0 / 0.6);
+    --shadow-card-value: 0 0 0 0 transparent;
+    --shadow-raised-value: 0 -6px 24px rgb(0 0 0 / 0.45);
   }
 }
 
@@ -51,6 +92,24 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
   /* Landscape iPhone: keep content out of the notch (top and bottom are handled by the header, login and main). */
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+/* Numbers line up in columns and do not jump while a timer ticks. */
+.tabular-nums,
+time {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
