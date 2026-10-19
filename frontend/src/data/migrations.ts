@@ -163,6 +163,37 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'CREATE INDEX ix_adherence_logs_date ON adherence_logs (date)',
     ],
   },
+  {
+    // Check-in in parts (morning, evening, cardio): the part fields become nullable. SQLite cannot drop NOT NULL, so
+    // the table is rebuilt; every row is copied (same columns, same order) and the index recreated.
+    version: 5,
+    statements: [
+      `CREATE TABLE daily_checkins_v5 (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        sleep_quality INTEGER,
+        bowel TEXT,
+        energy_wake INTEGER,
+        energy_day INTEGER,
+        anxiety INTEGER,
+        water_l REAL,
+        weight_kg REAL,
+        note TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT,
+        cardio_done INTEGER,
+        cardio_minutes INTEGER
+      )`,
+      `INSERT INTO daily_checkins_v5
+         (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, client_updated_at, version, deleted_at, cardio_done, cardio_minutes)
+       SELECT id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, client_updated_at, version, deleted_at, cardio_done, cardio_minutes
+       FROM daily_checkins`,
+      'DROP TABLE daily_checkins',
+      'ALTER TABLE daily_checkins_v5 RENAME TO daily_checkins',
+      'CREATE INDEX ix_daily_checkins_date ON daily_checkins (date)',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

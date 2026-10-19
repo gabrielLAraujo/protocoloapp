@@ -1,6 +1,6 @@
 import type { AdherenceLogLocal } from '../../data/adherenceRepo'
 import { localDate } from '../checkin/localDate'
-import type { DailyCheckin } from '../../data/dailyCheckinRepo'
+import { checkinParts, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import { dateRange, diffDays } from '../../domain/calendarDate'
@@ -55,13 +55,14 @@ export interface SummaryData {
   calendar: CalendarDay[]
   workouts: Ratio
   cardio: Ratio
-  /** Averages with one decimal; null without check-ins in the cycle so far. */
+  /** Averages with one decimal of the answered values; null without any in the cycle so far. */
   sleep: number | null
   energyWake: number | null
   energyDay: number | null
   anxiety: number | null
   water: number | null
   waterTarget: number | null
+  /** Days in the cycle so far with both parts of the check-in saved. */
   checkinCount: number
   weight: WeightPoint[]
   strength: Record<MuscleGroup, GroupTrends> | null
@@ -69,7 +70,9 @@ export interface SummaryData {
 
 const round1 = (n: number) => Math.round(n * 10) / 10
 
-function average(values: number[]): number | null {
+/** Mean of the answered values (a part not saved that day leaves its fields null, which do not count). */
+function average(answers: (number | null)[]): number | null {
+  const values = answers.filter((v): v is number => v !== null)
   if (values.length === 0) return null
   return round1(values.reduce((a, b) => a + b, 0) / values.length)
 }
@@ -142,7 +145,11 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
     anxiety: average(inRange.map((c) => c.anxiety)),
     water: average(inRange.map((c) => c.waterL)),
     waterTarget: guideline?.value ?? null,
-    checkinCount: inRange.length,
+    // A check-in counts once both parts were saved (a full check-in from before the split has both).
+    checkinCount: inRange.filter((c) => {
+      const parts = checkinParts(c)
+      return parts.morning && parts.evening
+    }).length,
     weight: inRange
       .filter((c): c is DailyCheckin & { weightKg: number } => c.weightKg !== null)
       .sort((a, b) => a.date.localeCompare(b.date))

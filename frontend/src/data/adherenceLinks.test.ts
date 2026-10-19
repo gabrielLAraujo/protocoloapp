@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { newLocalDb, USER_A } from '../test/localDb'
-import { finishSessionAndMark, saveCheckinAndMark, setCardio } from './adherenceLinks'
+import { finishSessionAndMark, saveCheckinAndMark, saveEveningAndMark, saveMorningAndMark, setCardio } from './adherenceLinks'
 import { adherenceRepo } from './adherenceRepo'
-import { dailyCheckinRepo, StaleCheckinError, type DailyCheckinFields } from './dailyCheckinRepo'
+import { checkinParts, dailyCheckinRepo, StaleCheckinError, type DailyCheckinFields } from './dailyCheckinRepo'
 import { outbox } from './outbox'
 import { workoutRepo } from './workoutRepo'
 
@@ -123,13 +123,29 @@ describe('saveCheckinAndMark', () => {
 })
 
 describe('setCardio', () => {
-  it('without a check-in only the mark is written', async () => {
+  it('without a check-in, done or missed creates a row with both parts null; clearing writes no row', async () => {
     const db = await newLocalDb()
 
-    await setCardio(db, USER_A, DAY, { status: 'done' }, T0)
-
-    expect(await marks(db)).toEqual([['cardio', 'done']])
+    await setCardio(db, USER_A, DAY, { status: null }, T0)
     expect(await dailyCheckinRepo.get(db, DAY)).toBeNull()
+
+    await setCardio(db, USER_A, DAY, { status: 'done', minutes: 35 }, later(1000))
+    expect(await marks(db)).toEqual([['cardio', 'done']])
+    const row = await dailyCheckinRepo.get(db, DAY)
+    expect(row).toMatchObject({ cardioDone: true, cardioMinutes: 35, sleepQuality: null, energyDay: null })
+    expect(checkinParts(row!)).toEqual({ morning: false, evening: false })
+    const checkinChanges = (await outbox.due(db, T0, 500)).filter((e) => e.entity === 'daily_checkin')
+    expect(checkinChanges.map((e) => JSON.parse(e.payload!).parts)).toEqual([['cardio']])
+  })
+
+  it('done without minutes keeps the minutes already saved; the same answer writes nothing new', async () => {
+    const db = await newLocalDb()
+    await setCardio(db, USER_A, DAY, { status: 'done', minutes: 35 }, T0)
+
+    await setCardio(db, USER_A, DAY, { status: 'done' }, later(1000))
+
+    expect(await dailyCheckinRepo.get(db, DAY)).toMatchObject({ cardioDone: true, cardioMinutes: 35 })
+    expect((await outbox.due(db, T0, 500)).filter((e) => e.entity === 'daily_checkin')).toHaveLength(1)
   })
 
   it("mirrors done / missed / cleared on the day's check-in, keeping its other answers; partial leaves it", async () => {
@@ -147,7 +163,37 @@ describe('setCardio', () => {
     expect(await adherenceRepo.between(db, DAY, DAY)).toMatchObject([{ status: 'missed', reason: 'felt_sick' }])
 
     await setCardio(db, USER_A, DAY, { status: null }, later(4000))
-    expect(await dailyCheckinRepo.get(db, DAY)).toMatchObject({ cardioDone: null })
+    expect(await dailyCheckinRepo.get(db, DAY)).toMatchObject({ cardioDone: null, note: 'Teste', sleepQuality: 4 })
     expect(await marks(db)).toEqual([])
+    const cardioChanges = (await outbox.due(db, T0, 500)).filter((e) => e.entity === 'daily_checkin').slice(1)
+    expect(cardioChanges.map((e) => [JSON.parse(e.payload!).parts, JSON.parse(e.payload!).cardio_done])).toEqual([
+      [['cardio'], true],
+      [['cardio'], false],
+      [['cardio'], null],
+    ])
+  })
+})
+
+describe('saveMorningAndMark / saveEveningAndMark', () => {
+  it('each part marks only its own target done, and the second keeps the first', async () => {
+    const db = await newLocalDb()
+
+    await saveMorningAndMark(db, USER_A, DAY, { sleepQuality: 4, energyWake: 3, bowel: 'normal', weightKg: null }, T0)
+    expect((await adherenceRepo.between(db, DAY, DAY)).map((l) => l.targetKey)).toEqual(['checkin_morning'])
+
+    await saveEveningAndMark(db, USER_A, DAY, { energyDay: 4, anxiety: 2, waterL: 3, note: null }, later(1000))
+    const logs = await adherenceRepo.between(db, DAY, DAY)
+    expect(logs.map((l) => [l.targetKey, l.status]).sort()).toEqual([['checkin_evening', 'done'], ['checkin_morning', 'done']])
+    expect(checkinParts((await dailyCheckinRepo.get(db, DAY))!)).toEqual({ morning: true, evening: true })
+  })
+
+  it('a failing mark rolls the part back too', async () => {
+    const db = await newLocalDb()
+    vi.spyOn(adherenceRepo, 'mark').mockRejectedValueOnce(new Error('disk full'))
+
+    await expect(saveEveningAndMark(db, USER_A, DAY, { energyDay: 4, anxiety: 2, waterL: 3, note: null }, T0)).rejects.toThrow('disk full')
+
+    expect(await dailyCheckinRepo.get(db, DAY)).toBeNull()
+    expect(await outbox.pendingCount(db)).toBe(0)
   })
 })

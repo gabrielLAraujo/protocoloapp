@@ -70,12 +70,12 @@ const readCardioMark = async (db: Data['db'], date: string): Promise<AdherenceSt
   (await adherenceRepo.between(db, date, date)).find((l) => l.targetType === 'cardio' && l.targetKey === CARDIO_KEY)?.status ?? null
 
 const defaultsFor = (checkin: DailyCheckin | null, cardioMark: AdherenceStatus | null = null): Partial<CheckinFormInput> => ({
-  sleepQuality: checkin?.sleepQuality,
-  bowel: checkin?.bowel,
-  energyWake: checkin?.energyWake,
-  energyDay: checkin?.energyDay,
-  anxiety: checkin?.anxiety,
-  waterL: checkin ? String(checkin.waterL) : '',
+  sleepQuality: checkin?.sleepQuality ?? undefined,
+  bowel: checkin?.bowel ?? undefined,
+  energyWake: checkin?.energyWake ?? undefined,
+  energyDay: checkin?.energyDay ?? undefined,
+  anxiety: checkin?.anxiety ?? undefined,
+  waterL: checkin?.waterL == null ? '' : String(checkin.waterL),
   weightKg: checkin?.weightKg == null ? '' : String(checkin.weightKg),
   cardioDone: cardioDefault(checkin, cardioMark),
   cardioMinutes: checkin?.cardioMinutes == null ? '' : String(checkin.cardioMinutes),

@@ -124,3 +124,38 @@ describe('local migration 3', () => {
     expect(await db.query('SELECT id, note, exercise_notes FROM workout_sessions')).toEqual([{ id: 's1', note: 'ok', exercise_notes: null }])
   })
 })
+
+describe('local migration 5', () => {
+  it('rebuilds daily_checkins with nullable part fields, keeping every row (live and deleted) and the date index', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 4)
+    await db.execute(
+      `INSERT INTO daily_checkins (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, client_updated_at, version, deleted_at, cardio_done, cardio_minutes)
+       VALUES ('c1', '2026-10-01', 4, 'normal', 3, 4, 2, 2.5, 80.4, 'ok', '2026-10-01T10:00:00.000Z', 7, NULL, 1, 30),
+              ('c2', '2026-10-02', 2, 'loose', 2, 3, 4, 1, NULL, NULL, '2026-10-02T10:00:00.000Z', NULL, '2026-10-02T11:00:00.000Z', NULL, NULL)`,
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT * FROM daily_checkins ORDER BY id')).toEqual([
+      {
+        id: 'c1', date: '2026-10-01', sleep_quality: 4, bowel: 'normal', energy_wake: 3, energy_day: 4, anxiety: 2,
+        water_l: 2.5, weight_kg: 80.4, note: 'ok', client_updated_at: '2026-10-01T10:00:00.000Z', version: 7, deleted_at: null,
+        cardio_done: 1, cardio_minutes: 30,
+      },
+      {
+        id: 'c2', date: '2026-10-02', sleep_quality: 2, bowel: 'loose', energy_wake: 2, energy_day: 3, anxiety: 4,
+        water_l: 1, weight_kg: null, note: null, client_updated_at: '2026-10-02T10:00:00.000Z', version: null,
+        deleted_at: '2026-10-02T11:00:00.000Z', cardio_done: null, cardio_minutes: null,
+      },
+    ])
+    // A row with the parts empty (cardio only) now fits.
+    await db.execute(
+      "INSERT INTO daily_checkins (id, date, client_updated_at, cardio_done) VALUES ('c3', '2026-10-03', '2026-10-03T10:00:00.000Z', 0)",
+    )
+    const indexes = await db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'daily_checkins'")
+    expect(indexes.map((i) => i.name)).toContain('ix_daily_checkins_date')
+    const tables = await db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'daily_checkins%'")
+    expect(tables.map((t) => t.name)).toEqual(['daily_checkins'])
+  })
+})
