@@ -114,8 +114,12 @@ public sealed class ExtractionSchemasTests
             }
         }
 
-        var result = validator.Validate(new ProtocolDocument { Items = items });
-        Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => e.PropertyName)));
+        // In documents that respect the item cap.
+        foreach (var chunk in items.Chunk(PlanDocumentRules.MaxMealsOrItems))
+        {
+            var result = validator.Validate(new ProtocolDocument { Items = chunk });
+            Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => e.PropertyName)));
+        }
     }
 
     [Theory]
