@@ -68,7 +68,10 @@ public sealed class ReminderScheduler(
         }
     }
 
-    /// <summary>One pass at <paramref name="now"/>; returns how many slot reminders were claimed (sent to the user's devices).</summary>
+    /// <summary>
+    /// One pass at <paramref name="now"/>; returns how many slot reminders were claimed and kept (reached a device or removed
+    /// one). A slot whose push reached no device and removed none is released for the next tick.
+    /// </summary>
     public async Task<int> RunOnceAsync(DateTimeOffset now, CancellationToken ct)
     {
         var zone = zones.Zone;
@@ -130,8 +133,9 @@ public sealed class ReminderScheduler(
         foreach (var slot in due)
         {
             // Claim first: the unique (user, date, slot) row means "somebody already took this one".
+            var claimId = Guid.NewGuid();
             var inserted = await db.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO reminder_sends (id, user_id, date, slot, sent_at) VALUES ({Guid.NewGuid()}, {userId}, {date}, {slot.Key}, {now.ToUniversalTime()}) ON CONFLICT (user_id, date, slot) DO NOTHING",
+                $"INSERT INTO reminder_sends (id, user_id, date, slot, sent_at) VALUES ({claimId}, {userId}, {date}, {slot.Key}, {now.ToUniversalTime()}) ON CONFLICT (user_id, date, slot) DO NOTHING",
                 ct);
             if (inserted == 0)
                 continue;
@@ -139,7 +143,16 @@ public sealed class ReminderScheduler(
             // The meal's own label, even when the meal itself is logged and only its items are left.
             var mealLabel = plan.Targets.FirstOrDefault(t => t.SlotKey == slot.Key && t.Type == AdherenceTargetType.Meal)?.Label;
             var time = slot.First().Time!.Value;
-            await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), logger, ct);
+            var result = await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), logger, ct);
+            if (result is { Sent: 0, Removed: 0 })
+            {
+                // No device got it and none was dropped: release this claim (only ours, by id) so the next tick retries.
+                // The retry stops by itself once the slot is more than LateTolerance minutes late.
+                await db.ReminderSends.Where(r => r.Id == claimId).ExecuteDeleteAsync(ct);
+                logger.LogWarning("Reminder for a slot reached no device; released for a retry within the tolerance window.");
+                continue;
+            }
+
             claimed++;
         }
 

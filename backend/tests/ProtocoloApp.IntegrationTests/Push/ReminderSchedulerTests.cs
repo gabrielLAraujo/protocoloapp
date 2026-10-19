@@ -216,6 +216,67 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Transient_failures_neither_count_nor_remove_and_retries_stop_at_the_end_of_the_window()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _ = api;
+        await api.WithDbAsync(async db =>
+        {
+            await db.PushSubscriptions.Where(s => s.Endpoint == endpoint).ExecuteUpdateAsync(s => s.SetProperty(x => x.FailureCount, 4));
+            return 0;
+        });
+        factory.Push.Results[endpoint] = PushResult.Transient;
+
+        foreach (var time in new[] { "12:30", "12:31", "12:32", "12:33", "12:34" })
+            await RunAsync(Local(time));
+
+        // One try per minute of the tolerance window (12:30, 12:31, 12:32), none after it.
+        Assert.Equal(3, factory.Push.SentTo(endpoint).Count);
+        Assert.Equal(4, Assert.Single(await PushApi.SubscriptionsAsync(factory, endpoint)).FailureCount);
+        Assert.Equal(0, await ClaimsAsync(api));
+    }
+
+    [Fact]
+    public async Task A_transient_send_releases_the_slot_and_the_next_minute_sends_exactly_once()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _ = api;
+        factory.Push.Results[endpoint] = PushResult.Transient;
+
+        await RunAsync(Local("12:30"));
+        Assert.Equal(0, await ClaimsAsync(api));
+
+        factory.Push.Results[endpoint] = PushResult.Sent;
+        await RunAsync(Local("12:31"));
+        await RunAsync(Local("12:31"));
+        await RunAsync(Local("12:32"));
+
+        // The failed try at 12:30 and the delivered one at 12:31; nothing after.
+        Assert.Equal(2, factory.Push.SentTo(endpoint).Count);
+        Assert.Equal(1, await ClaimsAsync(api));
+        Assert.Equal(0, Assert.Single(await PushApi.SubscriptionsAsync(factory, endpoint)).FailureCount);
+    }
+
+    [Fact]
+    public async Task A_slot_delivered_to_one_device_is_kept_even_if_another_device_is_transient()
+    {
+        var (api, flaky) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _ = api;
+        var good = await PushApi.AddSubscriptionAsync(api);
+        factory.Push.Results[flaky] = PushResult.Transient;
+
+        await RunAsync(Local("12:30"));
+        await RunAsync(Local("12:31"));
+
+        Assert.Single(factory.Push.SentTo(good));
+        Assert.Single(factory.Push.SentTo(flaky));
+        Assert.Equal(1, await ClaimsAsync(api));
+    }
+
+    private static Task<int> ClaimsAsync(PlanApi api) =>
+        api.WithDbAsync(db => db.ReminderSends.CountAsync(r => r.UserId == api.UserId && r.Date == Day && r.Slot == "meal_2"));
+
+    [Fact]
     public async Task Push_copy_uses_generic_labels_and_never_the_dose_or_the_item_name()
     {
         var (api, endpoint) = await SetupAsync(

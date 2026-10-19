@@ -118,6 +118,18 @@ describe('PlanReviewPage', () => {
     expect(screen.getByRole('region', { name: 'Dia 1' })).toBeInTheDocument()
   })
 
+  it('a draft whose extraction ran out of AI credits says how to top up instead of the generic banner', async () => {
+    await renderReview(planVersion({ document: {}, extractionError: 'no_credits' }))
+
+    expect(
+      await screen.findByText(
+        'A IA está sem créditos. Recarregue em console.anthropic.com → Plans & Billing e tente de novo — ou preencha à mão.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Não consegui ler esse PDF. Você pode preencher à mão.')).not.toBeInTheDocument()
+    expect(activate()).toBeDisabled()
+  })
+
   it('activating saves the edits, activates with the cycle start and triggers a sync', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
     const { calls, db, runOnce } = await renderReview(

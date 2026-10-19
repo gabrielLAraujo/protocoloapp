@@ -32,6 +32,13 @@ type Doc = WorkoutDocument | ProtocolDocument
 
 const OFFLINE = 'Conecte-se à internet para ativar'
 const EXTRACTION_BANNER = 'Não consegui ler esse PDF. Você pode preencher à mão.'
+const NO_CREDITS_BANNER =
+  'A IA está sem créditos. Recarregue em console.anthropic.com → Plans & Billing e tente de novo — ou preencha à mão.'
+
+/** The banner for a draft whose extraction failed: the out-of-credits case says what to do; anything else is generic. */
+function extractionBanner(error: string): string {
+  return error === 'no_credits' ? NO_CREDITS_BANNER : EXTRACTION_BANNER
+}
 
 /** The document as the editors want it (lists present, defaults filled). An unreadable one starts blank. */
 function toEditable(plan: PlanVersion): Doc {
@@ -268,7 +275,7 @@ export function PlanReviewPage() {
 
         {plan.extractionError && (
           <p role="alert" className="rounded-card border border-warn/40 bg-warn/10 px-4 py-3 text-sm font-medium">
-            {EXTRACTION_BANNER}
+            {extractionBanner(plan.extractionError)}
           </p>
         )}
         {plan.lowConfidence.length > 0 && (

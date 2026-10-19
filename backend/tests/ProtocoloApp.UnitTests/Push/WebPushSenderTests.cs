@@ -100,17 +100,33 @@ public sealed class WebPushSenderTests
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]
     [InlineData(HttpStatusCode.RequestEntityTooLarge)]
-    [InlineData(HttpStatusCode.TooManyRequests)]
-    [InlineData(HttpStatusCode.InternalServerError)]
-    public async Task Other_errors_are_failures(HttpStatusCode status) =>
+    public async Task Other_client_errors_are_permanent_failures(HttpStatusCode status) =>
         Assert.Equal(PushResult.Failed, await Sender(Responding(status)).SendAsync(Subscription(), Message, CancellationToken.None));
 
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task Rate_limit_and_server_errors_are_transient(HttpStatusCode status) =>
+        Assert.Equal(PushResult.Transient, await Sender(Responding(status)).SendAsync(Subscription(), Message, CancellationToken.None));
+
     [Fact]
-    public async Task Network_errors_are_failures()
+    public async Task Network_errors_are_transient()
     {
         var handler = new CapturingHandler(_ => throw new HttpRequestException("down"));
 
-        Assert.Equal(PushResult.Failed, await Sender(handler).SendAsync(Subscription(), Message, CancellationToken.None));
+        Assert.Equal(PushResult.Transient, await Sender(handler).SendAsync(Subscription(), Message, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task An_http_client_timeout_is_transient()
+    {
+        // HttpClient reports its own timeout as a TaskCanceledException while the caller's token is not cancelled.
+        var handler = new CapturingHandler(_ => throw new TaskCanceledException("timeout", new TimeoutException()));
+
+        Assert.Equal(PushResult.Transient, await Sender(handler).SendAsync(Subscription(), Message, CancellationToken.None));
     }
 
     [Theory]
