@@ -6,16 +6,9 @@ import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { workoutRepo } from '../../data/workoutRepo'
 import { weekdayOf, type Weekday } from '../../domain/calendarDate'
-import {
-  buildDay,
-  CHECKIN_EVENING_KEY,
-  CHECKIN_MORNING_KEY,
-  LEGACY_CHECKIN_KEY,
-  type DayKind,
-  type DayTarget,
-  type DayWorkoutPlan,
-} from '../../domain/dayPlan'
+import { buildDay, type DayKind, type DayTarget, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
+import { resolveTargetStatus } from '../../domain/targetStatus'
 import { localDate } from '../checkin/localDate'
 import { loadWorkoutPlans, type WorkoutPlanEntry } from '../workout/workoutPlans'
 
@@ -126,19 +119,11 @@ function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): string
   }
 }
 
-function checkinPartSaved(key: string, parts: CheckinParts): boolean {
-  if (key === CHECKIN_MORNING_KEY) return parts.morning
-  if (key === CHECKIN_EVENING_KEY) return parts.evening
-  return false
-}
-
 /** Pure: the Hoje screen of `date`, rows in buildDay order. */
 export function buildTodayView(date: string, src: TodaySources): TodayView {
   const plan = buildDay(date, src.protocol, toDayPlans(src.plans), src.overrides, src.slots, { protocolActivatedOn: src.protocolActivatedOn })
   const find = (type: DayTarget['type'], key: string) => src.logs.find((l) => l.targetType === type && l.targetKey === key) ?? null
-  // The single check-in target before the split was `checkin`: its mark stands for the evening part.
-  const logOf = (t: DayTarget) =>
-    find(t.type, t.key) ?? (t.type === 'checkin' && t.key === CHECKIN_EVENING_KEY ? find('checkin', LEGACY_CHECKIN_KEY) : null)
+  const derived = { workoutDone: src.workoutDone, checkinParts: src.checkinParts }
 
   // The version active on the day names the workout ("Treino A"); buildDay only knows its key.
   const activeVersion = [...src.plans].reverse().find((p) => p.at.activatedOn <= date)
@@ -146,10 +131,8 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
   const workoutTitle = workoutDay?.name.trim() || (plan.workoutDayKey === null ? null : `Treino ${plan.workoutDayKey.toUpperCase()}`)
 
   const rows = plan.targets.map((target): TodayRow => {
-    const log = logOf(target)
-    let status = log?.status ?? null
-    if (target.type === 'workout' && src.workoutDone) status = 'done'
-    if (target.type === 'checkin' && checkinPartSaved(target.key, src.checkinParts)) status = 'done'
+    // The legacy `checkin` mark stands for the evening part; a finished session / saved part makes the target done.
+    const { log, status } = resolveTargetStatus(target, find, derived)
     const label = target.type === 'workout' && workoutTitle ? workoutTitle : target.label
     const details = detailsOf(target, src.protocol)
     if (target.type === 'cardio' && status === 'done' && src.cardioMinutes != null) details.push(`Feito: ${src.cardioMinutes} min`)

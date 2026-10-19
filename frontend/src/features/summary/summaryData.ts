@@ -10,6 +10,7 @@ import type { MuscleGroup } from '../../domain/muscleGroups'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import { plannedWorkoutDays, resolveDay, type RotationOverrideAt, type WorkoutPlanAt } from '../../domain/rotation'
 import { strengthByGroup, type GroupTrends } from '../../domain/strength'
+import { clockOf, countsAsPlanned } from '../../domain/targetStatus'
 
 export interface SummaryInput {
   /** The active protocol; null when none was imported yet. `activatedOn` is the local date of its activation. */
@@ -176,8 +177,6 @@ export interface AdherenceInput {
   slots: readonly DaySlot[]
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0')
-
 /**
  * Diet (meals) and protocol items from `from` to `to` (inclusive): what buildDay plans for each day, and how much of
  * it was marked. A mark of something not planned that day does not count. On past days every planned target counts;
@@ -185,7 +184,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
  */
 export function adherenceRates(input: AdherenceInput, from: string, to: string, now: Date): { diet: AdherenceRate; items: AdherenceRate } {
   const today = localDate(now)
-  const clock = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+  const clockNow = clockOf(now)
   const diet: AdherenceRate = { done: 0, partial: 0, planned: 0 }
   const items: AdherenceRate = { done: 0, partial: 0, planned: 0 }
   const marks = new Map(input.adherence.map((l) => [`${l.date}\n${l.targetType}\n${l.targetKey}`, l.status]))
@@ -195,7 +194,7 @@ export function adherenceRates(input: AdherenceInput, from: string, to: string, 
       const rate = t.type === 'meal' ? diet : t.type === 'protocol_item' ? items : null
       if (!rate) continue
       const status = marks.get(`${date}\n${t.type}\n${t.key}`)
-      if (date === today && status === undefined && (t.time === null || t.time > clock)) continue
+      if (!countsAsPlanned(t, status, date === today ? clockNow : null)) continue
       rate.planned++
       if (status === 'done') rate.done++
       else if (status === 'partial') rate.partial++

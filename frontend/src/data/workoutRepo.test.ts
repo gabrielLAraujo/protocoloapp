@@ -270,3 +270,36 @@ describe('workoutRepo', () => {
     expect(await workoutRepo.exerciseIdsWithSets(db)).toEqual([])
   })
 })
+
+describe('workoutRepo.workedOutDates', () => {
+  it('lists the days with a finished session holding a live working set', async () => {
+    const db = await newLocalDb()
+    const session = (date: string) => workoutRepo.startSession(db, USER_A, { date, planVersionId: PLAN, dayKey: 'a' }, T0)
+
+    const done = await session('2026-10-15')
+    await workoutRepo.logSet(db, USER_A, setInput(done, 0), at(5))
+    await workoutRepo.finishSession(db, USER_A, done, at(50))
+
+    const warmupOnly = await session('2026-10-16')
+    await workoutRepo.logSet(db, USER_A, { ...setInput(warmupOnly, 0), kind: 'warmup' }, at(5))
+    await workoutRepo.finishSession(db, USER_A, warmupOnly, at(50))
+
+    const open = await session('2026-10-17')
+    await workoutRepo.logSet(db, USER_A, setInput(open, 0), at(5))
+
+    const deletedSet = await session('2026-10-18')
+    const setId = await workoutRepo.logSet(db, USER_A, setInput(deletedSet, 0), at(5))
+    await workoutRepo.deleteSet(db, USER_A, setId, at(6))
+    await workoutRepo.finishSession(db, USER_A, deletedSet, at(50))
+
+    // Two sessions on one day count once.
+    for (const _ of [0, 1]) {
+      const s = await session('2026-10-19')
+      await workoutRepo.logSet(db, USER_A, setInput(s, 0), at(5))
+      await workoutRepo.finishSession(db, USER_A, s, at(50))
+    }
+
+    expect(await workoutRepo.workedOutDates(db, '2026-10-01', '2026-10-31')).toEqual(['2026-10-15', '2026-10-19'])
+    expect(await workoutRepo.workedOutDates(db, '2026-10-16', '2026-10-18')).toEqual([])
+  })
+})
