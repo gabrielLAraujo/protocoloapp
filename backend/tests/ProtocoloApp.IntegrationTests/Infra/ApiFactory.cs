@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProtocoloApp.Api.Features.Auth;
+using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Storage;
 
@@ -33,6 +34,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>The storage every test talks to: no R2 settings are needed because this replaces the real one.</summary>
     public FakeFileStorage Storage { get; } = new();
 
+    /// <summary>The plan extractor every test talks to: nothing reaches the Anthropic API.</summary>
+    public FakePlanExtractor Extractor { get; } = new();
+
     public string ConnectionString => _postgres.ConnectionString;
 
     public async Task InitializeAsync()
@@ -57,7 +61,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Db", ConnectionString);
         builder.UseSetting("Auth:SigningKey", "test-only-signing-key-0123456789-abcdefghij");
-        builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IFileStorage>(Storage)));
+        builder.ConfigureTestServices(services =>
+        {
+            services.Replace(ServiceDescriptor.Singleton<IFileStorage>(Storage));
+            services.Replace(ServiceDescriptor.Singleton<IPlanExtractor>(Extractor));
+        });
     }
 
     /// <summary>A client whose requests come from an IP no other client of this factory uses (own rate-limit bucket).</summary>

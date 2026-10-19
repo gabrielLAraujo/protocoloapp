@@ -51,6 +51,12 @@ public sealed class PlanVersion : ISyncEntity
     /// <summary>JSON paths of the document the extraction was unsure about.</summary>
     public string[] LowConfidence { get; set; } = [];
 
+    /// <summary>
+    /// Exercises of a draft workout that are not in the catalog yet: <c>[{"name","group"}]</c> (group in snake_case). Activation
+    /// creates them. Null when there are none. Never sent to the client by pull.
+    /// </summary>
+    public JsonDocument? NewExercises { get; set; }
+
     /// <summary>Why the extraction failed (the document is then an empty draft); null when it worked.</summary>
     public string? ExtractionError { get; set; }
 

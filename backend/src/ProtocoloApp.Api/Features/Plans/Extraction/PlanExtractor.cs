@@ -30,8 +30,16 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
         if (!options.Value.IsConfigured)
             return PlanExtractionResult.Failure(PlanExtractionResult.Unavailable);
 
+        // Bounded copy: stops buffering one byte past the cap instead of reading an oversized stream to the end.
         using var buffer = new MemoryStream();
-        await pdf.CopyToAsync(buffer, ct);
+        var chunk = new byte[81920];
+        int read;
+        while (buffer.Length <= MaxPdfBytes
+            && (read = await pdf.ReadAsync(chunk.AsMemory(0, (int)Math.Min(chunk.Length, MaxPdfBytes + 1 - buffer.Length)), ct)) > 0)
+        {
+            buffer.Write(chunk, 0, read);
+        }
+
         if (buffer.Length > MaxPdfBytes)
             return PlanExtractionResult.Failure(PlanExtractionResult.TooLarge);
         var pdfBase64 = Convert.ToBase64String(buffer.GetBuffer(), 0, (int)buffer.Length);
@@ -66,9 +74,16 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             }
 
             if (call.StopReason == "max_tokens")
+            {
+                call.ToolInput?.Dispose();
                 return PlanExtractionResult.Failure(PlanExtractionResult.TooLong);
+            }
+
             if (call.StopReason == "refusal")
+            {
+                call.ToolInput?.Dispose();
                 return PlanExtractionResult.Failure(PlanExtractionResult.InvalidExtraction);
+            }
 
             using (call.ToolInput)
             {

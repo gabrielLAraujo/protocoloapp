@@ -18,6 +18,9 @@ public sealed class AnthropicOptions
     /// <summary>Per attempt. Tests inject a short one.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(90);
 
+    /// <summary>Cap on a whole import (both attempts, the retry wait and reading the PDF). Tests inject a short one.</summary>
+    public TimeSpan TotalTimeout { get; set; } = TimeSpan.FromSeconds(150);
+
     /// <summary>Wait before the single retry after 429/503/529. Tests inject zero.</summary>
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(2);
 

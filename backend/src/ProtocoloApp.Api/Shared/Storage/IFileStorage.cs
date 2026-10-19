@@ -15,6 +15,12 @@ public interface IFileStorage
     /// <summary>Size and content type of the stored object, or <see langword="null"/> when there is no such object.</summary>
     Task<StoredObjectInfo?> HeadAsync(string key, CancellationToken ct);
 
+    /// <summary>
+    /// The stored object's bytes. The caller disposes the stream. Throws <see cref="FileNotFoundException"/> when there is
+    /// no such object. Objects are capped at 25 MB by the files rules, so buffering one is fine.
+    /// </summary>
+    Task<Stream> OpenReadAsync(string key, CancellationToken ct);
+
     /// <summary>Whether the configured bucket answers with the configured credentials (readiness check).</summary>
     Task<bool> CanReachBucketAsync(CancellationToken ct);
 }

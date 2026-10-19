@@ -70,6 +70,24 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
         }
     }
 
+    public async Task<Stream> OpenReadAsync(string key, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(key);
+
+        try
+        {
+            using var response = await _client.GetObjectAsync(_bucket, key, ct);
+            var buffer = new MemoryStream();
+            await response.ResponseStream.CopyToAsync(buffer, ct);
+            buffer.Position = 0;
+            return buffer;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException("The stored object does not exist.", ex);
+        }
+    }
+
     public async Task<bool> CanReachBucketAsync(CancellationToken ct)
     {
         using var probe = CancellationTokenSource.CreateLinkedTokenSource(ct);

@@ -118,6 +118,7 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuth();
 api.MapSync();
 api.MapFiles();
+api.MapPlans();
 api.MapApp();
 
 app.MapSpaFallback();

@@ -24,6 +24,7 @@ public sealed class PlanVersionConfiguration : IEntityTypeConfiguration<PlanVers
         builder.Property(p => p.Status).HasConversion(EnumText.Converter<PlanStatus>()).HasMaxLength(16);
         builder.Property(p => p.Document).HasColumnType("jsonb");
         builder.Property(p => p.RawExtraction).HasColumnType("jsonb");
+        builder.Property(p => p.NewExercises).HasColumnType("jsonb");
         builder.Property(p => p.LowConfidence).HasColumnType("text[]");
         builder.Property(p => p.ExtractionError).HasMaxLength(64);
 
