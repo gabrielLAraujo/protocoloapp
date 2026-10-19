@@ -51,10 +51,14 @@ export function WorkoutTodayPage() {
   const [summary, setSummary] = useState<{ sessionId: string; date: string } | null>(null)
   // An open session from a previous day is only resumed when the user says so.
   const [resumeOld, setResumeOld] = useState(false)
+  // The session being shown stays on screen when midnight passes mid-workout (its date is then "yesterday").
+  const [liveSessionId, setLiveSessionId] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     if (!data) return
-    setLoaded(await load(data.db, today))
+    const result = await load(data.db, today)
+    if (result.open?.date === today) setLiveSessionId(result.open.id)
+    setLoaded(result)
   }, [data, today])
 
   useEffect(() => {
@@ -62,7 +66,9 @@ export function WorkoutTodayPage() {
     let cancelled = false
     load(data.db, today)
       .then((result) => {
-        if (!cancelled) setLoaded(result)
+        if (cancelled) return
+        if (result.open?.date === today) setLiveSessionId(result.open.id)
+        setLoaded(result)
       })
       .catch((error: unknown) => {
         console.error('could not read the workout', error)
@@ -93,7 +99,7 @@ export function WorkoutTodayPage() {
   }
 
   const { open } = loaded
-  if (open && (open.date === today || resumeOld)) {
+  if (open && (open.date === today || resumeOld || open.id === liveSessionId)) {
     const day = loaded.plans.find((p) => p.id === open.planVersionId)?.document.days.find((d) => d.key === open.dayKey)
     if (!day) {
       return (
@@ -112,6 +118,7 @@ export function WorkoutTodayPage() {
         catalog={loaded.catalog}
         onFinished={() => {
           setResumeOld(false)
+          setLiveSessionId(null)
           setSummary({ sessionId: open.id, date: open.date })
           void reload()
         }}

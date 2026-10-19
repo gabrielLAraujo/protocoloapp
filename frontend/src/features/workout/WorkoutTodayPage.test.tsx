@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { workoutRepo } from '../../data/workoutRepo'
@@ -78,7 +78,7 @@ describe('WorkoutTodayPage', () => {
     const sets = await workoutRepo.setsForSession(db, open.id)
     expect(sets).toHaveLength(1)
     expect(sets[0]).toMatchObject({ exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 82.5, reps: 9, kind: 'normal' })
-    expect(bench().getByRole('button', { name: 'Desmarcar série 1' })).toBeInTheDocument()
+    expect(bench().getByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '+15 s' }))
     expect(screen.getByText('Descanso 01:45')).toBeInTheDocument()
@@ -86,10 +86,10 @@ describe('WorkoutTodayPage', () => {
     expect(screen.queryByText(/^Descanso \d/)).not.toBeInTheDocument()
   })
 
-  it('a drop technique pre-selects the drop kind and unchecking removes the set', async () => {
+  it('a drop technique pre-selects the drop kind', async () => {
     const { db, user } = await render()
     await startWorkout(user)
-    expect(bench().getByLabelText('Tipo da série 2')).toHaveValue('drop')
+    expect(screen.getByLabelText('Tipo da série 2')).toHaveValue('drop')
     expect(screen.getByText(/6–8 reps/)).toBeInTheDocument()
     expect(screen.getByText(/\+ drop/)).toBeInTheDocument()
 
@@ -98,9 +98,80 @@ describe('WorkoutTodayPage', () => {
     const open = (await workoutRepo.openSession(db))!
     await waitFor(async () => expect(await workoutRepo.setsForSession(db, open.id)).toHaveLength(1))
     expect((await workoutRepo.setsForSession(db, open.id))[0]!.kind).toBe('drop')
+  })
 
-    await user.click(await bench().findByRole('button', { name: 'Desmarcar série 2' }))
+  it('tapping a done set opens it prefilled for editing and saves through updateSet (no new timer)', async () => {
+    const { db, user } = await render()
+    await startWorkout(user)
+    await typeSet(user, 1, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
+    await screen.findByText('Descanso 01:30')
+    await user.click(screen.getByRole('button', { name: 'Pular' }))
+
+    await user.click(await bench().findByRole('button', { name: 'Editar série 1' }))
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toHaveValue('80')
+    expect(bench().getByLabelText('Repetições da série 1')).toHaveValue('10')
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toBeEnabled()
+
+    await user.clear(bench().getByLabelText('Carga da série 1 (kg)'))
+    await user.type(bench().getByLabelText('Carga da série 1 (kg)'), '82,5')
+    await user.clear(bench().getByLabelText('Repetições da série 1'))
+    await user.type(bench().getByLabelText('Repetições da série 1'), '9')
+    await user.click(bench().getByRole('button', { name: 'Salvar série 1' }))
+
+    const open = (await workoutRepo.openSession(db))!
+    await waitFor(async () => expect((await workoutRepo.setsForSession(db, open.id))[0]).toMatchObject({ weightKg: 82.5, reps: 9 }))
+    expect(await bench().findByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toHaveValue('82,5')
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toBeDisabled()
+    expect(screen.queryByText(/^Descanso \d/)).not.toBeInTheDocument()
+  })
+
+  it('editing validates the ranges and Cancelar keeps the stored values', async () => {
+    const { db, user } = await render()
+    await startWorkout(user)
+    await typeSet(user, 1, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
+    await user.click(await bench().findByRole('button', { name: 'Editar série 1' }))
+
+    await user.clear(bench().getByLabelText('Carga da série 1 (kg)'))
+    await user.type(bench().getByLabelText('Carga da série 1 (kg)'), '1001')
+    await user.click(bench().getByRole('button', { name: 'Salvar série 1' }))
+    expect(await bench().findByText('Máximo de 1000 kg')).toBeInTheDocument()
+
+    await user.click(bench().getByRole('button', { name: 'Cancelar' }))
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toHaveValue('80')
+    const open = (await workoutRepo.openSession(db))!
+    expect((await workoutRepo.setsForSession(db, open.id))[0]).toMatchObject({ weightKg: 80, reps: 10 })
+  })
+
+  it('deleting a set needs the explicit "Excluir série" action', async () => {
+    const { db, user } = await render()
+    await startWorkout(user)
+    await typeSet(user, 1, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
+    const open = (await workoutRepo.openSession(db))!
+    await user.click(await bench().findByRole('button', { name: 'Editar série 1' }))
+    expect(await workoutRepo.setsForSession(db, open.id)).toHaveLength(1)
+
+    await user.click(bench().getByRole('button', { name: 'Excluir série 1' }))
     await waitFor(async () => expect(await workoutRepo.setsForSession(db, open.id)).toHaveLength(0))
+    expect(await bench().findByRole('button', { name: 'Concluir série 1' })).toBeInTheDocument()
+  })
+
+  it('"Adicionar série" grows by one row each time, even after logging an extra row', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    const rows = () => bench().getAllByRole('listitem').length
+    expect(rows()).toBe(2)
+    await user.click(bench().getByRole('button', { name: 'Adicionar série' }))
+    expect(rows()).toBe(3)
+    await typeSet(user, 3, '50', '12')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 3' }))
+    await bench().findByRole('button', { name: 'Editar série 3' })
+    expect(rows()).toBe(3)
+    await user.click(bench().getByRole('button', { name: 'Adicionar série' }))
+    expect(rows()).toBe(4)
   })
 
   it('reloading in the middle restores the open session, the marked sets and the timer', async () => {
@@ -114,7 +185,7 @@ describe('WorkoutTodayPage', () => {
     view(<WorkoutTodayPage />)
 
     expect(await screen.findByText('Treino em andamento')).toBeInTheDocument()
-    expect(await bench().findByRole('button', { name: 'Desmarcar série 1' })).toBeInTheDocument()
+    expect(await bench().findByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
     expect(bench().getByLabelText('Carga da série 1 (kg)')).toHaveValue('80')
     expect(bench().getByLabelText('Repetições da série 1')).toHaveValue('10')
     expect(screen.getByText('Descanso 01:30')).toBeInTheDocument()
@@ -187,6 +258,88 @@ describe('WorkoutTodayPage', () => {
 
     await user.click(within(card).getByRole('button', { name: 'Desfazer pulo' }))
     await waitFor(() => expect(within(card).queryByText(/Exercício pulado/)).not.toBeInTheDocument())
+    // Not faked as a swap: the skip is soft-deleted and nothing else is recorded.
+    expect(await workoutRepo.changesForSession(db, open.id)).toEqual([])
+    expect(within(card).queryByText(/Trocado de/)).not.toBeInTheDocument()
+    expect(within(card).getByLabelText('Carga da série 1 (kg)')).toBeInTheDocument()
+  })
+
+  it('a skip can be cleared even when the planned exercise is not in the catalog', async () => {
+    const app = await setupApp()
+    await seedPlan(app.db, ['a', 'b']) // no exercises seeded
+    const user = userEvent.setup()
+    app.view(<WorkoutTodayPage />)
+    await startWorkout(user)
+    const card = screen.getByRole('region', { name: 'Crucifixo' })
+    await user.click(within(card).getByRole('button', { name: 'Pular exercício' }))
+    await user.click(within(card).getByRole('button', { name: 'Confirmar pulo' }))
+    await within(card).findByText('Exercício pulado')
+
+    await user.click(within(card).getByRole('button', { name: 'Desfazer pulo' }))
+    expect(await within(card).findByText(/ainda não está no catálogo/)).toBeInTheDocument()
+    const open = (await workoutRepo.openSession(app.db))!
+    expect(await workoutRepo.changesForSession(app.db, open.id)).toEqual([])
+  })
+
+  it('swapping back to the planned exercise does not show "Trocado de"', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    const card = screen.getByRole('region', { name: 'Crucifixo' })
+    await user.click(within(card).getByRole('button', { name: 'Trocar exercício' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Agachamento/ }))
+    const swapped = await screen.findByRole('region', { name: 'Agachamento' })
+    expect(within(swapped).getByText('Trocado de “Crucifixo”')).toBeInTheDocument()
+    await user.click(within(swapped).getByRole('button', { name: 'Trocar exercício' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Crucifixo/ }))
+    const back = await screen.findByRole('region', { name: 'Crucifixo' })
+    expect(within(back).queryByText(/Trocado de/)).not.toBeInTheDocument()
+  })
+
+  it('a failing write shows "Não consegui salvar. Tente de novo." instead of failing silently', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    vi.spyOn(workoutRepo, 'recordChange').mockRejectedValue(new Error('disk full'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const card = screen.getByRole('region', { name: 'Crucifixo' })
+    await user.click(within(card).getByRole('button', { name: 'Pular exercício' }))
+    await user.click(within(card).getByRole('button', { name: 'Confirmar pulo' }))
+    expect(await within(card).findByText('Não consegui salvar. Tente de novo.')).toBeInTheDocument()
+    // The form stays open so nothing typed is lost.
+    expect(within(card).getByRole('button', { name: 'Confirmar pulo' })).toBeInTheDocument()
+  })
+
+  it('a 0 in the rest sequence means no timer after that set', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'], undefined, (doc) => {
+      doc.days[0]!.exercises[0] = { ...doc.days[0]!.exercises[0]!, restSequence: [0, 45] } as never
+    })
+    const user = userEvent.setup()
+    app.view(<WorkoutTodayPage />)
+    await startWorkout(user)
+    await typeSet(user, 1, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
+    await bench().findByRole('button', { name: 'Editar série 1' })
+    expect(screen.queryByText(/^Descanso \d/)).not.toBeInTheDocument()
+    await typeSet(user, 2, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 2' }))
+    expect(await screen.findByText('Descanso 00:45')).toBeInTheDocument()
+  })
+
+  it('keeps the session on screen when midnight passes mid-workout', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    await typeSet(user, 1, '80', '10')
+
+    vi.setSystemTime(new Date(2026, 9, 19, 0, 5))
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    // Still the same workout with what was typed, no "treino aberto" prompt.
+    await waitFor(() => expect(screen.queryByText(/Você tem um treino aberto/)).not.toBeInTheDocument())
+    expect(screen.getByText('Treino em andamento')).toBeInTheDocument()
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toHaveValue('80')
   })
 
   it('swapping an exercise searches the catalog and logs sets for the replacement', async () => {
@@ -222,7 +375,7 @@ describe('WorkoutTodayPage', () => {
 
     await typeSet(user, 1, '110', '5')
     await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
-    await bench().findByRole('button', { name: 'Desmarcar série 1' })
+    await bench().findByRole('button', { name: 'Editar série 1' })
 
     await user.click(screen.getByRole('button', { name: 'Finalizar treino' }))
     await user.click(screen.getByRole('button', { name: 'Sim, finalizar' }))
@@ -248,7 +401,7 @@ describe('WorkoutTodayPage', () => {
     await startWorkout(user)
     await typeSet(user, 1, '100', '5')
     await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
-    await bench().findByRole('button', { name: 'Desmarcar série 1' })
+    await bench().findByRole('button', { name: 'Editar série 1' })
     await user.click(screen.getByRole('button', { name: 'Finalizar treino' }))
     await user.click(screen.getByRole('button', { name: 'Sim, finalizar' }))
     await screen.findByRole('heading', { name: 'Treino finalizado' })
@@ -295,7 +448,7 @@ describe('WorkoutTodayPage', () => {
       const user = userEvent.setup()
       await user.click(await screen.findByRole('button', { name: 'Continuar' }))
       expect(await screen.findByText('Treino em andamento')).toBeInTheDocument()
-      expect(await bench().findByRole('button', { name: 'Desmarcar série 1' })).toBeInTheDocument()
+      expect(await bench().findByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
     })
   })
 })

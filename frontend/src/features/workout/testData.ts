@@ -48,13 +48,15 @@ export const workoutDoc = (items: string[]) => ({
 })
 
 /** An active workout plan, activated at local noon of 2026-10-10. */
-export async function seedPlan(db: LocalDb, items: string[], id = PLAN) {
+export async function seedPlan(db: LocalDb, items: string[], id = PLAN, tweak?: (doc: ReturnType<typeof workoutDoc>) => void) {
+  const document = workoutDoc(items)
+  tweak?.(document)
   await planVersionSync.applyRemote(
     db,
     record('plan_version', id, {
       kind: 'workout',
       status: 'active',
-      document: workoutDoc(items),
+      document,
       activated_at: new Date(2026, 9, 10, 12).toISOString(),
       low_confidence: [],
     }),

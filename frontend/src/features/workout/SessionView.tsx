@@ -8,14 +8,8 @@ import { ExerciseCard } from './ExerciseCard'
 import { RestTimerBar } from './RestTimerBar'
 import { useActiveSession } from './useActiveSession'
 import { useRestTimer } from './useRestTimer'
+import { restDurations } from './restDurations'
 import { findExercise } from './workoutPlans'
-
-/** Rest after a set: the exercise's sequence (stepping with each set done), else its fixed rest; none when neither is set. */
-function restDurations(planned: PlannedExercise): number[] | null {
-  const sequence = planned.restSequence?.filter((n) => n >= 0) ?? []
-  if (sequence.length > 0) return sequence
-  return planned.restSeconds && planned.restSeconds > 0 ? [planned.restSeconds] : null
-}
 
 /** The workout in progress: planned exercises with their set rows, the rest timer bar and "Finalizar treino". */
 export function SessionView({
@@ -87,17 +81,20 @@ export function SessionView({
             change={change}
             sets={setsHere}
             lastTime={exercise ? active.lastTime.get(exercise.id) : undefined}
+            plannedExerciseId={originalId ?? null}
             supersetName={planned.supersetWith ? (day.exercises.find((p) => p.key === planned.supersetWith)?.name ?? null) : null}
             catalog={catalog}
             onSaveSet={async (rowIndex, weightKg, reps, kind) => {
               if (!exercise) return
               await active.logSet({ exerciseId: exercise.id, plannedExerciseKey: planned.key, setIndex: rowIndex, weightKg, reps, kind })
+              // A 0 in the sequence means no rest after that set.
               const durations = restDurations(planned)
-              if (durations) timer.start(durations, setsHere.length, exercise.name)
+              if (durations && durations[Math.min(setsHere.length, durations.length - 1)]! > 0) timer.start(durations, setsHere.length, exercise.name)
             }}
-            onUndoSet={active.removeSet}
+            onUpdateSet={active.updateSet}
+            onDeleteSet={active.removeSet}
             onSkip={(note) => active.skipExercise(planned.key, note)}
-            onRestore={() => (originalId ? active.swapExercise(planned.key, originalId) : Promise.resolve())}
+            onClearSkip={() => active.clearChange(planned.key)}
             onSwap={(replacement) => active.swapExercise(planned.key, replacement.id)}
           />
         )

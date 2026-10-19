@@ -145,4 +145,61 @@ describe('workoutRepo', () => {
     expect(await workoutRepo.openSession(db)).toMatchObject({ id: 's1', dayKey: 'b', startedAt: '2026-10-18T11:00:00.000Z' })
     expect(await workoutRepo.setsForSession(db, 's1')).toMatchObject([{ id: 'l1', weightKg: 60.5, kind: 'warmup', plannedExerciseKey: null }])
   })
+
+  it('removeChange soft-deletes the change and queues the delete; a second call does nothing', async () => {
+    const db = await newLocalDb()
+    const sessionId = await start(db)
+    const id = await workoutRepo.recordChange(db, USER_A, { sessionId, plannedExerciseKey: 'supino', action: 'skipped' }, at(2))
+
+    await workoutRepo.removeChange(db, USER_A, id, at(3))
+    await workoutRepo.removeChange(db, USER_A, id, at(4))
+
+    expect(await workoutRepo.changesForSession(db, sessionId)).toEqual([])
+    const entries = await outbox.due(db, at(10), 500)
+    expect(entries.map((e) => [e.entity, e.op])).toEqual([
+      ['workout_session', 'upsert'],
+      ['exercise_change', 'upsert'],
+      ['exercise_change', 'delete'],
+    ])
+  })
+
+  it('sessionSummaries aggregates set count and volume per session (warm-ups out of the volume), newest first, paged', async () => {
+    const db = await newLocalDb()
+    const old = await workoutRepo.startSession(db, USER_A, { date: '2026-10-10', planVersionId: PLAN, dayKey: 'a' }, at(-60 * 24 * 8))
+    await workoutRepo.logSet(db, USER_A, setInput(old, 0), at(-60 * 24 * 8 + 5))
+    const recent = await start(db)
+    await workoutRepo.logSet(db, USER_A, setInput(recent, 0), at(5))
+    await workoutRepo.logSet(db, USER_A, { ...setInput(recent, 1), kind: 'warmup' }, at(6))
+    const gone = await workoutRepo.logSet(db, USER_A, setInput(recent, 2), at(7))
+    await workoutRepo.deleteSet(db, USER_A, gone, at(8))
+    await workoutRepo.startSession(db, USER_A, { date: '2026-10-12', planVersionId: PLAN, dayKey: 'b' }, at(-60 * 24 * 6))
+
+    const all = await workoutRepo.sessionSummaries(db, 10, 0)
+    expect(all.map((r) => [r.session.date, r.setCount, r.volume])).toEqual([
+      ['2026-10-18', 2, 640],
+      ['2026-10-12', 0, 0],
+      ['2026-10-10', 1, 640],
+    ])
+    expect((await workoutRepo.sessionSummaries(db, 2, 0)).map((r) => r.session.date)).toEqual(['2026-10-18', '2026-10-12'])
+    expect((await workoutRepo.sessionSummaries(db, 2, 2)).map((r) => r.session.date)).toEqual(['2026-10-10'])
+  })
+
+  it('sets of a soft-deleted session are left out of setsForExercise and exerciseIdsWithSets', async () => {
+    const db = await newLocalDb()
+    const sessionId = await start(db)
+    await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+    expect(await workoutRepo.exerciseIdsWithSets(db)).toEqual([EX])
+
+    await workoutSessionSync.applyRemote(db, {
+      entity: 'workout_session',
+      id: sessionId,
+      version: 5,
+      payload: null,
+      deletedAt: '2026-10-18T13:00:00+00:00',
+      clientUpdatedAt: '2030-01-01T00:00:00.000000+00:00',
+    })
+
+    expect(await workoutRepo.setsForExercise(db, EX, 10)).toEqual([])
+    expect(await workoutRepo.exerciseIdsWithSets(db)).toEqual([])
+  })
 })

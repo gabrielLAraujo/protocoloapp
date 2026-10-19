@@ -23,6 +23,13 @@ export interface SessionLocal {
   clientUpdatedAt: string
 }
 
+export interface SessionSummary {
+  session: SessionLocal
+  setCount: number
+  /** Σ weight × reps of the working sets. */
+  volume: number
+}
+
 export interface SetLocal {
   id: string
   sessionId: string
@@ -329,6 +336,17 @@ export const workoutRepo = {
     return id
   },
 
+  /** Undoes a change (soft delete, like the server): the planned exercise is back as planned. No-op when it is already gone. */
+  async removeChange(db: LocalDb, _userId: string, changeId: string, now: Date): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [row] = await tx.query<ChangeRow>('SELECT * FROM exercise_changes WHERE id = ?', [changeId])
+      if (!row || row.deleted_at !== null) return
+      const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
+      await tx.execute('UPDATE exercise_changes SET deleted_at = ?, client_updated_at = ? WHERE id = ?', [clientUpdatedAt, clientUpdatedAt, changeId])
+      await outbox.enqueue(tx, { entity: EXERCISE_CHANGE_ENTITY, id: changeId, op: 'delete', payload: null, clientUpdatedAt })
+    })
+  },
+
   async changesForSession(db: LocalDb, sessionId: string): Promise<ExerciseChangeLocal[]> {
     const rows = await db.query<ChangeRow>(
       'SELECT * FROM exercise_changes WHERE session_id = ? AND deleted_at IS NULL ORDER BY client_updated_at, rowid',
@@ -346,10 +364,40 @@ export const workoutRepo = {
     return rows.map(toSet)
   },
 
-  /** The latest `limit` live sets of an exercise across sessions, newest first. */
+  /**
+   * Sessions newest first with their live set count and volume (warm-ups excluded), in one query. `limit`/`offset` page it.
+   */
+  async sessionSummaries(db: LocalDb, limit: number, offset: number): Promise<SessionSummary[]> {
+    const rows = await db.query<SessionRow & { set_count: number; volume: number }>(
+      `SELECT s.*, COUNT(l.id) AS set_count,
+              COALESCE(SUM(CASE WHEN l.kind <> 'warmup' THEN l.weight_kg * l.reps ELSE 0 END), 0) AS volume
+       FROM workout_sessions s
+       LEFT JOIN set_logs l ON l.session_id = s.id AND l.deleted_at IS NULL
+       WHERE s.deleted_at IS NULL
+       GROUP BY s.id
+       ORDER BY s.date DESC, s.started_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset],
+    )
+    return rows.map((r) => ({ session: toSession(r), setCount: Number(r.set_count), volume: Number(r.volume) }))
+  },
+
+  /** Ids of the exercises that have at least one live set in a live session. */
+  async exerciseIdsWithSets(db: LocalDb): Promise<string[]> {
+    const rows = await db.query<{ exercise_id: string }>(
+      `SELECT DISTINCT l.exercise_id FROM set_logs l
+       WHERE l.deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM workout_sessions s WHERE s.id = l.session_id AND s.deleted_at IS NOT NULL)`,
+    )
+    return rows.map((r) => r.exercise_id)
+  },
+
+  /** The latest `limit` live sets of an exercise across live sessions, newest first. */
   async setsForExercise(db: LocalDb, exerciseId: string, limit: number): Promise<SetLocal[]> {
     const rows = await db.query<SetRow>(
-      'SELECT * FROM set_logs WHERE exercise_id = ? AND deleted_at IS NULL ORDER BY completed_at DESC, set_index DESC, id LIMIT ?',
+      `SELECT * FROM set_logs WHERE exercise_id = ? AND deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM workout_sessions s WHERE s.id = set_logs.session_id AND s.deleted_at IS NOT NULL)
+       ORDER BY completed_at DESC, set_index DESC, id LIMIT ?`,
       [exerciseId, limit],
     )
     return rows.map(toSet)

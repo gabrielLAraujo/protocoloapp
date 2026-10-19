@@ -35,6 +35,9 @@ export interface ActiveSession {
   lastTime: Map<string, SetLocal[]>
   logSet(input: LogSetInput): Promise<void>
   removeSet(setId: string): Promise<void>
+  updateSet(setId: string, weightKg: number, reps: number, kind: SetKind): Promise<void>
+  /** Undoes the latest change (skip or swap) of a planned exercise. */
+  clearChange(plannedKey: string): Promise<void>
   skipExercise(plannedKey: string, note: string | null): Promise<void>
   swapExercise(plannedKey: string, replacementExerciseId: string): Promise<void>
   /** Ends the session now (or at `at`). */
@@ -116,6 +119,16 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
     },
     async removeSet(setId) {
       await workoutRepo.deleteSet(db, userId, setId, now())
+      await after()
+    },
+    async updateSet(setId, weightKg, reps, kind) {
+      await workoutRepo.updateSet(db, userId, setId, { weightKg, reps, kind }, now())
+      await after()
+    },
+    async clearChange(plannedKey) {
+      const change = changes.get(plannedKey)
+      if (!change) return
+      await workoutRepo.removeChange(db, userId, change.id, now())
       await after()
     },
     async skipExercise(plannedKey, note) {

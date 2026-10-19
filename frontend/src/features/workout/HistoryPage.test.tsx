@@ -1,11 +1,14 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { addDays } from '../../domain/calendarDate'
+import { workoutRepo } from '../../data/workoutRepo'
+import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { ExerciseHistoryPage } from './ExerciseHistoryPage'
 import { HistoryPage } from './HistoryPage'
-import { BENCH, seedExercises, seedPastSession, seedPlan } from './testData'
+import { BENCH, PLAN, seedExercises, seedPastSession, seedPlan } from './testData'
 
 async function seeded(entry: string) {
   const app = await setupApp([entry])
@@ -41,6 +44,28 @@ describe('HistoryPage', () => {
     expect(link).toHaveAttribute('href', `/treino/exercicio/${BENCH}`)
     await userEvent.setup().click(link)
     expect(await screen.findByRole('heading', { name: 'Supino reto' })).toBeInTheDocument()
+  })
+
+  it('reads one aggregate query, shows the last 60 sessions and "Carregar mais" brings the rest', async () => {
+    const app = await setupApp(['/treino/historico'])
+    await seedPlan(app.db, ['a', 'b'])
+    for (let i = 0; i < 61; i++) {
+      await workoutRepo.startSession(app.db, USER_A, { date: addDays('2026-01-01', i), planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 0, 1 + i, 10))
+    }
+    const perSession = vi.spyOn(workoutRepo, 'setsForSession')
+    const summaries = vi.spyOn(workoutRepo, 'sessionSummaries')
+    app.view(<HistoryPage />)
+
+    const list = await screen.findByRole('region', { name: 'Sessões' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(60)
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('02/03/2026')
+    expect(perSession).not.toHaveBeenCalled()
+    expect(summaries).toHaveBeenCalledTimes(1)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Carregar mais' }))
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(61))
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).not.toBeInTheDocument()
+    expect(perSession).not.toHaveBeenCalled()
   })
 
   it('shows an empty message without sessions', async () => {

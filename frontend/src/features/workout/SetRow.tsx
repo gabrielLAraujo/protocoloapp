@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { SetKind, SetLocal } from '../../data/workoutRepo'
 import type { PlannedSet } from '../../domain/planDocuments'
-import { inputClass } from '../plans/styles'
+import { buttonClass, dangerButtonClass, inputClass } from '../plans/styles'
 import { formatKg, repsLabel } from './format'
 import { parseReps, parseWeight } from './setInput'
 
@@ -30,10 +30,13 @@ interface Props {
   /** "Última vez" values for this position, shown as hints in the empty fields. */
   hint: SetLocal | undefined
   onSave(weightKg: number, reps: number, kind: SetKind): Promise<void>
-  onUndo(): Promise<void>
+  /** Saves the edit of a done set (the timer is not restarted). */
+  onUpdate(weightKg: number, reps: number, kind: SetKind): Promise<void>
+  /** Explicit "Excluir série". */
+  onDelete(): Promise<void>
 }
 
-export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) {
+export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelete }: Props) {
   const n = index + 1
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
@@ -41,17 +44,46 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
   const [errors, setErrors] = useState<{ weight?: string; reps?: string }>({})
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [editing, setEditing] = useState(false)
   const done = logged !== undefined
+  // A done set shows its stored values; tapping it opens them for editing in place.
+  const locked = done && !editing
+
+  function startEdit() {
+    if (!logged) return
+    setWeight(formatKg(logged.weightKg))
+    setReps(String(logged.reps))
+    setKind(logged.kind)
+    setErrors({})
+    setFailed(false)
+    setEditing(true)
+  }
+
+  function cancelEdit() {
+    setEditing(false)
+    setErrors({})
+    setFailed(false)
+  }
+
+  async function remove() {
+    if (busy) return
+    setBusy(true)
+    setFailed(false)
+    try {
+      await onDelete()
+      setEditing(false)
+    } catch (error) {
+      console.error('could not delete the set', error)
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function submit() {
     if (busy) return
-    if (done) {
-      setBusy(true)
-      try {
-        await onUndo()
-      } finally {
-        setBusy(false)
-      }
+    if (locked) {
+      startEdit()
       return
     }
     const w = parseWeight(weight)
@@ -61,7 +93,12 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
     if (!w.ok || !r.ok) return
     setBusy(true)
     try {
-      await onSave(w.value, r.value, kind)
+      if (editing) {
+        await onUpdate(w.value, r.value, kind)
+        setEditing(false)
+      } else {
+        await onSave(w.value, r.value, kind)
+      }
       setWeight('')
       setReps('')
     } catch (error) {
@@ -95,8 +132,8 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
             aria-invalid={errors.weight ? true : undefined}
             aria-describedby={errors.weight ? `set-${index}-weight-error` : undefined}
             placeholder={hint ? formatKg(hint.weightKg) : ''}
-            disabled={done}
-            value={done ? formatKg(logged.weightKg) : weight}
+            disabled={locked}
+            value={logged && locked ? formatKg(logged.weightKg) : weight}
             onChange={(e) => setWeight(e.target.value)}
           />
         </label>
@@ -110,8 +147,8 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
             aria-invalid={errors.reps ? true : undefined}
             aria-describedby={errors.reps ? `set-${index}-reps-error` : undefined}
             placeholder={hint ? String(hint.reps) : ''}
-            disabled={done}
-            value={done ? String(logged.reps) : reps}
+            disabled={locked}
+            value={logged && locked ? String(logged.reps) : reps}
             onChange={(e) => setReps(e.target.value)}
           />
         </label>
@@ -119,9 +156,8 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
           type="button"
           onClick={() => void submit()}
           disabled={busy}
-          aria-label={done ? `Desmarcar série ${n}` : `Concluir série ${n}`}
-          aria-pressed={done}
-          className={`mt-4 grid size-11 place-items-center rounded-control border text-xl font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${done ? 'border-ok bg-ok text-on-accent' : 'border-line bg-surface text-muted'}`}
+          aria-label={locked ? `Editar série ${n}` : editing ? `Salvar série ${n}` : `Concluir série ${n}`}
+          className={`mt-4 grid size-11 place-items-center rounded-control border text-xl font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ok bg-ok text-on-accent' : 'border-line bg-surface text-muted'}`}
         >
           ✓
         </button>
@@ -131,8 +167,8 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
         <select
           className="min-h-11 rounded-control border border-line bg-surface px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
           aria-label={`Tipo da série ${n}`}
-          disabled={done}
-          value={done ? logged.kind : kind}
+          disabled={locked}
+          value={logged && locked ? logged.kind : kind}
           onChange={(e) => setKind(e.target.value as SetKind)}
         >
           {KIND_OPTIONS.map((o) => (
@@ -142,6 +178,16 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
           ))}
         </select>
       </label>
+      {editing && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={buttonClass} disabled={busy} onClick={cancelEdit}>
+            Cancelar
+          </button>
+          <button type="button" className={dangerButtonClass} disabled={busy} aria-label={`Excluir série ${n}`} onClick={() => void remove()}>
+            Excluir série
+          </button>
+        </div>
+      )}
       {errors.weight && (
         <p id={`set-${index}-weight-error`} role="alert" className="text-sm text-danger">
           {errors.weight}
@@ -154,7 +200,7 @@ export function SetRow({ index, planned, logged, hint, onSave, onUndo }: Props) 
       )}
       {failed && (
         <p role="alert" className="text-sm text-danger">
-          Não foi possível salvar a série no aparelho.
+          Não consegui salvar. Tente de novo.
         </p>
       )}
     </li>
