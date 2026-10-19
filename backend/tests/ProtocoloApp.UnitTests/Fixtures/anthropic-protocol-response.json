@@ -1,0 +1,54 @@
+{
+  "id": "msg_fixture_protocol",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "stop_reason": "tool_use",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_2",
+      "name": "submit_protocol",
+      "input": {
+        "document": {
+          "phaseName": "Fase Ficticia",
+          "updateDate": "2026-12-01",
+          "billingDate": null,
+          "meals": [
+            {
+              "key": "meal_1",
+              "label": "Refeicao 1",
+              "items": [ { "food": "Alimento ficticio", "grams": 100, "alternatives": ["Alternativa ficticia"] } ],
+              "notes": null
+            }
+          ],
+          "items": [
+            {
+              "key": "it_1",
+              "category": "supplement",
+              "name": "Suplemento ficticio",
+              "doseText": "2 capsulas (dose ficticia)",
+              "timing": "with_meal:meal_1",
+              "schedule": { "type": "daily", "days": null, "n": null, "anchor": null }
+            },
+            {
+              "key": "it_2",
+              "category": "compound",
+              "name": "Composto ficticio",
+              "doseText": "1 dose a cada 3 dias",
+              "timing": "any",
+              "schedule": { "type": "every_n_days", "days": null, "n": 3, "anchor": "2026-11-02" }
+            }
+          ],
+          "cardio": { "sessionsPerWeek": 3, "daily": null, "durationMin": 30, "intensity": "leve", "preferredTime": null },
+          "guidelines": [
+            { "kind": "water_min_l", "value": 4, "text": null },
+            { "kind": "text", "value": null, "text": "Orientacao ficticia" }
+          ],
+          "trainingSplitNote": null
+        },
+        "lowConfidence": ["updateDate", "items[1].schedule.anchor"]
+      }
+    }
+  ]
+}

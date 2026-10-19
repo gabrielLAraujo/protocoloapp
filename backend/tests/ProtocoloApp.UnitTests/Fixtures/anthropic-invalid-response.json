@@ -1,0 +1,27 @@
+{
+  "id": "msg_fixture_invalid",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "stop_reason": "tool_use",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_3",
+      "name": "submit_workout",
+      "input": {
+        "document": {
+          "rotation": { "type": "sequence", "items": ["A", "Z"], "anchor": null, "map": null },
+          "days": [
+            { "key": "A", "name": "Treino A - Exemplo", "notes": null, "exercises": [
+              { "key": "A1", "exerciseId": null, "name": "Exercicio Ficticio Alfa",
+                "sets": [ { "repsMin": 8, "repsMax": 12, "technique": null } ],
+                "restSeconds": 60, "restSequence": null, "technique": null, "supersetWith": null } ] }
+          ]
+        },
+        "lowConfidence": [],
+        "newExercises": []
+      }
+    }
+  ]
+}

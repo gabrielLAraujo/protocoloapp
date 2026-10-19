@@ -8,6 +8,7 @@ using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
+using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Sync;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
@@ -65,6 +66,7 @@ builder.Services.AddSync()
     .AddSyncHandler<ExerciseSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
+builder.Services.AddPlanExtraction(builder.Configuration);
 builder.Services.AddAppUpdates(builder.Configuration);
 
 builder.Services.AddOpenApi();
