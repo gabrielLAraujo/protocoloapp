@@ -20,9 +20,9 @@ public static class SpaHosting
     // a browser that cached sw.js for a day would keep serving the old app for a day.
     private const string RevalidateCache = "no-cache";
 
-    // Not in the default table of the content-type provider on every version; the manifest must be served as this type.
     private static readonly Regex FingerprintedName = new(@"-[A-Za-z0-9_-]{8,}\.(js|css|woff2|png|svg|wasm)$", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
+    // Not in the default table of the content-type provider on every version; the manifest must be served as this type.
     private static readonly FileExtensionContentTypeProvider ContentTypes = CreateContentTypes();
 
     // Front routes: any path without a file extension that belongs neither to the API nor to the docs/health endpoints.

@@ -36,8 +36,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest}'],
-        // The sql.js binary is over Workbox's 2 MiB default.
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        // Workbox's default is 2 MiB; the sql.js binary is about 0.6 MiB, so 3 MiB covers it and still flags a surprise big file.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/openapi/, /^\/scalar/],
