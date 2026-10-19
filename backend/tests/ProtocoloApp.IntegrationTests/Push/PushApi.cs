@@ -10,11 +10,12 @@ namespace ProtocoloApp.IntegrationTests.Push;
 
 internal static class PushApi
 {
-    // Valid shapes: a P-256 point (65 bytes, 0x04...) and 16 bytes, base64url without padding (RFC 8291 example keys).
-    public const string P256dh1 = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
-    public const string P256dh2 = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
-    public const string Auth1 = "BTBZMqHH6r4Tts7J_aSIgg";
-    public const string Auth2 = "DGv6ra1nlYgDCS1FRnbzlw";
+    // Fictitious keys with the right shapes only (65 bytes starting with 0x04, and 16 bytes, base64url without padding).
+    // The integration tests use a fake sender, so nothing is ever encrypted with them.
+    public const string P256dh1 = "BBERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE";
+    public const string P256dh2 = "BDMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM";
+    public const string Auth1 = "IiIiIiIiIiIiIiIiIiIiIg";
+    public const string Auth2 = "RERERERERERERERERERERA";
 
     public static string NewEndpoint() => $"https://fcm.googleapis.com/fcm/send/{Guid.NewGuid():N}";
 

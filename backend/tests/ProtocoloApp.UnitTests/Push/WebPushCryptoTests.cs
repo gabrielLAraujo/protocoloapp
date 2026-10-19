@@ -9,25 +9,27 @@ namespace ProtocoloApp.UnitTests.Push;
 
 public sealed class WebPushCryptoTests
 {
-    // RFC 8291 appendix A: the example message and keys.
-    private const string AppServerPrivate = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw";
-    private const string AppServerPublic = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
-    private const string UserPrivate = "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94";
-    private const string UserPublic = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
-    private const string AuthSecret = "BTBZMqHH6r4Tts7J_aSIgg";
-    private const string Salt = "DGv6ra1nlYgDCS1FRnbzlw";
+    // RFC 8291 appendix A: the example message and keys (public test vectors), written as hex.
+    private const string AppServerPrivate = "C9F58F89813E9F8E872E71F42AA64E1757C9254DCC62B72DDC010BB4043EA11C";
+    private const string AppServerPublic = "04FE33F4AB0DEA71914DB55823F73B54948F41306D920732DBB9A59A53286482200E597A7B7BC260BA1C227998580992E93973002F3012A28AE8F06BBB78E5EC0F";
+    private const string UserPrivate = "AB5757A70DD4A53E553A6BBF71FFEFEA2874EC07A6B379E3C48F895A02DC33DE";
+    private const string UserPublic = "042571B2BECDFDE360551AAF1ED0F4CD366C11CEBE555F89BCB7B186A53339173168ECE2EBE018597BD30479B86E3C8F8ECED577CA59187E9246990DB682008B0E";
+    private const string AuthSecret = "05305932A1C7EABE13B6CEC9FDA48882";
+    private const string Salt = "0C6BFAADAD67958803092D454676F397";
     private const string Expected =
-        "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN";
+        "0C6BFAADAD67958803092D454676F397000010004104FE33F4AB0DEA71914DB55823F73B54948F41306D920732DBB9A59A53286482200E597A7B7BC260BA1C227998580992E93973002F3012A28AE8F06BBB78E5EC0FF297DE5B429BBA7153D3A4AE0CAA091FD425F3B4B5414ADD8AB37A19C1BBB05CF5CB5B2A2E0562D558635641EC52812C6C8FF42E95CCB86BE7CD";
+
+    private static byte[] H(string hex) => Convert.FromHexString(hex);
 
     private static byte[] B(string base64Url) => Base64Url.DecodeFromChars(base64Url);
 
     private static ECDiffieHellman Key(string privateKey, string publicKey)
     {
-        var pub = B(publicKey);
+        var pub = H(publicKey);
         return ECDiffieHellman.Create(new ECParameters
         {
             Curve = ECCurve.NamedCurves.nistP256,
-            D = B(privateKey),
+            D = H(privateKey),
             Q = new ECPoint { X = pub[1..33], Y = pub[33..65] },
         });
     }
@@ -37,9 +39,9 @@ public sealed class WebPushCryptoTests
     {
         using var server = Key(AppServerPrivate, AppServerPublic);
 
-        var body = WebPushCrypto.Encrypt(Encoding.UTF8.GetBytes("When I grow up, I want to be a watermelon"), B(UserPublic), B(AuthSecret), server, B(Salt));
+        var body = WebPushCrypto.Encrypt(Encoding.UTF8.GetBytes("When I grow up, I want to be a watermelon"), H(UserPublic), H(AuthSecret), server, H(Salt));
 
-        Assert.Equal(Expected, Base64Url.EncodeToString(body));
+        Assert.Equal(Expected, Convert.ToHexString(body));
     }
 
     [Fact]
@@ -48,16 +50,16 @@ public sealed class WebPushCryptoTests
         using var user = Key(UserPrivate, UserPublic);
         var message = "Olá — REF 2 — 12:30 ✓"u8.ToArray();
 
-        var body = WebPushCrypto.Encrypt(message, B(UserPublic), B(AuthSecret));
+        var body = WebPushCrypto.Encrypt(message, H(UserPublic), H(AuthSecret));
 
-        Assert.Equal(message, Decrypt(body, user, B(AuthSecret)));
+        Assert.Equal(message, Decrypt(body, user, H(AuthSecret)));
     }
 
     [Fact]
     public void Each_message_gets_its_own_salt_and_sender_key()
     {
-        var a = WebPushCrypto.Encrypt("x"u8, B(UserPublic), B(AuthSecret));
-        var b = WebPushCrypto.Encrypt("x"u8, B(UserPublic), B(AuthSecret));
+        var a = WebPushCrypto.Encrypt("x"u8, H(UserPublic), H(AuthSecret));
+        var b = WebPushCrypto.Encrypt("x"u8, H(UserPublic), H(AuthSecret));
 
         Assert.NotEqual(a[..16], b[..16]);
         Assert.NotEqual(a[21..86], b[21..86]);
@@ -66,10 +68,10 @@ public sealed class WebPushCryptoTests
     [Fact]
     public void Encrypt_rejects_what_does_not_fit_or_is_not_a_key()
     {
-        Assert.Throws<ArgumentException>(() => WebPushCrypto.Encrypt(new byte[WebPushCrypto.MaxPlaintextLength + 1], B(UserPublic), B(AuthSecret)));
-        Assert.Throws<ArgumentException>(() => WebPushCrypto.Encrypt("x"u8, new byte[65], B(AuthSecret)));
-        Assert.Throws<ArgumentException>(() => WebPushCrypto.Encrypt("x"u8, B(UserPublic), new byte[15]));
-        _ = WebPushCrypto.Encrypt(new byte[WebPushCrypto.MaxPlaintextLength], B(UserPublic), B(AuthSecret));
+        Assert.Throws<ArgumentException>(() => WebPushCrypto.Encrypt(new byte[WebPushCrypto.MaxPlaintextLength + 1], H(UserPublic), H(AuthSecret)));
+        Assert.Throws<ArgumentException>(() => WebPushCrypto.Encrypt("x"u8, new byte[65], H(AuthSecret)));
+        Assert.Throws<ArgumentException>(() => WebPushCrypto.Encrypt("x"u8, H(UserPublic), new byte[15]));
+        _ = WebPushCrypto.Encrypt(new byte[WebPushCrypto.MaxPlaintextLength], H(UserPublic), H(AuthSecret));
     }
 
     [Theory]
