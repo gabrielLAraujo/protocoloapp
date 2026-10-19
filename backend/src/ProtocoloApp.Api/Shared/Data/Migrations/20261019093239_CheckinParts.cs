@@ -65,7 +65,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                 oldType: "integer");
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Restores NOT NULL. It fails while any row has a null part field (a check-in saved in parts, or created by the cardio
+        /// item alone): those rows must be completed or removed by hand first. Down deletes nothing on purpose.
+        /// </summary>
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AlterColumn<decimal>(

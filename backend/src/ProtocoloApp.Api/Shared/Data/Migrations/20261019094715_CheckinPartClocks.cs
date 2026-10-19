@@ -28,6 +28,11 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                 table: "daily_checkins",
                 type: "timestamp with time zone",
                 nullable: true);
+
+            // Rows written before the per-part clocks were full overwrites: each part was last written at the row clock.
+            migrationBuilder.Sql(
+                "UPDATE daily_checkins SET morning_client_updated_at = client_updated_at, " +
+                "evening_client_updated_at = client_updated_at, cardio_client_updated_at = client_updated_at;");
         }
 
         /// <inheritdoc />
