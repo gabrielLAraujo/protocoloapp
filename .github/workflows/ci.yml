@@ -222,10 +222,10 @@ jobs:
       R2__AccessKeyId: e2e-access-key
       R2__SecretAccessKey: e2e-secret-key-not-real
       R2__Bucket: e2e-bucket
-      R2__ServiceUrl: http://localhost:9101
+      R2__ServiceUrl: http://127.0.0.1:9101
       Anthropic__ApiKey: test
-      Anthropic__BaseUrl: http://localhost:9100
-      E2E_ANTHROPIC_STUB_URL: http://localhost:9100
+      Anthropic__BaseUrl: http://127.0.0.1:9100
+      E2E_ANTHROPIC_STUB_URL: http://127.0.0.1:9100
       ASPNETCORE_URLS: http://localhost:5190
       E2E_BASE_URL: http://localhost:5190
       E2E_EMAIL: e2e@example.com
@@ -280,7 +280,7 @@ jobs:
           nohup node frontend/e2e/fixtures/anthropic-stub.mjs 9100 > "$RUNNER_TEMP/anthropic-stub.log" 2>&1 &
           nohup node frontend/e2e/fixtures/storage-stub.mjs 9101 > "$RUNNER_TEMP/storage-stub.log" 2>&1 &
           for i in $(seq 1 20); do
-            if curl -fsS http://localhost:9100/__requests > /dev/null 2>&1 && curl -fsS http://localhost:9101/e2e-bucket/ > /dev/null 2>&1; then echo "Stubs are up"; exit 0; fi
+            if curl -fsS http://127.0.0.1:9100/__requests > /dev/null 2>&1 && curl -fsS http://127.0.0.1:9101/e2e-bucket/ > /dev/null 2>&1; then echo "Stubs are up"; exit 0; fi
             sleep 0.5
           done
           echo "Stubs did not start"; cat "$RUNNER_TEMP"/*-stub.log; exit 1

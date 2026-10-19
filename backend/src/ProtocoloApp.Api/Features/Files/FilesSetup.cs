@@ -20,7 +20,8 @@ public static class FilesSetup
             .Validate(
                 o => !string.IsNullOrWhiteSpace(o.AccountId) && !string.IsNullOrWhiteSpace(o.AccessKeyId)
                     && !string.IsNullOrWhiteSpace(o.SecretAccessKey) && !string.IsNullOrWhiteSpace(o.Bucket),
-                "R2:AccountId, R2:AccessKeyId, R2:SecretAccessKey and R2:Bucket are required.");
+                "R2:AccountId, R2:AccessKeyId, R2:SecretAccessKey and R2:Bucket are required.")
+            .Validate(o => o.HasValidServiceUrl, "R2:ServiceUrl must be an absolute https URL, or an http URL on localhost, 127.0.0.1 or ::1.");
 
         services.TryAddSingleton(TimeProvider.System);
         // The options are read when the storage is first built. The startup check below builds it, so a missing setting

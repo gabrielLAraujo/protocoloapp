@@ -7,7 +7,7 @@ import { expect, test, type Page, type Response } from '@playwright/test'
 const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
 const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
 // The Anthropic stand-in the API talks to (CI starts it); it also lists what it received.
-const ANTHROPIC_STUB = process.env.E2E_ANTHROPIC_STUB_URL ?? 'http://localhost:9100'
+const ANTHROPIC_STUB = process.env.E2E_ANTHROPIC_STUB_URL ?? 'http://127.0.0.1:9100'
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/ficha-ficticia.pdf', import.meta.url))
 
@@ -17,19 +17,6 @@ interface StubRequest {
   pdfBytes: number
   pdfIsPdf: boolean
   pdfSha256: string | null
-}
-
-/** Remembers what went wrong in the page (failed requests, console errors), so a failed wait can say why: CI cannot download traces. */
-function watch(page: Page) {
-  const seen: string[] = []
-  page.on('requestfailed', (request) => seen.push(`FAILED ${request.method()} ${request.url().slice(0, 80)} ${request.failure()?.errorText ?? ''}`))
-  page.on('response', (response) => {
-    if (response.status() >= 400) seen.push(`${response.request().method()} ${response.url().slice(0, 80)} ${response.status()}`)
-  })
-  page.on('console', (message) => {
-    if (message.type() === 'error') seen.push(`console.error ${message.text().slice(0, 160)}`)
-  })
-  return seen
 }
 
 const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
@@ -52,17 +39,12 @@ async function login(page: Page) {
 }
 
 /** Sends the fictitious PDF in the card of `title`, reviews the draft the stub produced and activates it. */
-async function importAndActivate(page: Page, seen: string[], title: 'Protocolo' | 'Treino') {
+async function importAndActivate(page: Page, title: 'Protocolo' | 'Treino') {
   await nav(page, 'Planejamento').click()
   await expect(page.getByRole('heading', { name: 'Planejamento' })).toBeVisible()
-  const imported = page.waitForResponse((r) => r.url().includes('/api/plans/import') && r.request().method() === 'POST', { timeout: 30_000 })
+  const imported = page.waitForResponse((r) => r.url().includes('/api/plans/import') && r.request().method() === 'POST')
   await page.getByRole('region', { name: title }).locator('input[type=file]').setInputFiles(FIXTURE)
-  try {
-    expect((await imported).status()).toBe(201)
-  } catch (error) {
-    const alert = await page.getByRole('alert').allInnerTexts()
-    throw new Error(`ALERT[${alert.join(' | ')}] SEEN[${seen.join(' ; ')}] ${(error as Error).message}`)
-  }
+  expect((await imported).status()).toBe(201)
 
   await expect(page).toHaveURL(/\/planejamento\/revisao\//)
   const activate = page.getByRole('button', { name: 'Ativar', exact: true })
@@ -75,10 +57,11 @@ async function importAndActivate(page: Page, seen: string[], title: 'Protocolo' 
   await expect(page.getByRole('region', { name: title }).getByText(/^Ativo desde/)).toBeVisible()
 }
 
+// Assumes a fresh database (CI starts one per run): the summary expects exactly one finished workout today. The browser
+// timezone (America/Sao_Paulo, playwright.config.ts) matches the stub's "today" (UTC-3), so midnight cannot split them.
 test('imports a workout plan, logs a session offline and sees it in the summary', async ({ browser }) => {
   const context = await browser.newContext()
   const page = await context.newPage()
-  const seen = watch(page)
   const pdfSha256 = createHash('sha256').update(readFileSync(FIXTURE)).digest('hex')
 
   const before = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
@@ -88,8 +71,8 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
 
   // Protocol (with its update date, so the summary shows the cycle) and workout: each PDF goes to the storage stub, the API
   // reads it through the Anthropic stub, and the draft is reviewed and activated.
-  await importAndActivate(page, seen, 'Protocolo')
-  await importAndActivate(page, seen, 'Treino')
+  await importAndActivate(page, 'Protocolo')
+  await importAndActivate(page, 'Treino')
 
   // The stub received both PDFs, byte for byte, with the forced tool of each kind.
   const received = ((await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]).slice(before.length)
