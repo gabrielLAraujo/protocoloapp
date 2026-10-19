@@ -1,6 +1,7 @@
 // A stand-in for the S3-compatible bucket (R2), for the e2e only: the API signs URLs for it (`R2__ServiceUrl`), the browser
 // PUTs the PDF to it and the API HEADs / GETs it back. Signatures are not checked; objects live in memory. Plain Node.
 // Run: `node storage-stub.mjs [port]` (default 9101).
+import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 
 const port = Number(process.argv[2] ?? process.env.PORT ?? 9101)
@@ -34,8 +35,11 @@ createServer((req, res) => {
     const chunks = []
     req.on('data', (chunk) => chunks.push(chunk))
     req.on('end', () => {
-      objects.set(`${bucket}/${key}`, { body: Buffer.concat(chunks), type: req.headers['content-type'] ?? 'application/octet-stream' })
-      res.writeHead(200, { ...cors, etag: '"stub"' })
+      const body = Buffer.concat(chunks)
+      // The SDK reads the ETag as the hex MD5 of the body.
+      const etag = `"${createHash('md5').update(body).digest('hex')}"`
+      objects.set(`${bucket}/${key}`, { body, etag, type: req.headers['content-type'] ?? 'application/octet-stream' })
+      res.writeHead(200, { ...cors, etag })
       res.end()
     })
     return
@@ -46,6 +50,6 @@ createServer((req, res) => {
     res.writeHead(404, { ...cors, 'content-type': 'application/xml' })
     return res.end('<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>')
   }
-  res.writeHead(200, { ...cors, 'content-type': object.type, 'content-length': object.body.length, etag: '"stub"', 'last-modified': new Date().toUTCString() })
+  res.writeHead(200, { ...cors, 'content-type': object.type, 'content-length': object.body.length, etag: object.etag, 'last-modified': new Date().toUTCString() })
   res.end(req.method === 'HEAD' ? undefined : object.body)
 }).listen(port, '127.0.0.1', () => console.log(`storage stub on http://127.0.0.1:${port}`))
