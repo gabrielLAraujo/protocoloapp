@@ -202,6 +202,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("bowel");
 
+                    b.Property<DateTimeOffset?>("CardioClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cardio_client_updated_at");
+
                     b.Property<bool?>("CardioDone")
                         .HasColumnType("boolean")
                         .HasColumnName("cardio_done");
@@ -233,6 +237,14 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                     b.Property<int?>("EnergyWake")
                         .HasColumnType("integer")
                         .HasColumnName("energy_wake");
+
+                    b.Property<DateTimeOffset?>("EveningClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("evening_client_updated_at");
+
+                    b.Property<DateTimeOffset?>("MorningClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("morning_client_updated_at");
 
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
