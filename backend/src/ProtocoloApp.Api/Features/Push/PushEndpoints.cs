@@ -124,21 +124,6 @@ public static class PushEndpoints
             errors["keys.auth"] = ["Chave auth inválida."];
 
         return errors;
-        }
-
-        if (string.IsNullOrEmpty(request.Endpoint)
-            || request.Endpoint.Length > PushSubscription.MaxEndpointLength
-            || !Uri.TryCreate(request.Endpoint, UriKind.Absolute, out var uri)
-            || uri.Scheme != Uri.UriSchemeHttps)
-            errors["endpoint"] = ["O endereço da inscrição deve ser uma URL https."];
-
-        if (request.Keys is null || string.IsNullOrEmpty(request.Keys.P256dh) || request.Keys.P256dh.Length > PushSubscription.MaxKeyLength)
-            errors["keys.p256dh"] = ["Chave p256dh inválida."];
-
-        if (request.Keys is null || string.IsNullOrEmpty(request.Keys.Auth) || request.Keys.Auth.Length > PushSubscription.MaxKeyLength)
-            errors["keys.auth"] = ["Chave auth inválida."];
-
-        return errors;
     }
 
     private static readonly string[] ExactHosts = ["fcm.googleapis.com", "updates.push.services.mozilla.com"];
