@@ -26,6 +26,13 @@ export interface ScheduleSlotFields {
   reminderEnabled: boolean
 }
 
+/** One change for `setMany`. */
+export interface ScheduleSlotChange {
+  slot: string
+  dayType: DayType
+  fields: ScheduleSlotFields
+}
+
 /** The server's payload (snake_case), see ScheduleSlotPayload on the API. */
 interface ScheduleSlotPayload {
   slot: string
@@ -147,16 +154,31 @@ export const scheduleRepo = {
 
   /** Sets the time of `slot` on `dayType` days and queues it, in one transaction. Throws on a time or slot the server would reject. */
   async set(db: LocalDb, userId: string, slot: string, dayType: DayType, fields: ScheduleSlotFields, now: Date): Promise<string> {
-    if (!SLOT_KEY.test(slot)) throw new RangeError(`Invalid slot: ${slot}`)
-    if (!DAY_TYPES.includes(dayType)) throw new RangeError(`Invalid day type: ${dayType}`)
-    if (!TIME.test(fields.time)) throw new RangeError(`Invalid time: ${fields.time}`)
-    const id = scheduleSlotId(userId, slot, dayType)
-    const payload: ScheduleSlotPayload = { slot, day_type: dayType, time: fields.time, reminder_enabled: fields.reminderEnabled }
-    await db.transaction(async (tx) => {
-      const [row] = await tx.query<Row>('SELECT * FROM schedule_slots WHERE id = ?', [id])
-      await upsert(tx, id, payload, nextClientUpdatedAt(now, row?.client_updated_at))
+    const [id] = await scheduleRepo.setMany(db, userId, [{ slot, dayType, fields }], now)
+    return id!
+  },
+
+  /**
+   * Several `set`s in one transaction (rows and outbox): all or nothing. Every entry is validated before anything is
+   * written. Returns the ids, in order.
+   */
+  async setMany(db: LocalDb, userId: string, entries: readonly ScheduleSlotChange[], now: Date): Promise<string[]> {
+    for (const { slot, dayType, fields } of entries) {
+      if (!SLOT_KEY.test(slot)) throw new RangeError(`Invalid slot: ${slot}`)
+      if (!DAY_TYPES.includes(dayType)) throw new RangeError(`Invalid day type: ${dayType}`)
+      if (!TIME.test(fields.time)) throw new RangeError(`Invalid time: ${fields.time}`)
+    }
+    return db.transaction(async (tx) => {
+      const ids: string[] = []
+      for (const { slot, dayType, fields } of entries) {
+        const id = scheduleSlotId(userId, slot, dayType)
+        const payload: ScheduleSlotPayload = { slot, day_type: dayType, time: fields.time, reminder_enabled: fields.reminderEnabled }
+        const [row] = await tx.query<Row>('SELECT * FROM schedule_slots WHERE id = ?', [id])
+        await upsert(tx, id, payload, nextClientUpdatedAt(now, row?.client_updated_at))
+        ids.push(id)
+      }
+      return ids
     })
-    return id
   },
 }
 

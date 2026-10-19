@@ -46,6 +46,7 @@ describe('showPush', () => {
       body: 'Hora do cardio',
       icon: '/pwa-192.png',
       tag: 'cardio',
+      renotify: true,
       data: { url: '/hoje' },
     })
   })
@@ -94,6 +95,16 @@ describe('openFromNotification', () => {
 
     expect(open.focus).toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('still navigates when the focus is refused', async () => {
+    const navigate = vi.fn(() => Promise.resolve())
+    const open = windowAt(`${ORIGIN}/treino`, navigate)
+    open.focus.mockRejectedValue(new Error('InvalidAccessError'))
+
+    await openFromNotification(clientsWith([open]), { url: '/hoje' }, ORIGIN)
+
+    expect(navigate).toHaveBeenCalledWith(`${ORIGIN}/hoje`)
   })
 
   it('opens a window when the app is not open', async () => {

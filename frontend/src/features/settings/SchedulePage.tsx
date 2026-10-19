@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { loadActiveProtocol } from '../../data/activeProtocol'
 import { useData } from '../../data/dataContext'
@@ -31,15 +31,17 @@ async function saveSlot(db: LocalDb, userId: string, slot: string, dayType: DayT
   await scheduleRepo.set(db, userId, slot, dayType, fields, new Date())
 }
 
-/** Sets every rest-day time to the training-day one of the same slot. */
+/** Sets every rest-day time to the training-day one of the same slot, all in one transaction. */
 async function copyTrainingToOff(db: LocalDb, userId: string, schedule: Schedule) {
-  const now = new Date()
-  for (const { slot } of schedule.rows) {
+  const changes = schedule.rows.flatMap(({ slot }) => {
     const training = schedule.slots.find((s) => s.slot === slot && s.dayType === 'training')
-    if (!training) continue
-    await scheduleRepo.set(db, userId, slot, 'off', { time: training.time, reminderEnabled: training.reminderEnabled }, now)
-  }
+    return training ? [{ slot, dayType: 'off' as const, fields: { time: training.time, reminderEnabled: training.reminderEnabled } }] : []
+  })
+  await scheduleRepo.setMany(db, userId, changes, new Date())
 }
+
+/** Edits close together (several toggles in a row) go to the server in one sync. */
+export const SYNC_DEBOUNCE_MS = 800
 
 /** Configurações → Horários: the time and reminder of each slot, for training and rest days. */
 export function SchedulePage() {
@@ -49,6 +51,23 @@ export function SchedulePage() {
   // What is typed in a time field that is not a full time yet (or was cleared); dropped on blur.
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [message, setMessage] = useState<{ kind: 'status' | 'alert'; text: string } | null>(null)
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestSyncNow = useRef(syncNow)
+
+  useEffect(() => {
+    latestSyncNow.current = syncNow
+  }, [syncNow])
+
+  // Leaving the screen sends a pending change right away.
+  useEffect(
+    () => () => {
+      if (syncTimer.current === null) return
+      clearTimeout(syncTimer.current)
+      syncTimer.current = null
+      void latestSyncNow.current()
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!data) return
@@ -83,7 +102,11 @@ export function SchedulePage() {
       await action()
       setLoaded({ status: 'ok', ...(await readSchedule(db, userId)) })
       setMessage({ kind: 'status', text: done })
-      void syncNow()
+      if (syncTimer.current !== null) clearTimeout(syncTimer.current)
+      syncTimer.current = setTimeout(() => {
+        syncTimer.current = null
+        void latestSyncNow.current()
+      }, SYNC_DEBOUNCE_MS)
     } catch (error) {
       console.error('could not save the schedule', error)
       setMessage({ kind: 'alert', text: failed })
@@ -133,17 +156,23 @@ export function SchedulePage() {
                     type="time"
                     aria-label={`Horário de ${context}`}
                     value={value}
+                    // Saved when the field is left (the picker closes), not on every change while typing.
                     onChange={(e) => {
                       const time = e.target.value
-                      if (TIME.test(time)) {
-                        setDrafts((d) => without(d, draftKey))
-                        // A slot that had no time gets its reminder on with the first time.
-                        if (time !== row?.time) void save(slot, dayType, time, row?.reminderEnabled ?? true)
-                      } else {
-                        setDrafts((d) => ({ ...d, [draftKey]: time }))
-                      }
+                      setDrafts((d) => ({ ...d, [draftKey]: time }))
                     }}
-                    onBlur={() => setDrafts((d) => without(d, draftKey))}
+                    onBlur={() => {
+                      const draft = drafts[draftKey]
+                      if (draft === undefined) return
+                      if (!TIME.test(draft) || draft === row?.time) {
+                        setDrafts((d) => without(d, draftKey))
+                        return
+                      }
+                      // A slot that had no time gets its reminder on with the first time.
+                      void save(slot, dayType, draft, row?.reminderEnabled ?? true).finally(() =>
+                        setDrafts((d) => without(d, draftKey)),
+                      )
+                    }}
                     className="min-h-11 rounded-control border border-line bg-surface px-2 text-base text-ink focus-visible:outline-2 focus-visible:outline-accent"
                   />
                   <label className="flex min-h-11 items-center gap-2 text-sm">

@@ -70,6 +70,22 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   }
 }
 
+function subscribeBody(subscription: PushSubscription) {
+  const { endpoint, keys } = subscription.toJSON()
+  if (!endpoint || !keys?.p256dh || !keys.auth) return null
+  return { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth }, userAgent: navigator.userAgent }
+}
+
+/**
+ * Sends this device's existing subscription to the server again (an upsert by endpoint), in case the server lost it.
+ * Best effort: offline or refused, nothing happens.
+ */
+export async function refreshSubscription(subscription: PushSubscription): Promise<void> {
+  const body = subscribeBody(subscription)
+  if (!body) return
+  await api.POST('/api/push/subscribe', { body }).catch(() => undefined)
+}
+
 export interface ReminderDeps {
   db: LocalDb
   userId: string
@@ -109,11 +125,9 @@ export async function enableReminders(deps: ReminderDeps): Promise<EnableResult>
     throw new ReminderError('O aparelho não aceitou a inscrição para lembretes. Tente de novo.')
   }
 
-  const { endpoint, keys } = subscription.toJSON()
-  if (!endpoint || !keys?.p256dh || !keys.auth) throw new ReminderError('O aparelho devolveu uma inscrição incompleta.')
-  const sent = await api
-    .POST('/api/push/subscribe', { body: { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth }, userAgent: navigator.userAgent } })
-    .catch(() => null)
+  const body = subscribeBody(subscription)
+  if (!body) throw new ReminderError('O aparelho devolveu uma inscrição incompleta.')
+  const sent = await api.POST('/api/push/subscribe', { body }).catch(() => null)
   if (!sent) throw new ReminderError(OFFLINE)
   if (!sent.response.ok) {
     throw new ReminderError(

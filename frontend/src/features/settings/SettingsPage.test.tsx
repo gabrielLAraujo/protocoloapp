@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import * as push from '../../pwa/push'
@@ -10,9 +10,10 @@ async function open(support: push.PushSupport, subscribed = false) {
   mockFetch({})
   vi.spyOn(push, 'pushSupport').mockReturnValue(support)
   vi.spyOn(push, 'currentSubscription').mockResolvedValue(subscribed ? ({ endpoint: 'https://push.example.test/x' } as PushSubscription) : null)
+  const refresh = vi.spyOn(push, 'refreshSubscription').mockResolvedValue()
   const app = await setupApp()
   app.view(<SettingsPage />)
-  return app
+  return { ...app, refresh }
 }
 
 describe('SettingsPage', () => {
@@ -104,5 +105,34 @@ describe('SettingsPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Enviar teste' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('O servidor não enviou o teste.')
+  })
+
+  it('sends the existing subscription to the server again on open', async () => {
+    const { refresh } = await open('granted', true)
+
+    expect(await screen.findByText('Lembretes ativados')).toBeInTheDocument()
+    expect(refresh).toHaveBeenCalledWith({ endpoint: 'https://push.example.test/x' })
+  })
+
+  it('offers "Ativar lembretes" again when the test reached no device', async () => {
+    await open('granted', true)
+    vi.spyOn(push, 'sendTest').mockResolvedValue({ sent: 0, removed: 0 })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Enviar teste' }))
+
+    expect(await screen.findByText(/Nenhum aparelho recebeu/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ativar lembretes' })).toBeInTheDocument()
+  })
+
+  it('reads the permission again when the app comes back to the foreground', async () => {
+    await open('default')
+    expect(screen.getByRole('button', { name: 'Ativar lembretes' })).toBeInTheDocument()
+
+    vi.mocked(push.pushSupport).mockReturnValue('denied')
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    expect(screen.getByText('Permissão negada nos Ajustes do iPhone')).toBeInTheDocument()
   })
 })

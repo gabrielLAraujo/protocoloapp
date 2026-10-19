@@ -4,9 +4,22 @@ import { scheduleRepo } from '../data/scheduleRepo'
 import { protocolDocument } from '../features/plans/fixtures'
 import { json, mockFetch, problem } from '../test/fetch-mock'
 import { newLocalDb, USER_A } from '../test/localDb'
-import { base64UrlToBytes, describeTest, disableReminders, enableReminders, pushSupport, ReminderError, sendTest } from './push'
+import {
+  base64UrlToBytes,
+  describeTest,
+  disableReminders,
+  enableReminders,
+  pushSupport,
+  refreshSubscription,
+  ReminderError,
+  sendTest,
+} from './push'
+
+const native = vi.hoisted(() => ({ value: false }))
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.value } }))
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+const IPAD_DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
 const ANDROID = 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'
 
 // Fictitious keys: an uncompressed P-256 point is 65 bytes starting with 0x04.
@@ -71,7 +84,9 @@ function environment({
 }
 
 afterEach(() => {
+  native.value = false
   Reflect.deleteProperty(navigator, 'standalone')
+  Reflect.deleteProperty(navigator, 'maxTouchPoints')
   Reflect.deleteProperty(navigator, 'serviceWorker')
 })
 
@@ -97,6 +112,22 @@ describe('pushSupport', () => {
   it('is "needs-install" in iOS Safari outside the Home Screen app (no PushManager there)', () => {
     environment({ userAgent: IPHONE, standalone: false, pushManager: false })
     expect(pushSupport()).toBe('needs-install')
+  })
+
+  it('is "needs-install" on an iPad that reports a desktop Mac (MacIntel with a touch screen)', () => {
+    environment({ userAgent: IPAD_DESKTOP, standalone: false, pushManager: false })
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    // jsdom has no maxTouchPoints.
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: 5, configurable: true })
+
+    expect(pushSupport()).toBe('needs-install')
+  })
+
+  it('is "unsupported" in the native app (no service worker there), whatever the browser APIs', () => {
+    environment({ permission: 'granted' })
+    native.value = true
+
+    expect(pushSupport()).toBe('unsupported')
   })
 
   it('is the permission in the iOS Home Screen app', () => {
@@ -228,6 +259,24 @@ describe('disableReminders', () => {
     await disableReminders()
 
     expect(calls).toEqual([])
+  })
+})
+
+describe('refreshSubscription', () => {
+  it('sends the existing subscription again', async () => {
+    environment()
+    const calls = mockFetch({ 'POST /api/push/subscribe': () => new Response(null, { status: 204 }) })
+
+    await refreshSubscription(fakeSubscription(SERVER_KEY) as unknown as PushSubscription)
+
+    expect(JSON.parse(calls[0]!.body)).toEqual({ endpoint: ENDPOINT, keys: SUBSCRIPTION_KEYS, userAgent: ANDROID })
+  })
+
+  it('ignores being offline', async () => {
+    environment()
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+
+    await expect(refreshSubscription(fakeSubscription(SERVER_KEY) as unknown as PushSubscription)).resolves.toBeUndefined()
   })
 })
 

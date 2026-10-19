@@ -6,7 +6,7 @@ import { scheduleRepo } from '../../data/scheduleRepo'
 import { mockFetch } from '../../test/fetch-mock'
 import { ACTIVE_ID, protocolDocument } from '../plans/fixtures'
 import { setupApp } from '../testSupport'
-import { SchedulePage } from './SchedulePage'
+import { SchedulePage, SYNC_DEBOUNCE_MS } from './SchedulePage'
 
 const protocolWithTimings = () => ({
   ...protocolDocument(),
@@ -37,6 +37,12 @@ async function open(doc: unknown = protocolWithTimings()) {
 const section = (name: 'Dia de treino' | 'Descanso') => within(screen.getByRole('region', { name }))
 const time = (label: string) => screen.getByLabelText(`Horário de ${label}`)
 const reminder = (label: string) => screen.getByLabelText(`Lembrete de ${label}`)
+/** Types a time and leaves the field, as closing the picker does: the time is saved on leaving. */
+const enterTime = (label: string, value: string) => {
+  const input = time(label)
+  fireEvent.change(input, { target: { value } })
+  fireEvent.blur(input)
+}
 
 describe('SchedulePage', () => {
   it('shows the suggested times of the active protocol, for training and rest days', async () => {
@@ -70,9 +76,10 @@ describe('SchedulePage', () => {
 
   it('saves an edited time and a reminder turned off, and syncs', async () => {
     const { db, runOnce } = await open()
+    await waitFor(() => expect(runOnce).toHaveBeenCalled()) // the defaults' sync
     runOnce.mockClear()
 
-    fireEvent.change(time('REF 2 (descanso)'), { target: { value: '11:15' } })
+    enterTime('REF 2 (descanso)', '11:15')
     expect(await screen.findByText('Salvo.')).toBeInTheDocument()
     await userEvent.click(reminder('Cardio (dia de treino)'))
 
@@ -87,13 +94,43 @@ describe('SchedulePage', () => {
     // A real clock, not the defaults' fixed timestamp: the edit wins on the server.
     const edited = (await scheduleRepo.all(db)).find((s) => s.slot === 'meal_m2' && s.dayType === 'off')!
     expect(edited.clientUpdatedAt > '2026-01-01').toBe(true)
-    expect(runOnce).toHaveBeenCalled()
+    // Both edits go to the server in one debounced sync.
+    await waitFor(() => expect(runOnce).toHaveBeenCalledTimes(1), { timeout: 3000 })
+    await new Promise((resolve) => setTimeout(resolve, SYNC_DEBOUNCE_MS + 200))
+    expect(runOnce).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not save while a time is being typed, only when the field is left', async () => {
+    const { db } = await open()
+    const input = time('Cardio (descanso)')
+
+    fireEvent.change(input, { target: { value: '08:00' } })
+    fireEvent.change(input, { target: { value: '08:05' } })
+
+    expect(input).toHaveValue('08:05')
+    expect((await scheduleRepo.all(db)).find((s) => s.slot === 'cardio' && s.dayType === 'off')?.time).toBe('07:30')
+    fireEvent.blur(input)
+    await waitFor(async () => {
+      expect((await scheduleRepo.all(db)).find((s) => s.slot === 'cardio' && s.dayType === 'off')?.time).toBe('08:05')
+    })
+    expect(time('Cardio (descanso)')).toHaveValue('08:05')
+  })
+
+  it('a cleared time goes back to the saved one when the field is left', async () => {
+    const { db } = await open()
+    const input = time('Cardio (descanso)')
+
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+
+    expect(input).toHaveValue('07:30')
+    expect((await scheduleRepo.all(db)).find((s) => s.slot === 'cardio' && s.dayType === 'off')?.time).toBe('07:30')
   })
 
   it('a slot without a time gets one, with its reminder on', async () => {
     const { db } = await open()
 
-    fireEvent.change(time('Intra-treino (dia de treino)'), { target: { value: '18:30' } })
+    enterTime('Intra-treino (dia de treino)', '18:30')
 
     await waitFor(() => expect(reminder('Intra-treino (dia de treino)')).toBeChecked())
     const slots = await scheduleRepo.all(db)
@@ -102,7 +139,7 @@ describe('SchedulePage', () => {
 
   it('"Copiar do dia de treino" copies every training-day time and reminder to rest days', async () => {
     const { db } = await open()
-    fireEvent.change(time('Café da manhã (dia de treino)'), { target: { value: '06:45' } })
+    enterTime('Café da manhã (dia de treino)', '06:45')
     await screen.findByText('Salvo.')
     await userEvent.click(reminder('Check-in (dia de treino)'))
     await waitFor(() => expect(reminder('Check-in (dia de treino)')).not.toBeChecked())

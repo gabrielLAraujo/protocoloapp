@@ -126,6 +126,41 @@ describe('scheduleRepo', () => {
     expect((await scheduleRepo.all(db)).find((s) => s.slot === 'checkin' && s.dayType === 'off')?.clientUpdatedAt).toBe(T0.toISOString())
   })
 
+  it('setMany writes and queues every change together', async () => {
+    const db = await newLocalDb()
+
+    const ids = await scheduleRepo.setMany(
+      db,
+      USER_A,
+      [
+        { slot: 'cardio', dayType: 'off', fields: { time: '09:00', reminderEnabled: true } },
+        { slot: 'checkin', dayType: 'off', fields: { time: '22:00', reminderEnabled: false } },
+      ],
+      T0,
+    )
+
+    expect(ids).toEqual([scheduleSlotId(USER_A, 'cardio', 'off'), scheduleSlotId(USER_A, 'checkin', 'off')])
+    expect((await scheduleRepo.all(db)).map((s) => [s.slot, s.time, s.reminderEnabled])).toEqual([
+      ['cardio', '09:00', true],
+      ['checkin', '22:00', false],
+    ])
+    expect((await outbox.due(db, new Date(T0.getTime() + 5000), 500)).map((e) => e.id)).toEqual(ids)
+  })
+
+  it('setMany is all or nothing: an invalid entry or a failed write leaves rows and outbox untouched', async () => {
+    const db = await newLocalDb()
+    const good = { slot: 'cardio', dayType: 'off' as const, fields: { time: '09:00', reminderEnabled: true } }
+
+    await expect(
+      scheduleRepo.setMany(db, USER_A, [good, { slot: 'checkin', dayType: 'off', fields: { time: '25:00', reminderEnabled: true } }], T0),
+    ).rejects.toThrow(RangeError)
+    vi.spyOn(outbox, 'enqueue').mockResolvedValueOnce().mockRejectedValueOnce(new Error('disk full'))
+    await expect(scheduleRepo.setMany(db, USER_A, [good, { ...good, slot: 'checkin' }], T0)).rejects.toThrow('disk full')
+
+    expect(await scheduleRepo.all(db)).toEqual([])
+    expect(await outbox.due(db, new Date(T0.getTime() + 5000), 500)).toEqual([])
+  })
+
   it('ids differ by slot, day type and user', () => {
     const id = scheduleSlotId(USER_A, 'meal_1', 'training')
     expect(scheduleSlotId(USER_A, 'meal_1', 'off')).not.toBe(id)

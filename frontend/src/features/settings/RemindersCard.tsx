@@ -6,6 +6,7 @@ import {
   disableReminders,
   enableReminders,
   pushSupport,
+  refreshSubscription,
   ReminderError,
   sendTest,
   type PushSupport,
@@ -28,11 +29,23 @@ export function RemindersCard() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)
 
+  // The permission can change in the system settings (or the app gets installed) while this screen is open.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') setSupport(pushSupport())
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+
   useEffect(() => {
     if (support !== 'granted') return
     let cancelled = false
     void currentSubscription().then((subscription) => {
-      if (!cancelled) setSubscribed(subscription !== null)
+      if (cancelled) return
+      setSubscribed(subscription !== null)
+      // The server may have dropped it (failures, a restored database): the upsert puts it back.
+      if (subscription) void refreshSubscription(subscription)
     })
     return () => {
       cancelled = true
@@ -77,7 +90,13 @@ export function RemindersCard() {
     }
   }
 
-  const test = () => run(async () => describeTest(await sendTest()))
+  const test = () =>
+    run(async () => {
+      const result = await sendTest()
+      // No device got it: the server has no subscription of this one, so offer "Ativar lembretes" again.
+      if (result.sent === 0) setSubscribed(false)
+      return describeTest(result)
+    })
   const disable = () =>
     run(async () => {
       await disableReminders()

@@ -61,8 +61,12 @@ export interface NotificationTarget {
 /** The `push` event: always shows a notification. */
 export async function showPush(registration: NotificationTarget, data: { json(): unknown } | null | undefined): Promise<void> {
   const content = readPush(data)
-  const options: NotificationOptions = { body: content.body, icon: NOTIFICATION_ICON, data: { url: content.url } }
-  if (content.tag) options.tag = content.tag
+  // `renotify` is not in TypeScript's DOM types yet. With a tag, a new reminder replacing an older one still alerts.
+  const options: NotificationOptions & { renotify?: boolean } = { body: content.body, icon: NOTIFICATION_ICON, data: { url: content.url } }
+  if (content.tag) {
+    options.tag = content.tag
+    options.renotify = true
+  }
   await registration.showNotification(content.title, options)
 }
 
@@ -93,7 +97,8 @@ export async function openFromNotification(clients: ClientsLike, notificationDat
     await clients.openWindow(target)
     return
   }
-  await open.focus()
+  // Focus can be refused (no user activation left); navigating to the page still matters.
+  await open.focus().catch(() => undefined)
   if (open.url === target) return
   try {
     if (!open.navigate) throw new Error('navigate unsupported')
