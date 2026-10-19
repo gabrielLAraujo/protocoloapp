@@ -163,6 +163,26 @@ describe('workoutRepo', () => {
     ])
   })
 
+  it('deleteSession soft-deletes an empty session and queues the delete; one with sets is refused', async () => {
+    const db = await newLocalDb()
+    const empty = await start(db)
+    const used = await start(db)
+    await workoutRepo.logSet(db, USER_A, setInput(used, 0), at(1))
+
+    await workoutRepo.deleteSession(db, USER_A, empty, at(3))
+    await workoutRepo.deleteSession(db, USER_A, empty, at(4)) // second call: nothing
+    await expect(workoutRepo.deleteSession(db, USER_A, used, at(5))).rejects.toThrow('The session has sets.')
+
+    expect((await workoutRepo.openSession(db))?.id).toBe(used)
+    expect((await workoutRepo.sessionSummaries(db, 10, 0)).map((r) => r.session.id)).toEqual([used])
+    const entries = await outbox.due(db, at(10), 500)
+    expect(entries.filter((e) => e.id === empty).map((e) => [e.entity, e.op])).toEqual([
+      ['workout_session', 'upsert'],
+      ['workout_session', 'delete'],
+    ])
+    expect(entries.some((e) => e.id === used && e.op === 'delete')).toBe(false)
+  })
+
   it('sessionSummaries aggregates set count and volume per session (warm-ups out of the volume), newest first, paged', async () => {
     const db = await newLocalDb()
     const old = await workoutRepo.startSession(db, USER_A, { date: '2026-10-10', planVersionId: PLAN, dayKey: 'a' }, at(-60 * 24 * 8))

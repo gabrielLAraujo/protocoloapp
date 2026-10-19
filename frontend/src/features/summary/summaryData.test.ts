@@ -28,6 +28,12 @@ const session = (date: string, id = `s-${date}`): SessionLocal => ({
   id, date, planVersionId: 'p1', dayKey: 'a', startedAt: `${date}T12:00:00.000Z`, endedAt: `${date}T13:00:00.000Z`, note: null, clientUpdatedAt: `${date}T13:00:00.000Z`,
 })
 
+const workingSet = (sessionId: string, kind: SetLocal['kind'] = 'normal'): SetLocal => ({
+  id: `${sessionId}-${kind}`, sessionId, exerciseId: 'e1', plannedExerciseKey: 'e1', setIndex: 0, weightKg: 50, reps: 10, kind,
+  parentSetId: null, completedAt: '2026-10-20T12:30:00.000Z', clientUpdatedAt: '2026-10-20T12:30:00.000Z',
+})
+const withSets = (...dates: string[]) => ({ sessions: dates.map((d) => session(d)), sets: dates.map((d) => workingSet(`s-${d}`)) })
+
 const checkin = (date: string, over: Partial<DailyCheckin> = {}): DailyCheckin => ({
   id: `c-${date}`, date, sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 4, anxiety: 2, waterL: 3, weightKg: null, note: null,
   cardioDone: false, cardioMinutes: null, clientUpdatedAt: `${date}T08:00:00.000Z`, ...over,
@@ -46,7 +52,7 @@ const input = (over: Partial<SummaryInput> = {}): SummaryInput => ({
 
 describe('buildSummary', () => {
   it('counts workouts done and planned up to today and marks missed days', () => {
-    const s = buildSummary(input({ sessions: ['2026-10-20', '2026-10-22', '2026-10-23', '2026-10-26'].map((d) => session(d)) }), TODAY)
+    const s = buildSummary(input(withSets('2026-10-20', '2026-10-22', '2026-10-23', '2026-10-26')), TODAY)
     expect(s.workouts).toEqual({ done: 4, planned: 6 })
     expect(s.cycle?.daysLeft).toBe(19)
     const state = (d: string) => s.calendar.find((c) => c.date === d)?.state
@@ -57,6 +63,22 @@ describe('buildSummary', () => {
     expect(state('2026-10-28')).toBe('future')
     expect(s.calendar[0].date).toBe('2026-10-20')
     expect(s.calendar.at(-1)?.date).toBe('2026-11-15')
+  })
+
+  it('a session without working sets (empty or warm-up only) is not a workout done', () => {
+    const s = buildSummary(
+      input({
+        sessions: [session('2026-10-20'), session('2026-10-22'), session('2026-10-23')],
+        sets: [workingSet('s-2026-10-20'), workingSet('s-2026-10-22', 'warmup')],
+      }),
+      TODAY,
+    )
+    expect(s.workouts).toEqual({ done: 1, planned: 6 })
+    const state = (d: string) => s.calendar.find((c) => c.date === d)?.state
+    expect(state('2026-10-20')).toBe('done')
+    expect(state('2026-10-22')).toBe('missed')
+    expect(state('2026-10-23')).toBe('missed')
+    expect(s.calendar.find((c) => c.date === '2026-10-22')?.done).toBe(false)
   })
 
   it('daily cardio plans one session per elapsed day', () => {
@@ -108,7 +130,7 @@ describe('buildSummary', () => {
   })
 
   it('marks an overdue cycle and stops the stats at the update date', () => {
-    const s = buildSummary(input({ sessions: [session('2026-10-20'), session('2026-12-01')] }), '2026-11-20')
+    const s = buildSummary(input(withSets('2026-10-20', '2026-12-01')), '2026-11-20')
     expect(s.cycle?.overdueDays).toBe(5)
     expect(s.cycle?.daysLeft).toBe(0)
     expect(s.workouts.done).toBe(1)

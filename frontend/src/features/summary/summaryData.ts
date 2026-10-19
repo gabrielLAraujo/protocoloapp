@@ -29,7 +29,7 @@ export interface CalendarDay {
   cardio: boolean
   /** The rotation (with overrides, using the plan version active that day) asks for a workout. */
   planned: boolean
-  /** At least one session was logged on this day. */
+  /** A session with at least one working (non-warm-up) set was logged on this day. */
   done: boolean
 }
 
@@ -99,7 +99,9 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
   const started = start <= statsTo
   const calendarTo = cycle.end ?? (today > start ? today : start)
 
-  const sessionDates = new Set(input.sessions.filter((s) => s.date >= start && s.date <= statsTo).map((s) => s.date))
+  // A session counts as a workout done only with at least one working set (an empty or warm-up-only session is not a workout).
+  const withWorkingSets = new Set(input.sets.filter((s) => s.kind !== 'warmup').map((s) => s.sessionId))
+  const sessionDates = new Set(input.sessions.filter((s) => s.date >= start && s.date <= statsTo && withWorkingSets.has(s.id)).map((s) => s.date))
   const cardioDates = new Set(input.checkins.filter((c) => c.cardioDone === true && c.date >= start && c.date <= calendarTo).map((c) => c.date))
 
   const calendar: CalendarDay[] = dateRange(start, calendarTo).map((date) => {

@@ -14,6 +14,8 @@ function lastTimeText(sets: SetLocal[]): string {
   return sets.map((s, i) => (i === 0 ? `${formatKg(s.weightKg)} kg × ${s.reps}` : `${formatKg(s.weightKg)} × ${s.reps}`)).join(' · ')
 }
 
+const KIND_LABEL: Record<SetKind, string> = { normal: 'normal', drop: 'drop', partial: 'parcial', rest_pause: 'rest-pause', warmup: 'aquecimento' }
+
 function restText(planned: PlannedExercise): string | null {
   const durations = restDurations(planned)
   // A 0 in the sequence means "no rest after that set".
@@ -28,6 +30,8 @@ interface Props {
   /** Sets of this planned exercise, for the exercise being done. */
   sets: SetLocal[]
   lastTime: SetLocal[] | undefined
+  /** Sets logged for this planned exercise under another exercise (the original, before a swap): shown read-only. */
+  otherSets: { exerciseName: string; sets: SetLocal[] }[]
   supersetName: string | null
   /** The catalog id of the planned exercise (null when it is not in the catalog). */
   plannedExerciseId: string | null
@@ -81,6 +85,20 @@ export function ExerciseCard(props: Props) {
         {rest && <p className="text-sm text-muted">{rest}</p>}
         {lastTime && lastTime.length > 0 && <p className="text-sm text-muted">Última vez: {lastTimeText(lastTime)}</p>}
       </header>
+
+      {props.otherSets.map((group) => (
+        <section key={group.exerciseName} aria-label={`Feitas em ${group.exerciseName}`} className="grid gap-1 rounded-control border border-line px-2 py-2 text-sm">
+          <h3 className="font-medium">Feitas em {group.exerciseName}</h3>
+          <ul className="grid gap-0.5 text-muted">
+            {group.sets.map((s) => (
+              <li key={s.id}>
+                Série {s.setIndex + 1}: {formatKg(s.weightKg)} kg × {s.reps}
+                {s.kind === 'normal' ? '' : ` (${KIND_LABEL[s.kind]})`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
 
       {skipped ? (
         <div className="grid gap-2">

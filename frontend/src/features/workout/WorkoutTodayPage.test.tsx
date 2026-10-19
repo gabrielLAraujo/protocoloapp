@@ -396,6 +396,27 @@ describe('WorkoutTodayPage', () => {
     expect(await workoutRepo.changesForSession(db, open.id)).toMatchObject([{ action: 'swapped', plannedExerciseKey: 'e2' }])
   })
 
+  it('after a swap, the sets already logged under the original exercise stay on the card as "Feitas em"', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    const card = screen.getByRole('region', { name: 'Crucifixo' })
+    await user.type(within(card).getByLabelText('Carga da série 1 (kg)'), '30')
+    await user.type(within(card).getByLabelText('Repetições da série 1'), '12')
+    await user.click(within(card).getByRole('button', { name: 'Concluir série 1' }))
+    await within(card).findByRole('button', { name: 'Editar série 1' })
+    expect(within(card).queryByText(/^Feitas em/)).not.toBeInTheDocument()
+
+    await user.click(within(card).getByRole('button', { name: 'Trocar exercício' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Agachamento/ }))
+
+    const swapped = await screen.findByRole('region', { name: 'Agachamento' })
+    const done = within(within(swapped).getByRole('region', { name: 'Feitas em Crucifixo' }))
+    expect(done.getByText(/Série 1: 30 kg × 12/)).toBeInTheDocument()
+    // Read-only: no inputs inside the list, and the replacement has its own empty rows.
+    expect(done.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(within(swapped).getByLabelText('Carga da série 1 (kg)')).toHaveValue('')
+  })
+
   it('finishing shows duration, volume per group and a record that beats the history', async () => {
     const app = await setupApp()
     await seedExercises(app.db)
@@ -421,6 +442,63 @@ describe('WorkoutTodayPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Concluir' }))
     expect(await screen.findByText('Você já concluiu um treino hoje.')).toBeInTheDocument()
+  })
+
+  it('"Descartar treino" drops a session without sets (after confirming) and only then', async () => {
+    const { db, user } = await render()
+    await startWorkout(user)
+    const open = (await workoutRepo.openSession(db))!
+
+    await user.click(screen.getByRole('button', { name: 'Descartar treino' }))
+    await user.click(screen.getByRole('button', { name: 'Manter treino' }))
+    expect(await workoutRepo.openSession(db)).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Descartar treino' }))
+    await user.click(screen.getByRole('button', { name: 'Sim, descartar' }))
+
+    expect(await screen.findByRole('button', { name: 'Começar treino' })).toBeInTheDocument()
+    expect(await workoutRepo.openSession(db)).toBeNull()
+    expect(await workoutRepo.sessionSummaries(db, 10, 0)).toEqual([])
+    const queued = await db.query<{ op: string }>('SELECT * FROM outbox WHERE id = ? ORDER BY rowid', [open.id])
+    expect(queued.map((e) => e.op)).toEqual(['upsert', 'delete'])
+  })
+
+  it('there is no "Descartar treino" once a set is logged', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    expect(screen.getByRole('button', { name: 'Descartar treino' })).toBeInTheDocument()
+    await typeSet(user, 1, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
+    await bench().findByRole('button', { name: 'Editar série 1' })
+    expect(screen.queryByRole('button', { name: 'Descartar treino' })).not.toBeInTheDocument()
+  })
+
+  it('an old open session without sets can be discarded from the "treino aberto" prompt', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    await workoutRepo.startSession(app.db, USER_A, { date: '2026-10-17', planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 17, 12))
+    const user = userEvent.setup()
+    app.view(<WorkoutTodayPage />)
+
+    expect(await screen.findByText(/Você tem um treino aberto/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Descartar treino' }))
+    await user.click(screen.getByRole('button', { name: 'Sim, descartar' }))
+
+    expect(await screen.findByRole('button', { name: 'Começar treino' })).toBeInTheDocument()
+    expect(await workoutRepo.openSession(app.db)).toBeNull()
+  })
+
+  it('finishing a session without sets does not count as a workout done today', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    await user.click(screen.getByRole('button', { name: 'Finalizar treino' }))
+    await user.click(screen.getByRole('button', { name: 'Sim, finalizar' }))
+    await screen.findByRole('heading', { name: 'Treino finalizado' })
+    await user.click(screen.getByRole('button', { name: 'Concluir' }))
+
+    expect(await screen.findByRole('button', { name: 'Começar treino' })).toBeInTheDocument()
+    expect(screen.queryByText('Você já concluiu um treino hoje.')).not.toBeInTheDocument()
   })
 
   it('finishing without beating the history shows no record', async () => {

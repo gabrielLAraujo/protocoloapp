@@ -9,6 +9,7 @@ import { activePlanAt, resolveDay } from '../../domain/rotation'
 import { useSync } from '../sync/syncContext'
 import { buttonClass } from '../plans/styles'
 import { formatShortDate, repsLabel } from './format'
+import { DiscardSession } from './DiscardSession'
 import { FinishSummary } from './FinishSummary'
 import { SessionView } from './SessionView'
 import { useToday } from './useToday'
@@ -19,8 +20,10 @@ interface Loaded {
   overrides: RotationOverrideLocal[]
   catalog: ExerciseLocal[]
   open: SessionLocal | null
-  /** A session of today that was already finished. */
+  /** A session of today that was already finished and has at least one working set. */
   doneToday: boolean
+  /** The open session has live sets (an empty one can be discarded). */
+  openHasSets: boolean
 }
 
 const primaryClass =
@@ -38,7 +41,14 @@ async function load(db: Data['db'], today: string): Promise<Loaded> {
     workoutRepo.openSession(db),
     workoutRepo.sessionsBetween(db, today, today),
   ])
-  return { plans, overrides, catalog, open, doneToday: sessionsToday.some((s) => s.endedAt !== null) }
+  const finishedToday = sessionsToday.filter((s) => s.endedAt !== null)
+  const [finishedSets, openSets] = await Promise.all([
+    Promise.all(finishedToday.map((s) => workoutRepo.setsForSession(db, s.id))),
+    open ? workoutRepo.setsForSession(db, open.id) : Promise.resolve([]),
+  ])
+  // An empty (or warm-up only) session is not a workout done.
+  const doneToday = finishedSets.some((sets) => sets.some((s) => s.kind !== 'warmup'))
+  return { plans, overrides, catalog, open, doneToday, openHasSets: openSets.length > 0 }
 }
 
 /** `/treino`: today's workout (or rest), the session in progress and the finish summary. */
@@ -116,6 +126,11 @@ export function WorkoutTodayPage() {
         session={open}
         day={day}
         catalog={loaded.catalog}
+        onDiscarded={() => {
+          setResumeOld(false)
+          setLiveSessionId(null)
+          void reload()
+        }}
         onFinished={() => {
           setResumeOld(false)
           setLiveSessionId(null)
@@ -138,6 +153,7 @@ export function WorkoutTodayPage() {
           </button>
           <EndOpenSession data={data} session={open} onEnded={reload} />
         </div>
+        {!loaded.openHasSets && <DiscardSession data={data} sessionId={open.id} onDiscarded={() => void reload()} />}
       </div>
     )
   }

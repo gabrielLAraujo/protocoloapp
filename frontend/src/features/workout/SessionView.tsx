@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { Data } from '../../data/dataContext'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
-import type { SessionLocal } from '../../data/workoutRepo'
+import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import type { PlannedExercise, WorkoutDay } from '../../domain/planDocuments'
 import { buttonClass } from '../plans/styles'
+import { DiscardSession } from './DiscardSession'
 import { ExerciseCard } from './ExerciseCard'
 import { RestTimerBar } from './RestTimerBar'
 import { useActiveSession } from './useActiveSession'
@@ -18,12 +19,15 @@ export function SessionView({
   day,
   catalog,
   onFinished,
+  onDiscarded,
 }: {
   data: Data
   session: SessionLocal
   day: WorkoutDay
   catalog: ExerciseLocal[]
   onFinished(): void
+  /** The empty session was discarded. */
+  onDiscarded(): void
 }) {
   const timer = useRestTimer(session.id)
   const [confirming, setConfirming] = useState(false)
@@ -73,6 +77,16 @@ export function SessionView({
         const { change, exercise } = effective(planned, active)
         const setsHere = active.sets.filter((s) => s.plannedExerciseKey === planned.key && s.exerciseId === exercise?.id)
         const originalId = findExercise(catalog, planned)?.id
+        // Sets of this planned exercise that were logged before a swap stay visible, grouped by the exercise they were done in.
+        const otherByExercise = new Map<string, SetLocal[]>()
+        for (const s of active.sets) {
+          if (s.plannedExerciseKey !== planned.key || s.exerciseId === exercise?.id) continue
+          otherByExercise.set(s.exerciseId, [...(otherByExercise.get(s.exerciseId) ?? []), s])
+        }
+        const otherSets = [...otherByExercise].map(([id, sets]) => ({
+          exerciseName: catalog.find((e) => e.id === id)?.name ?? 'outro exercício',
+          sets: sets.sort((a, b) => a.setIndex - b.setIndex),
+        }))
         return (
           <ExerciseCard
             key={planned.key}
@@ -81,6 +95,7 @@ export function SessionView({
             change={change}
             sets={setsHere}
             lastTime={exercise ? active.lastTime.get(exercise.id) : undefined}
+            otherSets={otherSets}
             plannedExerciseId={originalId ?? null}
             supersetName={planned.supersetWith ? (day.exercises.find((p) => p.key === planned.supersetWith)?.name ?? null) : null}
             catalog={catalog}
@@ -131,6 +146,8 @@ export function SessionView({
           Finalizar treino
         </button>
       )}
+
+      {active.sets.length === 0 && <DiscardSession data={data} sessionId={session.id} onDiscarded={onDiscarded} />}
 
       <RestTimerBar timer={timer} />
     </div>

@@ -252,6 +252,22 @@ export const workoutRepo = {
     })
   },
 
+  /**
+   * Discards a session that has no live sets (soft delete, like the server) and queues the delete. No-op when it is already
+   * gone; refuses a session with sets, which are never dropped silently.
+   */
+  async deleteSession(db: LocalDb, _userId: string, sessionId: string, now: Date): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [row] = await tx.query<SessionRow>('SELECT * FROM workout_sessions WHERE id = ?', [sessionId])
+      if (!row || row.deleted_at !== null) return
+      const [count] = await tx.query<{ n: number }>('SELECT COUNT(*) AS n FROM set_logs WHERE session_id = ? AND deleted_at IS NULL', [sessionId])
+      if (Number(count?.n ?? 0) > 0) throw new Error('The session has sets.')
+      const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
+      await tx.execute('UPDATE workout_sessions SET deleted_at = ?, client_updated_at = ? WHERE id = ?', [clientUpdatedAt, clientUpdatedAt, sessionId])
+      await outbox.enqueue(tx, { entity: WORKOUT_SESSION_ENTITY, id: sessionId, op: 'delete', payload: null, clientUpdatedAt })
+    })
+  },
+
   /** The session started and not yet finished (the newest one), or null. */
   async openSession(db: LocalDb): Promise<SessionLocal | null> {
     const [row] = await db.query<SessionRow>(
