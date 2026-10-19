@@ -8,8 +8,7 @@ import type { DayType } from '../../domain/dayPlan'
 import { buttonClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
 import { scheduleRows, type SlotRow } from './scheduleRows'
-import { buttonClasses } from '../../ui/styles'
-import { cardClasses } from '../../ui/styles'
+import { buttonClasses, cardClasses } from '../../ui/styles'
 import { Icon } from '../../ui/Icon'
 
 const DAY_LABELS: Record<DayType, string> = { training: 'Dia de treino', off: 'Descanso' }

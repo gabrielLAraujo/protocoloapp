@@ -13,8 +13,7 @@ import {
 } from '../../pwa/push'
 import { buttonClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
-import { buttonClasses } from '../../ui/styles'
-import { cardClasses } from '../../ui/styles'
+import { buttonClasses, cardClasses } from '../../ui/styles'
 import { Icon } from '../../ui/Icon'
 
 type Message = { kind: 'status' | 'alert'; text: string }

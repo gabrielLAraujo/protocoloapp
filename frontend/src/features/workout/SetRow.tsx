@@ -126,11 +126,11 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
           {technique}
         </span>
       </div>
-      <div className="grid grid-cols-[1fr_1fr_auto] items-start gap-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
         <label className="grid gap-1 text-xs font-medium text-muted">
           Carga (kg)
           <input
-            className={`${inputClass} text-center text-lg! font-semibold tabular-nums placeholder:font-normal placeholder:opacity-80`}
+            className={`${inputClass} h-12 text-center text-lg! font-semibold tabular-nums placeholder:font-normal placeholder:opacity-80`}
             inputMode="decimal"
             autoComplete="off"
             aria-label={`Carga da série ${n} (kg)`}
@@ -145,7 +145,7 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
         <label className="grid gap-1 text-xs font-medium text-muted">
           Reps
           <input
-            className={`${inputClass} text-center text-lg! font-semibold tabular-nums placeholder:font-normal placeholder:opacity-80`}
+            className={`${inputClass} h-12 text-center text-lg! font-semibold tabular-nums placeholder:font-normal placeholder:opacity-80`}
             inputMode="numeric"
             autoComplete="off"
             aria-label={`Repetições da série ${n}`}
@@ -162,7 +162,7 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
           onClick={() => void submit()}
           disabled={busy}
           aria-label={locked ? `Editar série ${n}` : editing ? `Salvar série ${n}` : `Concluir série ${n}`}
-          className={`mt-5 grid size-12 place-items-center rounded-control border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ok bg-ok text-on-accent' : 'border-control-line bg-surface text-muted hover:text-ok'}`}
+          className={`grid size-12 place-items-center rounded-control border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ok bg-ok text-on-accent' : 'border-control-line bg-surface text-muted hover:text-ok'}`}
         >
           <Icon name="check" size={24} strokeWidth={2.6} />
         </button>

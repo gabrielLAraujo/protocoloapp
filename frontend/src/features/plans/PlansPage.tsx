@@ -7,8 +7,7 @@ import { useSync } from '../sync/syncContext'
 import { CycleDatesForm } from './CycleDatesForm'
 import { formatDayMonth, formatInstantDayMonth } from './labels'
 import { ImportError, OFFLINE_IMPORT_MESSAGE, uploadPdf, type UploadStage } from './uploadPdf'
-import { buttonClasses } from '../../ui/styles'
-import { cardClasses } from '../../ui/styles'
+import { buttonClasses, cardClasses } from '../../ui/styles'
 import { Icon, type IconName } from '../../ui/Icon'
 
 type Loaded = Record<PlanKind, { active: PlanVersionLocal | null; draft: PlanVersionLocal | null }>

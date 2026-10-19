@@ -17,21 +17,22 @@ export function RestTimerBar({ timer }: { timer: RestTimerControls }) {
     >
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className={`grid size-10 shrink-0 place-items-center rounded-full ${timer.finished ? 'bg-ok/15 text-ok' : 'bg-accent-soft text-accent'}`}>
+          {/* Narrow phones (360 px and less): no icon and the 16 px size, so the time stays on one line next to the buttons. */}
+          <span className={`hidden size-10 shrink-0 place-items-center rounded-full min-[400px]:grid ${timer.finished ? 'bg-ok/15 text-ok' : 'bg-accent-soft text-accent'}`}>
             <Icon name={timer.finished ? 'check' : 'timer'} size={22} />
           </span>
           <div className="min-w-0">
             {timer.finished ? (
-              <p role="status" className="text-lg font-bold text-ok">
+              <p role="status" className="text-base font-bold whitespace-nowrap text-ok min-[400px]:text-lg">
                 Descanso terminou
               </p>
             ) : (
-              <p className="text-lg font-bold tabular-nums">Descanso {formatClock(timer.remaining)}</p>
+              <p className="text-base font-bold whitespace-nowrap tabular-nums min-[400px]:text-lg">Descanso {formatClock(timer.remaining)}</p>
             )}
             {timer.label && <p className="truncate text-xs text-muted">{timer.label}</p>}
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2 [&>button]:px-3">
           {!timer.finished && (
             <button type="button" className={buttonClass} onClick={() => timer.addSeconds(15)}>
               +15 s

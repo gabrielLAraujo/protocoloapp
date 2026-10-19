@@ -7,7 +7,8 @@ import { REASON_LABELS } from './todayData'
 /**
  * The quick reasons for "½ Parcial" / "✗ Não fiz". A reason saves at once; "Outro" asks for an optional note first.
  * Escape or "Cancelar" closes without saving. Focus stays inside while it is open (Tab wraps) and goes back to the button
- * that opened it when it closes.
+ * that opened it when it closes. While a choice is being saved the buttons are aria-disabled, not disabled: a disabled
+ * button drops the focus to the page, outside the sheet.
  */
 export function ReasonSheet({
   title,
@@ -88,7 +89,7 @@ export function ReasonSheet({
               className={inputClass}
             />
             <div className="flex gap-2">
-              <Button variant="primary" className="flex-1" disabled={busy} onClick={() => onPick('other', note.trim() ? note.trim() : null)}>
+              <Button variant="primary" className="flex-1" aria-disabled={busy || undefined} onClick={() => !busy && onPick('other', note.trim() ? note.trim() : null)}>
                 Salvar
               </Button>
               <Button className="flex-1" onClick={onCancel}>
@@ -101,7 +102,7 @@ export function ReasonSheet({
             <p className="text-sm text-muted">Qual foi o motivo?</p>
             <div className="grid grid-cols-2 gap-2">
               {ADHERENCE_REASONS.map((reason) => (
-                <Button key={reason} size="lg" disabled={busy} onClick={() => (reason === 'other' ? setOther(true) : onPick(reason, null))}>
+                <Button key={reason} size="lg" aria-disabled={busy || undefined} onClick={() => !busy && (reason === 'other' ? setOther(true) : onPick(reason, null))}>
                   {REASON_LABELS[reason]}
                 </Button>
               ))}

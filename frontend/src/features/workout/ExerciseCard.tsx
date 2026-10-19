@@ -93,9 +93,9 @@ export function ExerciseCard(props: Props) {
         {supersetName && <p className="text-sm text-muted">Bi-set com {supersetName}</p>}
         {rest && <p className="text-sm text-muted">{rest}</p>}
         {lastTime && lastTime.length > 0 && (
-          <p className="flex items-center gap-1 text-sm text-muted">
-            <Icon name="history" size={16} />
-            <span>Última vez: {lastTimeText(lastTime)}</span>
+          <p className="text-sm text-muted">
+            <Icon name="history" size={16} className="mr-1 inline-block align-[-3px]" />
+            <span className="tabular-nums">Última vez: {lastTimeText(lastTime)}</span>
           </p>
         )}
       </header>
@@ -151,11 +151,11 @@ export function ExerciseCard(props: Props) {
       )}
 
       {!skipped && !skipping && (
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" icon="swap" onClick={() => setSwapping(true)}>
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="sm" onClick={() => setSwapping(true)}>
             Trocar exercício
           </Button>
-          <Button size="sm" icon="skip" onClick={() => setSkipping(true)}>
+          <Button size="sm" onClick={() => setSkipping(true)}>
             Pular exercício
           </Button>
         </div>

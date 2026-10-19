@@ -47,4 +47,23 @@ describe('ReasonSheet', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(opener).toHaveFocus()
   })
+
+  it('keeps the focus inside while the choice is being saved', async () => {
+    const user = userEvent.setup()
+    function Saving() {
+      const [busy, setBusy] = useState(false)
+      return <ReasonSheet title="Não fiz — Creatina" busy={busy} onPick={() => setBusy(true)} onCancel={() => undefined} />
+    }
+    render(<Saving />)
+    const tempo = screen.getByRole('button', { name: 'Sem tempo' })
+    await user.click(tempo)
+
+    // Saving: the choices say they are unavailable but stay focusable, so the focus does not fall out of the sheet.
+    expect(tempo).toHaveAttribute('aria-disabled', 'true')
+    expect(tempo).toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('dialog', { name: 'Não fiz — Creatina' })).toContainElement(document.activeElement as HTMLElement)
+    await user.tab({ shift: true })
+    expect(tempo).toHaveFocus()
+  })
 })
