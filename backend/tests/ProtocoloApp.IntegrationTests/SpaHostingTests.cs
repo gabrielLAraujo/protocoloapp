@@ -9,7 +9,8 @@ namespace ProtocoloApp.IntegrationTests;
 [Collection("api")]
 public sealed class SpaHostingTests : IDisposable
 {
-    private const string Immutable = "public,max-age=31536000,immutable";
+    // As the framework normalizes the header (the code sets it without spaces).
+    private const string Immutable = "public, max-age=31536000, immutable";
     private const string Revalidate = "no-cache";
 
     private readonly string _wwwroot = Directory.CreateTempSubdirectory("protocoloapp-wwwroot-").FullName;
