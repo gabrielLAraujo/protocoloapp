@@ -39,25 +39,25 @@ export function parseProtocol(
   let category = 'compound'
   let lastSleep: ItemDraft | null = null
 
-  for (const line of all) {
+  for (let index = 0; index < all.length; index++) {
+    const line = all[index]
     const text = line.text
     const key = compact(text)
 
-    if (state !== 'table' && state !== 'compounds') {
-      if (key.startsWith('nome') || key.includes('pesoaltura')) continue // personal data: never read
-      if (key.includes('datadeatualizacao') || key.includes('datademensalidade')) {
-        readDates(text, uploadedOn, doc, low)
-        continue
-      }
-      if (key.startsWith('fase')) {
-        doc.phaseName ??= afterColon(text).replace(/\s+suplementos$/i, '').trim() || null
-        continue
-      }
-      if (key.startsWith('categoria') || key.startsWith('etapa')) {
-        const etapa = /etapa\s*:\s*(.+)$/i.exec(text)
-        if (etapa && !doc.phaseName) pendingPhase = etapa[1].replace(/\s+suplementos$/i, '').trim()
-        continue
-      }
+    // The Word page header (repeated on every page, so also inside the table or a section).
+    if (key.startsWith('nome') || key.includes('pesoaltura')) continue // personal data: never read
+    if (key.includes('datadeatualizacao') || key.includes('datademensalidade')) {
+      readDates(text, uploadedOn, doc, low)
+      continue
+    }
+    if (key.startsWith('fase')) {
+      doc.phaseName ??= afterColon(text).replace(/\s+suplementos$/i, '').trim() || null
+      continue
+    }
+    if (key.startsWith('categoria') || key.startsWith('etapa')) {
+      const etapa = /etapa\s*:\s*(.+)$/i.exec(text)
+      if (etapa && !doc.phaseName) pendingPhase = etapa[1].replace(/\s+suplementos$/i, '').trim()
+      continue
     }
 
     const section = sectionOf(key)
@@ -68,6 +68,12 @@ export function parseProtocol(
       continue
     }
     if (state === 'table') {
+      if (key === 'suplementos') continue // the column header, repeated on a new page
+      // Any other header ends the table: what follows (observations, free text) is never read as meals.
+      if (isTableHeader(line, tableBulletX(table))) {
+        state = 'other'
+        continue
+      }
       table.push(line)
       continue
     }
@@ -104,9 +110,22 @@ export function parseProtocol(
         state = 'links'
         continue
       }
+      const next = all[index + 1] as PdfLine | undefined
+      if (/:\s*$/.test(text) && !key.startsWith('protocolo') && !key.startsWith('anti') && next && joinsAsDose(next.text)) {
+        // `NAME:` with the dose on the next line.
+        const item = compoundItem(`${text} ${next.text}`, category)
+        if (item) drafts.push(item)
+        index++
+        continue
+      }
       const header = compoundHeader(text, key)
       if (header) {
         category = header
+        continue
+      }
+      if (isHeaderLike(text) && !text.includes(':') && !/\d/.test(text) && timingOf(text) === null) {
+        // An unknown section: what follows is not a compound.
+        state = 'other'
         continue
       }
       const item = compoundItem(text, category)
@@ -198,13 +217,45 @@ function slice(line: PdfLine, from: number, to: number): string {
 
 /** Top-to-bottom position across pages (a larger value is further down). */
 const posOf = (line: PdfLine) => line.page * 100_000 - line.y
+const pageOf = (pos: number) => Math.ceil(pos / 100_000)
 
 function sectionOf(key: string): 'sleep' | 'compounds' | 'links' | 'other' | null {
   if (key.includes('antesdedormir') && key.startsWith('suplementos')) return 'sleep'
   if (key.startsWith('ergogenicos')) return 'compounds'
   if (key.startsWith('links')) return 'links'
-  if (key.startsWith('observacoes') || key.startsWith('protocolodecardio') || key.startsWith('exerciciosdecardio')) return 'other'
+  if (
+    ['observa', 'orienta', 'liquidos', 'protocolodecardio', 'exerciciosdecardio'].some((prefix) => key.startsWith(prefix))
+  )
+    return 'other'
   return null
+}
+
+/** Upper-case text (at least 4 letters) with no bullet, dash or quantity in front: reads as a section header. */
+function isHeaderLike(text: string): boolean {
+  if (/^[•·●▪◦\-–+(\d]/.test(text)) return false
+  const letters = fold(text).replace(/[^\p{L}]/gu, '')
+  if (letters.length < 4 || letters !== letters.toUpperCase()) return false
+  return !isLabel(text) && !/^n[aã]o\s*faz\b/i.test(text) && !/^ou\b/i.test(text)
+}
+
+/** The leftmost bullet of the table so far (where the foods column starts). */
+const tableBulletX = (table: readonly PdfLine[]) =>
+  Math.min(...table.flatMap((l) => l.items.filter((i) => BULLET.test(i.text)).map((i) => i.x)))
+
+/**
+ * A header inside the table. A line that starts in the labels column may be a fragment of a rotated label (`S TREINO`,
+ * `REF 1 Ó`), so there it must be longer and have no one-letter word.
+ */
+function isTableHeader(line: PdfLine, bulletX: number): boolean {
+  if (!isHeaderLike(line.text)) return false
+  if (line.items[0].x >= bulletX - 8) return true
+  const words = line.text.split(/\s+/)
+  return fold(line.text).replace(/[^\p{L}]/gu, '').length >= 8 && words.every((w) => w.replace(/[^\p{L}]/gu, '').length >= 2)
+}
+
+/** After `NAME:` alone, a line that is its dose (not another `label:` line, not a header). */
+function joinsAsDose(text: string): boolean {
+  return !text.includes(':') && !isHeaderLike(text) && sectionOf(compact(text)) === null
 }
 
 // ---------------------------------------------------------------- header
@@ -213,7 +264,7 @@ const MONTHS = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julh
 const pad = (n: number) => String(n).padStart(2, '0')
 const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
 
-/** `20 de setembro`, `20/09`, `20 de setembro de 2026`, `20/09/2026` right after the label (spaces ignored). */
+/** `7 de março`, `07/03`, `7 de março de 2026`, `07/03/2026` right after the label (spaces ignored). */
 function dateAfter(squashed: string, label: string): { day: number; month: number; year: number | null } | null {
   const at = squashed.indexOf(label)
   if (at < 0) return null
@@ -413,7 +464,8 @@ function scheduleOf(text: string): { schedule: Schedule; low: boolean } {
   if (/dias? de treino/.test(t)) return { schedule: { type: 'training_days_only' }, low: false }
   if (/dias? (off|de descanso)/.test(t)) return { schedule: { type: 'off_days_only' }, low: false }
   if (/todos os dias|diariamente|diari[oa]|\bao dia\b|por dia/.test(t)) return { schedule: { type: 'daily' }, low: false }
-  if (/semana/.test(t)) return { schedule: { type: 'daily' }, low: true } // a weekly total: how it is split is not said
+  // A weekly total: once a week is the draft; how it is split is not said.
+  if (/semana/.test(t)) return { schedule: { type: 'every_n_days', n: 7, anchor: null }, low: true }
   return { schedule: { type: 'daily' }, low: false }
 }
 
@@ -451,6 +503,7 @@ function sleepItem(text: string): ItemDraft {
 }
 
 function compoundHeader(text: string, key: string): string | null {
+  // `NAME:` followed by its dose was already joined; a line ending in `:` here is a category header.
   const isHeader = /:\s*$/.test(text) && (key.startsWith('protocolo') || key.startsWith('anti') || !/\d/.test(text))
   if (!isHeader) return null
   if (key.includes('hormon')) return 'hormone'
@@ -469,9 +522,11 @@ function compoundItem(text: string, category: string): ItemDraft | null {
     rest = colon[2].trim()
   } else {
     // `Name 10mg em jejum` / `Name em jejum.`: the name runs up to the first number or timing phrase.
+    // Without a dose or a timing the line is free text, never an item.
     const cut = /\s(\d|em jejum|antes|ap[oó]s|\()/i.exec(text)
-    name = (cut ? text.slice(0, cut.index) : text).replace(/[.,;]+$/, '').trim()
-    rest = cut ? text.slice(cut.index).trim() : ''
+    if (!cut) return null
+    name = text.slice(0, cut.index).replace(/[.,;]+$/, '').trim()
+    rest = text.slice(cut.index).trim()
   }
   if (name === '') return null
   const { rest: dose, timing } = stripTiming(rest)
@@ -533,7 +588,7 @@ function readTable(table: PdfLine[]): { meals: Meal[]; supplements: ItemDraft[];
   // Labels: a whole left cell that reads as one, single fragments that do, then rotated/wrapped fragments put together.
   const labels: Label[] = []
   const fragments: Fragment[] = []
-  const content: { pos: number; mid: string; right: string }[] = []
+  const content: { pos: number; page: number; mid: string; right: string }[] = []
   for (const line of table) {
     const pos = posOf(line)
     const left = slice(line, Number.NEGATIVE_INFINITY, leftEnd)
@@ -547,7 +602,7 @@ function readTable(table: PdfLine[]): { meals: Meal[]; supplements: ItemDraft[];
     }
     const mid = slice(line, leftEnd, rightStart)
     const right = slice(line, rightStart, Number.POSITIVE_INFINITY)
-    if (mid !== '' || right !== '') content.push({ pos, mid, right })
+    if (mid !== '' || right !== '') content.push({ pos, page: line.page, mid, right })
   }
   labels.push(...joinFragments(fragments))
   const merged = mergeLabels(labels)
@@ -567,16 +622,17 @@ function readTable(table: PdfLine[]): { meals: Meal[]; supplements: ItemDraft[];
         between.forEach(({ i }) => (owner[i] = k))
         continue
       }
+      // A page break is not a gap between rows: a row continues on the next page (after the repeated page header).
       let split = between.length // index in `between` where the next row starts
       let best = rowGap
-      let previous = from
+      let previous = { pos: from, page: pageOf(from) }
       between.forEach(({ c }, j) => {
-        const gap = c.pos - previous
+        const gap = c.page === previous.page ? c.pos - previous.pos : 0
         if (gap >= best) {
           best = gap
           split = j
         }
-        previous = c.pos
+        previous = c
       })
       between.forEach(({ i }, j) => (owner[i] = j < split ? k : k + 1))
     }
@@ -607,9 +663,10 @@ function readTable(table: PdfLine[]): { meals: Meal[]; supplements: ItemDraft[];
         row.foods[row.foods.length - 1] += ` ${body}`
       }
     }
-    if (c.right !== '') {
+    if (c.right !== '' && compact(c.right) !== 'suplementos') {
       const dash = /^[-–]\s*/.exec(c.right)
       if (dash) row.supplements.push({ text: c.right.slice(dash[0].length) })
+      else if (DOSE.test(c.right) && !/^\d+(?:[.,]\d+)?\s*x\b/i.test(c.right)) row.supplements.push({ text: c.right })
       else if (row.supplements.length > 0) row.supplements[row.supplements.length - 1].text += ` ${c.right}`
       else row.supplements.push({ text: c.right })
     }

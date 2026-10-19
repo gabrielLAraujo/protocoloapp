@@ -179,6 +179,89 @@ describe('parseProtocol: meal table', () => {
   })
 })
 
+describe('parseProtocol: table across pages and table end', () => {
+  it('skips the page header repeated inside a table that continues on the next page', () => {
+    const { document } = parseProtocol(
+      [
+        ...header(),
+        row(700, { left: 'REF 1', food: '45gr centeio', supp: '- 7mg Suplemento A' }),
+        row(688, { food: '15gr nozes' }),
+        row(640, { left: 'REF 2', food: '120gr cuscuz', supp: '- 2 caps Suplemento B' }),
+        row(628, { food: '65gr ervilha' }),
+        // Page 2: the Word header again, then the rest of REF 2 and a new row.
+        line(760, [{ x: 60, text: 'NOME: Fulano Exemplo' }, { x: 300, text: 'PESO / ALTURA: 70kg / 1.80m' }], 2),
+        line(740, [{ x: 60, text: 'DATA DE ATUALIZAÇÃO: 7 de março' }, { x: 300, text: 'DATA DE MENSALIDADE: 15 de abril' }], 2),
+        line(730, [{ x: 60, text: 'CATEGORIA:' }, { x: 300, text: 'ETAPA: Etapa Teste' }], 2),
+        line(720, [{ x: 60, text: 'FASE: Fase Teste' }, { x: 470, text: 'SUPLEMENTOS' }], 2),
+        line(708, [{ x: 470, text: 'SUPLEMENTOS' }], 2),
+        row(696, { food: '80gr inhame', supp: '- 6mg Suplemento C' }, 2),
+        row(684, { food: '12gr gergelim' }, 2),
+        row(640, { left: 'REF 3', food: '210gr pinhão' }, 2),
+      ],
+      '2026-03-20',
+    )
+    expect(document.meals.map((m) => [m.label, m.items.map((i) => i.food)])).toEqual([
+      ['REF 1', ['centeio', 'nozes']],
+      ['REF 2', ['cuscuz', 'ervilha', 'inhame', 'gergelim']],
+      ['REF 3', ['pinhão']],
+    ])
+    expect(document.items.map((i) => [i.name, i.timing])).toEqual([
+      ['Suplemento A', 'with_meal:meal_1'],
+      ['Suplemento B', 'with_meal:meal_2'],
+      ['Suplemento C', 'with_meal:meal_2'],
+    ])
+    expect(JSON.stringify(document)).not.toContain('Fulano')
+  })
+
+  it('ends the table at an observations header when there is no sleep section (free text is never read)', () => {
+    const { document } = parseProtocol(
+      [
+        row(700, { left: 'REF 1', food: '45gr centeio', supp: '- 7mg Suplemento A' }),
+        row(688, { food: '15gr nozes' }),
+        text(640, 'OBSERVAÇÃO DO COACH', 250),
+        row(620, { food: 'Texto livre inventado um', supp: '- 2mg Texto livre inventado dois' }),
+        text(608, '- Texto livre inventado três 5mg', FOOD),
+        text(596, 'REF 9 texto livre inventado quatro', LEFT),
+      ],
+      '2026-03-20',
+    )
+    expect(document.meals.map((m) => [m.label, m.items.map((i) => i.food)])).toEqual([['REF 1', ['centeio', 'nozes']]])
+    expect(document.items.map((i) => i.name)).toEqual(['Suplemento A'])
+    expect(JSON.stringify(document)).not.toContain('Texto livre')
+  })
+
+  it('ends the table at an unknown upper-case header, but not at a rotated label fragment', () => {
+    const { document } = parseProtocol(
+      [
+        row(700, { food: '45gr centeio' }),
+        line(694, [{ x: LEFT, text: 'S TREINO' }]),
+        line(690, [{ x: LEFT, text: 'PÓ' }]),
+        row(686, { food: '15gr nozes' }),
+        text(640, 'RECADOS GERAIS', 250),
+        row(620, { food: 'Texto livre inventado um' }),
+      ],
+      '2026-03-20',
+    )
+    expect(document.meals.map((m) => [m.label, m.items.map((i) => i.food)])).toEqual([['PÓS TREINO', ['centeio', 'nozes']]])
+    expect(JSON.stringify(document)).not.toContain('Texto livre')
+  })
+
+  it('starts a new right-column item at a dose even without a dash', () => {
+    const { document } = parseProtocol(
+      [
+        row(700, { left: 'REF 1', food: '45gr centeio', supp: '- 7mg Suplemento A' }),
+        row(688, { food: '15gr nozes', supp: '(em jejum)' }),
+        row(676, { food: '25gr linhaça', supp: '4 caps Suplemento B' }),
+      ],
+      '2026-03-20',
+    )
+    expect(document.items.map((i) => [i.name, i.doseText, i.timing])).toEqual([
+      ['Suplemento A', '7mg', 'fasting'],
+      ['Suplemento B', '4 caps', 'with_meal:meal_1'],
+    ])
+  })
+})
+
 describe('parseProtocol: supplements', () => {
   it('uses the parenthesis timing, else the meal of the row (flagged)', () => {
     const { document, lowConfidence } = full()
@@ -223,7 +306,8 @@ describe('parseProtocol: compound sections', () => {
       doseText: '35mg ter-qui-sab',
       schedule: { type: 'weekdays', days: ['tue', 'thu', 'sat'] },
     })
-    expect(byName['COMPOSTO Y'].item.schedule).toEqual({ type: 'daily' })
+    // A weekly total with no weekdays: once a week, flagged.
+    expect(byName['COMPOSTO Y'].item.schedule).toEqual({ type: 'every_n_days', n: 7, anchor: null })
     expect(lowConfidence).toContain(`items[${byName['COMPOSTO Y'].i}].schedule`)
     expect(byName['COMPOSTO Z'].item).toMatchObject({
       category: 'compound',
@@ -252,6 +336,48 @@ describe('parseProtocol: compound sections', () => {
       '2026-03-20',
     )
     expect(document.items.map((i) => i.timing)).toEqual(['with_meal:meal_1', 'with_meal:meal_2'])
+  })
+
+  it('reads "NAME:" with the dose on the next line, and a category header followed by "X: dose"', () => {
+    const { document } = parseProtocol(
+      [
+        text(700, 'ERGOGÊNICOS E PROTETORES'),
+        text(688, 'PROTOCOLO X:'),
+        text(676, 'COMPOSTO V:'),
+        text(664, '7mg sex-dom'),
+        text(652, 'TERMOGÊNICOS:'),
+        text(640, 'COMPOSTO U: 2mg em jejum'),
+      ],
+      '2026-03-20',
+    )
+    expect(document.items).toMatchObject([
+      { name: 'COMPOSTO V', category: 'compound', doseText: '7mg sex-dom', schedule: { type: 'weekdays', days: ['fri', 'sun'] } },
+      { name: 'COMPOSTO U', category: 'thermogenic', doseText: '2mg', timing: 'fasting' },
+    ])
+  })
+
+  it('ends the compounds at an unknown upper-case header (free text after it is never an item)', () => {
+    const { document } = parseProtocol(
+      [
+        text(700, 'ERGOGÊNICOS E PROTETORES'),
+        text(688, 'PROTOCOLO X:'),
+        text(676, 'COMPOSTO V: 1mg todos os dias'),
+        text(652, 'RECADOS FINAIS'),
+        text(640, 'Texto livre inventado: 2mg por dia'),
+        text(628, 'Texto livre inventado em jejum'),
+      ],
+      '2026-03-20',
+    )
+    expect(document.items.map((i) => i.name)).toEqual(['COMPOSTO V'])
+    expect(JSON.stringify(document)).not.toContain('Texto livre')
+  })
+
+  it('never makes an item from a compounds line with no dose or timing', () => {
+    const { document } = parseProtocol(
+      [text(700, 'ERGOGÊNICOS E PROTETORES'), text(688, 'PROTOCOLO X:'), text(676, 'Texto livre inventado sem dose.')],
+      '2026-03-20',
+    )
+    expect(document.items).toEqual([])
   })
 
   it('reads "dia sim 1 dia não" as every 2 days and "todos os dias" as daily', () => {
