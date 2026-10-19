@@ -42,6 +42,7 @@ describe('workoutRepo', () => {
       started_at: T0.toISOString(),
       ended_at: null,
       note: null,
+      notes: null,
     })
     expect(JSON.parse(entries[1]!.payload!)).toEqual({
       session_id: sessionId,
@@ -144,6 +145,52 @@ describe('workoutRepo', () => {
 
     expect(await workoutRepo.openSession(db)).toMatchObject({ id: 's1', dayKey: 'b', startedAt: '2026-10-18T11:00:00.000Z' })
     expect(await workoutRepo.setsForSession(db, 's1')).toMatchObject([{ id: 'l1', weightKg: 60.5, kind: 'warmup', plannedExerciseKey: null }])
+  })
+
+  it('exercise notes: set, replace and clear queue the session with a notes object (null when empty); finishing keeps them', async () => {
+    const db = await newLocalDb()
+    const sessionId = await start(db)
+
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e1', '  Subir 2 kg  ', at(1))
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e2', 'Ombro estalando', at(2))
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e2', 'Ombro estalando', at(3)) // same text: nothing queued
+    await workoutRepo.finishSession(db, USER_A, sessionId, at(4))
+
+    expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]!.session.exerciseNotes).toEqual({ e1: 'Subir 2 kg', e2: 'Ombro estalando' })
+    let entries = await outbox.due(db, at(10), 500)
+    expect(entries).toHaveLength(4)
+    expect(JSON.parse(entries[3]!.payload!)).toMatchObject({ notes: { e1: 'Subir 2 kg', e2: 'Ombro estalando' }, ended_at: at(4).toISOString() })
+
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e1', '   ', at(5))
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e2', '', at(6))
+    entries = await outbox.due(db, at(10), 500)
+    expect(JSON.parse(entries.at(-2)!.payload!).notes).toEqual({ e2: 'Ombro estalando' })
+    expect(JSON.parse(entries.at(-1)!.payload!).notes).toBeNull()
+    expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]!.session.exerciseNotes).toEqual({})
+  })
+
+  it('exercise notes respect the server limits and come back from a pull', async () => {
+    const db = await newLocalDb()
+    const sessionId = await start(db)
+
+    await expect(workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e1', 'x'.repeat(2001), at(1))).rejects.toThrow('The note is too long.')
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e1', 'x'.repeat(2000), at(1))
+    for (let i = 2; i <= 30; i++) await workoutRepo.setExerciseNote(db, USER_A, sessionId, `e${i}`, 'n', at(i))
+    await expect(workoutRepo.setExerciseNote(db, USER_A, sessionId, 'e31', 'n', at(40))).rejects.toThrow('Too many exercise notes.')
+
+    await workoutSessionSync.applyRemote(db, {
+      entity: 'workout_session',
+      id: 's9',
+      version: 5,
+      clientUpdatedAt: '2026-10-18T12:00:00.000000+00:00',
+      deletedAt: null,
+      payload: {
+        date: '2026-10-18', plan_version_id: PLAN, workout_day_key: 'a', started_at: '2026-10-18T11:00:00+00:00', ended_at: null, note: null,
+        notes: { e1: 'Do servidor' },
+      },
+    })
+    const pulled = (await workoutRepo.sessionSummaries(db, 10, 0)).find((r) => r.session.id === 's9')!
+    expect(pulled.session.exerciseNotes).toEqual({ e1: 'Do servidor' })
   })
 
   it('removeChange soft-deletes the change and queues the delete; a second call does nothing', async () => {

@@ -38,6 +38,8 @@ export interface ActiveSession {
   updateSet(setId: string, weightKg: number, reps: number, kind: SetKind): Promise<void>
   /** Undoes the latest change (skip or swap) of a planned exercise. */
   clearChange(plannedKey: string): Promise<void>
+  /** Saves the note of a planned exercise in this session (blank clears it). */
+  saveExerciseNote(plannedKey: string, text: string): Promise<void>
   skipExercise(plannedKey: string, note: string | null): Promise<void>
   swapExercise(plannedKey: string, replacementExerciseId: string): Promise<void>
   /** Ends the session now (or at `at`). */
@@ -130,6 +132,10 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
       if (!change) return
       await workoutRepo.removeChange(db, userId, change.id, now())
       await after()
+    },
+    async saveExerciseNote(plannedKey, text) {
+      await workoutRepo.setExerciseNote(db, userId, sessionId, plannedKey, text, now())
+      void syncNow()
     },
     async skipExercise(plannedKey, note) {
       await workoutRepo.recordChange(db, userId, { sessionId, plannedExerciseKey: plannedKey, action: 'skipped', note }, now())

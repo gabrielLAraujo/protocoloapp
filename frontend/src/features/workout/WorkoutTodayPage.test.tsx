@@ -396,6 +396,39 @@ describe('WorkoutTodayPage', () => {
     expect(await workoutRepo.changesForSession(db, open.id)).toMatchObject([{ action: 'swapped', plannedExerciseKey: 'e2' }])
   })
 
+  it('"Anotação" saves the exercise note on blur, survives a reload and clears when emptied', async () => {
+    const { db, ui, view, user } = await render()
+    await startWorkout(user)
+    const card = screen.getByRole('region', { name: 'Crucifixo' })
+
+    await user.type(within(card).getByLabelText('Anotação'), 'Segurar 2 s embaixo')
+    expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]!.session.exerciseNotes).toEqual({}) // not saved before the blur
+    await user.tab()
+    await waitFor(async () => expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]!.session.exerciseNotes).toEqual({ e2: 'Segurar 2 s embaixo' }))
+
+    ui.unmount()
+    view(<WorkoutTodayPage />)
+    await screen.findByText('Treino em andamento')
+    const again = await screen.findByRole('region', { name: 'Crucifixo' })
+    expect(within(again).getByLabelText('Anotação')).toHaveValue('Segurar 2 s embaixo')
+    expect(bench().getByLabelText('Anotação')).toHaveValue('')
+
+    await user.clear(within(again).getByLabelText('Anotação'))
+    await user.tab()
+    await waitFor(async () => expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]!.session.exerciseNotes).toEqual({}))
+  })
+
+  it('a failing note write shows the inline error', async () => {
+    const { user } = await render()
+    await startWorkout(user)
+    vi.spyOn(workoutRepo, 'setExerciseNote').mockRejectedValue(new Error('disk full'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const card = screen.getByRole('region', { name: 'Crucifixo' })
+    await user.type(within(card).getByLabelText('Anotação'), 'x')
+    await user.tab()
+    expect(await within(card).findByText('Não consegui salvar. Tente de novo.')).toBeInTheDocument()
+  })
+
   it('after a swap, the sets already logged under the original exercise stay on the card as "Feitas em"', async () => {
     const { user } = await render()
     await startWorkout(user)

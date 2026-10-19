@@ -96,6 +96,8 @@ export function SessionView({
             sets={setsHere}
             lastTime={exercise ? active.lastTime.get(exercise.id) : undefined}
             otherSets={otherSets}
+            note={session.exerciseNotes[planned.key] ?? ''}
+            onSaveNote={(text) => active.saveExerciseNote(planned.key, text)}
             plannedExerciseId={originalId ?? null}
             supersetName={planned.supersetWith ? (day.exercises.find((p) => p.key === planned.supersetWith)?.name ?? null) : null}
             catalog={catalog}

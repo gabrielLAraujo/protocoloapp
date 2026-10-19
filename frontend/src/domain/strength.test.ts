@@ -9,7 +9,7 @@ const set = (sessionId: string, exerciseId: string, weightKg: number, reps: numb
   completedAt: '2026-10-20T10:00:00Z', clientUpdatedAt: '2026-10-20T10:00:00Z',
 })
 const session = (id: string, date: string): SessionLocal => ({
-  id, date, planVersionId: 'v1', dayKey: 'A', startedAt: `${date}T10:00:00Z`, endedAt: null, note: null, clientUpdatedAt: `${date}T10:00:00Z`,
+  id, date, planVersionId: 'v1', dayKey: 'A', startedAt: `${date}T10:00:00Z`, endedAt: null, note: null, exerciseNotes: {}, clientUpdatedAt: `${date}T10:00:00Z`,
 })
 const exercise = (id: string, name: string, primaryMuscleGroup: ExerciseLocal['primaryMuscleGroup']): ExerciseLocal => ({
   id, name, normalizedName: name.toLowerCase(), primaryMuscleGroup, aliases: [],

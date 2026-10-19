@@ -127,6 +127,11 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'CREATE INDEX ix_rotation_overrides_date ON rotation_overrides (date)',
     ],
   },
+  {
+    // Per-exercise notes of a session: JSON object planned_exercise_key -> text, null when there are none.
+    version: 3,
+    statements: ['ALTER TABLE workout_sessions ADD COLUMN exercise_notes TEXT'],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

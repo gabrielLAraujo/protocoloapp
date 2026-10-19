@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
-import type { ExerciseChangeLocal, SetKind, SetLocal } from '../../data/workoutRepo'
+import { MAX_EXERCISE_NOTE_LENGTH, type ExerciseChangeLocal, type SetKind, type SetLocal } from '../../data/workoutRepo'
 import type { PlannedExercise } from '../../domain/planDocuments'
 import { buttonClass, inputClass } from '../plans/styles'
 import { formatKg } from './format'
@@ -43,6 +43,10 @@ interface Props {
   /** Clears the skip: the card returns to the planned exercise. */
   onClearSkip(): Promise<void>
   onSwap(replacement: ExerciseLocal): Promise<void>
+  /** The stored note of this planned exercise in the session ("" when none). */
+  note: string
+  /** Saves the note (a blank text clears it). */
+  onSaveNote(text: string): Promise<void>
 }
 
 export function ExerciseCard(props: Props) {
@@ -51,6 +55,8 @@ export function ExerciseCard(props: Props) {
   const [swapping, setSwapping] = useState(false)
   const [skipping, setSkipping] = useState(false)
   const [note, setNote] = useState('')
+  const [exerciseNote, setExerciseNote] = useState(props.note)
+  const [savedNote, setSavedNote] = useState(props.note)
   const [actionError, setActionError] = useState(false)
   const name = exercise?.name ?? planned.name
   const skipped = change?.action === 'skipped'
@@ -143,6 +149,24 @@ export function ExerciseCard(props: Props) {
           </button>
         </div>
       )}
+
+      <label className="grid gap-1 text-sm">
+        Anotação
+        <textarea
+          className={`${inputClass} min-h-16`}
+          rows={2}
+          maxLength={MAX_EXERCISE_NOTE_LENGTH}
+          value={exerciseNote}
+          onChange={(e) => setExerciseNote(e.target.value)}
+          onBlur={() => {
+            if (exerciseNote.trim() === savedNote.trim()) return
+            const text = exerciseNote.trim()
+            void run(() => props.onSaveNote(text)).then((ok) => {
+              if (ok) setSavedNote(text)
+            })
+          }}
+        />
+      </label>
 
       {actionError && (
         <p role="alert" className="text-sm text-danger">

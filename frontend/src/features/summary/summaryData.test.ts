@@ -25,7 +25,7 @@ const plan: WorkoutPlanAt = {
 }
 
 const session = (date: string, id = `s-${date}`): SessionLocal => ({
-  id, date, planVersionId: 'p1', dayKey: 'a', startedAt: `${date}T12:00:00.000Z`, endedAt: `${date}T13:00:00.000Z`, note: null, clientUpdatedAt: `${date}T13:00:00.000Z`,
+  id, date, planVersionId: 'p1', dayKey: 'a', startedAt: `${date}T12:00:00.000Z`, endedAt: `${date}T13:00:00.000Z`, note: null, exerciseNotes: {}, clientUpdatedAt: `${date}T13:00:00.000Z`,
 })
 
 const workingSet = (sessionId: string, kind: SetLocal['kind'] = 'normal'): SetLocal => ({

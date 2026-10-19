@@ -20,8 +20,13 @@ export interface SessionLocal {
   /** Null while the session is open. */
   endedAt: string | null
   note: string | null
+  /** Per-exercise notes: planned exercise key -> text. Empty when there are none. */
+  exerciseNotes: Record<string, string>
   clientUpdatedAt: string
 }
+
+export const MAX_EXERCISE_NOTE_LENGTH = 2000
+export const MAX_EXERCISE_NOTES = 30
 
 export interface SessionSummary {
   session: SessionLocal
@@ -87,6 +92,8 @@ interface SessionPayload {
   started_at: string
   ended_at: string | null
   note: string | null
+  /** planned exercise key -> text; null/absent when there are none. */
+  notes?: Record<string, string> | null
 }
 
 interface SetPayload {
@@ -109,11 +116,27 @@ interface ChangePayload {
   note: string | null
 }
 
-type SessionRow = SessionPayload & { id: string; plan_version_id: string; client_updated_at: string; deleted_at: string | null }
+type SessionRow = Omit<SessionPayload, 'notes'> & { id: string; exercise_notes: string | null; client_updated_at: string; deleted_at: string | null }
 type SetRow = SetPayload & { id: string; client_updated_at: string; deleted_at: string | null }
 type ChangeRow = ChangePayload & { id: string; client_updated_at: string; deleted_at: string | null }
 
 const iso = (value: string) => new Date(value).toISOString()
+
+const parseNotes = (json: string | null): Record<string, string> => {
+  if (json === null) return {}
+  try {
+    const parsed: unknown = JSON.parse(json)
+    return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
+const notesJson = (notes: Record<string, string> | null | undefined): string | null =>
+  notes && Object.keys(notes).length > 0 ? JSON.stringify(notes) : null
+
+/** The payload form of the notes: null instead of an empty object. */
+const noteMap = (notes: Record<string, string>): Record<string, string> | null => (Object.keys(notes).length > 0 ? notes : null)
 
 const toSession = (r: SessionRow): SessionLocal => ({
   id: r.id,
@@ -123,6 +146,7 @@ const toSession = (r: SessionRow): SessionLocal => ({
   startedAt: r.started_at,
   endedAt: r.ended_at,
   note: r.note,
+  exerciseNotes: parseNotes(r.exercise_notes),
   clientUpdatedAt: r.client_updated_at,
 })
 
@@ -152,13 +176,13 @@ const toChange = (r: ChangeRow): ExerciseChangeLocal => ({
 
 async function writeSession(db: LocalDb, id: string, p: SessionPayload, clientUpdatedAt: string, version: number | null) {
   await db.execute(
-    `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, client_updated_at, version, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, exercise_notes, client_updated_at, version, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT (id) DO UPDATE SET
        date = excluded.date, plan_version_id = excluded.plan_version_id, workout_day_key = excluded.workout_day_key,
-       started_at = excluded.started_at, ended_at = excluded.ended_at, note = excluded.note,
+       started_at = excluded.started_at, ended_at = excluded.ended_at, note = excluded.note, exercise_notes = excluded.exercise_notes,
        client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, workout_sessions.version), deleted_at = NULL`,
-    [id, p.date, p.plan_version_id, p.workout_day_key, p.started_at, p.ended_at, p.note, clientUpdatedAt, version],
+    [id, p.date, p.plan_version_id, p.workout_day_key, p.started_at, p.ended_at, p.note, notesJson(p.notes), clientUpdatedAt, version],
   )
 }
 
@@ -194,6 +218,7 @@ const sessionPayload = (r: SessionRow): SessionPayload => ({
   started_at: r.started_at,
   ended_at: r.ended_at,
   note: r.note,
+  notes: noteMap(parseNotes(r.exercise_notes)),
 })
 
 const setPayload = (r: SetRow): SetPayload => ({
@@ -228,6 +253,7 @@ export const workoutRepo = {
       started_at: now.toISOString(),
       ended_at: null,
       note: null,
+      notes: null,
     }
     const clientUpdatedAt = now.toISOString()
     await db.transaction(async (tx) => {
@@ -235,6 +261,28 @@ export const workoutRepo = {
       await outbox.enqueue(tx, { entity: WORKOUT_SESSION_ENTITY, id, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
     })
     return id
+  },
+
+  /**
+   * Sets (or, with a blank text, clears) the note of one planned exercise of the session and queues the session again.
+   * The server takes at most 30 notes of 2000 characters each.
+   */
+  async setExerciseNote(db: LocalDb, _userId: string, sessionId: string, plannedExerciseKey: string, text: string, now: Date): Promise<void> {
+    const value = text.trim()
+    if (value.length > MAX_EXERCISE_NOTE_LENGTH) throw new Error('The note is too long.')
+    await db.transaction(async (tx) => {
+      const [row] = await tx.query<SessionRow>('SELECT * FROM workout_sessions WHERE id = ? AND deleted_at IS NULL', [sessionId])
+      if (!row) throw new Error('Session not found.')
+      const notes = parseNotes(row.exercise_notes)
+      if (value === '') delete notes[plannedExerciseKey]
+      else notes[plannedExerciseKey] = value
+      if (Object.keys(notes).length > MAX_EXERCISE_NOTES) throw new Error('Too many exercise notes.')
+      if ((notes[plannedExerciseKey] ?? '') === (parseNotes(row.exercise_notes)[plannedExerciseKey] ?? '')) return
+      const payload: SessionPayload = { ...sessionPayload(row), notes: noteMap(notes) }
+      const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
+      await writeSession(tx, sessionId, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: WORKOUT_SESSION_ENTITY, id: sessionId, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+    })
   },
 
   /** Ends the session now. No-op when it is already ended. */
@@ -429,7 +477,7 @@ export const workoutSessionSync: SyncEntityAdapter = {
       await writeSession(
         db,
         record.id,
-        { ...p, ended_at: p.ended_at === null ? null : iso(p.ended_at), started_at: iso(p.started_at), note: p.note ?? null },
+        { ...p, ended_at: p.ended_at === null ? null : iso(p.ended_at), started_at: iso(p.started_at), note: p.note ?? null, notes: p.notes ?? null },
         clientUpdatedAt,
         record.version,
       )

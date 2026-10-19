@@ -109,3 +109,18 @@ describe('local migration 2', () => {
     )
   })
 })
+
+describe('local migration 3', () => {
+  it('adds exercise_notes to the sessions of a device on version 2 without touching them', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 2)
+    await db.execute(
+      `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, client_updated_at, version, deleted_at)
+       VALUES ('s1', '2026-10-18', 'p1', 'a', '2026-10-18T11:00:00.000Z', NULL, 'ok', '2026-10-18T11:00:00.000Z', 3, NULL)`,
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT id, note, exercise_notes FROM workout_sessions')).toEqual([{ id: 's1', note: 'ok', exercise_notes: null }])
+  })
+})
