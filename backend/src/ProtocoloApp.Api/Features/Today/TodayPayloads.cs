@@ -8,11 +8,11 @@ namespace ProtocoloApp.Api.Features.Today;
 
 internal static partial class TodayPatterns
 {
-    // Exactly HH:mm, 00:00 to 23:59.
-    [GeneratedRegex("^([01][0-9]|2[0-3]):[0-5][0-9]$")]
+    // Exactly HH:mm, 00:00 to 23:59. \z (not $, which also matches before a trailing newline).
+    [GeneratedRegex("^([01][0-9]|2[0-3]):[0-5][0-9]\\z")]
     public static partial Regex Time();
 
-    [GeneratedRegex("^[A-Za-z0-9_:-]{1,64}$")]
+    [GeneratedRegex("^[A-Za-z0-9_:-]{1,64}\\z")]
     public static partial Regex Key();
 }
 

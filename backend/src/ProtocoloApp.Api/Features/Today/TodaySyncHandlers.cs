@@ -27,7 +27,10 @@ public sealed class ScheduleSlotSyncHandler(AppDbContext db, TimeProvider clock)
     {
         entity.Slot = payload.Slot!;
         entity.DayType = EnumText.Parse<DayType>(payload.DayType!);
-        entity.Time = TimeOnly.ParseExact(payload.Time!, TimeFormat, CultureInfo.InvariantCulture);
+        // The validator already guarantees HH:mm; TryParse keeps a bad value from ever becoming a 500.
+        entity.Time = TimeOnly.TryParseExact(payload.Time, TimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var time)
+            ? time
+            : default;
         entity.ReminderEnabled = payload.ReminderEnabled!.Value;
     }
 

@@ -40,7 +40,7 @@ public sealed class AdherenceLogConfiguration : IEntityTypeConfiguration<Adheren
             table.HasCheckConstraint("ck_adherence_logs_status", $"status IN {EnumText.SqlList<AdherenceStatus>()}");
             table.HasCheckConstraint(
                 "ck_adherence_logs_reason",
-                "reason IS NULL OR (status <> 'done' AND reason IN ('no_appetite', 'no_time', 'felt_sick', 'free_meal', 'other'))");
+                $"reason IS NULL OR (status <> 'done' AND reason IN ({string.Join(", ", AdherenceLog.Reasons.Select(r => $"'{r}'"))}))");
         });
 
         builder.HasKey(a => a.Id);

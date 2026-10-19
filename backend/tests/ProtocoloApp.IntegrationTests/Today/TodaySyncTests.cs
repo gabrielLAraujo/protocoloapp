@@ -74,6 +74,7 @@ public sealed class TodaySyncTests(ApiFactory factory)
     [InlineData("07:60")]
     [InlineData("07:00:00")]
     [InlineData("")]
+    [InlineData("07:00\n")]
     public async Task Slot_with_invalid_time_is_invalid_payload_time(string time)
     {
         using var api = await NewUserAsync();
@@ -281,6 +282,75 @@ public sealed class TodaySyncTests(ApiFactory factory)
         await SyncApi.PushAsync(owner.Client, Adherence(id));
 
         var result = await SyncApi.PushOneAsync(other.Client, Adherence(id));
+
+        AssertRejected(result, "forbidden");
+    }
+
+    [Fact]
+    public async Task Slot_with_trailing_newline_in_slot_is_invalid_payload_slot()
+    {
+        using var api = await NewUserAsync();
+
+        var result = await SyncApi.PushOneAsync(api.Client, Slot(Guid.NewGuid(), "meal_1\n"));
+
+        AssertRejected(result, "invalid_payload:slot");
+    }
+
+    [Fact]
+    public async Task Older_client_updated_at_is_stale_for_both_entities()
+    {
+        using var api = await NewUserAsync();
+        var slot = Guid.NewGuid();
+        var log = Guid.NewGuid();
+        await SyncApi.PushAsync(api.Client, Slot(slot, "cardio", time: "07:30"), Adherence(log));
+
+        var staleSlot = await SyncApi.PushOneAsync(
+            api.Client,
+            new SyncChange("schedule_slot", slot, SyncOp.Upsert, Json(("slot", "cardio"), ("day_type", "training"), ("time", "09:00"), ("reminder_enabled", true)), SyncApi.Past(120)));
+        var staleLog = await SyncApi.PushOneAsync(
+            api.Client,
+            new SyncChange("adherence_log", log, SyncOp.Upsert, Adherence(log, status: "missed").Payload, SyncApi.Past(120)));
+
+        Assert.Equal(SyncResultStatus.Stale, staleSlot.Status);
+        Assert.Equal(SyncResultStatus.Stale, staleLog.Status);
+        var records = await SyncApi.PullAllAsync(api.Client);
+        Assert.Equal("07:30", records.Single(r => r.Id == slot).Payload!.Value.GetProperty("time").GetString());
+        Assert.Equal("done", records.Single(r => r.Id == log).Payload!.Value.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Reviving_a_deleted_row_rechecks_the_conflict()
+    {
+        using var api = await NewUserAsync();
+        var slotA = Guid.NewGuid();
+        var logA = Guid.NewGuid();
+        await SyncApi.PushAsync(api.Client, Slot(slotA, "cardio", "off"), Adherence(logA));
+        await SyncApi.PushAsync(
+            api.Client,
+            new SyncChange("schedule_slot", slotA, SyncOp.Delete, null, SyncApi.Past(10)),
+            new SyncChange("adherence_log", logA, SyncOp.Delete, null, SyncApi.Past(10)));
+        await SyncApi.PushAsync(api.Client, Slot(Guid.NewGuid(), "cardio", "off", "08:00"), Adherence(Guid.NewGuid()));
+
+        var reviveSlot = await SyncApi.PushOneAsync(
+            api.Client,
+            new SyncChange("schedule_slot", slotA, SyncOp.Upsert, Json(("slot", "cardio"), ("day_type", "off"), ("time", "07:30"), ("reminder_enabled", true)), SyncApi.Past(1)));
+        var reviveLog = await SyncApi.PushOneAsync(
+            api.Client,
+            new SyncChange("adherence_log", logA, SyncOp.Upsert, Adherence(logA).Payload, SyncApi.Past(1)));
+
+        AssertRejected(reviveSlot, "slot_conflict");
+        AssertRejected(reviveLog, "slot_conflict");
+    }
+
+    [Fact]
+    public async Task Another_users_slot_id_is_forbidden()
+    {
+        using var owner = await NewUserAsync();
+        using var other = await NewUserAsync();
+        var id = Guid.NewGuid();
+        await SyncApi.PushAsync(owner.Client, Slot(id, "cardio"));
+
+        var result = await SyncApi.PushOneAsync(other.Client, Slot(id, "cardio"));
 
         AssertRejected(result, "forbidden");
     }
