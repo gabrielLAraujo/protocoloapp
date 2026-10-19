@@ -17,8 +17,10 @@ public static class PushSetup
         services.Configure<RemindersOptions>(configuration.GetSection(RemindersOptions.Section));
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IZoneProvider, SaoPauloZoneProvider>();
-        services.AddSingleton<VapidProvider>();
-        services.AddHttpClient<IPushSender, WebPushSender>(client => client.Timeout = TimeSpan.FromSeconds(20));
+        services.AddSingleton<IVapidProvider, VapidProvider>();
+        services.AddHttpClient<IPushSender, WebPushSender>(client => client.Timeout = TimeSpan.FromSeconds(20))
+            // The endpoint was checked at subscribe time; never follow a redirect somewhere else.
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddSingleton<ReminderScheduler>();
         services.AddHostedService(sp => sp.GetRequiredService<ReminderScheduler>());
         return services;

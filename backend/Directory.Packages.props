@@ -20,7 +20,6 @@
     <PackageVersion Include="Scalar.AspNetCore" Version="2.18.0" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
-    <PackageVersion Include="WebPush" Version="1.0.13" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">

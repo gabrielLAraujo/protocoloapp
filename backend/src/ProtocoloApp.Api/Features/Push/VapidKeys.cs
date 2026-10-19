@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Shared.Data;
-using WebPush;
 
 namespace ProtocoloApp.Api.Features.Push;
 
@@ -16,16 +15,17 @@ public static class VapidKeys
     /// Reads the pair, creating it the first time. Two callers racing both generate a pair, one insert wins
     /// (<c>ON CONFLICT DO NOTHING</c>) and both read the winner back.
     /// </summary>
-    public static async Task<(string PublicKey, string PrivateKey)> GetOrCreateAsync(AppDbContext db, CancellationToken ct)
+    public static async Task<(string PublicKey, string PrivateKey)> GetOrCreateAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(clock);
 
         if (await ReadAsync(db, ct) is { } existing)
             return existing;
 
-        var generated = VapidHelper.GenerateVapidKeys();
+        var generated = Vapid.GenerateKeys();
         var json = JsonSerializer.Serialize(new Stored(generated.PublicKey, generated.PrivateKey));
-        var now = DateTimeOffset.UtcNow;
+        var now = clock.GetUtcNow();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO app_secrets (name, value, created_at) VALUES ({SecretName}, {json}, {now}) ON CONFLICT (name) DO NOTHING", ct);
 

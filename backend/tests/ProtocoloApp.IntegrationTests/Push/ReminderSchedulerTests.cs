@@ -262,4 +262,53 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
         Assert.Single(factory.Push.SentTo(endpoint));
         Assert.Empty(factory.Push.SentTo(strangerEndpoint));
     }
+
+    [Fact]
+    public async Task A_database_error_for_one_user_does_not_stop_the_next_one_in_the_same_tick()
+    {
+        var (broken, brokenEndpoint) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _ = broken;
+        var (healthy, healthyEndpoint) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _2 = healthy;
+        // Claiming the reminder of this user's slot fails in the database (a check constraint only they violate).
+        await broken.WithDbAsync(async db =>
+        {
+            var connection = db.Database.GetDbConnection();
+            await connection.OpenAsync();
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = $"ALTER TABLE reminder_sends ADD CONSTRAINT ck_test_{Guid.NewGuid():N} CHECK (user_id <> '{broken.UserId}'::uuid)";
+                await command.ExecuteNonQueryAsync();
+            }
+            finally
+            {
+                await connection.CloseAsync();
+            }
+
+            return 0;
+        });
+
+        await RunAsync(Local("12:30"));
+
+        Assert.Empty(factory.Push.SentTo(brokenEndpoint));
+        Assert.Equal("REF 2 — 12:30", Assert.Single(factory.Push.SentTo(healthyEndpoint)).Body);
+    }
+
+    [Fact]
+    public async Task A_sender_that_throws_for_one_device_does_not_stop_the_other_device_or_the_user_after()
+    {
+        var (api, bad) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _ = api;
+        var good = await PushApi.AddSubscriptionAsync(api);
+        factory.Push.Throws[bad] = true;
+        var (other, otherEndpoint) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _2 = other;
+
+        await RunAsync(Local("12:30"));
+
+        Assert.Single(factory.Push.SentTo(good));
+        Assert.Single(factory.Push.SentTo(otherEndpoint));
+        Assert.Equal(1, Assert.Single(await PushApi.SubscriptionsAsync(factory, bad)).FailureCount);
+    }
 }

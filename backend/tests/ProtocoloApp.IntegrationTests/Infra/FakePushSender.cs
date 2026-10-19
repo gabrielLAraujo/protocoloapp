@@ -11,11 +11,17 @@ public sealed class FakePushSender : IPushSender
     /// <summary>What to answer for an endpoint; endpoints not listed get <see cref="PushResult.Sent"/>.</summary>
     public ConcurrentDictionary<string, PushResult> Results { get; } = new();
 
+    /// <summary>Endpoints whose send throws (after being recorded), like a sender with a bug would.</summary>
+    public ConcurrentDictionary<string, bool> Throws { get; } = new();
+
     public Task<PushResult> SendAsync(PushSubscription subscription, PushMessage message, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(subscription);
 
         _sent.Enqueue((subscription.Endpoint, message));
+        if (Throws.ContainsKey(subscription.Endpoint))
+            throw new InvalidOperationException("Fake sender failure.");
+
         return Task.FromResult(Results.GetValueOrDefault(subscription.Endpoint, PushResult.Sent));
     }
 

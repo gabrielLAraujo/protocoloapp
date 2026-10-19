@@ -31,7 +31,7 @@ public sealed class PushEndpointTests(ApiFactory factory)
         var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(async _ =>
         {
             await using var scope = factory.Services.CreateAsyncScope();
-            return await VapidKeys.GetOrCreateAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), CancellationToken.None);
+            return await VapidKeys.GetOrCreateAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), TimeProvider.System, CancellationToken.None);
         }));
 
         Assert.Single(results.Distinct());
@@ -43,13 +43,13 @@ public sealed class PushEndpointTests(ApiFactory factory)
         using var api = await PlanApi.CreateAsync(factory);
         var endpoint = PushApi.NewEndpoint();
 
-        Assert.Equal(HttpStatusCode.NoContent, (await PushApi.SubscribeAsync(api.Client, endpoint, "key-1", "auth-1", "Agent/1")).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await PushApi.SubscribeAsync(api.Client, endpoint, "key-2", "auth-2")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await PushApi.SubscribeAsync(api.Client, endpoint, PushApi.P256dh1, PushApi.Auth1, "Agent/1")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await PushApi.SubscribeAsync(api.Client, endpoint, PushApi.P256dh2, PushApi.Auth2)).StatusCode);
 
         var row = Assert.Single(await PushApi.SubscriptionsAsync(factory, endpoint));
         Assert.Equal(api.UserId, row.UserId);
-        Assert.Equal("key-2", row.P256dh);
-        Assert.Equal("auth-2", row.Auth);
+        Assert.Equal(PushApi.P256dh2, row.P256dh);
+        Assert.Equal(PushApi.Auth2, row.Auth);
     }
 
     [Fact]
@@ -76,11 +76,25 @@ public sealed class PushEndpointTests(ApiFactory factory)
         Assert.Equal(0, Assert.Single(await PushApi.SubscriptionsAsync(factory, endpoint)).FailureCount);
     }
 
+    private const string BadPrefix = "BQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE";
+    private const string Short64Bytes = "BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ";
+    private const string Auth15Bytes = "AQEBAQEBAQEBAQEBAQEB";
+    private const string Auth17Bytes = "AQEBAQEBAQEBAQEBAQEBAQE";
+
     [Theory]
-    [InlineData("http://push.example.test/insecure", "k", "a")]
-    [InlineData("not a url", "k", "a")]
-    [InlineData("https://push.example.test/x", "", "a")]
-    [InlineData("https://push.example.test/x", "k", "")]
+    [InlineData("http://fcm.googleapis.com/fcm/send/x", PushApi.P256dh1, PushApi.Auth1)]
+    [InlineData("not a url", PushApi.P256dh1, PushApi.Auth1)]
+    [InlineData("https://evil.example.test/x", PushApi.P256dh1, PushApi.Auth1)]
+    [InlineData("https://notpush.apple.com.evil.test/x", PushApi.P256dh1, PushApi.Auth1)]
+    [InlineData("https://xpush.apple.com/x", PushApi.P256dh1, PushApi.Auth1)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", "", PushApi.Auth1)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", PushApi.P256dh1, "")]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", "BKey-fictitious", PushApi.Auth1)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", BadPrefix, PushApi.Auth1)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", Short64Bytes, PushApi.Auth1)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", PushApi.P256dh1, Auth15Bytes)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", PushApi.P256dh1, Auth17Bytes)]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x", PushApi.P256dh1, "not base64 !!")]
     public async Task Subscribe_rejects_invalid_input(string endpoint, string p256dh, string auth)
     {
         using var api = await PlanApi.CreateAsync(factory);
@@ -88,6 +102,34 @@ public sealed class PushEndpointTests(ApiFactory factory)
         var response = await PushApi.SubscribeAsync(api.Client, endpoint, p256dh, auth);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("https://fcm.googleapis.com/fcm/send/")]
+    [InlineData("https://web.push.apple.com/")]
+    [InlineData("https://updates.push.services.mozilla.com/wpush/v2/")]
+    [InlineData("https://autopush.push.services.mozilla.com/wpush/v2/")]
+    [InlineData("https://wns2-par02p.notify.windows.com/w/?token=")]
+    public async Task Subscribe_accepts_the_known_push_services(string prefix)
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var endpoint = prefix + Guid.NewGuid().ToString("N");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await PushApi.SubscribeAsync(api.Client, endpoint)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Concurrent_first_subscribes_of_one_endpoint_leave_one_row()
+    {
+        using var first = await PlanApi.CreateAsync(factory);
+        using var second = await PlanApi.CreateAsync(factory);
+        var endpoint = PushApi.NewEndpoint();
+
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 6).Select(i => PushApi.SubscribeAsync(i % 2 == 0 ? first.Client : second.Client, endpoint)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.NoContent, r.StatusCode));
+        Assert.Single(await PushApi.SubscriptionsAsync(factory, endpoint));
     }
 
     [Fact]
@@ -135,5 +177,25 @@ public sealed class PushEndpointTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Empty(await PushApi.SubscriptionsAsync(factory, endpoint));
+    }
+
+    [Fact]
+    public async Task A_sender_that_throws_for_one_subscription_does_not_stop_the_others()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var broken = PushApi.NewEndpoint();
+        var healthy = PushApi.NewEndpoint();
+        await PushApi.SubscribeAsync(api.Client, broken);
+        await Task.Delay(20); // the dispatcher goes oldest first: the broken one is tried before the healthy one
+        await PushApi.SubscribeAsync(api.Client, healthy);
+        factory.Push.Throws[broken] = true;
+
+        var response = await api.Client.PostAsync(new Uri("/api/push/test", UriKind.Relative), null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(factory.Push.SentTo(broken));
+        Assert.Single(factory.Push.SentTo(healthy));
+        Assert.Equal(1, Assert.Single(await PushApi.SubscriptionsAsync(factory, broken)).FailureCount);
+        Assert.Equal(0, Assert.Single(await PushApi.SubscriptionsAsync(factory, healthy)).FailureCount);
     }
 }

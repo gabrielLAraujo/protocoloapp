@@ -76,17 +76,23 @@ public sealed class ReminderScheduler(
         var date = DateOnly.FromDateTime(local.DateTime);
         var minuteOfDay = local.Hour * 60 + local.Minute;
 
-        await using var scope = scopes.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var sender = scope.ServiceProvider.GetRequiredService<IPushSender>();
+        List<Guid> userIds;
+        await using (var listScope = scopes.CreateAsyncScope())
+        {
+            userIds = await listScope.ServiceProvider.GetRequiredService<AppDbContext>()
+                .PushSubscriptions.AsNoTracking().Select(s => s.UserId).Distinct().OrderBy(id => id).ToListAsync(ct);
+        }
 
-        var userIds = await db.PushSubscriptions.AsNoTracking().Select(s => s.UserId).Distinct().ToListAsync(ct);
         var claimed = 0;
         foreach (var userId in userIds)
         {
             try
             {
-                claimed += await RunForUserAsync(db, sender, userId, date, minuteOfDay, zone, now, ct);
+                // A scope (and DbContext) per user: whatever goes wrong for one user leaves nothing behind for the next.
+                await using var userScope = scopes.CreateAsyncScope();
+                var db = userScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var sender = userScope.ServiceProvider.GetRequiredService<IPushSender>();
+                claimed += await RunForUserAsync(db, sender, userId, date, minuteOfDay, zone, now, logger, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -99,7 +105,7 @@ public sealed class ReminderScheduler(
     }
 
     private static async Task<int> RunForUserAsync(
-        AppDbContext db, IPushSender sender, Guid userId, DateOnly date, int minuteOfDay, TimeZoneInfo zone, DateTimeOffset now, CancellationToken ct)
+        AppDbContext db, IPushSender sender, Guid userId, DateOnly date, int minuteOfDay, TimeZoneInfo zone, DateTimeOffset now, ILogger logger, CancellationToken ct)
     {
         var plan = await BuildDayAsync(db, userId, date, zone, ct);
 
@@ -133,7 +139,7 @@ public sealed class ReminderScheduler(
             // The meal's own label, even when the meal itself is logged and only its items are left.
             var mealLabel = plan.Targets.FirstOrDefault(t => t.SlotKey == slot.Key && t.Type == AdherenceTargetType.Meal)?.Label;
             var time = slot.First().Time!.Value;
-            await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), ct);
+            await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), logger, ct);
             claimed++;
         }
 
