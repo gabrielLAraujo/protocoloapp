@@ -14,7 +14,7 @@ describe('migrateLocalDb', () => {
     expect(versions.map((row) => row.version)).toEqual(Array.from({ length: LATEST_LOCAL_VERSION }, (_, i) => i + 1))
     const tables = await db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
     expect(tables.map((row) => row.name)).toEqual(
-      expect.arrayContaining(['daily_checkins', 'local_schema_version', 'outbox', 'sync_state', 'sync_unknown']),
+      expect.arrayContaining(['adherence_logs', 'daily_checkins', 'local_schema_version', 'outbox', 'schedule_slots', 'sync_state', 'sync_unknown']),
     )
   })
 

@@ -11,6 +11,8 @@ export interface WorkoutPlanEntry {
   document: WorkoutDocument
   /** What `resolveDay` needs: the local date the version was activated. */
   at: WorkoutPlanAt
+  /** ISO instant of the activation (`buildDay` orders same-day versions by it). */
+  activatedAt: string
 }
 
 /**
@@ -28,6 +30,7 @@ export async function loadWorkoutPlans(db: LocalDb): Promise<WorkoutPlanEntry[]>
       activatedAt: v.activatedAt,
       entry: {
         id: v.id,
+        activatedAt: v.activatedAt,
         document: parsed.value,
         at: {
           planVersionId: v.id,

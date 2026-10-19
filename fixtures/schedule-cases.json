@@ -14,7 +14,10 @@
     "Item schedule: daily; weekdays (days mon..sun); every_n_days (n, anchor ?? protocolActivatedOn; (date - anchor) mod n == 0); training_days_only (dayType training); off_days_only (dayType off or none). cardio (key \"cardio\", label \"Cardio\", slot cardio) when cardio.daily or cardio.sessionsPerWeek > 0.",
     "workout (key \"workout\", label \"Treino <dayKey>\", slot workout) on training days. checkin (key \"checkin\", label \"Check-in\", slot checkin) every day.",
     "time/reminderEnabled: the slots row matching (slot, dayType of the day; none -> off); no row or null slot -> time null, reminderEnabled false.",
-    "Order: time ascending, untimed last; ties by slot (ordinal; null slot last), then key (ordinal), then type (meal, protocol_item, cardio, workout, checkin)."
+    "Order: time ascending, untimed last; ties by slot (ordinal; null slot last), then key (ordinal), then type (meal, protocol_item, cardio, workout, checkin).",
+    "every_n_days before its anchor: the cycle runs backwards ((date - anchor) is negative; mod is non-negative), so it can be in.",
+    "Two overrides on one date (degenerate: one per date per user): the first listed is that date's choice; as anchors of later dates both apply, in the order listed.",
+    "activatedAt ties compare instants (offsets honoured), not text."
   ],
   "cases": [
     {
@@ -6847,6 +6850,1389 @@
             "slot": "workout",
             "time": null,
             "reminderEnabled": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "every_n_days_before_anchor",
+      "description": "Tue 2026-10-20 is B. Both every_n_days anchors are 2026-10-26 (6 days later): the cycle runs backwards, so n=3 (-6 mod 3 = 0) is in (after_meal, untimed) and n=4 (-6 mod 4 = 2) is out.",
+      "input": {
+        "date": "2026-10-20",
+        "protocol": {
+          "phaseName": "Fase exemplo",
+          "meals": [
+            {
+              "key": "1",
+              "label": "REF 1",
+              "items": [
+                {
+                  "food": "Alimento A",
+                  "grams": 100,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "2",
+              "label": "",
+              "items": [
+                {
+                  "food": "Alimento B",
+                  "grams": 150,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "3",
+              "label": "Ceia",
+              "items": []
+            }
+          ],
+          "items": [
+            {
+              "key": "item_meal2",
+              "category": "supplement",
+              "name": "Suplemento Refeição",
+              "timing": "with_meal:2",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_b",
+              "category": "supplement",
+              "name": "Suplemento Jejum B",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_a",
+              "category": "supplement",
+              "name": "Suplemento Jejum A",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_bed",
+              "category": "sleep_optional",
+              "name": "Item Noite",
+              "timing": "before_bed",
+              "schedule": {
+                "type": "weekdays",
+                "days": [
+                  "mon",
+                  "wed",
+                  "fri"
+                ]
+              }
+            },
+            {
+              "key": "item_pre",
+              "category": "thermogenic",
+              "name": "Item Pré",
+              "timing": "pre_workout",
+              "schedule": {
+                "type": "training_days_only"
+              }
+            },
+            {
+              "key": "item_rest",
+              "category": "supplement",
+              "name": "Item Descanso",
+              "timing": "any",
+              "schedule": {
+                "type": "off_days_only"
+              }
+            },
+            {
+              "key": "item_3d",
+              "category": "compound",
+              "name": "Item A Cada 3",
+              "timing": "after_meal",
+              "schedule": {
+                "type": "every_n_days",
+                "n": 3,
+                "anchor": "2026-10-26"
+              }
+            },
+            {
+              "key": "item_4d",
+              "category": "compound",
+              "name": "Item A Cada 4",
+              "timing": "after_meal",
+              "schedule": {
+                "type": "every_n_days",
+                "n": 4,
+                "anchor": "2026-10-26"
+              }
+            }
+          ],
+          "cardio": {
+            "sessionsPerWeek": 3,
+            "durationMin": 30,
+            "intensity": "moderada"
+          },
+          "guidelines": []
+        },
+        "workouts": [
+          {
+            "planVersionId": "w1",
+            "activatedAt": "2026-10-19T12:00:00Z",
+            "activatedOn": "2026-10-19",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "A",
+                "B",
+                "off",
+                "C"
+              ]
+            }
+          }
+        ],
+        "overrides": [],
+        "slots": [
+          {
+            "slot": "meal_1",
+            "dayType": "training",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_1",
+            "dayType": "off",
+            "time": "08:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "training",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "off",
+            "time": "11:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "training",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "off",
+            "time": "14:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "fasting",
+            "dayType": "training",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "fasting",
+            "dayType": "off",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "training",
+            "time": "22:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "off",
+            "time": "23:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "training",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "off",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "training",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "off",
+            "time": "09:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "training",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "off",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "training",
+        "workoutDayKey": "B",
+        "targets": [
+          {
+            "type": "protocol_item",
+            "key": "item_fast_a",
+            "label": "Suplemento Jejum A",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_fast_b",
+            "label": "Suplemento Jejum B",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "1",
+            "label": "REF 1",
+            "slot": "meal_1",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "cardio",
+            "key": "cardio",
+            "label": "Cardio",
+            "slot": "cardio",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "2",
+            "label": "REF 2",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_meal2",
+            "label": "Suplemento Refeição",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "3",
+            "label": "Ceia",
+            "slot": "meal_3",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_pre",
+            "label": "Item Pré",
+            "slot": "pre_workout",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "workout",
+            "key": "workout",
+            "label": "Treino B",
+            "slot": "workout",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin",
+            "label": "Check-in",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_3d",
+            "label": "Item A Cada 3",
+            "slot": "after_meal",
+            "time": null,
+            "reminderEnabled": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "two_overrides_same_date_first_is_direct",
+      "description": "Two overrides for 2026-10-20 (C, then off): the first one listed is the day's choice, so Tue 2026-10-20 is C.",
+      "input": {
+        "date": "2026-10-20",
+        "protocol": {
+          "phaseName": "Fase exemplo",
+          "meals": [
+            {
+              "key": "1",
+              "label": "REF 1",
+              "items": [
+                {
+                  "food": "Alimento A",
+                  "grams": 100,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "2",
+              "label": "",
+              "items": [
+                {
+                  "food": "Alimento B",
+                  "grams": 150,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "3",
+              "label": "Ceia",
+              "items": []
+            }
+          ],
+          "items": [
+            {
+              "key": "item_meal2",
+              "category": "supplement",
+              "name": "Suplemento Refeição",
+              "timing": "with_meal:2",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_b",
+              "category": "supplement",
+              "name": "Suplemento Jejum B",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_a",
+              "category": "supplement",
+              "name": "Suplemento Jejum A",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_bed",
+              "category": "sleep_optional",
+              "name": "Item Noite",
+              "timing": "before_bed",
+              "schedule": {
+                "type": "weekdays",
+                "days": [
+                  "mon",
+                  "wed",
+                  "fri"
+                ]
+              }
+            },
+            {
+              "key": "item_pre",
+              "category": "thermogenic",
+              "name": "Item Pré",
+              "timing": "pre_workout",
+              "schedule": {
+                "type": "training_days_only"
+              }
+            },
+            {
+              "key": "item_rest",
+              "category": "supplement",
+              "name": "Item Descanso",
+              "timing": "any",
+              "schedule": {
+                "type": "off_days_only"
+              }
+            },
+            {
+              "key": "item_3d",
+              "category": "compound",
+              "name": "Item A Cada 3",
+              "timing": "after_meal",
+              "schedule": {
+                "type": "every_n_days",
+                "n": 3,
+                "anchor": "2026-10-19"
+              }
+            }
+          ],
+          "cardio": {
+            "sessionsPerWeek": 3,
+            "durationMin": 30,
+            "intensity": "moderada"
+          },
+          "guidelines": []
+        },
+        "workouts": [
+          {
+            "planVersionId": "w1",
+            "activatedAt": "2026-10-19T12:00:00Z",
+            "activatedOn": "2026-10-19",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "A",
+                "B",
+                "off",
+                "C"
+              ]
+            }
+          }
+        ],
+        "overrides": [
+          {
+            "date": "2026-10-20",
+            "workoutDayKey": "C"
+          },
+          {
+            "date": "2026-10-20",
+            "workoutDayKey": "off"
+          }
+        ],
+        "slots": [
+          {
+            "slot": "meal_1",
+            "dayType": "training",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_1",
+            "dayType": "off",
+            "time": "08:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "training",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "off",
+            "time": "11:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "training",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "off",
+            "time": "14:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "fasting",
+            "dayType": "training",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "fasting",
+            "dayType": "off",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "training",
+            "time": "22:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "off",
+            "time": "23:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "training",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "off",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "training",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "off",
+            "time": "09:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "training",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "off",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "training",
+        "workoutDayKey": "C",
+        "targets": [
+          {
+            "type": "protocol_item",
+            "key": "item_fast_a",
+            "label": "Suplemento Jejum A",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_fast_b",
+            "label": "Suplemento Jejum B",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "1",
+            "label": "REF 1",
+            "slot": "meal_1",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "cardio",
+            "key": "cardio",
+            "label": "Cardio",
+            "slot": "cardio",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "2",
+            "label": "REF 2",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_meal2",
+            "label": "Suplemento Refeição",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "3",
+            "label": "Ceia",
+            "slot": "meal_3",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_pre",
+            "label": "Item Pré",
+            "slot": "pre_workout",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "workout",
+            "key": "workout",
+            "label": "Treino C",
+            "slot": "workout",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin",
+            "label": "Check-in",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "two_overrides_same_date_reanchor_in_order",
+      "description": "Two overrides for 2026-10-20 (A, then off) re-anchor in the order listed: A (natural B) -> index 0, then off (natural A, not a rest) -> index 3; Wed 2026-10-21 is A. Listed the other way it would be B.",
+      "input": {
+        "date": "2026-10-21",
+        "protocol": {
+          "phaseName": "Fase exemplo",
+          "meals": [
+            {
+              "key": "1",
+              "label": "REF 1",
+              "items": [
+                {
+                  "food": "Alimento A",
+                  "grams": 100,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "2",
+              "label": "",
+              "items": [
+                {
+                  "food": "Alimento B",
+                  "grams": 150,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "3",
+              "label": "Ceia",
+              "items": []
+            }
+          ],
+          "items": [
+            {
+              "key": "item_meal2",
+              "category": "supplement",
+              "name": "Suplemento Refeição",
+              "timing": "with_meal:2",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_b",
+              "category": "supplement",
+              "name": "Suplemento Jejum B",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_a",
+              "category": "supplement",
+              "name": "Suplemento Jejum A",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_bed",
+              "category": "sleep_optional",
+              "name": "Item Noite",
+              "timing": "before_bed",
+              "schedule": {
+                "type": "weekdays",
+                "days": [
+                  "mon",
+                  "wed",
+                  "fri"
+                ]
+              }
+            },
+            {
+              "key": "item_pre",
+              "category": "thermogenic",
+              "name": "Item Pré",
+              "timing": "pre_workout",
+              "schedule": {
+                "type": "training_days_only"
+              }
+            },
+            {
+              "key": "item_rest",
+              "category": "supplement",
+              "name": "Item Descanso",
+              "timing": "any",
+              "schedule": {
+                "type": "off_days_only"
+              }
+            },
+            {
+              "key": "item_3d",
+              "category": "compound",
+              "name": "Item A Cada 3",
+              "timing": "after_meal",
+              "schedule": {
+                "type": "every_n_days",
+                "n": 3,
+                "anchor": "2026-10-19"
+              }
+            }
+          ],
+          "cardio": {
+            "sessionsPerWeek": 3,
+            "durationMin": 30,
+            "intensity": "moderada"
+          },
+          "guidelines": []
+        },
+        "workouts": [
+          {
+            "planVersionId": "w1",
+            "activatedAt": "2026-10-19T12:00:00Z",
+            "activatedOn": "2026-10-19",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "A",
+                "B",
+                "off",
+                "C"
+              ]
+            }
+          }
+        ],
+        "overrides": [
+          {
+            "date": "2026-10-20",
+            "workoutDayKey": "A"
+          },
+          {
+            "date": "2026-10-20",
+            "workoutDayKey": "off"
+          }
+        ],
+        "slots": [
+          {
+            "slot": "meal_1",
+            "dayType": "training",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_1",
+            "dayType": "off",
+            "time": "08:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "training",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "off",
+            "time": "11:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "training",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "off",
+            "time": "14:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "fasting",
+            "dayType": "training",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "fasting",
+            "dayType": "off",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "training",
+            "time": "22:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "off",
+            "time": "23:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "training",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "off",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "training",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "off",
+            "time": "09:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "training",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "off",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "training",
+        "workoutDayKey": "A",
+        "targets": [
+          {
+            "type": "protocol_item",
+            "key": "item_fast_a",
+            "label": "Suplemento Jejum A",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_fast_b",
+            "label": "Suplemento Jejum B",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "1",
+            "label": "REF 1",
+            "slot": "meal_1",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "cardio",
+            "key": "cardio",
+            "label": "Cardio",
+            "slot": "cardio",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "2",
+            "label": "REF 2",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_meal2",
+            "label": "Suplemento Refeição",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "3",
+            "label": "Ceia",
+            "slot": "meal_3",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_pre",
+            "label": "Item Pré",
+            "slot": "pre_workout",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "workout",
+            "key": "workout",
+            "label": "Treino A",
+            "slot": "workout",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin",
+            "label": "Check-in",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_bed",
+            "label": "Item Noite",
+            "slot": "before_bed",
+            "time": "22:30",
+            "reminderEnabled": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "same_day_activation_compares_instants",
+      "description": "Two versions activated on 2026-10-20 with different offsets: w_late 20:00-03:00 (23:00Z) is after w_early 22:00Z although its text sorts first; w_late (X,Y) wins, Wed 2026-10-21 is Y.",
+      "input": {
+        "date": "2026-10-21",
+        "protocol": {
+          "phaseName": "Fase exemplo",
+          "meals": [
+            {
+              "key": "1",
+              "label": "REF 1",
+              "items": [
+                {
+                  "food": "Alimento A",
+                  "grams": 100,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "2",
+              "label": "",
+              "items": [
+                {
+                  "food": "Alimento B",
+                  "grams": 150,
+                  "alternatives": []
+                }
+              ]
+            },
+            {
+              "key": "3",
+              "label": "Ceia",
+              "items": []
+            }
+          ],
+          "items": [
+            {
+              "key": "item_meal2",
+              "category": "supplement",
+              "name": "Suplemento Refeição",
+              "timing": "with_meal:2",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_b",
+              "category": "supplement",
+              "name": "Suplemento Jejum B",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_fast_a",
+              "category": "supplement",
+              "name": "Suplemento Jejum A",
+              "timing": "fasting",
+              "schedule": {
+                "type": "daily"
+              }
+            },
+            {
+              "key": "item_bed",
+              "category": "sleep_optional",
+              "name": "Item Noite",
+              "timing": "before_bed",
+              "schedule": {
+                "type": "weekdays",
+                "days": [
+                  "mon",
+                  "wed",
+                  "fri"
+                ]
+              }
+            },
+            {
+              "key": "item_pre",
+              "category": "thermogenic",
+              "name": "Item Pré",
+              "timing": "pre_workout",
+              "schedule": {
+                "type": "training_days_only"
+              }
+            },
+            {
+              "key": "item_rest",
+              "category": "supplement",
+              "name": "Item Descanso",
+              "timing": "any",
+              "schedule": {
+                "type": "off_days_only"
+              }
+            },
+            {
+              "key": "item_3d",
+              "category": "compound",
+              "name": "Item A Cada 3",
+              "timing": "after_meal",
+              "schedule": {
+                "type": "every_n_days",
+                "n": 3,
+                "anchor": "2026-10-19"
+              }
+            }
+          ],
+          "cardio": {
+            "sessionsPerWeek": 3,
+            "durationMin": 30,
+            "intensity": "moderada"
+          },
+          "guidelines": []
+        },
+        "workouts": [
+          {
+            "planVersionId": "w_late",
+            "activatedAt": "2026-10-20T20:00:00-03:00",
+            "activatedOn": "2026-10-20",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "X",
+                "Y"
+              ]
+            }
+          },
+          {
+            "planVersionId": "w_early",
+            "activatedAt": "2026-10-20T22:00:00Z",
+            "activatedOn": "2026-10-20",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "A",
+                "B"
+              ]
+            }
+          }
+        ],
+        "overrides": [],
+        "slots": [
+          {
+            "slot": "meal_1",
+            "dayType": "training",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_1",
+            "dayType": "off",
+            "time": "08:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "training",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_2",
+            "dayType": "off",
+            "time": "11:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "training",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "meal_3",
+            "dayType": "off",
+            "time": "14:00",
+            "reminderEnabled": false
+          },
+          {
+            "slot": "fasting",
+            "dayType": "training",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "fasting",
+            "dayType": "off",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "training",
+            "time": "22:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "before_bed",
+            "dayType": "off",
+            "time": "23:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "training",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "pre_workout",
+            "dayType": "off",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "training",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "cardio",
+            "dayType": "off",
+            "time": "09:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "training",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "workout",
+            "dayType": "off",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": true
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "training",
+        "workoutDayKey": "Y",
+        "targets": [
+          {
+            "type": "protocol_item",
+            "key": "item_fast_a",
+            "label": "Suplemento Jejum A",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_fast_b",
+            "label": "Suplemento Jejum B",
+            "slot": "fasting",
+            "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "1",
+            "label": "REF 1",
+            "slot": "meal_1",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "cardio",
+            "key": "cardio",
+            "label": "Cardio",
+            "slot": "cardio",
+            "time": "07:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "2",
+            "label": "REF 2",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_meal2",
+            "label": "Suplemento Refeição",
+            "slot": "meal_2",
+            "time": "10:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "meal",
+            "key": "3",
+            "label": "Ceia",
+            "slot": "meal_3",
+            "time": "13:00",
+            "reminderEnabled": false
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_pre",
+            "label": "Item Pré",
+            "slot": "pre_workout",
+            "time": "17:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "workout",
+            "key": "workout",
+            "label": "Treino Y",
+            "slot": "workout",
+            "time": "18:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin",
+            "label": "Check-in",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "protocol_item",
+            "key": "item_bed",
+            "label": "Item Noite",
+            "slot": "before_bed",
+            "time": "22:30",
+            "reminderEnabled": true
           }
         ]
       }

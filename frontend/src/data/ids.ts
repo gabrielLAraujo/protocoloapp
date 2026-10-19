@@ -16,5 +16,15 @@ export function rotationOverrideIdForDate(userId: string, date: string): string 
   return v5(`${userId}:rotation_override:${date}`, CHECKIN_NAMESPACE)
 }
 
+/** The id of a user's time for a slot on a type of day (`training` | `off`): one per pair, the same on every device. */
+export function scheduleSlotId(userId: string, slot: string, dayType: string): string {
+  return v5(`${userId}:schedule:${slot}:${dayType}`, CHECKIN_NAMESPACE)
+}
+
+/** The id of a user's mark of one target on a date (yyyy-MM-dd): one per target and day, the same on every device. */
+export function adherenceLogId(userId: string, date: string, targetType: string, targetKey: string): string {
+  return v5(`${userId}:adherence:${date}:${targetType}:${targetKey}`, CHECKIN_NAMESPACE)
+}
+
 /** A new random id for records without a natural key (sessions, sets, exercise changes). */
 export const newId = (): string => v4()
