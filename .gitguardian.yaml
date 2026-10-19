@@ -1,0 +1,6 @@
+version: 2
+secret:
+  # Public example keys from RFC 8291 appendix A used as test vectors; no real secret lives in these files.
+  ignored_paths:
+    - backend/tests/ProtocoloApp.UnitTests/Push/WebPushCryptoTests.cs
+    - backend/tests/ProtocoloApp.IntegrationTests/Push/PushApi.cs
