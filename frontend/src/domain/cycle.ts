@@ -9,6 +9,8 @@ export interface CycleInfo {
   /** 0..1 share of the cycle elapsed; null without `end`. */
   elapsedRatio: number | null
   billingDate: string | null
+  /** Days past `end` (0 when not overdue or without `end`). */
+  overdueDays: number
 }
 
 export function cycleInfo(
@@ -16,9 +18,9 @@ export function cycleInfo(
   today: string,
 ): CycleInfo {
   const { activatedOn: start, updateDate: end, billingDate } = protocol
-  if (!end) return { start, end: null, daysLeft: null, elapsedRatio: null, billingDate }
+  if (!end) return { start, end: null, daysLeft: null, elapsedRatio: null, billingDate, overdueDays: 0 }
   const total = diffDays(start, end)
   const elapsed = diffDays(start, today)
   const ratio = total <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / total))
-  return { start, end, daysLeft: Math.max(0, diffDays(today, end)), elapsedRatio: ratio, billingDate }
+  return { start, end, daysLeft: Math.max(0, diffDays(today, end)), elapsedRatio: ratio, billingDate, overdueDays: Math.max(0, diffDays(end, today)) }
 }

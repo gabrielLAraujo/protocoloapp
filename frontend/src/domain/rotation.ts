@@ -18,11 +18,11 @@ export type ResolvedDay = { kind: 'workout'; dayKey: string; planVersionId: stri
 
 const mod = (n: number, m: number) => ((n % m) + m) % m
 
-/** The version active on `date`: the one with the greatest `activatedOn <= date`. */
+/** The version active on `date`: the one with the greatest `activatedOn <= date`; on a tie the later entry in `plans` wins. */
 export function activePlanAt(date: string, plans: WorkoutPlanAt[]): WorkoutPlanAt | null {
   let active: WorkoutPlanAt | null = null
   for (const plan of plans) {
-    if (plan.activatedOn <= date && (!active || plan.activatedOn > active.activatedOn)) active = plan
+    if (plan.activatedOn <= date && (!active || plan.activatedOn >= active.activatedOn)) active = plan
   }
   return active
 }

@@ -95,3 +95,12 @@ describe('plannedWorkoutDays', () => {
     expect(plannedWorkoutDays('2026-10-29', '2026-11-03', [v1, v2], [])).toEqual(['2026-10-29', '2026-10-30', '2026-11-01', '2026-11-03'])
   })
 })
+
+describe('activePlanAt tie-break', () => {
+  it('later entry wins when activatedOn is equal', () => {
+    const a = plan('a', '2026-10-20')
+    const b = plan('b', '2026-10-20', ['X', 'off'])
+    expect(resolveDay('2026-10-20', [a, b], [])).toMatchObject({ planVersionId: 'b', dayKey: 'X' })
+    expect(resolveDay('2026-10-20', [b, a], [])).toMatchObject({ planVersionId: 'a' })
+  })
+})

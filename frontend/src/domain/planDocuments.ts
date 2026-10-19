@@ -9,7 +9,9 @@ import { isCalendarDate } from './calendarDate'
 const date = z.string().refine(isCalendarDate, { message: 'invalid date' })
 const optional = <T extends z.ZodType>(schema: T) => schema.nullish()
 const list = <T extends z.ZodType>(schema: T) => z.preprocess((v) => v ?? [], z.array(schema))
-const text = z.string().default('')
+/** A string the backend reads leniently: missing or null becomes the default. */
+const str = (fallback: string) => z.preprocess((v) => v ?? fallback, z.string())
+const text = str('')
 
 const mealItemSchema = z.object({
   food: text,
@@ -26,7 +28,7 @@ const mealSchema = z.object({
 
 /** `type`: daily | weekdays (`days`) | every_n_days (`n`, `anchor`) | training_days_only | off_days_only. */
 const scheduleSchema = z.object({
-  type: z.string().default('daily'),
+  type: str('daily'),
   days: optional(z.array(z.string())),
   n: optional(z.number().int()),
   anchor: optional(date),
@@ -38,7 +40,7 @@ const protocolItemSchema = z.object({
   category: text,
   name: text,
   doseText: optional(z.string()),
-  timing: z.string().default('any'),
+  timing: str('any'),
   schedule: scheduleSchema.default({ type: 'daily' }),
 })
 

@@ -39,10 +39,10 @@ describe('rest timer', () => {
     timer.addSeconds(15)
     const json = JSON.parse(JSON.stringify(timer.toJSON()))
     const restored = restTimerFromJSON(json, c.now)
-    expect(restored.remaining()).toBe(75)
+    expect(restored!.remaining()).toBe(75)
     c.advance(10)
-    expect(restored.remaining()).toBe(65)
-    expect(createRestTimer.fromJSON(json, c.now).remaining()).toBe(65)
+    expect(restored!.remaining()).toBe(65)
+    expect(createRestTimer.fromJSON(json, c.now)!.remaining()).toBe(65)
   })
 
   it('advances through the SST sequence', () => {
@@ -57,5 +57,15 @@ describe('rest timer', () => {
     }
     expect(seen).toEqual([...seq, 45]) // stays on the last step
     expect(timer.index()).toBe(7)
+  })
+})
+
+describe('restTimerFromJSON validation', () => {
+  it('returns null for corrupt data', () => {
+    const now = () => 0
+    for (const bad of [null, 'x', {}, { durations: [], index: 0, endsAt: null }, { durations: [30], index: 5, endsAt: null }, { durations: ['a'], index: 0, endsAt: null }, { durations: [30], index: 0, endsAt: 'soon' }, { durations: [30], index: 0 }]) {
+      expect(restTimerFromJSON(bad, now)).toBeNull()
+    }
+    expect(restTimerFromJSON({ durations: [30], index: 0, endsAt: null }, now)).not.toBeNull()
   })
 })

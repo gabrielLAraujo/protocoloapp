@@ -38,22 +38,26 @@ function byExercise(sets: SetLog[]): Map<string, SetLog[]> {
   return map
 }
 
+const EPSILON = 0.01
+
 /**
+ * `history` must NOT contain the current session's sets (filter by session before calling).
  * Records set in the current session versus the history: per exercise, a heavier set (`maxWeight`) and a higher e1RM
- * (`maxE1rm`). An exercise with no history has nothing to beat, so it yields no PR. Warm-ups never count.
+ * (`maxE1rm`). An exercise with no history has nothing to beat, so it yields no PR. Warm-ups and sets with 0 reps never count; a record must beat the old value by more than 0.01.
  */
 export function sessionPRs(current: SetLog[], history: SetLog[]): PR[] {
-  const past = byExercise(history)
+  const counts = (s: SetLog) => s.reps > 0
+  const past = byExercise(history.filter(counts))
   const prs: PR[] = []
-  for (const [exerciseId, sets] of byExercise(current)) {
+  for (const [exerciseId, sets] of byExercise(current.filter(counts))) {
     const before = past.get(exerciseId)
     if (!before) continue
     const prevWeight = Math.max(...before.map((s) => s.weightKg))
     const prevE1rm = Math.max(...before.map(setE1rm))
     const heaviest = sets.reduce((a, b) => (b.weightKg > a.weightKg ? b : a))
-    if (heaviest.weightKg > prevWeight) prs.push({ exerciseId, kind: 'maxWeight', value: heaviest.weightKg, previous: prevWeight, setId: heaviest.id })
+    if (heaviest.weightKg > prevWeight + EPSILON) prs.push({ exerciseId, kind: 'maxWeight', value: heaviest.weightKg, previous: prevWeight, setId: heaviest.id })
     const top = bestSet(sets)
-    if (top && setE1rm(top) > prevE1rm) prs.push({ exerciseId, kind: 'maxE1rm', value: setE1rm(top), previous: prevE1rm, setId: top.id })
+    if (top && setE1rm(top) > prevE1rm + EPSILON) prs.push({ exerciseId, kind: 'maxE1rm', value: setE1rm(top), previous: prevE1rm, setId: top.id })
   }
   return prs
 }
@@ -72,7 +76,7 @@ export type GroupTrends = { best: Trend[]; worst: Trend[] }
 
 /**
  * Per muscle group, e1RM change of each exercise between its first and last session in `[from, to]` (needs at least
- * 2 sessions; the best set of each session). `best` = top 2 by delta; `worst` = bottom 2 among the rest. Empty lists mean
+ * 2 sessions; the best set of each session). `best` = top 2 by delta; `worst` = bottom 2 among the rest, only those with delta < 0. Empty lists mean
  * "sem dados".
  */
 export function strengthByGroup(
@@ -118,7 +122,7 @@ export function strengthByGroup(
   for (const [group, list] of trends) {
     const desc = [...list].sort((a, b) => b.delta - a.delta)
     const best = desc.slice(0, 2)
-    const worst = desc.slice(2).reverse().slice(0, 2)
+    const worst = desc.slice(2).filter((t) => t.delta < 0).reverse().slice(0, 2)
     result[group] = { best, worst }
   }
   return result

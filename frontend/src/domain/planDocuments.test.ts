@@ -114,3 +114,29 @@ describe('parseWorkoutDocument', () => {
     expect(parseWorkoutDocument({ days: [{ key: 'A', name: 'A', exercises: [{ key: 'k', name: 'n', exerciseId: 'nope' }] }] }).ok).toBe(false)
   })
 })
+
+describe('null tolerance (backend reads null strings leniently)', () => {
+  it('protocol: null strings become defaults', () => {
+    const r = parseProtocolDocument({
+      meals: [{ key: null, label: null, items: [{ food: null, alternatives: null }] }],
+      items: [{ key: null, category: null, name: null, timing: null, schedule: { type: null } }],
+      guidelines: [{ kind: null }],
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.meals[0].label).toBe('')
+      expect(r.value.items[0].timing).toBe('any')
+      expect(r.value.items[0].schedule.type).toBe('daily')
+    }
+  })
+
+  it('workout: null strings become defaults', () => {
+    const r = parseWorkoutDocument({ rotation: { type: null }, days: [{ key: null, name: null, exercises: [{ key: null, name: null, sets: null }] }] })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.rotation?.type).toBe('')
+      expect(r.value.days[0].name).toBe('')
+      expect(r.value.days[0].exercises[0].sets).toEqual([])
+    }
+  })
+})

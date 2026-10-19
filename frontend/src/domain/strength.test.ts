@@ -91,3 +91,19 @@ describe('strengthByGroup', () => {
     expect(narrow.quads.best).toEqual([])
   })
 })
+
+describe('sessionPRs edge cases', () => {
+  const history = [set('h', 'x', 100, 5)]
+  it('skips 0-rep sets and ties within epsilon', () => {
+    expect(sessionPRs([set('c', 'x', 500, 0)], history)).toEqual([])
+    expect(sessionPRs([set('c', 'x', 100.005, 5)], history)).toEqual([])
+  })
+  it('worst only holds negative deltas', () => {
+    const ex = ['a', 'b', 'c'].map((id) => exercise(id, id, 'back'))
+    const ss = [session('s1', '2026-10-20'), session('s2', '2026-10-27')]
+    const sets = ex.flatMap((e, i) => [set('s1', e.id, 100, 10), set('s2', e.id, 100 + (i + 1) * 5, 10)])
+    const out = strengthByGroup(ss, sets, ex, '2026-10-01', '2026-11-30')
+    expect(out.back.best).toHaveLength(2)
+    expect(out.back.worst).toEqual([])
+  })
+})
