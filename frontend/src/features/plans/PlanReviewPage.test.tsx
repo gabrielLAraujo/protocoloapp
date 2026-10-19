@@ -1,8 +1,8 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from '@testing-library/react'
-import { exerciseSync } from '../../data/exerciseRepo'
+import { exerciseRepo, exerciseSync } from '../../data/exerciseRepo'
 import { json, mockFetch, problem } from '../../test/fetch-mock'
 import { setupApp } from '../testSupport'
 import { planVersion, PLAN_ID, protocolDocument, workoutDocument, type PlanVersion } from './fixtures'
@@ -174,6 +174,51 @@ describe('PlanReviewPage', () => {
     expect(put.document).toMatchObject({ phaseName: 'Fase 3', updateDate: '2026-12-01', billingDate: '2026-12-05' })
     expect(put.newExercises).toBeNull()
     expect(JSON.parse(calls.find((c) => c.path.endsWith('/activate'))!.body)).toEqual({ cycleStart: '2026-10-18' })
+  })
+
+  it('keeps the diff on screen after saving the draft (the PUT answers without one)', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    await renderReview(
+      planVersion({ diff: { added: ['days[c]'], removed: [], changed: [] } }),
+      { [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ diff: null })) },
+    )
+    const list = await screen.findByRole('list', { name: 'Mudanças em relação à versão ativa' })
+    expect(within(list).getByText('days[c]')).toBeInTheDocument()
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
+    await screen.findByText('Rascunho salvo')
+
+    expect(within(screen.getByRole('list', { name: 'Mudanças em relação à versão ativa' })).getByText('days[c]')).toBeInTheDocument()
+  })
+
+  it('until the catalog is read, the group selectors, "Salvar rascunho" and "Ativar" stay disabled', async () => {
+    let release: (value: Awaited<ReturnType<typeof exerciseRepo.all>>) => void = () => {}
+    vi.spyOn(exerciseRepo, 'all').mockReturnValue(new Promise((resolve) => (release = resolve)))
+    await renderReview(planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }] }))
+
+    expect(await screen.findByText('Carregando catálogo…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ativar' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
+    expect(screen.getByLabelText('Grupo de Crucifixo novo')).toBeDisabled()
+
+    await act(async () => {
+      release([])
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ativar' })).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled()
+    expect(screen.queryByText('Carregando catálogo…')).not.toBeInTheDocument()
+  })
+
+  it('when the catalog cannot be read, shows an error and keeps saving and activating disabled', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(exerciseRepo, 'all').mockRejectedValue(new Error('db closed'))
+    await renderReview(planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }] }))
+
+    expect(await screen.findByText('Não foi possível ler o catálogo de exercícios do aparelho.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ativar' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
+    expect(screen.getByLabelText('Grupo de Crucifixo novo')).toBeDisabled()
   })
 
   it('a server validation failure is shown and nothing is activated', async () => {

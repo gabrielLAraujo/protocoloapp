@@ -48,6 +48,18 @@ describe('uploadPdf', () => {
     await expect(uploadPdf('workout', pdf())).rejects.toThrow(new ImportError(message))
   })
 
+  it('refuses a file over 20 MiB or that is not a PDF before asking for an upload url', async () => {
+    const calls = mockFetch(happyRoutes())
+    const big = new File([new Uint8Array(20 * 1024 * 1024 + 1)], 'ficha.pdf', { type: 'application/pdf' })
+    await expect(uploadPdf('workout', big)).rejects.toThrow(new ImportError('PDF grande demais (máx. 20 MB).'))
+    const image = new File(['x'], 'ficha.png', { type: 'image/png' })
+    await expect(uploadPdf('workout', image)).rejects.toThrow(new ImportError('Envie um arquivo PDF.'))
+    expect(calls).toHaveLength(0)
+    // Exactly 20 MiB still goes through.
+    const exact = new File([new Uint8Array(20 * 1024 * 1024)], 'ficha.pdf', { type: 'application/pdf' })
+    await expect(uploadPdf('workout', exact)).resolves.toBe(PLAN_ID)
+  })
+
   it('no connection says to connect to the internet', async () => {
     mockFetch({}) // every request fails like a dropped connection
     await expect(uploadPdf('workout', pdf())).rejects.toThrow('Conecte-se à internet para importar')

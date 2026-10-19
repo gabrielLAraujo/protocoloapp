@@ -19,22 +19,26 @@ export interface WorkoutPlanEntry {
  */
 export async function loadWorkoutPlans(db: LocalDb): Promise<WorkoutPlanEntry[]> {
   const versions = await planRepo.list(db, 'workout')
-  const entries: WorkoutPlanEntry[] = []
+  const entries: { entry: WorkoutPlanEntry; activatedAt: string }[] = []
   for (const v of versions) {
     if (v.status === 'draft' || v.activatedAt === null) continue
     const parsed = parseWorkoutDocument(v.document)
     if (!parsed.ok) continue
     entries.push({
-      id: v.id,
-      document: parsed.value,
-      at: {
-        planVersionId: v.id,
-        activatedOn: localDate(new Date(v.activatedAt)),
-        rotation: parsed.value.rotation ?? { type: '' },
+      activatedAt: v.activatedAt,
+      entry: {
+        id: v.id,
+        document: parsed.value,
+        at: {
+          planVersionId: v.id,
+          activatedOn: localDate(new Date(v.activatedAt)),
+          rotation: parsed.value.rotation ?? { type: '' },
+        },
       },
     })
   }
-  return entries.sort((a, b) => a.at.activatedOn.localeCompare(b.at.activatedOn))
+  // Full timestamp order: two activations on the same local day resolve to the newest (`activePlanAt` keeps the later entry on a tie).
+  return entries.sort((a, b) => Date.parse(a.activatedAt) - Date.parse(b.activatedAt)).map((e) => e.entry)
 }
 
 /** The catalog exercise of a planned one: by id, else by normalized name (or alias). */

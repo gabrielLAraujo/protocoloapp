@@ -4,6 +4,8 @@ import type { PlanKind } from '../../data/planRepo'
 export const OFFLINE_IMPORT_MESSAGE = 'Conecte-se à internet para importar'
 const UNAVAILABLE = 'Importação indisponível no momento.'
 const TOO_BIG = 'PDF grande demais (máx. 20 MB).'
+const NOT_PDF = 'Envie um arquivo PDF.'
+const MAX_BYTES = 20 * 1024 * 1024
 const GENERIC = 'Não foi possível importar o PDF. Tente novamente.'
 
 export type UploadStage = 'uploading' | 'reading'
@@ -32,9 +34,14 @@ export async function uploadPdf(
   file: File,
   onStage?: (stage: UploadStage) => void,
 ): Promise<string> {
+  const contentType = 'application/pdf'
+  // Checked on the device first: the server would refuse these after a pointless upload.
+  // Some pickers give an empty type: then the extension decides.
+  const isPdf = file.type === contentType || (file.type === '' && file.name.toLowerCase().endsWith('.pdf'))
+  if (!isPdf) throw new ImportError(NOT_PDF)
+  if (file.size > MAX_BYTES) throw new ImportError(TOO_BIG)
   try {
     onStage?.('uploading')
-    const contentType = 'application/pdf'
     const slot = await api.POST('/api/files/upload-url', {
       body: { kind: kind === 'protocol' ? 'protocolPdf' : 'workoutPdf', contentType, sizeBytes: file.size },
     })

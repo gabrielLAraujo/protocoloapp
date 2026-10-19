@@ -50,16 +50,24 @@ export function CycleDatesForm({
         const first = errors ? Object.values(errors).flat()[0] : undefined
         const problem = toProblem(failure)
         setError(first ?? problem.detail ?? problem.title)
+        setWorking(false)
         return
       }
-      await syncNow()
-      setSaved(true)
-      onSaved?.()
     } catch {
       setError(CYCLE_DATES_OFFLINE)
-    } finally {
       setWorking(false)
+      return
     }
+    // The dates are saved on the server from here on: a failing sync must not read as a failed save (the sync status
+    // shows its own problem and the next sync brings the new document).
+    try {
+      await syncNow()
+    } catch (failure) {
+      console.error('sync after saving the cycle dates failed', failure)
+    }
+    setSaved(true)
+    setWorking(false)
+    onSaved?.()
   }
 
   return (

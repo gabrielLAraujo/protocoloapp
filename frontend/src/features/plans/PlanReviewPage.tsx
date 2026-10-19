@@ -62,6 +62,8 @@ export function PlanReviewPage() {
   const [doc, setDoc] = useState<Doc | null>(null)
   const [groups, setGroups] = useState<Record<string, MuscleGroup>>({})
   const [catalog, setCatalog] = useState<ReadonlySet<string>>(new Set())
+  // Which exercises are new depends on the catalog: until it is read nothing may be saved or activated.
+  const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [diff, setDiff] = useState<PlanDiff | null>(null)
   const [cycleStart, setCycleStart] = useState(() => localDate())
   const [working, setWorking] = useState<'saving' | 'activating' | null>(null)
@@ -89,9 +91,14 @@ export function PlanReviewPage() {
     exerciseRepo
       .all(data.db)
       .then((list) => {
-        if (!cancelled) setCatalog(new Set(list.flatMap((e) => [e.normalizedName, ...e.aliases.map(normalizeExerciseName)])))
+        if (cancelled) return
+        setCatalog(new Set(list.flatMap((e) => [e.normalizedName, ...e.aliases.map(normalizeExerciseName)])))
+        setCatalogState('ready')
       })
-      .catch((e: unknown) => console.error('could not read the exercises', e))
+      .catch((e: unknown) => {
+        console.error('could not read the exercises', e)
+        if (!cancelled) setCatalogState('failed')
+      })
     return () => {
       cancelled = true
     }
@@ -187,7 +194,8 @@ export function PlanReviewPage() {
     }
     // The server keeps the extraction error on the draft; once the user has filled it in, the banner is done.
     setPlan({ ...data, extractionError: null })
-    setDiff(data.diff)
+    // The PUT answers without a diff: keep the one on screen.
+    setDiff((previous) => data.diff ?? previous)
     dirty.current = false
     return true
   }
@@ -222,7 +230,8 @@ export function PlanReviewPage() {
 
   // A cleared reps box cannot be saved even as a draft (it would come back as 0).
   const incomplete = issues.some((i) => /\.reps(Min|Max)$/.test(i.path))
-  const blocked = issues.length > 0 || !online
+  const catalogReady = plan.kind !== 'workout' || catalogState === 'ready'
+  const blocked = issues.length > 0 || !online || !catalogReady
   const title = plan.kind === 'workout' ? 'Revisar treino' : 'Revisar protocolo'
 
   return (
@@ -262,6 +271,7 @@ export function PlanReviewPage() {
             doc={doc as WorkoutDocument}
             onChange={edit}
             newExercises={newExercises}
+            groupsDisabled={!catalogReady}
             onGroupChange={(id, group) => {
               dirty.current = true
               setGroups((current) => ({ ...current, [id]: group }))
@@ -301,6 +311,12 @@ export function PlanReviewPage() {
             </div>
           )}
           {!online && <p className="text-sm text-muted">{OFFLINE}</p>}
+          {plan.kind === 'workout' && catalogState === 'loading' && <p className="text-sm text-muted">Carregando catálogo…</p>}
+          {plan.kind === 'workout' && catalogState === 'failed' && (
+            <p role="alert" className="text-sm text-danger">
+              Não foi possível ler o catálogo de exercícios do aparelho.
+            </p>
+          )}
           {actionErrors.length > 0 && (
             <ul role="alert" className="list-disc pl-5 text-sm text-danger">
               {actionErrors.map((message, i) => (
@@ -310,7 +326,7 @@ export function PlanReviewPage() {
           )}
           {saved && <p role="status" className="text-sm text-ok">Rascunho salvo</p>}
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={buttonClass} disabled={!online || working !== null || incomplete} onClick={() => void run('saving')}>
+            <button type="button" className={buttonClass} disabled={!online || working !== null || incomplete || !catalogReady} onClick={() => void run('saving')}>
               {working === 'saving' ? 'Salvando…' : 'Salvar rascunho'}
             </button>
             <button

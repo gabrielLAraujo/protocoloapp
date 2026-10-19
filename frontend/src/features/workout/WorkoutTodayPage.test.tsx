@@ -157,6 +157,9 @@ describe('WorkoutTodayPage', () => {
     await user.click(bench().getByRole('button', { name: 'Excluir série 1' }))
     await waitFor(async () => expect(await workoutRepo.setsForSession(db, open.id)).toHaveLength(0))
     expect(await bench().findByRole('button', { name: 'Concluir série 1' })).toBeInTheDocument()
+    expect(bench().getByLabelText('Carga da série 1 (kg)')).toHaveValue('')
+    expect(bench().getByLabelText('Repetições da série 1')).toHaveValue('')
+    expect(bench().getByLabelText('Tipo da série 1')).toHaveValue('normal')
   })
 
   it('"Adicionar série" grows by one row each time, even after logging an extra row', async () => {
@@ -172,6 +175,35 @@ describe('WorkoutTodayPage', () => {
     expect(rows()).toBe(3)
     await user.click(bench().getByRole('button', { name: 'Adicionar série' }))
     expect(rows()).toBe(4)
+  })
+
+  it('"Adicionar série" still adds a row after a reload with an extra row logged', async () => {
+    const { ui, view, user } = await render()
+    await startWorkout(user)
+    await user.click(bench().getByRole('button', { name: 'Adicionar série' }))
+    await typeSet(user, 3, '50', '12')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 3' }))
+    await bench().findByRole('button', { name: 'Editar série 3' })
+
+    ui.unmount()
+    view(<WorkoutTodayPage />)
+    await screen.findByText('Treino em andamento')
+    await within(await screen.findByRole('region', { name: 'Supino reto' })).findByRole('button', { name: 'Editar série 3' })
+    expect(bench().getAllByRole('listitem')).toHaveLength(3)
+    await user.click(bench().getByRole('button', { name: 'Adicionar série' }))
+    expect(bench().getAllByRole('listitem')).toHaveLength(4)
+  })
+
+  it('a 0 in the rest sequence shows as a dash in the card header', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'], undefined, (doc) => {
+      doc.days[0]!.exercises[0] = { ...doc.days[0]!.exercises[0]!, restSequence: [0, 45] } as never
+    })
+    const user = userEvent.setup()
+    app.view(<WorkoutTodayPage />)
+    await startWorkout(user)
+    expect(bench().getByText('Descanso: — / 45 s')).toBeInTheDocument()
   })
 
   it('reloading in the middle restores the open session, the marked sets and the timer', async () => {

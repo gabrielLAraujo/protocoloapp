@@ -33,9 +33,46 @@ function asResult(dayKey: string | undefined, planVersionId: string): ResolvedDa
 }
 
 /**
- * What to do on `date`. A direct override for that date wins. Otherwise `sequence` counts days from an anchor: the latest
- * override on or before `date` (its position in the sequence) or, without one, the rotation's anchor / the version's
- * `activatedOn` (position 0). `fixed_weekdays` uses the local weekday.
+ * Position in `items` on `date`, counted from an anchor. The anchor starts at the rotation's anchor / the version's
+ * `activatedOn` (position 0) and each earlier override inside the active version re-anchors it:
+ * - a workout key sets the position to the occurrence of that key nearest to where the rotation would have been;
+ * - `off` postpones the rotation by one day (the skipped workout comes next), unless that day was already a rest day.
+ */
+function sequenceIndex(date: string, plan: WorkoutPlanAt, items: string[], overrides: RotationOverrideAt[]): number {
+  const n = items.length
+  let anchorDate = plan.rotation.anchor ?? plan.activatedOn
+  let anchorIndex = 0
+  // Only overrides inside the active version count as anchors (earlier ones refer to another plan).
+  const anchors = overrides
+    .filter((o) => o.date < date && o.date >= plan.activatedOn)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  for (const o of anchors) {
+    const natural = mod(anchorIndex + diffDays(anchorDate, o.date), n)
+    let next: number
+    if (o.dayKey === OFF) {
+      next = items[natural] === OFF ? natural : mod(natural - 1, n)
+    } else {
+      let best = -1
+      let bestDistance = Infinity
+      items.forEach((item, i) => {
+        if (item !== o.dayKey) return
+        const distance = Math.min(mod(i - natural, n), mod(natural - i, n))
+        if (distance < bestDistance) {
+          best = i
+          bestDistance = distance
+        }
+      })
+      if (best < 0) continue
+      next = best
+    }
+    anchorDate = o.date
+    anchorIndex = next
+  }
+  return mod(anchorIndex + diffDays(anchorDate, date), n)
+}
+
+/**
+ * What to do on `date`. A direct override for that date wins. Otherwise `sequence` counts days from an anchor (see `sequenceIndex`). `fixed_weekdays` uses the local weekday.
  */
 export function resolveDay(date: string, plans: WorkoutPlanAt[], overrides: RotationOverrideAt[]): ResolvedDay {
   const plan = activePlanAt(date, plans)
@@ -54,17 +91,7 @@ export function resolveDay(date: string, plans: WorkoutPlanAt[], overrides: Rota
     const items = rotation.items ?? []
     if (items.length === 0) return { kind: 'none' }
 
-    let anchorDate = rotation.anchor ?? plan.activatedOn
-    let anchorIndex = 0
-    // Only overrides inside the active version count as anchors (earlier ones refer to another plan).
-    const anchors = overrides
-      .filter((o) => o.date <= date && o.date >= plan.activatedOn && items.includes(o.dayKey))
-      .sort((a, b) => (a.date < b.date ? 1 : -1))
-    if (anchors.length > 0) {
-      anchorDate = anchors[0].date
-      anchorIndex = items.indexOf(anchors[0].dayKey)
-    }
-    return asResult(items[mod(anchorIndex + diffDays(anchorDate, date), items.length)], plan.planVersionId)
+    return asResult(items[sequenceIndex(date, plan, items, overrides)], plan.planVersionId)
   }
 
   return { kind: 'none' }

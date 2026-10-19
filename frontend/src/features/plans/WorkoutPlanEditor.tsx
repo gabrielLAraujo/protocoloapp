@@ -15,9 +15,11 @@ type Props = {
   onChange: (doc: WorkoutDocument) => void
   newExercises: NewExercise[]
   onGroupChange: (id: string, group: MuscleGroup) => void
+  /** The device catalog is not loaded yet: which exercises are new is not known, so the groups cannot be chosen. */
+  groupsDisabled?: boolean
 }
 
-export function WorkoutPlanEditor({ doc, onChange, newExercises, onGroupChange }: Props) {
+export function WorkoutPlanEditor({ doc, onChange, newExercises, onGroupChange, groupsDisabled }: Props) {
   const set = (path: string, value: unknown) => onChange(setIn(doc, path, value))
 
   const addDay = () => {
@@ -36,6 +38,7 @@ export function WorkoutPlanEditor({ doc, onChange, newExercises, onGroupChange }
               label={`Grupo de ${ex.name}`}
               value={ex.group}
               options={GROUP_OPTIONS}
+              disabled={groupsDisabled}
               onChange={(group) => onGroupChange(ex.id, group as MuscleGroup)}
             />
           ))}

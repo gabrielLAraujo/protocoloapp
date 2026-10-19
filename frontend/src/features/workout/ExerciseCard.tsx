@@ -16,7 +16,8 @@ function lastTimeText(sets: SetLocal[]): string {
 
 function restText(planned: PlannedExercise): string | null {
   const durations = restDurations(planned)
-  return durations ? `Descanso: ${durations.join(' / ')} s` : null
+  // A 0 in the sequence means "no rest after that set".
+  return durations ? `Descanso: ${durations.map((n) => (n > 0 ? String(n) : '—')).join(' / ')} s` : null
 }
 
 interface Props {
@@ -53,7 +54,8 @@ export function ExerciseCard(props: Props) {
 
   const loggedAt = new Map(sets.map((s) => [s.setIndex, s]))
   const maxLogged = sets.reduce((m, s) => Math.max(m, s.setIndex), -1)
-  // `extra` rows are added to the planned ones; sets logged beyond them keep their rows without growing the count.
+  // Sets logged beyond the planned rows keep their rows; "Adicionar série" always adds one on top of the rows shown
+  // (also after a reload, when `extra` is back to 0 but extra sets are already logged).
   const rows = Math.min(MAX_SET_INDEX + 1, Math.max(planned.sets.length + extra, maxLogged + 1))
 
   /** Runs a write; a failure shows the inline error instead of an unhandled rejection. Returns whether it worked. */
@@ -108,7 +110,7 @@ export function ExerciseCard(props: Props) {
       )}
 
       {!skipped && exercise !== null && rows < MAX_SET_INDEX + 1 && (
-        <button type="button" className={buttonClass} onClick={() => setExtra((n) => n + 1)}>
+        <button type="button" className={buttonClass} onClick={() => setExtra(rows + 1 - planned.sets.length)}>
           Adicionar série
         </button>
       )}

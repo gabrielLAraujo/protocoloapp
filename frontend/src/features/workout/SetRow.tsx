@@ -72,6 +72,10 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
     try {
       await onDelete()
       setEditing(false)
+      // The row goes back to empty: nothing of the deleted set may linger in the fields.
+      setWeight('')
+      setReps('')
+      setKind(defaultKind(planned?.technique))
     } catch (error) {
       console.error('could not delete the set', error)
       setFailed(true)

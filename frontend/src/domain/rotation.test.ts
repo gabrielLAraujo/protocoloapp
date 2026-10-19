@@ -104,3 +104,36 @@ describe('activePlanAt tie-break', () => {
     expect(resolveDay('2026-10-20', [b, a], [])).toMatchObject({ planVersionId: 'a' })
   })
 })
+
+describe('off override', () => {
+  const ov = [{ date: '2026-10-21', dayKey: 'off' }] // 21st would be B
+  it('postpones the rotation: the skipped workout comes next day', () => {
+    expect(key('2026-10-21', [v1], ov)).toBe('off')
+    expect(key('2026-10-22', [v1], ov)).toBe('B')
+    expect(key('2026-10-23', [v1], ov)).toBe('C')
+    expect(key('2026-10-24', [v1], ov)).toBe('off')
+    expect(key('2026-10-25', [v1], ov)).toBe('D')
+  })
+
+  it('does not jump to the first off of the sequence', () => {
+    const late = [{ date: '2026-10-24', dayKey: 'off' }] // 24th would be D
+    expect(key('2026-10-25', [v1], late)).toBe('D')
+    expect(key('2026-10-26', [v1], late)).toBe('E')
+  })
+
+  it('an off override on a natural rest day changes nothing', () => {
+    const rest = [{ date: '2026-10-23', dayKey: 'off' }]
+    expect(key('2026-10-24', [v1], rest)).toBe('D')
+    expect(key('2026-10-25', [v1], rest)).toBe('E')
+  })
+})
+
+describe('workout override with repeated keys', () => {
+  it('picks the occurrence nearest the natural position', () => {
+    const rep = plan('rep', '2026-10-20', ['A', 'B', 'A', 'C', 'off'])
+    // 22nd is natural index 2 (A); choosing A keeps index 2, so the 23rd is C (not B).
+    expect(key('2026-10-23', [rep], [{ date: '2026-10-22', dayKey: 'A' }])).toBe('C')
+    // 20th is natural index 0 (A): override A keeps index 0 and the 21st is B.
+    expect(key('2026-10-21', [rep], [{ date: '2026-10-20', dayKey: 'A' }])).toBe('B')
+  })
+})
