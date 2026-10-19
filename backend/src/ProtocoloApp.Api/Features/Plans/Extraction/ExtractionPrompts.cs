@@ -18,7 +18,7 @@ internal static class ExtractionPrompts
         text.AppendLine("Regras gerais:");
         text.AppendLine("- Copie doses, quantidades e textos literalmente, como texto. Nunca invente números nem complete o que o PDF não diz; use null.");
         text.AppendLine("- Datas no formato yyyy-MM-dd. Quando o PDF omitir o ano, use a próxima ocorrência da data a partir de hoje e inclua o caminho do campo em lowConfidence.");
-        text.AppendLine("- Liste em lowConfidence os caminhos JSON (por exemplo items[2].doseText) de tudo o que estiver ilegível, ambíguo ou inferido.");
+        text.AppendLine("- Liste em lowConfidence os caminhos de tudo o que estiver ilegível, ambíguo ou inferido. Os caminhos são relativos à raiz de document, com índices começando em 0 e sem prefixo (por exemplo items[2].doseText ou days[0].exercises[3].sets, nunca document.items[2]).");
 
         if (kind == PlanKind.Protocol)
         {

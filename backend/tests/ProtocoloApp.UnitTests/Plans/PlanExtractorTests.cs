@@ -38,6 +38,7 @@ public sealed class PlanExtractorTests
             ApiKey = apiKey,
             BaseUrl = "https://anthropic.test",
             Timeout = timeout ?? TimeSpan.FromSeconds(5),
+            RetryDelay = TimeSpan.Zero,
         });
         var client = new AnthropicClient(new HttpClient(handler), options);
         return new PlanExtractor(client, options, new FixedClock(new DateTimeOffset(2026, 10, 18, 12, 0, 0, TimeSpan.Zero)), NullLogger<PlanExtractor>.Instance);
@@ -177,17 +178,79 @@ public sealed class PlanExtractorTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.BadRequest)]
     [InlineData(HttpStatusCode.Unauthorized)]
-    public async Task Http_errors_are_unavailable_without_retry(HttpStatusCode status)
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.RequestEntityTooLarge)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task Fatal_http_errors_are_unavailable_without_retry(HttpStatusCode status)
     {
-        var handler = new FakeHandler((_, _) => Json("""{ "type": "error" }""", status));
+        var handler = new FakeHandler((_, _) => Json("""{ "type": "error", "error": { "type": "invalid_request_error", "message": "secret detail" } }""", status));
 
         var result = await Extract(Create(handler), PlanKind.Workout);
 
         Assert.Equal("unavailable", result.Error);
         Assert.Single(handler.Bodies);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData((HttpStatusCode)529)]
+    public async Task Overload_statuses_are_retried_once(HttpStatusCode status)
+    {
+        var failing = new FakeHandler((_, _) => Json("""{ "error": { "type": "overloaded_error" } }""", status));
+        var result = await Extract(Create(failing), PlanKind.Workout);
+        Assert.Equal("unavailable", result.Error);
+        Assert.Equal(2, failing.Bodies.Count);
+
+        var recovering = new FakeHandler((n, _) => n == 1 ? Json("{}", status) : Json(Fixture("anthropic-workout-response.json")));
+        Assert.True((await Extract(Create(recovering), PlanKind.Workout)).IsSuccess);
+        Assert.Equal(2, recovering.Bodies.Count);
+    }
+
+    [Fact]
+    public async Task Pdf_over_20_mib_is_too_large_without_http_call()
+    {
+        var handler = new FakeHandler((_, _) => Json(Fixture("anthropic-workout-response.json")));
+
+        var result = await Create(handler).ExtractAsync(PlanKind.Workout, new MemoryStream(new byte[PlanExtractor.MaxPdfBytes + 1]), [], CancellationToken.None);
+
+        Assert.Equal("too_large", result.Error);
+        Assert.Empty(handler.Bodies);
+
+        var exactly = await Create(handler).ExtractAsync(PlanKind.Workout, new MemoryStream(new byte[PlanExtractor.MaxPdfBytes]), [], CancellationToken.None);
+        Assert.True(exactly.IsSuccess);
+    }
+
+    [Theory]
+    [InlineData("max_tokens", "too_long")]
+    [InlineData("refusal", "invalid_extraction")]
+    public async Task Stop_reasons_fail_without_retry(string stopReason, string expected)
+    {
+        var reply = Fixture("anthropic-workout-response.json").Replace("\"stop_reason\": \"tool_use\"", $"\"stop_reason\": \"{stopReason}\"", StringComparison.Ordinal);
+        var handler = new FakeHandler((_, _) => Json(reply));
+
+        var result = await Extract(Create(handler), PlanKind.Workout);
+
+        Assert.Equal(expected, result.Error);
+        Assert.Single(handler.Bodies);
+    }
+
+    [Fact]
+    public async Task Low_confidence_paths_are_normalized_and_unresolvable_ones_dropped()
+    {
+        var reply = Fixture("anthropic-workout-response.json").Replace(
+            "[\"days[0].exercises[1].restSequence\"]",
+            "[\"document.days[0].exercises[1].restSequence\", \"$.days[0].exercises[0].sets\", \"days[0].exercises[0].sets\", \"days[9].name\", \"days[0].nope\", \"\"]",
+            StringComparison.Ordinal);
+        var handler = new FakeHandler((_, _) => Json(reply));
+
+        var result = await Extract(Create(handler), PlanKind.Workout);
+
+        Assert.Equal(
+            new[] { "days[1].exercises[0].exerciseId", "days[0].exercises[1].restSequence", "days[0].exercises[0].sets" }.Order(),
+            result.LowConfidence.Order());
     }
 
     [Theory]

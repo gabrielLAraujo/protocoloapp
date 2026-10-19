@@ -13,7 +13,8 @@ public enum AnthropicCallStatus
 }
 
 /// <summary><c>ToolInput</c> is the input of the first <c>tool_use</c> block (null when the reply has none or is malformed).</summary>
-public sealed record AnthropicToolCall(AnthropicCallStatus Status, JsonDocument? ToolInput);
+/// <remarks><c>StatusCode</c>/<c>ErrorType</c> are set on a non-2xx reply (<c>error.type</c> of the body, nothing else of it); <c>StopReason</c> on a 2xx one.</remarks>
+public sealed record AnthropicToolCall(AnthropicCallStatus Status, JsonDocument? ToolInput, int? StatusCode = null, string? ErrorType = null, string? StopReason = null);
 
 /// <summary>Minimal Anthropic Messages API client: one message with a PDF and a forced tool.</summary>
 public sealed class AnthropicClient(HttpClient http, IOptions<AnthropicOptions> options)
@@ -60,11 +61,11 @@ public sealed class AnthropicClient(HttpClient http, IOptions<AnthropicOptions> 
         try
         {
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-            if (!response.IsSuccessStatusCode)
-                return new AnthropicToolCall(AnthropicCallStatus.Unavailable, null);
-
             var reply = await response.Content.ReadAsStringAsync(timeout.Token);
-            return new AnthropicToolCall(AnthropicCallStatus.Ok, FirstToolInput(reply));
+            if (!response.IsSuccessStatusCode)
+                return new AnthropicToolCall(AnthropicCallStatus.Unavailable, null, (int)response.StatusCode, ReadString(reply, "error", "type"));
+
+            return new AnthropicToolCall(AnthropicCallStatus.Ok, FirstToolInput(reply), StopReason: ReadString(reply, "stop_reason"));
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -73,6 +74,26 @@ public sealed class AnthropicClient(HttpClient http, IOptions<AnthropicOptions> 
         catch (HttpRequestException)
         {
             return new AnthropicToolCall(AnthropicCallStatus.Unavailable, null);
+        }
+    }
+
+    private static string? ReadString(string json, params string[] path)
+    {
+        try
+        {
+            using var parsed = JsonDocument.Parse(json);
+            var node = parsed.RootElement;
+            foreach (var name in path)
+            {
+                if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(name, out node))
+                    return null;
+            }
+
+            return node.ValueKind == JsonValueKind.String ? node.GetString() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

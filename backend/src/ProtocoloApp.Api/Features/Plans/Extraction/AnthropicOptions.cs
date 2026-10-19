@@ -18,5 +18,8 @@ public sealed class AnthropicOptions
     /// <summary>Per attempt. Tests inject a short one.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(90);
 
+    /// <summary>Wait before the single retry after 429/503/529. Tests inject zero.</summary>
+    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(2);
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
 }

@@ -20,6 +20,8 @@ public sealed record PlanExtractionResult(
     public const string InvalidExtraction = "invalid_extraction";
     public const string Timeout = "timeout";
     public const string Unavailable = "unavailable";
+    public const string TooLarge = "too_large";
+    public const string TooLong = "too_long";
 
     public bool IsSuccess => Error is null && Document is not null;
 

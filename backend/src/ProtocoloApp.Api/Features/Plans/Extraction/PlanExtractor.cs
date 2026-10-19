@@ -16,6 +16,9 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
 {
     private const int Attempts = 2;
 
+    /// <summary>The API caps a request at 32 MB and base64 adds a third: 20 MiB of PDF fits.</summary>
+    public const int MaxPdfBytes = 20 * 1024 * 1024;
+
     // Brazil has no daylight saving time: a fixed UTC-3 gives the user's calendar date without needing tzdata.
     private static readonly TimeSpan BrazilOffset = TimeSpan.FromHours(-3);
 
@@ -29,6 +32,8 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
 
         using var buffer = new MemoryStream();
         await pdf.CopyToAsync(buffer, ct);
+        if (buffer.Length > MaxPdfBytes)
+            return PlanExtractionResult.Failure(PlanExtractionResult.TooLarge);
         var pdfBase64 = Convert.ToBase64String(buffer.GetBuffer(), 0, (int)buffer.Length);
 
         var today = DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(BrazilOffset).DateTime);
@@ -41,8 +46,16 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             var call = await client.CallToolAsync(ExtractionSchemas.ToolName(kind), schema, prompt, pdfBase64, ct);
             if (call.Status == AnthropicCallStatus.Unavailable)
             {
-                logger.LogWarning("Plan extraction ({Kind}) attempt {Attempt}: provider unavailable.", kind, attempt);
-                return PlanExtractionResult.Failure(PlanExtractionResult.Unavailable);
+                logger.LogWarning("Plan extraction ({Kind}) attempt {Attempt}: provider unavailable (status {Status}, error type {ErrorType}).", kind, attempt, call.StatusCode, call.ErrorType);
+                error = PlanExtractionResult.Unavailable;
+                // Overloaded or rate limited: worth one more try after a short wait. Anything else (400/401/403/413, network) is final.
+                if (call.StatusCode is 429 or 503 or 529 && attempt < Attempts)
+                {
+                    await Task.Delay(options.Value.RetryDelay, ct);
+                    continue;
+                }
+
+                return PlanExtractionResult.Failure(error);
             }
 
             if (call.Status == AnthropicCallStatus.Timeout)
@@ -51,6 +64,11 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
                 error = PlanExtractionResult.Timeout;
                 continue;
             }
+
+            if (call.StopReason == "max_tokens")
+                return PlanExtractionResult.Failure(PlanExtractionResult.TooLong);
+            if (call.StopReason == "refusal")
+                return PlanExtractionResult.Failure(PlanExtractionResult.InvalidExtraction);
 
             using (call.ToolInput)
             {
@@ -108,9 +126,50 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
         return new PlanExtractionResult(
             JsonDocument.Parse(normalized.GetRawText()),
             JsonDocument.Parse(input.GetRawText()),
-            lowConfidence.Distinct(StringComparer.Ordinal).ToList(),
+            lowConfidence.Select(StripPrefix).Distinct(StringComparer.Ordinal).Where(path => Resolves(normalized, path)).ToList(),
             newExercises,
             null);
+    }
+
+    private static string StripPrefix(string path)
+    {
+        path = path.Trim();
+        foreach (var prefix in new[] { "$.", "document." })
+        {
+            if (path.StartsWith(prefix, StringComparison.Ordinal))
+                return path[prefix.Length..];
+        }
+
+        return path;
+    }
+
+    /// <summary>Whether a path such as <c>days[0].exercises[1].sets</c> exists in the document (a property with a null value exists).</summary>
+    internal static bool Resolves(JsonElement root, string path)
+    {
+        var node = root;
+        foreach (var segment in path.Split('.'))
+        {
+            var bracket = segment.IndexOf('[', StringComparison.Ordinal);
+            var name = bracket < 0 ? segment : segment[..bracket];
+            if (name.Length > 0 && (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(name, out node)))
+                return false;
+
+            var rest = bracket < 0 ? "" : segment[bracket..];
+            while (rest.Length > 0)
+            {
+                var close = rest.IndexOf(']', StringComparison.Ordinal);
+                if (rest[0] != '[' || close < 2 || !int.TryParse(rest[1..close], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index)
+                    || node.ValueKind != JsonValueKind.Array || index >= node.GetArrayLength())
+                {
+                    return false;
+                }
+
+                node = node[index];
+                rest = rest[(close + 1)..];
+            }
+        }
+
+        return path.Length > 0;
     }
 
     /// <summary>
