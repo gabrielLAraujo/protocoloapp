@@ -218,6 +218,7 @@ public sealed class TodaySyncTests(ApiFactory factory)
     [InlineData("target_key", "")]
     [InlineData("target_key", "has space")]
     [InlineData("target_key", "áé")]
+    [InlineData("target_key", "meal_1\n")]
     public async Task Adherence_rejects_invalid_fields(string field, string value)
     {
         using var api = await NewUserAsync();
