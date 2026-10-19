@@ -52,6 +52,12 @@ async function seedProtocol(db: LocalDb) {
   await planVersionSync.applyRemote(db, record)
 }
 
+/** Both parts of today's check-in saved. */
+async function saveFullCheckin(db: LocalDb, note: string | null) {
+  await dailyCheckinRepo.saveMorning(db, USER_A, TODAY, { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }, new Date())
+  await dailyCheckinRepo.saveEvening(db, USER_A, TODAY, { energyDay: 3, anxiety: 2, waterL: 3, note }, new Date())
+}
+
 async function render(items: string[] = ['a', 'b']) {
   const app = await setupApp()
   await seedExercises(app.db)
@@ -87,8 +93,8 @@ describe('TodayPage', () => {
     expect(row('Treino A').getByRole('link', { name: 'Treino A' })).toHaveAttribute('href', '/treino')
     expect(row('Check-in da manhã').getByText('07:00')).toBeInTheDocument()
     expect(row('Check-in da noite').getByText('21:30')).toBeInTheDocument()
-    expect(row('Check-in da manhã').getByRole('link', { name: 'Check-in da manhã' })).toHaveAttribute('href', '/checkin')
-    expect(row('Check-in da noite').getByRole('link', { name: 'Check-in da noite' })).toHaveAttribute('href', '/checkin')
+    expect(row('Check-in da manhã').getByRole('link', { name: 'Check-in da manhã' })).toHaveAttribute('href', '/checkin/manha')
+    expect(row('Check-in da noite').getByRole('link', { name: 'Check-in da noite' })).toHaveAttribute('href', '/checkin/noite')
     expect(row('Treino A').queryByRole('button', { name: 'Feito' })).not.toBeInTheDocument()
   })
 
@@ -170,9 +176,7 @@ describe('TodayPage', () => {
     await seedPlan(app.db, ['a', 'b'])
     await seedProtocol(app.db)
     await seedPastSession(app.db, TODAY, BENCH, [[60, 10]])
-    await dailyCheckinRepo.upsert(app.db, USER_A, TODAY, {
-      sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone: null, cardioMinutes: null,
-    }, new Date())
+    await saveFullCheckin(app.db, null)
     app.view(<TodayPage />)
 
     expect(await screen.findByRole('status')).toHaveTextContent('3 de 8 feitos')
@@ -197,17 +201,55 @@ describe('TodayPage', () => {
     await seedExercises(app.db)
     await seedPlan(app.db, ['a', 'b'])
     await seedProtocol(app.db)
-    await dailyCheckinRepo.upsert(app.db, USER_A, TODAY, {
-      sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: 'Nota', cardioDone: null, cardioMinutes: null,
-    }, new Date())
+    await saveFullCheckin(app.db, 'Nota')
     const user = userEvent.setup()
     app.view(<TodayPage />)
     await screen.findByRole('list', { name: 'Itens de hoje' })
 
     await user.click(row('Cardio').getByRole('button', { name: 'Feito' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Quantos minutos?' })).getByRole('button', { name: 'Pular' }))
 
-    await waitFor(async () => expect(await dailyCheckinRepo.get(app.db, TODAY)).toMatchObject({ cardioDone: true, note: 'Nota' }))
+    await waitFor(async () => expect(await dailyCheckinRepo.get(app.db, TODAY)).toMatchObject({ cardioDone: true, cardioMinutes: null, note: 'Nota' }))
     expect(await today(app.db)).toMatchObject([{ targetType: 'cardio', status: 'done' }])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('✓ on Cardio asks "Quantos minutos?": the minutes are saved on the check-in and shown in the details', async () => {
+    const { db, user } = await render()
+
+    await user.click(row('Cardio').getByRole('button', { name: 'Feito' }))
+    const sheet = within(screen.getByRole('dialog', { name: 'Quantos minutos?' }))
+    const minutes = sheet.getByLabelText('Minutos de cardio (opcional)')
+    expect(minutes).toHaveFocus()
+
+    await user.type(minutes, '301')
+    await user.click(sheet.getByRole('button', { name: 'Salvar' }))
+    expect(sheet.getByRole('alert')).toHaveTextContent('Informe um número inteiro de 0 a 300')
+    expect(await today(db)).toEqual([])
+
+    await user.clear(minutes)
+    await user.type(minutes, '40')
+    await user.click(sheet.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(row('Cardio').getByRole('button', { name: 'Feito' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await dailyCheckinRepo.get(db, TODAY)).toMatchObject({ cardioDone: true, cardioMinutes: 40 })
+    expect(await today(db)).toMatchObject([{ targetType: 'cardio', status: 'done' }])
+    expect(row('Cardio').getByText('Feito: 40 min')).toBeInTheDocument()
+  })
+
+  it('Escape on "Quantos minutos?" marks nothing; ½ and ✗ on Cardio still ask for the reason', async () => {
+    const { db, user } = await render()
+
+    await user.click(row('Cardio').getByRole('button', { name: 'Feito' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await today(db)).toEqual([])
+
+    await user.click(row('Cardio').getByRole('button', { name: 'Não fiz' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Não fiz — Cardio' })).getByRole('button', { name: 'Sem tempo' }))
+    await waitFor(() => expect(row('Cardio').getByRole('button', { name: 'Não fiz' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(await dailyCheckinRepo.get(db, TODAY)).toMatchObject({ cardioDone: false, cardioMinutes: null })
   })
 
   it('without a protocol or workout plan still lists the check-in', async () => {

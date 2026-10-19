@@ -207,7 +207,7 @@ function withPart(into: DailyCheckinFields, from: DailyCheckinFields, part: Chec
 const byId = async (db: LocalDb, id: string) =>
   (await db.query<Row>('SELECT * FROM daily_checkins WHERE id = ?', [id]))[0]
 
-/** Writes the row (live), keeping the server version it came with when `version` is null. */
+/** Writes the row (live) with `version`; null keeps the server version the row already has. */
 async function writeRow(db: LocalDb, id: string, date: string, f: DailyCheckinFields, clientUpdatedAt: string, version: number | null) {
   await db.execute(
     `INSERT INTO daily_checkins
@@ -232,14 +232,6 @@ function partsOf(entry: OutboxEntry): readonly CheckinPart[] {
   return Array.isArray(parts) ? parts : CHECKIN_PARTS
 }
 
-/** The stored check-in changed since the screen read it (a pull from another device): saving would overwrite it. */
-export class StaleCheckinError extends Error {
-  constructor() {
-    super('The check-in changed since it was read.')
-    this.name = 'StaleCheckinError'
-  }
-}
-
 /**
  * Reads the day's row, lets `change` build the new fields from it (an empty row when there is none, or it was deleted),
  * writes the whole row and queues it with `parts`, in one transaction. Returns the new client_updated_at.
@@ -251,13 +243,11 @@ async function saveParts(
   parts: readonly CheckinPart[],
   change: (current: DailyCheckinFields) => DailyCheckinFields,
   now: Date,
-  options: { expected?: string | null } = {},
 ): Promise<string> {
   const id = checkinIdForDate(userId, date)
   return db.transaction(async (tx) => {
     const row = await byId(tx, id)
     const live = row && row.deleted_at === null ? row : undefined
-    if (options.expected !== undefined && (live?.client_updated_at ?? null) !== options.expected) throw new StaleCheckinError()
     const fields = normalize(change(live ? fieldsOf(live) : EMPTY))
     const clientUpdatedAt = nextClientUpdatedAt(now, row?.client_updated_at)
     await writeRow(tx, id, date, fields, clientUpdatedAt, null)
@@ -310,22 +300,6 @@ export const dailyCheckinRepo = {
     return saveParts(db, userId, date, ['cardio'], (current) => ({ ...current, cardioDone: cardio.done, cardioMinutes: cardio.minutes }), now)
   },
 
-  /**
-   * Saves the whole check-in (the single form from before the split) and queues it with all three parts listed, in
-   * one transaction. Returns the row's new client_updated_at. With `expected` (the client_updated_at the screen loaded,
-   * null when there was no live row), throws StaleCheckinError instead of saving when the stored row is no longer that one.
-   */
-  upsert(
-    db: LocalDb,
-    userId: string,
-    date: string,
-    fields: DailyCheckinFields,
-    now: Date,
-    options: { expected?: string | null } = {},
-  ): Promise<string> {
-    return saveParts(db, userId, date, CHECKIN_PARTS, () => fields, now, options)
-  },
-
   /** Deletes the day's check-in (soft, like the server) and queues the delete. No-op when there is none. */
   async remove(db: LocalDb, userId: string, date: string, now: Date): Promise<void> {
     const id = checkinIdForDate(userId, date)
@@ -343,9 +317,10 @@ export const dailyCheckinRepo = {
    * its way to the server), every other part takes the server's. Deletes, and rows with a pending local delete, keep
    * the whole-row rule of the other entities.
    *
-   * When a pending part may be older than the server's (the record's client_updated_at, its newest part clock, is after
-   * that part's newest pending change), the row is kept one version below the record: if the push then comes back
-   * `stale`, onStale rewinds the pull cursor and this record is applied again, now with nothing pending.
+   * Whenever a pending part is kept, the row is stored one version below the record: the server may hold a newer value
+   * for that part (its per-part clock is not in the record), and if the push then comes back `stale`, onStale rewinds the
+   * pull cursor and this record is applied again, now with nothing pending. When the push is applied instead, the
+   * server's next version supersedes the record anyway.
    */
   async applyRemote(db: LocalDb, record: SyncRecord): Promise<void> {
     const local = await byId(db, record.id)
@@ -378,25 +353,25 @@ export const dailyCheckinRepo = {
     let version = record.version
     let stamp = clientUpdatedAt
     if (local && local.deleted_at === null && pending.length > 0) {
-      const remoteAt = Date.parse(record.clientUpdatedAt)
       const localFields = fieldsOf(local)
       for (const part of CHECKIN_PARTS) {
-        const times = pending.filter((e) => partsOf(e).includes(part)).map((e) => Date.parse(e.clientUpdatedAt))
-        if (times.length === 0) continue
+        if (!pending.some((e) => partsOf(e).includes(part))) continue
         fields = withPart(fields, localFields, part)
-        if (Math.max(...times) < remoteAt) version = record.version - 1
+        version = record.version - 1
       }
       // The next local change must stay after both clocks.
-      if (Date.parse(local.client_updated_at) > remoteAt) stamp = local.client_updated_at
+      if (Date.parse(local.client_updated_at) > Date.parse(record.clientUpdatedAt)) stamp = local.client_updated_at
     }
-    await writeRow(db, record.id, payload.date as string, normalize(fields), stamp, null)
-    await db.execute('UPDATE daily_checkins SET version = ? WHERE id = ?', [version, record.id])
+    await writeRow(db, record.id, payload.date as string, normalize(fields), stamp, version)
   },
 
   /**
    * A pushed change came back `stale`: the server kept newer values for its parts. The local row may still show the
    * pushed ones (kept by applyRemote while the change was pending), and the record carrying the server's values may be
    * behind the pull cursor already, so the cursor goes back to the row's version and the next pull brings it again.
+   * The row's version may be older than the record that made the push stale (a pull since then was version-skipped or
+   * kept a pending part), so this can re-pull more than needed: bounded by the records after that version, and harmless
+   * (records are applied idempotently, version-skip drops what is already here).
    */
   async onStale(db: LocalDb, entry: OutboxEntry): Promise<void> {
     const row = await byId(db, entry.id)

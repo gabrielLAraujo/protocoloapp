@@ -41,6 +41,14 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
   await expect(page.getByRole('list', { name: 'Itens de hoje' })).toBeVisible()
   await shoot(page, '2-hoje')
 
+  await page.getByRole('link', { name: 'Check-in da manhã' }).click()
+  await expect(page.getByRole('heading', { name: 'Check-in da manhã' })).toBeVisible()
+  await shoot(page, '2b-checkin-manha')
+
+  await page.goto('/checkin')
+  await expect(page.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
+  await shoot(page, '2c-checkin')
+
   await nav(page, 'Treino').click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   await shoot(page, '3-treino')

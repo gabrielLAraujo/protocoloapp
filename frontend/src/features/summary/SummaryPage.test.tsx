@@ -100,11 +100,10 @@ describe('SummaryPage', () => {
     })
     await seedPastSession(app.db, '2026-10-21', BENCH, [[60, 10]])
     await seedPastSession(app.db, '2026-10-25', BENCH, [[70, 10]])
-    await dailyCheckinRepo.upsert(
-      app.db, USER_A, '2026-10-26',
-      { sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 4, anxiety: 2, waterL: 2.5, weightKg: 82.4, note: null, cardioDone: true, cardioMinutes: 30 },
-      new Date(2026, 9, 26, 8),
-    )
+    const at = new Date(2026, 9, 26, 8)
+    await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-26', { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: 82.4 }, at)
+    await dailyCheckinRepo.saveEvening(app.db, USER_A, '2026-10-26', { energyDay: 4, anxiety: 2, waterL: 2.5, note: null }, at)
+    await dailyCheckinRepo.setCardio(app.db, USER_A, '2026-10-26', { done: true, minutes: 30 }, at)
     app.view(<SummaryPage />)
 
     expect(await screen.findByText('Faltam 19 dias para a atualização')).toBeInTheDocument()
@@ -179,10 +178,12 @@ describe('SummaryPage', () => {
   it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {
     const app = await setupApp()
     await seedProtocol(app.db, { updateDate: '2026-11-15', cardio: { daily: true } })
-    const checkin = (date: string, cardioDone: boolean) =>
-      dailyCheckinRepo.upsert(app.db, USER_A, date, {
-        sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone, cardioMinutes: null,
-      }, new Date(2026, 9, 27, 12))
+    const checkin = async (date: string, cardioDone: boolean) => {
+      const at = new Date(2026, 9, 27, 12)
+      await dailyCheckinRepo.saveMorning(app.db, USER_A, date, { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }, at)
+      await dailyCheckinRepo.saveEvening(app.db, USER_A, date, { energyDay: 3, anxiety: 2, waterL: 3, note: null }, at)
+      await dailyCheckinRepo.setCardio(app.db, USER_A, date, { done: cardioDone, minutes: null }, at)
+    }
     const cardio = (date: string, status: 'done' | 'missed') =>
       adherenceRepo.mark(app.db, USER_A, { date, targetType: 'cardio', targetKey: 'cardio', status }, new Date(2026, 9, 27, 12))
     await checkin('2026-10-21', true)

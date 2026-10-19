@@ -45,14 +45,21 @@ async function expectSynced(page: Page, seen: string[]) {
   }
 }
 
+const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
+const hojeRow = (page: Page, name: string) => page.getByRole('listitem', { name })
+
+/** Signs in and opens Hoje ("/" is the summary). */
 async function login(page: Page) {
-  // "/" is the summary; the check-in is opened from Hoje ("Check-in da noite").
   await signIn(page)
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
+  await nav(page, 'Hoje').click()
   await expect(page).toHaveURL(/\/hoje$/)
-  await page.getByRole('link', { name: 'Check-in da noite' }).click()
-  await expect(page).toHaveURL(/\/checkin$/)
-  await expect(page.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
+}
+
+/** Opens a part of today's check-in from its row on Hoje. */
+async function openPart(page: Page, row: 'Check-in da manhã' | 'Check-in da noite', path: RegExp) {
+  await page.getByRole('link', { name: row }).click()
+  await expect(page).toHaveURL(path)
+  await expect(page.getByRole('heading', { name: row })).toBeVisible()
 }
 
 /** Clicks the label of one option of a radio group (the radio inputs themselves are visually hidden). */
@@ -64,32 +71,48 @@ function option(page: Page, group: string, name: string) {
   return page.getByRole('radiogroup', { name: group }).getByRole('radio', { name, exact: true })
 }
 
-test('offline checkin syncs to a second browser', async ({ browser }) => {
-  // Device A: signs in online, then loses the network and saves today's check-in.
+test('offline checkin, morning then evening, syncs to a second browser', async ({ browser }) => {
+  // Device A: signs in online, then loses the network and saves today's check-in in its two parts.
   const contextA = await browser.newContext()
   const a = await contextA.newPage()
   const seenByA = watch(a)
   const firstPull = a.waitForResponse((r) => isPull(r) && r.status() === 200)
   await login(a)
   await firstPull
+  // Opening Hoje may create the default reminder times and sync them: let that finish before the network goes.
   await expectSynced(a, seenByA)
 
+  // offline.spec.ts (same user, runs before) saved today's evening part; nothing has saved the morning yet.
+  await expect(hojeRow(a, 'Check-in da manhã').getByText('Feito', { exact: true })).toHaveCount(0)
+
   await contextA.setOffline(true)
+  await openPart(a, 'Check-in da manhã', /\/checkin\/manha$/)
   await choose(a, 'Sono (1–5)', '4')
-  await choose(a, 'Intestino', 'Normal')
   await choose(a, 'Disposição ao acordar (1–5)', '3')
+  await choose(a, 'Intestino', 'Normal')
+  await a.getByLabel('Peso (kg, opcional)').fill('82,4')
+  await a.getByRole('button', { name: 'Salvar' }).click()
+
+  // Back on Hoje: the morning row is done.
+  await expect(a).toHaveURL(/\/hoje$/)
+  await expect(a.getByText('Check-in da manhã salvo — será sincronizado')).toBeVisible()
+  await expect(hojeRow(a, 'Check-in da manhã').getByText('Feito', { exact: true })).toBeVisible()
+  // The morning part and its mark.
+  await expect(a.getByText('Offline — 2 pendentes')).toBeVisible()
+
+  await openPart(a, 'Check-in da noite', /\/checkin\/noite$/)
   await choose(a, 'Disposição no dia (1–5)', '4')
   await choose(a, 'Ansiedade (1–5)', '2')
   await a.getByLabel('Água (litros)').fill('2,5')
-  await a.getByLabel('Peso (kg, opcional)').fill('82,4')
   await a.getByLabel('Observações').fill('Check-in do teste e2e')
   await a.getByRole('button', { name: 'Salvar' }).click()
 
-  await expect(a.getByText('Salvo — será sincronizado')).toBeVisible()
-  // The check-in and the marks of its two parts ("Check-in da manhã" and "Check-in da noite" done).
-  await expect(a.getByText('Offline — 3 pendentes')).toBeVisible()
+  await expect(a).toHaveURL(/\/hoje$/)
+  await expect(a.getByText('Check-in da noite salvo — será sincronizado')).toBeVisible()
+  await expect(hojeRow(a, 'Check-in da noite').getByText('Feito', { exact: true })).toBeVisible()
+  await expect(a.getByText('Offline — 4 pendentes')).toBeVisible()
 
-  // The network comes back: the pending change is sent (the 'online' event may already start the run).
+  // The network comes back: the pending changes are sent (the 'online' event may already start the run).
   const pushed = a.waitForResponse(isPush)
   await contextA.setOffline(false)
   await a.getByRole('button', { name: 'Sincronizar agora' }).click()
@@ -97,7 +120,7 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   await expectSynced(a, seenByA)
 
   // Device B: another browser profile signs in and receives the same check-in. Its first pull brings the record and the
-  // open form refreshes itself (no navigation needed).
+  // open Hoje refreshes itself (no navigation needed).
   const contextB = await browser.newContext()
   const b = await contextB.newPage()
   const seenByB = watch(b)
@@ -105,18 +128,30 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   await login(b)
   try {
     await pulled
-    await expect(option(b, 'Sono (1–5)', '4')).toBeChecked()
+    await expect(hojeRow(b, 'Check-in da manhã').getByText('Feito', { exact: true })).toBeVisible()
   } catch (error) {
     throw new Error(`B API[${seenByB.join(' ; ')}] ${(error as Error).message}`)
   }
+  await expect(hojeRow(b, 'Check-in da noite').getByText('Feito', { exact: true })).toBeVisible()
 
-  await expect(option(b, 'Intestino', 'Normal')).toBeChecked()
+  await openPart(b, 'Check-in da manhã', /\/checkin\/manha$/)
+  await expect(option(b, 'Sono (1–5)', '4')).toBeChecked()
   await expect(option(b, 'Disposição ao acordar (1–5)', '3')).toBeChecked()
+  await expect(option(b, 'Intestino', 'Normal')).toBeChecked()
+  await expect(b.getByLabel('Peso (kg, opcional)')).toHaveValue('82.4')
+
+  await nav(b, 'Hoje').click()
+  await openPart(b, 'Check-in da noite', /\/checkin\/noite$/)
   await expect(option(b, 'Disposição no dia (1–5)', '4')).toBeChecked()
   await expect(option(b, 'Ansiedade (1–5)', '2')).toBeChecked()
   await expect(b.getByLabel('Água (litros)')).toHaveValue('2.5')
-  await expect(b.getByLabel('Peso (kg, opcional)')).toHaveValue('82.4')
   await expect(b.getByLabel('Observações')).toHaveValue('Check-in do teste e2e')
+
+  // The hub shows both parts done.
+  await b.goto('/checkin')
+  await expect(b.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
+  await expect(b.getByRole('listitem', { name: 'Manhã' }).getByText('Feito', { exact: true })).toBeVisible()
+  await expect(b.getByRole('listitem', { name: 'Noite' }).getByText('Feito', { exact: true })).toBeVisible()
 
   await contextA.close()
   await contextB.close()

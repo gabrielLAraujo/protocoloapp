@@ -61,6 +61,8 @@ export interface TodaySources {
   workoutDone: boolean
   /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
   checkinParts: CheckinParts
+  /** Minutes of the day's cardio as saved on the check-in (only when cardio is done there). */
+  cardioMinutes: number | null
 }
 
 /** Reads everything the Hoje screen needs for `date` from the device. */
@@ -87,6 +89,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     logs,
     workoutDone: sets.some((list) => list.some((s) => s.kind !== 'warmup')),
     checkinParts: checkin ? checkinParts(checkin) : { morning: false, evening: false },
+    cardioMinutes: checkin?.cardioDone === true ? checkin.cardioMinutes : null,
   }
 }
 
@@ -148,13 +151,15 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     if (target.type === 'workout' && src.workoutDone) status = 'done'
     if (target.type === 'checkin' && checkinPartSaved(target.key, src.checkinParts)) status = 'done'
     const label = target.type === 'workout' && workoutTitle ? workoutTitle : target.label
+    const details = detailsOf(target, src.protocol)
+    if (target.type === 'cardio' && status === 'done' && src.cardioMinutes != null) details.push(`Feito: ${src.cardioMinutes} min`)
     return {
       target,
       label,
       status,
       reason: status === log?.status ? (log?.reason ?? null) : null,
       note: status === log?.status ? (log?.note ?? null) : null,
-      details: detailsOf(target, src.protocol),
+      details,
     }
   })
 

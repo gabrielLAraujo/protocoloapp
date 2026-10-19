@@ -13,6 +13,7 @@ const sources = (over: Partial<TodaySources> = {}): TodaySources => ({
   logs: [],
   workoutDone: false,
   checkinParts: { morning: false, evening: false },
+  cardioMinutes: null,
   ...over,
 })
 

@@ -6,18 +6,7 @@ import { bindLocalUser, resolveLocalUser } from './localUser'
 import { outbox } from './outbox'
 import { syncState } from './syncState'
 
-const fields = {
-  sleepQuality: 4,
-  bowel: 'normal' as const,
-  energyWake: 3,
-  energyDay: 4,
-  anxiety: 2,
-  waterL: 2.5,
-  weightKg: null,
-  note: null,
-  cardioDone: null,
-  cardioMinutes: null,
-}
+const fields = { sleepQuality: 4, bowel: 'normal' as const, energyWake: 3, weightKg: null }
 const T0 = new Date('2026-10-18T12:00:00.000Z')
 
 describe('local user', () => {
@@ -32,7 +21,7 @@ describe('local user', () => {
   it('keeps the local data of the same user', async () => {
     const db = await newLocalDb()
     await bindLocalUser(db, USER_A)
-    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-18', fields, T0)
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-18', fields, T0)
     await syncState.set(db, 'last_since', '42')
 
     await bindLocalUser(db, USER_A)
@@ -45,7 +34,7 @@ describe('local user', () => {
   it('wipes the local data when another user signs in on the device', async () => {
     const db = await newLocalDb()
     await bindLocalUser(db, USER_A)
-    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-18', fields, T0)
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-18', fields, T0)
     await syncState.set(db, 'last_since', '42')
 
     await bindLocalUser(db, USER_B)

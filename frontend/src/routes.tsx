@@ -1,7 +1,9 @@
 import type { RouteObject } from 'react-router'
 import { AppShell } from './app/AppShell'
 import { RequireAuth } from './auth/RequireAuth'
-import { DailyCheckinPage } from './features/checkin/DailyCheckinPage'
+import { CheckinHubPage } from './features/checkin/CheckinHubPage'
+import { EveningCheckinPage } from './features/checkin/EveningCheckinPage'
+import { MorningCheckinPage } from './features/checkin/MorningCheckinPage'
 import { SummaryPage } from './features/summary/SummaryPage'
 import { ExerciseHistoryPage } from './features/workout/ExerciseHistoryPage'
 import { HistoryPage } from './features/workout/HistoryPage'
@@ -26,7 +28,9 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <SummaryPage /> },
           { path: '/hoje', element: <TodayPage /> },
-          { path: '/checkin', element: <DailyCheckinPage /> },
+          { path: '/checkin', element: <CheckinHubPage /> },
+          { path: '/checkin/manha', element: <MorningCheckinPage /> },
+          { path: '/checkin/noite', element: <EveningCheckinPage /> },
           { path: '/planejamento', element: <PlansPage /> },
           { path: '/planejamento/revisao/:id', element: <PlanReviewPage /> },
           { path: '/planejamento/protocolo', element: <ProtocolView /> },

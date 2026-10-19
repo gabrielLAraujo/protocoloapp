@@ -18,7 +18,7 @@ function setup(entry = '/') {
             <BottomNav />
           </>
         ),
-        children: ['/', '/hoje', '/treino', '/checkin', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
+        children: ['/', '/hoje', '/treino', '/checkin', '/checkin/manha', '/checkin/noite', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
       },
     ],
     { initialEntries: [entry] },
@@ -55,8 +55,8 @@ describe('BottomNav', () => {
     expect(within(nav).queryByRole('link', { name: 'Check-in' })).not.toBeInTheDocument()
   })
 
-  it('"Hoje" is highlighted on the check-in it opens', () => {
-    setup('/checkin')
+  it.each(['/checkin', '/checkin/manha', '/checkin/noite'])('"Hoje" is highlighted on the check-in it opens (%s)', (path) => {
+    setup(path)
     expect(screen.getByRole('link', { name: 'Hoje' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Hoje' }).className).toContain('text-accent')
     expect(screen.getByRole('link', { name: 'Resumo' })).not.toHaveAttribute('aria-current')

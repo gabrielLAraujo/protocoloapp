@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { ensureScheduleDefaults } from '../../data/activeProtocol'
 import { setCardio } from '../../data/adherenceLinks'
 import { adherenceRepo, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
@@ -6,6 +7,7 @@ import { useData } from '../../data/dataContext'
 import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
 import { DayTimeline } from './DayTimeline'
+import { MinutesSheet } from './MinutesSheet'
 import { ReasonSheet } from './ReasonSheet'
 import { buildTodayView, headerText, isLate, loadTodaySources, type TodayRow, type TodayView } from './todayData'
 
@@ -50,6 +52,12 @@ function DayStrip({ view, now }: { view: TodayView; now: Date }) {
   )
 }
 
+/** What another screen sends along when it returns here (`navigate('/hoje', { state })`). */
+export interface TodayNotice {
+  /** A short confirmation shown at the top ("Check-in da manhã salvo"). */
+  notice?: string
+}
+
 const SHEET_TITLE: Record<'partial' | 'missed', string> = { partial: 'Parcial', missed: 'Não fiz' }
 
 /**
@@ -67,6 +75,14 @@ export function TodayPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [sheet, setSheet] = useState<{ row: TodayRow; status: 'partial' | 'missed' } | null>(null)
+  const [minutesFor, setMinutesFor] = useState<TodayRow | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  // Shown for this visit only: the history entry drops it, so a reload or coming back does not repeat it.
+  const [notice] = useState(() => (location.state as TodayNotice | null)?.notice ?? null)
+  useEffect(() => {
+    if ((location.state as TodayNotice | null)?.notice) void navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
 
   useEffect(() => {
     if (!data) return
@@ -97,17 +113,25 @@ export function TodayPage() {
   if (!data) return <Message>Preparando os dados do aparelho…</Message>
   if (!view || view.date !== today) return <Message>Carregando…</Message>
 
-  async function save(row: TodayRow, status: AdherenceStatus | null, reason: AdherenceReason | null = null, note: string | null = null) {
+  /** `minutes` (cardio done only): undefined keeps the minutes already saved. */
+  async function save(
+    row: TodayRow,
+    status: AdherenceStatus | null,
+    reason: AdherenceReason | null = null,
+    note: string | null = null,
+    minutes?: number | null,
+  ) {
     if (!data || !view) return
     setBusy(true)
     setError(false)
     const at = new Date()
     const target = { date: view.date, targetType: row.target.type, targetKey: row.target.key }
     try {
-      if (row.target.type === 'cardio') await setCardio(data.db, data.userId, view.date, { status, reason, note }, at)
+      if (row.target.type === 'cardio') await setCardio(data.db, data.userId, view.date, { status, reason, note, minutes }, at)
       else if (status === null) await adherenceRepo.clear(data.db, data.userId, target, at)
       else await adherenceRepo.mark(data.db, data.userId, { ...target, status, reason, note }, at)
       setSheet(null)
+      setMinutesFor(null)
       setReload((n) => n + 1)
       void syncNow()
     } catch (e) {
@@ -120,6 +144,7 @@ export function TodayPage() {
 
   const choose = (row: TodayRow, status: AdherenceStatus) => {
     if (row.status === status) void save(row, null)
+    else if (status === 'done' && row.target.type === 'cardio') setMinutesFor(row)
     else if (status === 'done') void save(row, 'done')
     else setSheet({ row, status })
   }
@@ -141,6 +166,12 @@ export function TodayPage() {
         </p>
       </div>
 
+      {notice && (
+        <p role="status" className="rounded-card border border-ok/40 bg-ok/10 px-4 py-3 text-sm font-medium">
+          {notice}
+        </p>
+      )}
+
       {error && (
         <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
           Não foi possível salvar. Tente de novo.
@@ -155,6 +186,15 @@ export function TodayPage() {
           busy={busy}
           onCancel={() => setSheet(null)}
           onPick={(reason, note) => void save(sheet.row, sheet.status, reason, note)}
+        />
+      )}
+
+      {minutesFor && (
+        <MinutesSheet
+          busy={busy}
+          onCancel={() => setMinutesFor(null)}
+          onSkip={() => void save(minutesFor, 'done')}
+          onSave={(minutes) => void save(minutesFor, 'done', null, null, minutes)}
         />
       )}
     </div>
