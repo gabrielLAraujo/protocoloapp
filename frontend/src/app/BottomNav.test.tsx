@@ -18,7 +18,7 @@ function setup(entry = '/') {
             <BottomNav />
           </>
         ),
-        children: ['/', '/treino', '/checkin', '/planejamento', '/settings/diagnostics'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
+        children: ['/', '/treino', '/checkin', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
       },
     ],
     { initialEntries: [entry] },
@@ -52,7 +52,7 @@ describe('BottomNav', () => {
     expect(screen.getByRole('link', { name: 'Treino' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('"Mais" opens Diagnóstico and Sair', async () => {
+  it('"Mais" opens Configurações and Sair', async () => {
     const user = userEvent.setup()
     const router = setup()
     expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
@@ -60,8 +60,8 @@ describe('BottomNav', () => {
     await user.click(screen.getByRole('button', { name: 'Sair' }))
     expect(logout).toHaveBeenCalled()
 
-    await user.click(screen.getByRole('link', { name: 'Diagnóstico' }))
-    expect(router.state.location.pathname).toBe('/settings/diagnostics')
+    await user.click(screen.getByRole('link', { name: 'Configurações' }))
+    expect(router.state.location.pathname).toBe('/configuracoes')
     expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
   })
 
@@ -77,7 +77,7 @@ describe('BottomNav', () => {
     await user.click(more)
     const dialog = screen.getByRole('dialog', { name: 'Mais' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    const diag = screen.getByRole('link', { name: 'Diagnóstico' })
+    const diag = screen.getByRole('link', { name: 'Configurações' })
     const exit = screen.getByRole('button', { name: 'Sair' })
     expect(diag).toHaveFocus()
 

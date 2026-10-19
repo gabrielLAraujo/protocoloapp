@@ -76,8 +76,8 @@ export function DiagnosticsPage() {
   return (
     <section className="space-y-6">
       <div>
-        <Link to="/" className="text-sm text-muted hover:text-ink">
-          ← Voltar
+        <Link to="/configuracoes" className="text-sm text-muted hover:text-ink">
+          ← Configurações
         </Link>
         <h1 className="mt-2 text-xl font-semibold tracking-tight">Diagnóstico</h1>
       </div>

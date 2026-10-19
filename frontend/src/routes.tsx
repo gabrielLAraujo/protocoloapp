@@ -11,6 +11,8 @@ import { PlansPage } from './features/plans/PlansPage'
 import { ProtocolView } from './features/plans/ProtocolView'
 import { LoginPage } from './features/login/LoginPage'
 import { DiagnosticsPage } from './features/settings/DiagnosticsPage'
+import { SchedulePage } from './features/settings/SchedulePage'
+import { SettingsPage } from './features/settings/SettingsPage'
 import { AttentionList } from './features/sync/AttentionList'
 
 export const routes: RouteObject[] = [
@@ -30,6 +32,8 @@ export const routes: RouteObject[] = [
           { path: '/treino/historico', element: <HistoryPage /> },
           { path: '/treino/exercicio/:id', element: <ExerciseHistoryPage /> },
           { path: '/sync', element: <AttentionList /> },
+          { path: '/configuracoes', element: <SettingsPage /> },
+          { path: '/configuracoes/horarios', element: <SchedulePage /> },
           { path: '/settings/diagnostics', element: <DiagnosticsPage /> },
         ],
       },

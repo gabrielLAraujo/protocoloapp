@@ -5,6 +5,7 @@ import type { components } from '../../api/schema'
 import { toProblem } from '../../api/problem'
 import { useData } from '../../data/dataContext'
 import { exerciseRepo } from '../../data/exerciseRepo'
+import { scheduleRepo } from '../../data/scheduleRepo'
 import { normalizeExerciseName } from '../../domain/exerciseNames'
 import type { MuscleGroup } from '../../domain/muscleGroups'
 import {
@@ -211,15 +212,26 @@ export function PlanReviewPage() {
         setSaved(true)
         return
       }
-      const { data, error } = await api.POST('/api/plans/{id}/activate', {
+      const { data: activatedPlan, error } = await api.POST('/api/plans/{id}/activate', {
         params: { path: { id: plan.id } },
         body: { cycleStart: plan.kind === 'protocol' && cycleStart !== '' ? cycleStart : null },
       })
-      if (!data) {
+      if (!activatedPlan) {
         setActionErrors(problemMessages(error))
         return
       }
-      await syncNow() // brings the new active version (and its exercises) to the device
+      // New meal keys get their suggested times (the reminders read them), from the document just activated: the
+      // device has not pulled it yet. The sync below sends them and brings the new active version (and its exercises).
+      if (plan.kind === 'protocol' && data) {
+        const activated = parseProtocolDocument(activatedPlan.document)
+        // Already active on the server: a local failure here must not report the activation as failed (Horários retries).
+        if (activated.ok) {
+          await scheduleRepo.ensureDefaults(data.db, data.userId, activated.value).catch((e: unknown) => {
+            console.error('could not create the suggested times', e)
+          })
+        }
+      }
+      await syncNow()
       void navigate('/planejamento')
     } catch {
       setActionErrors([OFFLINE])

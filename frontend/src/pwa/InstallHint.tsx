@@ -1,17 +1,7 @@
 import { useState } from 'react'
+import { isInstalled, isIos } from './device'
 
 const DISMISSED_KEY = 'protocolo:install-hint-dismissed'
-
-function isIos(): boolean {
-  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true
-  // iPadOS 13+ reports itself as a Mac, but has a touch screen.
-  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-}
-
-function isInstalled(): boolean {
-  const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true
-  return standalone || (window.matchMedia?.('(display-mode: standalone)').matches ?? false)
-}
 
 function wasDismissed(): boolean {
   try {

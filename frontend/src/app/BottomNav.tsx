@@ -78,7 +78,7 @@ export function BottomNav() {
     }
   }
 
-  const moreActive = location.pathname.startsWith('/settings')
+  const moreActive = location.pathname.startsWith('/configuracoes') || location.pathname.startsWith('/settings')
   return (
     <>
       {open && (
@@ -93,8 +93,8 @@ export function BottomNav() {
             onClick={(e) => e.stopPropagation()}
             className="absolute inset-x-0 bottom-[var(--bottom-nav-height,0px)] grid gap-1 rounded-t-2xl border-t border-line bg-surface p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.12)]"
           >
-            <NavLink to="/settings/diagnostics" className="flex min-h-11 items-center rounded-control px-3 text-base hover:bg-line/40 focus-visible:outline-2 focus-visible:outline-accent">
-              Diagnóstico
+            <NavLink to="/configuracoes" className="flex min-h-11 items-center rounded-control px-3 text-base hover:bg-line/40 focus-visible:outline-2 focus-visible:outline-accent">
+              Configurações
             </NavLink>
             <button
               type="button"
