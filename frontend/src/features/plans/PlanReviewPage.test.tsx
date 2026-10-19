@@ -27,9 +27,9 @@ const knownExercise = (id: string, name: string, normalized: string) => ({
   clientUpdatedAt: '2026-10-10T12:00:00.000000+00:00',
 })
 
-async function renderReview(plan: PlanVersion, extra: Record<string, () => Response> = {}) {
+async function renderReview(plan: PlanVersion, extra: Record<string, () => Response> = {}, state: unknown = null) {
   const calls = mockFetch({ [`GET /api/plans/${PLAN_ID}`]: () => json(plan), ...extra })
-  const app = await setupApp([`/planejamento/revisao/${PLAN_ID}`])
+  const app = await setupApp([{ pathname: `/planejamento/revisao/${PLAN_ID}`, state }])
   // The catalog on the device knows the exercises of the fixture except "Crucifixo novo".
   await exerciseSync.applyRemote(app.db, knownExercise('7d1f2a10-0000-5000-8000-0000000000e1', 'Supino reto', 'supino reto'))
   await exerciseSync.applyRemote(app.db, knownExercise('7d1f2a10-0000-5000-8000-0000000000e2', 'Agachamento', 'agachamento'))
@@ -326,6 +326,60 @@ describe('PlanReviewPage', () => {
 
     await screen.findByText('Rascunho salvo')
     expect(screen.queryByText('Não consegui ler esse PDF. Você pode preencher à mão.')).not.toBeInTheDocument()
+  })
+
+  it('shows the notice the device import left, until the draft is saved', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    const notice = 'Esse PDF não tem texto selecionável. Preencha à mão.'
+    await renderReview(planVersion(), { [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion()) }, { notice })
+    expect(await screen.findByText(notice)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
+
+    await screen.findByText('Rascunho salvo')
+    expect(screen.queryByText(notice)).not.toBeInTheDocument()
+  })
+
+  it('marks the paths the device parser flags (sets and rest of an exercise)', async () => {
+    await renderReview(planVersion({ lowConfidence: ['days[0].exercises[0].sets', 'days[0].exercises[0].restSeconds'] }))
+    const first = within(within(await screen.findByRole('region', { name: 'Dia 1' })).getByRole('region', { name: 'Exercício 1' }))
+    expect(first.getByLabelText('Mín.')).toHaveClass('border-warn')
+    expect(first.getByLabelText('Descanso (s)')).toHaveClass('border-warn')
+    expect(first.getByLabelText('Nome')).not.toHaveClass('border-warn')
+  })
+
+  it('without the AI on the server there is no "Ler com IA"', async () => {
+    await renderReview(planVersion(), { 'GET /api/plans/extraction': () => json({ ai: false }) })
+    await screen.findByRole('region', { name: 'Dia 1' })
+    await act(async () => {})
+    expect(screen.queryByRole('button', { name: 'Ler com IA' })).not.toBeInTheDocument()
+  })
+
+  it('"Ler com IA" reads the same file with the AI and opens the new draft', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    const NEW_ID = '7d1f2a10-0000-5000-8000-0000000000c9'
+    const { calls } = await renderReview(planVersion(), {
+      'GET /api/plans/extraction': () => json({ ai: true }),
+      'POST /api/plans/import': () => json(planVersion({ id: NEW_ID }), 201),
+      [`GET /api/plans/${NEW_ID}`]: () => json(planVersion({ id: NEW_ID, document: { days: [] }, extractionError: 'timeout' })),
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Ler com IA' }))
+
+    expect(await screen.findByText('Não consegui ler esse PDF. Você pode preencher à mão.')).toBeInTheDocument()
+    const imported = calls.find((c) => c.path === '/api/plans/import')!
+    expect(JSON.parse(imported.body)).toEqual({ fileId: planVersion().sourceFileId, kind: 'workout' })
+  })
+
+  it('"Ler com IA" unavailable shows the message and keeps the draft', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    await renderReview(planVersion(), {
+      'GET /api/plans/extraction': () => json({ ai: true }),
+      'POST /api/plans/import': () => problem(503, { title: 'Importação indisponível' }),
+    })
+    await user.click(await screen.findByRole('button', { name: 'Ler com IA' }))
+    expect(await screen.findByText('Importação indisponível no momento.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Dia 1' })).toBeInTheDocument()
   })
 
   it('leaving with unsaved edits asks to discard; staying keeps them; discarding leaves', async () => {
