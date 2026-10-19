@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { APP_VERSION, checkForUpdate, downloadApk, type LatestRelease } from '../data/updateCheck'
 import { onResume } from '../platform/lifecycle'
+import { buttonClasses } from '../ui/styles'
 
 /** "Nova versão disponível" for the installed app: checked on open and whenever the app returns to the foreground. */
 export function UpdateBanner() {
@@ -39,7 +40,7 @@ export function UpdateBanner() {
   }
 
   return (
-    <div role="status" className="border-b border-accent/40 bg-accent/10 px-4 py-2 text-sm">
+    <div role="status" className="border-b border-accent/30 bg-accent-soft px-4 py-1 text-sm">
       <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span>
           <strong className="font-semibold">Nova versão disponível</strong> ({release.version})
@@ -48,7 +49,7 @@ export function UpdateBanner() {
           type="button"
           onClick={() => void download(release)}
           disabled={downloading}
-          className="rounded-control px-2 py-1 font-medium text-accent underline disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
+          className={buttonClasses({ variant: 'ghost', size: 'sm' })}
         >
           {downloading ? 'Baixando…' : 'Baixar atualização'}
         </button>

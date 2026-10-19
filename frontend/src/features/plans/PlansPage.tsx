@@ -7,10 +7,13 @@ import { useSync } from '../sync/syncContext'
 import { CycleDatesForm } from './CycleDatesForm'
 import { formatDayMonth, formatInstantDayMonth } from './labels'
 import { ImportError, OFFLINE_IMPORT_MESSAGE, uploadPdf, type UploadStage } from './uploadPdf'
+import { buttonClasses, cardClasses } from '../../ui/styles'
+import { Icon, type IconName } from '../../ui/Icon'
 
 type Loaded = Record<PlanKind, { active: PlanVersionLocal | null; draft: PlanVersionLocal | null }>
 
 const KIND_TITLES: Record<PlanKind, string> = { protocol: 'Protocolo', workout: 'Treino' }
+const KIND_ICONS: Record<PlanKind, IconName> = { protocol: 'meal', workout: 'dumbbell' }
 
 async function load(data: NonNullable<ReturnType<typeof useData>>): Promise<Loaded> {
   const pick = async (kind: PlanKind) => {
@@ -111,17 +114,27 @@ export function PlansPage() {
 
   return (
     <div className="grid gap-4">
-      <h1 className="text-xl font-semibold">Planejamento</h1>
-      {!online && <p className="text-sm text-muted">{OFFLINE_IMPORT_MESSAGE}</p>}
+      <h1 className="text-xl font-bold tracking-tight">Planejamento</h1>
+      {!online && (
+        <p className="flex items-start gap-2 text-sm text-muted">
+          <Icon name="offline" size={18} className="mt-px" />
+          <span>{OFFLINE_IMPORT_MESSAGE}</span>
+        </p>
+      )}
       {(['protocol', 'workout'] as const).map((kind) => {
         const { active, draft } = loaded[kind]
         const title = KIND_TITLES[kind]
         const mine = busy?.kind === kind ? busy : null
         return (
-          <section key={kind} aria-label={title} className="grid gap-3 rounded-control border border-line bg-surface p-4">
-            <h2 className="text-lg font-semibold">{title}</h2>
+          <section key={kind} aria-label={title} className={cardClasses({ className: 'grid gap-4' })}>
+            <div className="flex items-center gap-3">
+              <span className={`grid size-10 shrink-0 place-items-center rounded-full ${active ? 'bg-accent-soft text-accent' : 'bg-raised text-muted'}`}>
+                <Icon name={KIND_ICONS[kind]} />
+              </span>
+              <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+            </div>
             {active ? (
-              <ul className="grid gap-0.5 text-sm text-muted">
+              <ul className="grid gap-1 text-sm text-muted">
                 {describe(kind, active).map((line) => (
                   <li key={line}>{line}</li>
                 ))}
@@ -131,7 +144,7 @@ export function PlansPage() {
             )}
 
             {mine && (
-              <p role="status" className="text-sm">
+              <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium tabular-nums">
                 {mine.stage === 'uploading' ? (
                   'Enviando o PDF…'
                 ) : (
@@ -148,7 +161,7 @@ export function PlansPage() {
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
               <UploadButton disabled={busy !== null || !online} onPick={(file) => void send(kind, file)} />
               {kind === 'protocol' && active && (
                 <Link to="/planejamento/protocolo" className={linkButton}>
@@ -174,13 +187,15 @@ export function PlansPage() {
   )
 }
 
-const linkButton =
-  'grid min-h-11 place-items-center rounded-control border border-line px-4 text-sm font-medium text-ink focus-visible:outline-2 focus-visible:outline-accent'
+const linkButton = buttonClasses({ variant: 'secondary' })
 
 function UploadButton({ disabled, onPick }: { disabled: boolean; onPick: (file: File | undefined) => void }): ReactNode {
   return (
     <label
-      className={`relative grid min-h-11 cursor-pointer place-items-center rounded-control bg-accent px-4 text-sm font-semibold text-on-accent has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      className={buttonClasses({
+        variant: 'primary',
+        className: `relative cursor-pointer has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent ${disabled ? 'pointer-events-none opacity-50' : ''}`,
+      })}
     >
       <input
         type="file"
@@ -192,6 +207,7 @@ function UploadButton({ disabled, onPick }: { disabled: boolean; onPick: (file: 
           e.target.value = '' // the same file can be picked again
         }}
       />
+      <Icon name="upload" size={18} />
       <span>Enviar novo PDF</span>
     </label>
   )

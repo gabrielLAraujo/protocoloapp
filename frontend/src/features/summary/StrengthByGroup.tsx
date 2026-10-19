@@ -1,5 +1,7 @@
 import { MUSCLE_GROUPS, muscleGroupLabel, type MuscleGroup } from '../../domain/muscleGroups'
 import type { GroupTrends, Trend } from '../../domain/strength'
+import { cardClasses } from '../../ui/styles'
+import { EmptyState } from '../../ui/EmptyState'
 
 const kg = (v: number) => `${Math.round(v)} kg`
 
@@ -9,7 +11,7 @@ function TrendLine({ trend }: { trend: Trend }) {
   const up = trend.delta > 0
   const tone = flat ? 'text-muted' : up ? 'text-ok' : 'text-danger'
   return (
-    <li className="flex items-baseline justify-between gap-2 text-sm">
+    <li className="flex items-baseline justify-between gap-2 py-1 text-sm">
       <span className="min-w-0 truncate">{trend.name}</span>
       <span className={`shrink-0 tabular-nums ${tone}`}>
         <span aria-hidden="true">{flat ? '=' : up ? '▲' : '▼'}</span> {flat ? 'igual' : `${up ? '+' : '−'}${Math.abs(rounded)} kg`}{' '}
@@ -23,16 +25,18 @@ function TrendLine({ trend }: { trend: Trend }) {
 export function StrengthByGroup({ strength }: { strength: Record<MuscleGroup, GroupTrends> | null }) {
   const groups = strength ? MUSCLE_GROUPS.filter((g) => strength[g].best.length > 0) : []
   return (
-    <section aria-labelledby="strength-title" className="grid gap-2">
+    <section aria-labelledby="strength-title" className="grid gap-3">
       <h2 id="strength-title" className="text-base font-semibold">Força por grupo</h2>
       {groups.length === 0 ? (
-        <p className="text-sm text-muted">Sem dados: são precisas ao menos 2 sessões do mesmo exercício no ciclo.</p>
+        <EmptyState icon="dumbbell" compact>
+          Sem dados: são precisas ao menos 2 sessões do mesmo exercício no ciclo.
+        </EmptyState>
       ) : (
         <ul className="grid gap-2">
           {groups.map((g) => (
-            <li key={g} className="rounded-control border border-line bg-surface p-3">
+            <li key={g} className={cardClasses({ padding: 'sm' })}>
               <h3 className="text-sm font-semibold">{muscleGroupLabel(g)}</h3>
-              <ul className="mt-1 grid gap-0.5">
+              <ul className="mt-1 grid divide-y divide-line">
                 {strength![g].best.map((t) => (
                   <TrendLine key={t.exerciseId} trend={t} />
                 ))}

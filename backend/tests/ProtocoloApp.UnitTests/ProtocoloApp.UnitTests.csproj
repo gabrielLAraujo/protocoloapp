@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Shared with the front (dayPlan.test.ts): one source of truth for the day rules. -->
+    <None Include="..\..\..\fixtures\schedule-cases.json" Link="Fixtures\schedule-cases.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

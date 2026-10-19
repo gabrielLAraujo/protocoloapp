@@ -18,15 +18,18 @@ export function AppShell() {
   return (
     <SyncProvider>
       <div className="min-h-dvh">
-        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line bg-surface/90 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
-          <span className="text-lg font-semibold tracking-tight">Protocolo</span>
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-10 border-b border-line bg-page/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+          <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1 pl-4 pr-2">
+            <span className="flex items-center gap-2 text-base font-bold tracking-tight">
+              <span aria-hidden="true" className="h-4 w-1.5 rounded-full bg-accent" />
+              Protocolo
+            </span>
             <SyncStatus />
           </div>
         </header>
         {Capacitor.isNativePlatform() ? <UpdateBanner /> : <WebUpdateBanner />}
         <InstallHint />
-        <main className="mx-auto max-w-2xl px-4 pb-[calc(1.5rem+var(--bottom-nav-height,0px))] pt-6">
+        <main className="mx-auto max-w-2xl px-4 pb-[calc(1.5rem+var(--bottom-nav-height,0px))] pt-4">
           <Outlet />
         </main>
         <BottomNav />

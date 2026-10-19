@@ -21,7 +21,7 @@ export function ChoiceField<V extends FieldValues, T extends string | number>({
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <div className="grid gap-1.5">
+        <div className="grid gap-2">
           <span id={`${id}-legend`} className="text-sm font-medium">
             {legend}
           </span>
@@ -29,7 +29,7 @@ export function ChoiceField<V extends FieldValues, T extends string | number>({
             role="radiogroup"
             aria-labelledby={`${id}-legend`}
             aria-describedby={fieldState.error ? `${id}-error` : undefined}
-            className="flex gap-1.5"
+            className="flex gap-2"
           >
             {options.map((option) => (
               <label key={option.value} className="flex-1">
@@ -42,7 +42,7 @@ export function ChoiceField<V extends FieldValues, T extends string | number>({
                   onBlur={field.onBlur}
                   className="peer sr-only"
                 />
-                <span className="grid min-h-11 cursor-pointer place-items-center rounded-control border border-line bg-surface px-2 text-base peer-checked:border-accent peer-checked:bg-accent peer-checked:font-semibold peer-checked:text-on-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
+                <span className="grid min-h-12 cursor-pointer place-items-center rounded-control border border-control-line bg-surface px-2 text-base font-medium tabular-nums transition-colors hover:bg-raised peer-checked:border-accent peer-checked:bg-accent peer-checked:font-bold peer-checked:text-on-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
                   {option.label}
                 </span>
               </label>

@@ -1,3 +1,4 @@
+import { EmptyState } from '../../ui/EmptyState'
 import type { WeightPoint } from './summaryData'
 
 const W = 280
@@ -8,7 +9,12 @@ const formatKg = (v: number) => v.toFixed(1).replace('.', ',')
 
 /** Weight over the cycle as a small inline SVG (no chart library). Needs two points to draw a line. */
 export function WeightSparkline({ points }: { points: WeightPoint[] }) {
-  if (points.length === 0) return <p className="text-sm text-muted">Sem pesagens no ciclo.</p>
+  if (points.length === 0)
+    return (
+      <EmptyState icon="scale" compact>
+        Sem pesagens no ciclo.
+      </EmptyState>
+    )
   const first = points[0].kg
   const last = points[points.length - 1].kg
   const delta = Math.round((last - first) * 10) / 10
@@ -25,7 +31,7 @@ export function WeightSparkline({ points }: { points: WeightPoint[] }) {
 
   return (
     <figure className="grid gap-1">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary} className="h-14 w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary} className="h-16 w-full overflow-visible">
         {points.length > 1 && <path d={path} fill="none" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="stroke-accent" />}
         <circle cx={x(points.length - 1)} cy={y(last)} r={3.5} className="fill-accent" />
       </svg>

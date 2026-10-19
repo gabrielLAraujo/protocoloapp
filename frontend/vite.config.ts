@@ -14,7 +14,12 @@ export default defineConfig({
     // Installable and offline: the whole app shell (including the sql.js WebAssembly) is precached. A new deploy waits for the
     // user's OK ("Nova versão disponível") instead of swapping files under an open session. Registered by src/pwa/serviceWorker.ts
     // (never in the Capacitor build), so no registerSW.js is injected. /api is never cached: sync has its own offline queue.
+    // Our own worker (src/sw.ts, injectManifest) so it can show the Web Push reminders; it keeps the navigation fallback (and its
+    // denylist, in src/pwa/swHandlers.ts) and answers the SKIP_WAITING message of the "Atualizar" button.
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'prompt',
       injectRegister: false,
       manifest: {
@@ -34,13 +39,10 @@ export default defineConfig({
           { src: '/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest}'],
         // Workbox's default is 2 MiB; the sql.js binary is about 0.6 MiB, so 3 MiB covers it and still flags a surprise big file.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        cleanupOutdatedCaches: true,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/openapi/, /^\/scalar/],
       },
     }),
   ],

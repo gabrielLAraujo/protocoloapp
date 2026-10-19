@@ -4,6 +4,8 @@ import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import type { PlannedExercise, WorkoutDay } from '../../domain/planDocuments'
 import { buttonClass } from '../plans/styles'
+import { Button } from '../../ui/Button'
+import { cardClasses } from '../../ui/styles'
 import { DiscardSession } from './DiscardSession'
 import { ExerciseCard } from './ExerciseCard'
 import { RestTimerBar } from './RestTimerBar'
@@ -66,12 +68,17 @@ export function SessionView({
   }
 
   return (
-    <div className="grid gap-3" style={timer.visible ? { paddingBottom: 'calc(6rem + env(safe-area-inset-bottom))' } : undefined}>
-      <h1 className="text-xl font-semibold">
-        {day.name}
-        {day.notes ? ` — ${day.notes}` : ''}
-      </h1>
-      <p className="text-sm text-muted">Treino em andamento</p>
+    <div className="grid gap-4" style={timer.visible ? { paddingBottom: '6rem' } : undefined}>
+      <div>
+        <h1 className="text-xl font-bold tracking-tight">
+          {day.name}
+          {day.notes ? ` — ${day.notes}` : ''}
+        </h1>
+        <p className="flex items-center gap-2 text-sm font-medium text-accent">
+          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+          Treino em andamento
+        </p>
+      </div>
 
       {day.exercises.map((planned) => {
         const { change, exercise } = effective(planned, active)
@@ -123,30 +130,21 @@ export function SessionView({
         </p>
       )}
       {confirming ? (
-        <div role="group" aria-label="Confirmar finalização" className="grid gap-2 rounded-control border border-line p-3">
-          <p className="font-medium">Finalizar o treino agora?</p>
+        <div role="group" aria-label="Confirmar finalização" className={cardClasses({ className: 'grid gap-3' })}>
+          <p className="font-semibold">Finalizar o treino agora?</p>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={finishing}
-              onClick={() => void finish()}
-              className="min-h-11 rounded-control bg-accent px-4 text-sm font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
-            >
+            <Button variant="primary" loading={finishing} onClick={() => void finish()}>
               Sim, finalizar
-            </button>
+            </Button>
             <button type="button" className={buttonClass} onClick={() => setConfirming(false)}>
               Continuar treinando
             </button>
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="min-h-12 rounded-control bg-accent px-4 text-base font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
+        <Button variant="primary" size="lg" icon="check" onClick={() => setConfirming(true)}>
           Finalizar treino
-        </button>
+        </Button>
       )}
 
       {active.sets.length === 0 && <DiscardSession data={data} sessionId={session.id} onDiscarded={onDiscarded} />}

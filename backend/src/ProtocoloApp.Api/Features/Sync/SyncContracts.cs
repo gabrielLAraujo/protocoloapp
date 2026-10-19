@@ -66,6 +66,9 @@ public static class SyncErrors
     /// <summary>daily_checkin: another live check-in of the user already has this date.</summary>
     public const string DateConflict = "date_conflict";
 
+    /// <summary>schedule_slot / adherence_log: another live row of the user already has the same natural key.</summary>
+    public const string SlotConflict = "slot_conflict";
+
     /// <summary>Missing payload, not a JSON object, or a field that is invalid (<c>invalid_payload:&lt;field&gt;</c>).</summary>
     public const string InvalidPayload = "invalid_payload";
 

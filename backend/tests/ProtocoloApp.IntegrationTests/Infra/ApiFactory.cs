@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.Plans.Extraction;
+using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Storage;
 
@@ -37,6 +38,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>The plan extractor every test talks to: nothing reaches the Anthropic API.</summary>
     public FakePlanExtractor Extractor { get; } = new();
 
+    /// <summary>The push sender every test talks to: nothing reaches a push service.</summary>
+    public FakePushSender Push { get; } = new();
+
     public string ConnectionString => _postgres.ConnectionString;
 
     public async Task InitializeAsync()
@@ -60,11 +64,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Db", ConnectionString);
+        // The reminder loop stays off: tests call ReminderScheduler.RunOnceAsync themselves, with the time they want.
+        builder.UseSetting("Reminders:Enabled", "false");
         builder.UseSetting("Auth:SigningKey", "test-only-signing-key-0123456789-abcdefghij");
         builder.ConfigureTestServices(services =>
         {
             services.Replace(ServiceDescriptor.Singleton<IFileStorage>(Storage));
             services.Replace(ServiceDescriptor.Singleton<IPlanExtractor>(Extractor));
+            services.Replace(ServiceDescriptor.Singleton<IPushSender>(Push));
         });
     }
 

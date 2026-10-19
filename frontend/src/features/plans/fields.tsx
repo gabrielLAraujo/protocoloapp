@@ -153,7 +153,7 @@ export function SelectField({
 export function Section({ title, children, path }: { title: string; children: ReactNode; path?: string }) {
   const low = useIsLow(path ?? '\u0000')
   return (
-    <section aria-label={title} className={`grid gap-3 rounded-control border p-3 ${low ? 'border-warn' : 'border-line'} bg-surface`}>
+    <section aria-label={title} className={`grid gap-3 rounded-card border p-4 shadow-card ${low ? 'border-warn' : 'border-line'} bg-surface`}>
       <div className="flex items-center gap-2">
         <h3 className="text-base font-semibold">{title}</h3>
         {low && <ConfiraBadge />}

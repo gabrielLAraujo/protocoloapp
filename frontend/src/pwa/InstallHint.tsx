@@ -1,17 +1,8 @@
 import { useState } from 'react'
+import { isInstalled, isIos } from './device'
+import { buttonClasses } from '../ui/styles'
 
 const DISMISSED_KEY = 'protocolo:install-hint-dismissed'
-
-function isIos(): boolean {
-  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true
-  // iPadOS 13+ reports itself as a Mac, but has a touch screen.
-  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-}
-
-function isInstalled(): boolean {
-  const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true
-  return standalone || (window.matchMedia?.('(display-mode: standalone)').matches ?? false)
-}
 
 function wasDismissed(): boolean {
   try {
@@ -38,7 +29,7 @@ export function InstallHint() {
   if (!visible) return null
 
   return (
-    <div role="note" className="border-b border-line bg-surface px-4 py-2 text-sm">
+    <div role="note" className="border-b border-line bg-surface px-4 py-3 text-sm">
       <div className="mx-auto flex max-w-2xl items-start justify-between gap-3">
         <p>
           <strong className="font-semibold">Adicione à Tela de Início para usar offline e receber lembretes</strong>
@@ -50,7 +41,7 @@ export function InstallHint() {
             remember()
             setVisible(false)
           }}
-          className="rounded-control px-2 py-1 font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent"
+          className={buttonClasses({ variant: 'ghost', size: 'sm' })}
         >
           Dispensar
         </button>

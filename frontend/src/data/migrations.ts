@@ -132,6 +132,37 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
     version: 3,
     statements: ['ALTER TABLE workout_sessions ADD COLUMN exercise_notes TEXT'],
   },
+  {
+    // The day's times and marks (screen "Hoje"). Additive only.
+    version: 4,
+    statements: [
+      // time: HH:mm; reminder_enabled: 0/1.
+      `CREATE TABLE schedule_slots (
+        id TEXT PRIMARY KEY,
+        slot TEXT NOT NULL,
+        day_type TEXT NOT NULL,
+        time TEXT NOT NULL,
+        reminder_enabled INTEGER NOT NULL,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_schedule_slots_slot ON schedule_slots (slot, day_type)',
+      `CREATE TABLE adherence_logs (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_key TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT,
+        note TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_adherence_logs_date ON adherence_logs (date)',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

@@ -14,11 +14,11 @@ const LABEL: Record<DayState, string> = {
   today: 'hoje',
 }
 const STYLE: Record<DayState, string> = {
-  done: 'border-ok text-ok',
-  missed: 'border-danger text-danger',
-  rest: 'border-line text-muted',
+  done: 'border-ok/60 bg-ok/10 text-ok',
+  missed: 'border-danger/60 bg-danger/10 text-danger',
+  rest: 'border-line bg-surface text-muted',
   future: 'border-line border-dashed text-muted',
-  today: 'border-accent border-2 text-ink',
+  today: 'border-accent border-2 bg-surface text-ink font-semibold',
 }
 
 function describe(day: CalendarDay): string {
@@ -38,7 +38,7 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7))
 
   return (
-    <section aria-labelledby="calendar-title" className="grid gap-2">
+    <section aria-labelledby="calendar-title" className="grid gap-3">
       <h2 id="calendar-title" className="text-base font-semibold">Calendário do ciclo</h2>
       <div role="table" aria-label="Calendário do ciclo" className="grid gap-1">
         <div role="row" className="grid grid-cols-7 gap-1 text-center text-xs text-muted">
@@ -58,13 +58,13 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
                   aria-label={describe(day)}
                   aria-current={day.state === 'today' ? 'date' : undefined}
                   data-state={day.state}
-                  className={`relative flex min-h-11 flex-col items-center justify-center rounded-control border bg-surface text-xs ${STYLE[day.state]}`}
+                  className={`relative flex min-h-11 flex-col items-center justify-center rounded-control border text-xs ${STYLE[day.state]}`}
                 >
                   <span className="tabular-nums">{day.date.slice(8)}</span>
                   <span aria-hidden="true" className="text-sm font-bold leading-none">
                     {day.state === 'today' ? (day.done ? '✓' : day.planned ? '•' : '') : SYMBOL[day.state]}
                   </span>
-                  {day.cardio && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-accent" />}
+                  {day.cardio && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-accent ring-2 ring-surface" />}
                 </span>
               )
             })}
