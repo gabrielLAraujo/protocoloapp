@@ -786,6 +786,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ended_at");
 
+                    b.Property<JsonDocument>("ExerciseNotes")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("exercise_notes");
+
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
