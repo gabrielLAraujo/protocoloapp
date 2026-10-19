@@ -188,4 +188,76 @@ public sealed class PlanDocumentValidatorTests
         Assert.Contains("items", errors);
         Assert.Contains("items[1].category", errors);
     }
+
+    [Fact]
+    public void Billing_before_update_is_valid()
+    {
+        var doc = PlanDocuments.Deserialize<ProtocolDocument>("""{ "updateDate": "2026-11-15", "billingDate": "2026-11-01" }""")!;
+
+        Assert.Empty(Protocol.Validate(doc).Errors);
+    }
+
+    [Theory]
+    [InlineData("""{ "meals": null, "items": null, "guidelines": null }""")]
+    [InlineData("""{ "meals": [null], "items": [null], "guidelines": [null] }""")]
+    [InlineData("""{ "meals": [ { "key": "m", "items": null } ], "items": [ { "key": "a", "category": "supplement", "name": "x", "schedule": null } ] }""")]
+    public void Protocol_with_explicit_nulls_does_not_throw(string json)
+    {
+        var doc = PlanDocuments.Deserialize<ProtocolDocument>(json)!;
+
+        var ex = Record.Exception(() => Protocol.Validate(doc));
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void Protocol_item_with_null_schedule_is_an_error()
+    {
+        var doc = PlanDocuments.Deserialize<ProtocolDocument>(
+            """{ "items": [ { "key": "a", "category": "supplement", "name": "x", "timing": "any", "schedule": null } ] }""")!;
+
+        Assert.Contains("items[0].schedule", Protocol.Validate(doc).Errors.Select(e => e.PropertyName));
+    }
+
+    [Theory]
+    [InlineData("""{ "rotation": null, "days": null }""", "days")]
+    [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [null] }""", "days[0]")]
+    [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": null } ] }""", "days")]
+    [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": [ { "key": "A1", "name": "x", "sets": null } ] } ] }""", "days[0].exercises[0].sets")]
+    [InlineData("""{ "rotation": { "type": "sequence", "items": ["A"] }, "days": [ { "key": "A", "exercises": [ { "key": "A1", "name": "x", "sets": [null] } ] } ] }""", "days[0].exercises[0].sets[0]")]
+    public void Workout_with_explicit_nulls_reports_errors_without_throwing(string json, string expectedPath)
+    {
+        var doc = PlanDocuments.Deserialize<WorkoutDocument>(json)!;
+
+        var errors = Workout.Validate(doc).Errors.Select(e => e.PropertyName).ToList();
+
+        Assert.Contains(expectedPath, errors);
+    }
+
+    [Fact]
+    public void TryRead_reports_a_null_number_as_an_error_instead_of_throwing()
+    {
+        using var json = System.Text.Json.JsonDocument.Parse(
+            """{ "days": [ { "key": "A", "exercises": [ { "key": "A1", "name": "x", "sets": [ { "repsMin": null, "repsMax": 5 } ] } ] } ] }""");
+
+        var ok = PlanDocuments.TryRead<WorkoutDocument>(json.RootElement, out var doc, out var errors);
+
+        Assert.False(ok);
+        Assert.Null(doc);
+        Assert.NotEmpty(errors);
+        Assert.StartsWith("days", errors[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryRead_rejects_a_non_object_root_and_accepts_a_valid_document()
+    {
+        using var array = System.Text.Json.JsonDocument.Parse("[]");
+        using var valid = System.Text.Json.JsonDocument.Parse(ValidWorkout);
+
+        Assert.False(PlanDocuments.TryRead<WorkoutDocument>(array.RootElement, out _, out var errors));
+        Assert.Equal("document", Assert.Single(errors));
+        Assert.True(PlanDocuments.TryRead<WorkoutDocument>(valid.RootElement, out var doc, out var none));
+        Assert.NotNull(doc);
+        Assert.Empty(none);
+    }
 }

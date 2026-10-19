@@ -34,4 +34,17 @@ public sealed class ExerciseNamesTests
     [Fact]
     public void Different_exercises_stay_different() =>
         Assert.NotEqual(ExerciseNames.Normalize("Supino reto"), ExerciseNames.Normalize("Supino inclinado"));
+
+    [Theory]
+    [InlineData("supino reto", true)]
+    [InlineData("", false)]
+    public void IsUsable_rejects_empty(string normalized, bool expected) =>
+        Assert.Equal(expected, ExerciseNames.IsUsable(normalized));
+
+    [Fact]
+    public void IsUsable_enforces_the_length_limit()
+    {
+        Assert.True(ExerciseNames.IsUsable(new string('a', 200)));
+        Assert.False(ExerciseNames.IsUsable(new string('a', 201)));
+    }
 }

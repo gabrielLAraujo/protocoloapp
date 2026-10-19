@@ -34,18 +34,33 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
         {
             void Fail(string path, string message) => context.AddFailure(path, message);
 
-            if (doc.BillingDate is { } billing && doc.UpdateDate is { } update && billing < update)
-                Fail("billingDate", "A mensalidade não pode ser anterior à atualização.");
+            // Explicit JSON nulls ("meals": null, [null]) are treated as empty / reported, never dereferenced.
+            var meals = doc.Meals ?? [];
+            var items = doc.Items ?? [];
+            var guidelines = doc.Guidelines ?? [];
 
-            AddDuplicateKeys(doc.Meals.Select(m => m.Key), "meals", Fail);
-            for (var i = 0; i < doc.Meals.Count; i++)
+            AddDuplicateKeys(meals.Select(m => m?.Key), "meals", Fail);
+            for (var i = 0; i < meals.Count; i++)
             {
-                var meal = doc.Meals[i];
+                var meal = meals[i];
+                if (meal is null)
+                {
+                    Fail($"meals[{i}]", "Obrigatório.");
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(meal.Key))
                     Fail($"meals[{i}].key", "Obrigatório.");
-                for (var j = 0; j < meal.Items.Count; j++)
+                var mealItems = meal.Items ?? [];
+                for (var j = 0; j < mealItems.Count; j++)
                 {
-                    var item = meal.Items[j];
+                    var item = mealItems[j];
+                    if (item is null)
+                    {
+                        Fail($"meals[{i}].items[{j}]", "Obrigatório.");
+                        continue;
+                    }
+
                     if (string.IsNullOrWhiteSpace(item.Food))
                         Fail($"meals[{i}].items[{j}].food", "Obrigatório.");
                     if (item.Grams is < 0 or > 10000)
@@ -53,10 +68,16 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
                 }
             }
 
-            AddDuplicateKeys(doc.Items.Select(i => i.Key), "items", Fail);
-            for (var i = 0; i < doc.Items.Count; i++)
+            AddDuplicateKeys(items.Select(x => x?.Key), "items", Fail);
+            for (var i = 0; i < items.Count; i++)
             {
-                var item = doc.Items[i];
+                var item = items[i];
+                if (item is null)
+                {
+                    Fail($"items[{i}]", "Obrigatório.");
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(item.Key))
                     Fail($"items[{i}].key", "Obrigatório.");
                 if (string.IsNullOrWhiteSpace(item.Name))
@@ -65,7 +86,10 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
                     Fail($"items[{i}].category", "Categoria desconhecida.");
                 if (!PlanDocumentRules.IsValidTiming(item.Timing))
                     Fail($"items[{i}].timing", "Horário desconhecido.");
-                ValidateSchedule(item.Schedule, $"items[{i}].schedule", Fail);
+                if (item.Schedule is null)
+                    Fail($"items[{i}].schedule", "Obrigatório.");
+                else
+                    ValidateSchedule(item.Schedule, $"items[{i}].schedule", Fail);
             }
 
             if (doc.Cardio is { } cardio)
@@ -76,9 +100,15 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
                     Fail("cardio.durationMin", "Fora da faixa.");
             }
 
-            for (var i = 0; i < doc.Guidelines.Count; i++)
+            for (var i = 0; i < guidelines.Count; i++)
             {
-                var guideline = doc.Guidelines[i];
+                var guideline = guidelines[i];
+                if (guideline is null)
+                {
+                    Fail($"guidelines[{i}]", "Obrigatório.");
+                    continue;
+                }
+
                 if (!PlanDocumentRules.GuidelineKinds.Contains(guideline.Kind, StringComparer.Ordinal))
                     Fail($"guidelines[{i}].kind", "Tipo desconhecido.");
                 else if (guideline.Kind == "text" && string.IsNullOrWhiteSpace(guideline.Text))
@@ -108,10 +138,10 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
         }
     }
 
-    internal static void AddDuplicateKeys(IEnumerable<string> keys, string path, Action<string, string> fail)
+    internal static void AddDuplicateKeys(IEnumerable<string?> keys, string path, Action<string, string> fail)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        if (keys.Where(k => !string.IsNullOrWhiteSpace(k)).Any(k => !seen.Add(k)))
+        if (keys.Where(k => !string.IsNullOrWhiteSpace(k)).Any(k => !seen.Add(k!)))
             fail(path, "Chaves repetidas.");
     }
 }
@@ -131,14 +161,21 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
         {
             void Fail(string path, string message) => context.AddFailure(path, message);
 
-            if (doc.Days.Count == 0)
+            // Explicit JSON nulls ("days": null, [null]) are reported, never dereferenced.
+            var days = doc.Days ?? [];
+            if (days.Count == 0)
                 Fail("days", "Informe ao menos um dia de treino.");
-            ProtocolDocumentValidator.AddDuplicateKeys(doc.Days.Select(d => d.Key), "days", Fail);
+            ProtocolDocumentValidator.AddDuplicateKeys(days.Select(d => d?.Key), "days", Fail);
 
-            var dayKeys = doc.Days.Select(d => d.Key).Where(k => !string.IsNullOrWhiteSpace(k)).ToHashSet(StringComparer.Ordinal);
+            var dayKeys = days.Select(d => d?.Key).Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k!).ToHashSet(StringComparer.Ordinal);
             ValidateRotation(doc.Rotation, dayKeys, Fail);
-            for (var i = 0; i < doc.Days.Count; i++)
-                ValidateDay(doc.Days[i], $"days[{i}]", Fail);
+            for (var i = 0; i < days.Count; i++)
+            {
+                if (days[i] is null)
+                    Fail($"days[{i}]", "Obrigatório.");
+                else
+                    ValidateDay(days[i], $"days[{i}]", Fail);
+            }
         });
     }
 
@@ -157,13 +194,13 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
             case RotationDto.Sequence:
                 if (rotation.Items is not { Count: > 0 })
                     fail("rotation.items", "A rotação não pode ficar vazia.");
-                else if (rotation.Items.Any(item => !Known(item)))
+                else if (rotation.Items.Any(item => item is null || !Known(item)))
                     fail("rotation.items", "A rotação usa um dia que não existe.");
                 break;
             case RotationDto.FixedWeekdays:
                 if (rotation.Map is null || PlanDocumentRules.Weekdays.Any(day => !rotation.Map.ContainsKey(day)))
                     fail("rotation.map", "Informe os 7 dias da semana (mon..sun).");
-                else if (rotation.Map.Any(entry => !PlanDocumentRules.Weekdays.Contains(entry.Key, StringComparer.Ordinal) || !Known(entry.Value)))
+                else if (rotation.Map.Any(entry => !PlanDocumentRules.Weekdays.Contains(entry.Key, StringComparer.Ordinal) || entry.Value is null || !Known(entry.Value)))
                     fail("rotation.map", "A rotação usa um dia que não existe.");
                 break;
             default:
@@ -179,21 +216,35 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
         else if (day.Key == RotationDto.Off)
             fail($"{path}.key", "\"off\" é reservado para descanso.");
 
-        ProtocolDocumentValidator.AddDuplicateKeys(day.Exercises.Select(e => e.Key), $"{path}.exercises", fail);
-        for (var j = 0; j < day.Exercises.Count; j++)
+        var exercises = day.Exercises ?? [];
+        ProtocolDocumentValidator.AddDuplicateKeys(exercises.Select(e => e?.Key), $"{path}.exercises", fail);
+        for (var j = 0; j < exercises.Count; j++)
         {
-            var exercise = day.Exercises[j];
+            var exercise = exercises[j];
             var exercisePath = $"{path}.exercises[{j}]";
+            if (exercise is null)
+            {
+                fail(exercisePath, "Obrigatório.");
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(exercise.Key))
                 fail($"{exercisePath}.key", "Obrigatório.");
             if (string.IsNullOrWhiteSpace(exercise.Name))
                 fail($"{exercisePath}.name", "Obrigatório.");
-            if (exercise.Sets.Count == 0)
+            var sets = exercise.Sets ?? [];
+            if (sets.Count == 0)
                 fail($"{exercisePath}.sets", "Informe ao menos uma série.");
 
-            for (var k = 0; k < exercise.Sets.Count; k++)
+            for (var k = 0; k < sets.Count; k++)
             {
-                var set = exercise.Sets[k];
+                var set = sets[k];
+                if (set is null)
+                {
+                    fail($"{exercisePath}.sets[{k}]", "Obrigatório.");
+                    continue;
+                }
+
                 if (set.RepsMin < 0 || set.RepsMax > MaxReps || set.RepsMin > set.RepsMax)
                     fail($"{exercisePath}.sets[{k}]", "Repetições inválidas (mín. ≤ máx., 0–200).");
             }
@@ -201,7 +252,7 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
             if (exercise.RestSeconds is < 0 or > PlanDocumentRules.MaxRestSeconds)
                 fail($"{exercisePath}.restSeconds", "Descanso fora da faixa (0–900 s).");
             if (exercise.RestSequence is { } sequence
-                && (sequence.Count == 0 || sequence.Any(s => s is < 0 or > PlanDocumentRules.MaxRestSeconds)))
+                && (sequence.Count == 0 || sequence.Any(v => v is < 0 or > PlanDocumentRules.MaxRestSeconds)))
             {
                 fail($"{exercisePath}.restSequence", "Descanso fora da faixa (0–900 s).");
             }

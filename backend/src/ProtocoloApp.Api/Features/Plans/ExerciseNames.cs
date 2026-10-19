@@ -34,6 +34,9 @@ public static partial class ExerciseNames
         return string.Join(' ', words);
     }
 
+    /// <summary>False for a normalized name that cannot be stored: empty, or longer than <see cref="Exercise.MaxNameLength"/>.</summary>
+    public static bool IsUsable(string normalized) => !string.IsNullOrEmpty(normalized) && normalized.Length <= Exercise.MaxNameLength;
+
     // "c/" as a word of its own ("c/ halteres", "supino c/halteres"), not the end of another word.
     [GeneratedRegex(@"(?<![\p{L}\p{N}])c/", RegexOptions.CultureInvariant)]
     private static partial Regex AbbreviatedWith();

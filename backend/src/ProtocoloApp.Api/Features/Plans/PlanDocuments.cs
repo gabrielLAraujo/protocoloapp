@@ -15,6 +15,33 @@ public static class PlanDocuments
 
     public static T? Deserialize<T>(JsonElement json) where T : class => json.Deserialize<T>(Options);
 
+    /// <summary>
+    /// Reads and deserializes a document. Malformed JSON, wrong types (<c>"repsMin": null</c>) and a non-object root come back
+    /// as <paramref name="errors"/> (JSON path of the problem when known), never as an exception.
+    /// </summary>
+    public static bool TryRead<T>(JsonElement json, out T? document, out IReadOnlyList<string> errors) where T : class
+    {
+        document = null;
+        if (json.ValueKind != JsonValueKind.Object)
+        {
+            errors = ["document"];
+            return false;
+        }
+
+        try
+        {
+            document = json.Deserialize<T>(Options);
+        }
+        catch (JsonException ex)
+        {
+            errors = [ex.Path is { Length: > 2 } path && path.StartsWith("$.", StringComparison.Ordinal) ? path[2..] : "document"];
+            return false;
+        }
+
+        errors = document is null ? ["document"] : [];
+        return document is not null;
+    }
+
     public static JsonElement Serialize<T>(T document) => JsonSerializer.SerializeToElement(document, Options);
 }
 
