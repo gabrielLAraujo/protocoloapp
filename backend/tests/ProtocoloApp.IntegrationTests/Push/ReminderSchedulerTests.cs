@@ -24,13 +24,13 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
         new(Day.ToDateTime(TimeOnly.Parse(time, CultureInfo.InvariantCulture)), TimeSpan.FromHours(-3));
 
     // No workout plan: the day is an off day, so the schedule rows below are "off".
-    private const string Protocol = $$"""
+    private const string Protocol = $$$"""
         {"phaseName":"Fase 1","updateDate":"2026-03-01",
          "meals":[
            {"key":"1","label":"REF 1","items":[{"food":"Arroz","grams":100,"alternatives":[]}]},
            {"key":"2","label":"REF 2","items":[{"food":"Frango","grams":150,"alternatives":[]}]}],
          "items":[
-           {"key":"x1","category":"hormone","name":"{{SecretName}}","doseText":"{{SecretDose}}","timing":"fasting","schedule":{"type":"daily"}},
+           {"key":"x1","category":"hormone","name":"{{{SecretName}}}","doseText":"{{{SecretDose}}}","timing":"fasting","schedule":{"type":"daily"}},
            {"key":"x2","category":"supplement","name":"Creatina","doseText":"5 g","timing":"with_meal:2","schedule":{"type":"daily"}},
            {"key":"x3","category":"supplement","name":"Magnésio","doseText":"400 mg","timing":"before_bed","schedule":{"type":"daily"}}],
          "cardio":{"daily":true,"durationMin":30},
