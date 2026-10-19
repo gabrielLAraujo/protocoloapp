@@ -1,11 +1,13 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { ADHERENCE_REASONS, MAX_NOTE_LENGTH, type AdherenceReason } from '../../data/adherenceRepo'
-import { buttonClass, inputClass } from '../plans/styles'
+import { inputClass } from '../plans/styles'
+import { Button } from '../../ui/Button'
 import { REASON_LABELS } from './todayData'
 
 /**
  * The quick reasons for "½ Parcial" / "✗ Não fiz". A reason saves at once; "Outro" asks for an optional note first.
- * Escape or "Cancelar" closes without saving.
+ * Escape or "Cancelar" closes without saving. Focus stays inside while it is open (Tab wraps) and goes back to the button
+ * that opened it when it closes.
  */
 export function ReasonSheet({
   title,
@@ -24,27 +26,52 @@ export function ReasonSheet({
   const [note, setNote] = useState('')
   const panel = useRef<HTMLDivElement>(null)
 
+  // The opener is whatever had the focus when the sheet mounted; it gets it back on close (when it is still on screen).
+  // Declared before the effect below, so it reads the opener and not the sheet's own first button.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return () => {
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [])
+
   useEffect(() => {
     panel.current?.querySelector<HTMLElement>('button, textarea')?.focus()
   }, [other])
 
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      onCancel()
+      return
+    }
+    if (e.key !== 'Tab') return
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled)'))
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (e.shiftKey && (document.activeElement === first || !e.currentTarget.contains(document.activeElement))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/30" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-end bg-scrim" onClick={onCancel}>
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.stopPropagation()
-            onCancel()
-          }
-        }}
-        className="mx-auto grid w-full max-w-2xl gap-3 rounded-t-2xl border-t border-line bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        onKeyDown={onKeyDown}
+        className="mx-auto grid w-full max-w-2xl gap-4 rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised"
       >
-        <h2 id={titleId} className="text-base font-semibold">
+        <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line" />
+        <h2 id={titleId} className="text-lg font-semibold">
           {title}
         </h2>
         {other ? (
@@ -61,17 +88,12 @@ export function ReasonSheet({
               className={inputClass}
             />
             <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => onPick('other', note.trim() ? note.trim() : null)}
-                className="min-h-11 flex-1 rounded-control bg-accent px-4 font-semibold text-on-accent disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
+              <Button variant="primary" className="flex-1" disabled={busy} onClick={() => onPick('other', note.trim() ? note.trim() : null)}>
                 Salvar
-              </button>
-              <button type="button" className={`${buttonClass} flex-1`} onClick={onCancel}>
+              </Button>
+              <Button className="flex-1" onClick={onCancel}>
                 Cancelar
-              </button>
+              </Button>
             </div>
           </>
         ) : (
@@ -79,20 +101,14 @@ export function ReasonSheet({
             <p className="text-sm text-muted">Qual foi o motivo?</p>
             <div className="grid grid-cols-2 gap-2">
               {ADHERENCE_REASONS.map((reason) => (
-                <button
-                  key={reason}
-                  type="button"
-                  disabled={busy}
-                  className={buttonClass}
-                  onClick={() => (reason === 'other' ? setOther(true) : onPick(reason, null))}
-                >
+                <Button key={reason} size="lg" disabled={busy} onClick={() => (reason === 'other' ? setOther(true) : onPick(reason, null))}>
                   {REASON_LABELS[reason]}
-                </button>
+                </Button>
               ))}
             </div>
-            <button type="button" className={buttonClass} onClick={onCancel}>
+            <Button variant="ghost" onClick={onCancel}>
               Cancelar
-            </button>
+            </Button>
           </>
         )}
       </div>

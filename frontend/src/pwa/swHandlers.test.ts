@@ -37,7 +37,7 @@ describe('readPush', () => {
 })
 
 describe('showPush', () => {
-  it('shows the notification with the icon, the tag and the page to open', async () => {
+  it('shows the notification with the icon, the monochrome badge, the tag and the page to open', async () => {
     const showNotification = vi.fn(() => Promise.resolve())
 
     await showPush({ showNotification }, payload({ title: 'Protocolo', body: 'Hora do cardio', url: '/hoje', tag: 'cardio' }))
@@ -45,6 +45,7 @@ describe('showPush', () => {
     expect(showNotification).toHaveBeenCalledWith('Protocolo', {
       body: 'Hora do cardio',
       icon: '/pwa-192.png',
+      badge: '/badge-96.png',
       tag: 'cardio',
       renotify: true,
       data: { url: '/hoje' },
@@ -56,7 +57,7 @@ describe('showPush', () => {
 
     await showPush({ showNotification }, null)
 
-    expect(showNotification).toHaveBeenCalledWith('Protocolo', { body: FALLBACK_BODY, icon: '/pwa-192.png', data: { url: '/hoje' } })
+    expect(showNotification).toHaveBeenCalledWith('Protocolo', { body: FALLBACK_BODY, icon: '/pwa-192.png', badge: '/badge-96.png', data: { url: '/hoje' } })
   })
 })
 

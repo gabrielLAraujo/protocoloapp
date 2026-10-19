@@ -4,6 +4,8 @@
 //   pwa-192.png, pwa-512.png      "any" purpose: rounded tile
 //   pwa-maskable-512.png          "maskable": full bleed, glyph inside the central 80% safe zone
 //   apple-touch-icon.png (180)    iOS rounds it itself, so it is full bleed too
+//   badge-96.png                  notification badge (Android status bar): the glyph alone, white on transparent; the
+//                                 system only uses its alpha
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,12 +32,18 @@ function artwork({ radius, scale }) {
 
 const rounded = artwork({ radius: 112, scale: 14 })
 const fullBleed = artwork({ radius: 0, scale: 14 })
+const badge = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">` +
+    `<path transform="translate(256 256) scale(22) translate(-15.5 -16)" d="${GLYPH}" fill="#ffffff" fill-rule="evenodd"/>` +
+    `</svg>`,
+)
 
 const targets = [
   ['pwa-192.png', rounded, 192],
   ['pwa-512.png', rounded, 512],
   ['pwa-maskable-512.png', fullBleed, 512],
   ['apple-touch-icon.png', fullBleed, 180],
+  ['badge-96.png', badge, 96],
 ]
 
 for (const [name, svg, size] of targets) {
