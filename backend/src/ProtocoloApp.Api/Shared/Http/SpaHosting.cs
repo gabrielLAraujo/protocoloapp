@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.StaticFiles;
 
 namespace ProtocoloApp.Api.Shared.Http;
@@ -10,11 +11,19 @@ public static class SpaHosting
 {
     private const string IndexFile = "index.html";
 
-    // Files under /assets carry a content hash in their name (Vite renames them on every change), so they never change.
+    // Files under /assets with a content hash in their name (Vite renames them on every change) never change. Unhashed files
+    // there (sql-wasm.wasm, copied from public/) can change under the same name after an upgrade, so they are revalidated.
     private const string ImmutableCache = "public,max-age=31536000,immutable";
 
-    // Everything else (index.html, icons) is revalidated on every visit: a new deploy shows up at once, and the ETag avoids the download.
+    // Everything else is revalidated on every visit: a new deploy shows up at once, and the ETag avoids the download. This
+    // includes the files with a fixed name that the PWA depends on (sw.js, registerSW.js, manifest.webmanifest, index.html):
+    // a browser that cached sw.js for a day would keep serving the old app for a day.
     private const string RevalidateCache = "no-cache";
+
+    private static readonly Regex FingerprintedName = new(@"-[A-Za-z0-9_-]{8,}\.(js|css|woff2|png|svg|wasm)$", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+    // Not in the default table of the content-type provider on every version; the manifest must be served as this type.
+    private static readonly FileExtensionContentTypeProvider ContentTypes = CreateContentTypes();
 
     // Front routes: any path without a file extension that belongs neither to the API nor to the docs/health endpoints.
     // The fallback must never swallow /api (unknown routes must keep returning the API's 404), /health, /openapi or /scalar;
@@ -26,7 +35,7 @@ public static class SpaHosting
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        return app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = PrepareFileResponse });
+        return app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = PrepareFileResponse, ContentTypeProvider = ContentTypes });
     }
 
     /// <summary>
@@ -40,7 +49,7 @@ public static class SpaHosting
         if (!app.Environment.WebRootFileProvider.GetFileInfo(IndexFile).Exists)
             return;
 
-        var options = new StaticFileOptions { OnPrepareResponse = PrepareIndexResponse };
+        var options = new StaticFileOptions { OnPrepareResponse = PrepareIndexResponse, ContentTypeProvider = ContentTypes };
 
         // The root is mapped separately: the regex of FallbackPattern only accepts paths with a value, and "/" has none.
         app.MapFallbackToFile("/", IndexFile, options).ExcludeFromDescription();
@@ -50,9 +59,18 @@ public static class SpaHosting
     // Only files that exist in wwwroot get here; under /assets, the hashed build output.
     private static void PrepareFileResponse(StaticFileResponseContext context) =>
         context.Context.Response.Headers.CacheControl =
-            context.Context.Request.Path.StartsWithSegments("/assets") ? ImmutableCache : RevalidateCache;
+            context.Context.Request.Path.StartsWithSegments("/assets") && FingerprintedName.IsMatch(context.File.Name)
+                ? ImmutableCache
+                : RevalidateCache;
 
     // index.html standing in for a front route is always revalidated, whatever path was requested.
     private static void PrepareIndexResponse(StaticFileResponseContext context) =>
         context.Context.Response.Headers.CacheControl = RevalidateCache;
+
+    private static FileExtensionContentTypeProvider CreateContentTypes()
+    {
+        var provider = new FileExtensionContentTypeProvider();
+        provider.Mappings[".webmanifest"] = "application/manifest+json";
+        return provider;
+    }
 }

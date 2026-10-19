@@ -1,11 +1,21 @@
+import { Capacitor } from '@capacitor/core'
+import { useEffect } from 'react'
 import { Link, Outlet } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { SyncProvider } from '../features/sync/SyncProvider'
 import { SyncStatus } from '../features/sync/SyncStatus'
+import { InstallHint } from '../pwa/InstallHint'
+import { requestPersistentStorage } from '../pwa/persistentStorage'
+import { WebUpdateBanner } from '../pwa/WebUpdateBanner'
 import { UpdateBanner } from './UpdateBanner'
 
 export function AppShell() {
   const { logout } = useAuth()
+
+  // Once per session, after login (this shell only exists while signed in).
+  useEffect(() => {
+    void requestPersistentStorage()
+  }, [])
 
   return (
     <SyncProvider>
@@ -29,8 +39,9 @@ export function AppShell() {
             </button>
           </div>
         </header>
-        <UpdateBanner />
-        <main className="mx-auto max-w-2xl px-4 py-6">
+        {Capacitor.isNativePlatform() ? <UpdateBanner /> : <WebUpdateBanner />}
+        <InstallHint />
+        <main className="mx-auto max-w-2xl px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6">
           <Outlet />
         </main>
       </div>

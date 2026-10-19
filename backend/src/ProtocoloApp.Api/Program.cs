@@ -71,9 +71,21 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Administrative command instead of serving: `create-user <email>` (password from PROTOCOLOAPP_PASSWORD or stdin).
-if (args is ["create-user", var email])
-    return await CreateUserCli.RunAsync(app.Services, email, CreateUserCli.ReadPassword(Console.In), Console.Out);
+// Administrative commands instead of serving: `create-user <email>` and `set-password <email>` (the password comes from
+// PROTOCOLOAPP_PASSWORD, a terminal prompt or stdin, never from an argument).
+if (args is ["create-user" or "set-password", var email])
+{
+    var input = PasswordPrompt.Read(Console.In, Console.Out);
+    if (input.Mismatch)
+    {
+        await Console.Out.WriteLineAsync(PasswordPrompt.MismatchMessage);
+        return 1;
+    }
+
+    return args[0] == "create-user"
+        ? await CreateUserCli.RunAsync(app.Services, email, input.Password, Console.Out)
+        : await SetPasswordCli.RunAsync(app.Services, email, input.Password, Console.Out);
+}
 
 app.UseForwardedHeaders();
 app.UseAppProblemDetails();

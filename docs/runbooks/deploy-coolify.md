@@ -171,22 +171,53 @@ Pontos de atenção:
    curl -i https://protocolo.frauchesgabriel.work/health   # 200 e "Healthy"
    ```
 
-## 6. Criar o usuário (único)
+## 6. Criar o usuário (único) e trocar a senha
 
 Não existe cadastro público. A conta nasce por comando, no **Terminal** do Coolify (aba Terminal do app, container do app):
 
 ```bash
-read -rsp "Senha: " PROTOCOLOAPP_PASSWORD; echo      # digita a senha sem aparecer na tela nem no histórico
-export PROTOCOLOAPP_PASSWORD
 dotnet /app/ProtocoloApp.Api.dll create-user seu@email.com
-unset PROTOCOLOAPP_PASSWORD
 ```
 
-- A senha precisa ter **10 caracteres ou mais**. Ela vem de `PROTOCOLOAPP_PASSWORD` (ou da primeira linha da entrada
-  padrão); nunca de argumento, que ficaria no histórico do shell.
+O comando pergunta `Senha:` e `Confirme a senha:` (nada aparece na tela e nada vai para o histórico). Se as duas não
+forem iguais: `As senhas não conferem.` e nada é criado.
+
+- A senha precisa ter **10 caracteres ou mais**. Ela nunca vem de argumento (ficaria no histórico do shell). Para
+  automatizar, defina `PROTOCOLOAPP_PASSWORD` (tem prioridade sobre o prompt) ou envie a senha na entrada padrão (primeira
+  linha, sem confirmação):
+
+  ```bash
+  read -rsp "Senha: " PROTOCOLOAPP_PASSWORD; echo
+  export PROTOCOLOAPP_PASSWORD
+  dotnet /app/ProtocoloApp.Api.dll create-user seu@email.com
+  unset PROTOCOLOAPP_PASSWORD
+  ```
+
 - Saída esperada: `Usuário criado.` Se o usuário já existir: `Usuário já existe.`
-- 5 senhas erradas seguidas bloqueiam a conta por 15 minutos (e o login tem limite de tentativas por IP). Não há comando de
-  desbloqueio: espere os 15 minutos.
+
+### Trocar a senha (esqueci, ou conta bloqueada)
+
+```bash
+dotnet /app/ProtocoloApp.Api.dll set-password seu@email.com
+```
+
+Mesmas regras de entrada da senha. Saída: `Senha alterada.` ou `Usuário não encontrado.` O comando também:
+
+- **encerra todas as sessões** do usuário (revoga os refresh tokens; um access token já emitido ainda vale por poucos
+  minutos), então o app pede login de novo;
+- **desfaz o bloqueio** por tentativas erradas e zera o contador.
+
+5 senhas erradas seguidas bloqueiam a conta por 15 minutos (e o login tem limite de tentativas por IP). Para não esperar,
+rode `set-password` (pode ser com a mesma senha).
+
+### Consultar o banco (psql)
+
+As tabelas do Identity têm nome em PascalCase e colunas em snake_case (convenção do EF Core mais `UseSnakeCaseNamingConvention`
+só nas colunas). Entre aspas duplas no nome da tabela:
+
+```sql
+SELECT id, email, lockout_end, access_failed_count FROM "AspNetUsers" WHERE normalized_email = 'SEU@EMAIL.COM';
+```
 
 ## 7. Token do GitHub (checagem de atualização do APK)
 

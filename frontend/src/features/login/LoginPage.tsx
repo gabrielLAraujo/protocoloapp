@@ -39,7 +39,7 @@ export function LoginPage() {
     'w-full rounded-control border border-line bg-surface px-3 py-2.5 text-base text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent'
 
   return (
-    <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-8 px-6 py-10">
+    <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-8 px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(2.5rem+env(safe-area-inset-top))]">
       <h1 className="text-3xl font-semibold tracking-tight">Protocolo</h1>
 
       <form onSubmit={onSubmit} className="grid gap-4" noValidate>

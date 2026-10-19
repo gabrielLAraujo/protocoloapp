@@ -19,3 +19,5 @@ Itens menores adiados durante as revisões do subprojeto 1 (nenhum bloqueia o me
 - Sair e apagar dados do aparelho (M-5) e uso de TanStack Query (M-6): subprojeto 3.
 - Segunda aba continua com o aviso depois que a primeira fecha (precisa recarregar).
 - Banner falso raro "Atualizado em outro aparelho" logo após salvar (janela de microtask).
+- Consistência: as tabelas do Identity ficam em PascalCase com colunas snake_case (`"AspNetUsers".normalized_email`), enquanto as nossas são snake_case. Padronizar (renomear tabelas do Identity para snake_case via migration) — não feito agora; exige aspas nas consultas manuais.
+- Teste flaky no CI (visto na PR do PWA, passou no rerun): `src/data/DataProvider.test.tsx` > "a sync run that crosses a user switch finishes before the new user wipes and binds the database" falha às vezes com `Cannot read properties of null (reading 'engine')` (linha 76).
