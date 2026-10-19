@@ -203,6 +203,14 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("bowel");
 
+                    b.Property<bool?>("CardioDone")
+                        .HasColumnType("boolean")
+                        .HasColumnName("cardio_done");
+
+                    b.Property<int?>("CardioMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("cardio_minutes");
+
                     b.Property<DateTimeOffset>("ClientUpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("client_updated_at");
@@ -275,6 +283,8 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                             t.HasCheckConstraint("ck_daily_checkins_anxiety", "anxiety BETWEEN 1 AND 5");
 
                             t.HasCheckConstraint("ck_daily_checkins_bowel", "bowel IN ('normal', 'loose', 'constipated')");
+
+                            t.HasCheckConstraint("ck_daily_checkins_cardio_minutes", "cardio_minutes IS NULL OR (cardio_done IS TRUE AND cardio_minutes BETWEEN 0 AND 300)");
 
                             t.HasCheckConstraint("ck_daily_checkins_energy_day", "energy_day BETWEEN 1 AND 5");
 
@@ -512,6 +522,317 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.ExerciseChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("action");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("PlannedExerciseKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("planned_exercise_key");
+
+                    b.Property<Guid?>("ReplacementExerciseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replacement_exercise_id");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_exercise_changes");
+
+                    b.HasIndex("ReplacementExerciseId")
+                        .HasDatabaseName("ix_exercise_changes_replacement_exercise_id");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_exercise_changes_session_id");
+
+                    b.HasIndex("UserId", "SessionId")
+                        .HasDatabaseName("ix_exercise_changes_user_id_session_id");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_exercise_changes_user_id_version");
+
+                    b.ToTable("exercise_changes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_exercise_changes_action", "action IN ('swapped', 'skipped')");
+
+                            t.HasCheckConstraint("ck_exercise_changes_replacement", "action <> 'swapped' OR replacement_exercise_id IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.RotationOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<string>("WorkoutDayKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("workout_day_key");
+
+                    b.HasKey("Id")
+                        .HasName("pk_rotation_overrides");
+
+                    b.HasIndex("UserId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("ix_rotation_overrides_user_id_date")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_rotation_overrides_user_id_version");
+
+                    b.ToTable("rotation_overrides", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.SetLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid>("ExerciseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exercise_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("ParentSetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_set_id");
+
+                    b.Property<string>("PlannedExerciseKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("planned_exercise_key");
+
+                    b.Property<int>("Reps")
+                        .HasColumnType("integer")
+                        .HasColumnName("reps");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<int>("SetIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("set_index");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<decimal>("WeightKg")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("numeric(6,2)")
+                        .HasColumnName("weight_kg");
+
+                    b.HasKey("Id")
+                        .HasName("pk_set_logs");
+
+                    b.HasIndex("ExerciseId")
+                        .HasDatabaseName("ix_set_logs_exercise_id");
+
+                    b.HasIndex("ParentSetId")
+                        .HasDatabaseName("ix_set_logs_parent_set_id");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_set_logs_session_id");
+
+                    b.HasIndex("UserId", "ExerciseId")
+                        .HasDatabaseName("ix_set_logs_user_id_exercise_id");
+
+                    b.HasIndex("UserId", "SessionId")
+                        .HasDatabaseName("ix_set_logs_user_id_session_id");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_set_logs_user_id_version");
+
+                    b.ToTable("set_logs", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_set_logs_kind", "kind IN ('normal', 'drop', 'partial', 'rest_pause', 'warmup')");
+
+                            t.HasCheckConstraint("ck_set_logs_reps", "reps BETWEEN 0 AND 200");
+
+                            t.HasCheckConstraint("ck_set_logs_set_index", "set_index BETWEEN 0 AND 50");
+
+                            t.HasCheckConstraint("ck_set_logs_weight_kg", "weight_kg BETWEEN 0 AND 1000");
+                        });
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.WorkoutSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("PlanVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_version_id");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<string>("WorkoutDayKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("workout_day_key");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workout_sessions");
+
+                    b.HasIndex("PlanVersionId")
+                        .HasDatabaseName("ix_workout_sessions_plan_version_id");
+
+                    b.HasIndex("UserId", "Date")
+                        .HasDatabaseName("ix_workout_sessions_user_id_date");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_workout_sessions_user_id_version");
+
+                    b.ToTable("workout_sessions", (string)null);
+                });
+
             modelBuilder.Entity("ProtocoloApp.Api.Shared.Data.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -743,6 +1064,86 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_plan_versions_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.ExerciseChange", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Features.Plans.Exercise", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacementExerciseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_exercise_changes_exercises_replacement_exercise_id");
+
+                    b.HasOne("ProtocoloApp.Api.Features.Workouts.WorkoutSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_exercise_changes_workout_sessions_session_id");
+
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_exercise_changes_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.RotationOverride", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_rotation_overrides_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.SetLog", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Features.Plans.Exercise", null)
+                        .WithMany()
+                        .HasForeignKey("ExerciseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_set_logs_exercises_exercise_id");
+
+                    b.HasOne("ProtocoloApp.Api.Features.Workouts.SetLog", null)
+                        .WithMany()
+                        .HasForeignKey("ParentSetId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_set_logs_set_logs_parent_set_id");
+
+                    b.HasOne("ProtocoloApp.Api.Features.Workouts.WorkoutSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_set_logs_workout_sessions_session_id");
+
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_set_logs_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.WorkoutSession", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Features.Plans.PlanVersion", null)
+                        .WithMany()
+                        .HasForeignKey("PlanVersionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_workout_sessions_plan_versions_plan_version_id");
+
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workout_sessions_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Shared.Data.RefreshToken", b =>
