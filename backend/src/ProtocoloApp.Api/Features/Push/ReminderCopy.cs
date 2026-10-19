@@ -33,7 +33,8 @@ public static class ReminderCopy
             "post_workout" => "Itens pós-treino",
             DayPlanner.CardioKey => "Hora do cardio",
             DayPlanner.WorkoutKey => "Hora do treino",
-            DayPlanner.CheckinKey => "Check-in do dia",
+            DayPlanner.CheckinMorningSlot => "Check-in da manhã",
+            DayPlanner.CheckinEveningSlot => "Check-in da noite",
             _ => "Hora do lembrete",
         };
     }

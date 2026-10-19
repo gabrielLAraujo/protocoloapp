@@ -156,6 +156,115 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
         Assert.Equal("REF 2 — 12:30", Assert.Single(factory.Push.SentTo(endpoint)).Body);
     }
 
+    /// <summary>A check-in part saved through sync (fictitious values); <c>parts</c> null = a full check-in as before the split.</summary>
+    private static SyncChange CheckinPart(string[]? parts)
+    {
+        var payload = new Dictionary<string, object?> { ["date"] = Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
+        if (parts is not null)
+            payload["parts"] = parts;
+        if (parts is null || parts.Contains("morning"))
+        {
+            payload["sleep_quality"] = 4;
+            payload["energy_wake"] = 3;
+            payload["bowel"] = "normal";
+        }
+
+        if (parts is null || parts.Contains("evening"))
+        {
+            payload["energy_day"] = 3;
+            payload["anxiety"] = 2;
+            payload["water_l"] = 2.5m;
+        }
+
+        return new SyncChange(SyncApi.Entity, Guid.NewGuid(), SyncOp.Upsert, JsonSerializer.SerializeToElement(payload), SyncApi.Past(60));
+    }
+
+    [Fact]
+    public async Task Morning_part_saved_silences_the_morning_reminder_and_the_evening_one_still_goes()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("checkin_morning", "07:00"), Slot("checkin", "21:30"), CheckinPart(["morning"]));
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        Assert.Empty(factory.Push.SentTo(endpoint));
+
+        await RunAsync(Local("21:30"));
+        var message = Assert.Single(factory.Push.SentTo(endpoint));
+        Assert.Equal("Check-in da noite", message.Body);
+        Assert.Equal("checkin", message.Tag);
+    }
+
+    [Fact]
+    public async Task Evening_part_saved_silences_the_evening_reminder_and_the_morning_one_still_goes()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("checkin_morning", "07:00"), Slot("checkin", "21:30"), CheckinPart(["evening"]));
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        await RunAsync(Local("21:30"));
+
+        var message = Assert.Single(factory.Push.SentTo(endpoint));
+        Assert.Equal("Check-in da manhã", message.Body);
+        Assert.Equal("checkin_morning", message.Tag);
+    }
+
+    [Fact]
+    public async Task A_check_in_row_with_only_cardio_silences_neither_part()
+    {
+        var cardioOnly = new SyncChange(SyncApi.Entity, Guid.NewGuid(), SyncOp.Upsert,
+            JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+            {
+                ["date"] = Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["parts"] = new[] { "cardio" },
+                ["cardio_done"] = true,
+            }),
+            SyncApi.Past(60));
+        var (api, endpoint) = await SetupAsync(Slot("checkin_morning", "07:00"), Slot("checkin", "21:30"), cardioOnly);
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        await RunAsync(Local("21:30"));
+
+        Assert.Equal(["Check-in da manhã", "Check-in da noite"], factory.Push.SentTo(endpoint).Select(m => m.Body));
+    }
+
+    [Fact]
+    public async Task Legacy_checkin_log_silences_only_the_evening_reminder()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("checkin_morning", "07:00"), Slot("checkin", "21:30"), Adherence("checkin", "checkin"));
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        await RunAsync(Local("21:30"));
+
+        Assert.Equal("Check-in da manhã", Assert.Single(factory.Push.SentTo(endpoint)).Body);
+    }
+
+    [Fact]
+    public async Task A_full_check_in_saved_before_the_split_silences_both_reminders()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("checkin_morning", "07:00"), Slot("checkin", "21:30"), CheckinPart(null));
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        await RunAsync(Local("21:30"));
+
+        Assert.Empty(factory.Push.SentTo(endpoint));
+    }
+
+    [Fact]
+    public async Task Check_in_part_logs_silence_their_reminders()
+    {
+        var (api, endpoint) = await SetupAsync(
+            Slot("checkin_morning", "07:00"), Slot("checkin", "21:30"), Adherence("checkin", "checkin_morning"), Adherence("checkin", "checkin_evening"));
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        await RunAsync(Local("21:30"));
+
+        Assert.Empty(factory.Push.SentTo(endpoint));
+    }
+
     [Fact]
     public async Task Missed_target_counts_as_logged_too()
     {
@@ -296,15 +405,15 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
     public async Task Push_copy_uses_generic_labels_and_never_the_dose_or_the_item_name()
     {
         var (api, endpoint) = await SetupAsync(
-            Slot("fasting", "06:30"), Slot("before_bed", "22:30"), Slot("cardio", "07:30"), Slot("checkin", "21:30"));
+            Slot("fasting", "06:30"), Slot("checkin_morning", "07:00"), Slot("before_bed", "22:30"), Slot("cardio", "07:30"), Slot("checkin", "21:30"));
         using var _ = api;
 
-        foreach (var time in new[] { "06:30", "07:30", "21:30", "22:30" })
+        foreach (var time in new[] { "06:30", "07:00", "07:30", "21:30", "22:30" })
             await RunAsync(Local(time));
 
         var messages = factory.Push.SentTo(endpoint);
         Assert.Equal(
-            ["Itens em jejum", "Hora do cardio", "Check-in do dia", "Itens antes de dormir"],
+            ["Itens em jejum", "Check-in da manhã", "Hora do cardio", "Check-in da noite", "Itens antes de dormir"],
             messages.Select(m => m.Body));
         Assert.All(messages, m =>
         {

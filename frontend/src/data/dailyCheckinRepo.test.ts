@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { newLocalDb, USER_A } from '../test/localDb'
-import { dailyCheckinRepo, StaleCheckinError, type DailyCheckinFields } from './dailyCheckinRepo'
+import { checkinParts, dailyCheckinRepo, StaleCheckinError, type DailyCheckinFields } from './dailyCheckinRepo'
 import { checkinIdForDate } from './ids'
 import { outbox } from './outbox'
 
@@ -195,5 +195,20 @@ describe('dailyCheckinRepo', () => {
 
     expect(list.map((c) => c.date)).toEqual(['2026-10-18', '2026-10-19'])
     expect(list[0]!.sleepQuality).toBe(5)
+  })
+})
+
+describe('checkinParts', () => {
+  const none = { sleepQuality: null, energyWake: null, bowel: null, energyDay: null, anxiety: null, waterL: null }
+
+  it('a full check-in (as saved before the split) has both parts', () => {
+    expect(checkinParts(fields)).toEqual({ morning: true, evening: true })
+  })
+
+  it('each part needs all its required fields; a cardio-only row has neither', () => {
+    expect(checkinParts(none)).toEqual({ morning: false, evening: false })
+    expect(checkinParts({ ...none, sleepQuality: 4, energyWake: 3, bowel: 'loose' })).toEqual({ morning: true, evening: false })
+    expect(checkinParts({ ...none, energyDay: 2, anxiety: 5, waterL: 0 })).toEqual({ morning: false, evening: true })
+    expect(checkinParts({ ...none, sleepQuality: 4, energyWake: 3, energyDay: 2, anxiety: 5 })).toEqual({ morning: false, evening: false })
   })
 })

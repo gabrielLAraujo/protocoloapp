@@ -65,6 +65,7 @@ export const DEFAULTS_CLIENT_UPDATED_AT = '2000-01-01T00:00:00.000Z'
 
 const FIXED_DEFAULTS: readonly (readonly [string, string])[] = [
   ['fasting', '06:30'],
+  ['checkin_morning', '07:00'],
   ['cardio', '07:30'],
   ['pre_workout', '17:30'],
   ['workout', '18:00'],
@@ -81,7 +82,8 @@ const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2
 
 /**
  * The suggested times (spec "Hoje", Horários): meals every 3 h from 07:00 by position in the protocol (capped at 23:59),
- * fasting 06:30, cardio 07:30, pre-workout 17:30, workout 18:00, post-workout 19:30, check-in 21:30, before bed 22:30;
+ * fasting 06:30, morning check-in 07:00, cardio 07:30, pre-workout 17:30, workout 18:00, post-workout 19:30, evening
+ * check-in (slot `checkin`) 21:30, before bed 22:30;
  * the same for training and rest days, reminders on. `intra_workout` and `after_meal` have no default (untimed).
  */
 export function defaultSlotTimes(protocol: ProtocolDocument | null): { slot: string; time: string }[] {

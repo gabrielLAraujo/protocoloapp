@@ -1,4 +1,4 @@
-import { CARDIO_KEY, CHECKIN_KEY, WORKOUT_KEY } from '../domain/dayPlan'
+import { CARDIO_KEY, CHECKIN_EVENING_KEY, CHECKIN_MORNING_KEY, WORKOUT_KEY } from '../domain/dayPlan'
 import { adherenceRepo, type AdherenceReason, type AdherenceStatus } from './adherenceRepo'
 import { dailyCheckinRepo, type DailyCheckinFields } from './dailyCheckinRepo'
 import type { LocalDb } from './localDb'
@@ -7,7 +7,7 @@ import { workoutRepo } from './workoutRepo'
 /**
  * Writes that keep `adherence_log` in step with the screens that already record the same fact (a finished workout, the
  * check-in, cardio in the check-in). The server skips a reminder only when an adherence log exists for the target and
- * day, so these marks are what silence the "Hora do treino" / "Check-in do dia" / "Hora do cardio" pushes. Each runs
+ * day, so these marks are what silence the "Hora do treino" / "Check-in da manhã" / "Check-in da noite" / "Hora do cardio" pushes. Each runs
  * in one transaction: the row, the mark and their outbox entries are committed together or not at all.
  */
 
@@ -29,7 +29,8 @@ export async function finishSessionAndMark(db: LocalDb, userId: string, sessionI
 }
 
 /**
- * Saves the day's check-in (dailyCheckinRepo.upsert, same `expected` guard) and marks the check-in done; cardio
+ * Saves the day's check-in (dailyCheckinRepo.upsert, same `expected` guard) and marks both check-in parts (morning and
+ * evening) done, since this form holds both; cardio
  * answered "Sim" marks cardio done; "Não" marks it missed unless it is already missed or partial (keeping the reason
  * given on Hoje).
  */
@@ -43,7 +44,9 @@ export async function saveCheckinAndMark(
 ): Promise<string> {
   return db.transaction(async (tx) => {
     const stamp = await dailyCheckinRepo.upsert(tx, userId, date, fields, now, options)
-    await adherenceRepo.mark(tx, userId, { date, targetType: 'checkin', targetKey: CHECKIN_KEY, status: 'done' }, now)
+    for (const targetKey of [CHECKIN_MORNING_KEY, CHECKIN_EVENING_KEY]) {
+      await adherenceRepo.mark(tx, userId, { date, targetType: 'checkin', targetKey, status: 'done' }, now)
+    }
     const cardio = { date, targetType: 'cardio' as const, targetKey: CARDIO_KEY }
     if (fields.cardioDone === true) {
       await adherenceRepo.mark(tx, userId, { ...cardio, status: 'done' }, now)

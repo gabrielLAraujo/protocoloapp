@@ -1,12 +1,20 @@
 import { loadActiveProtocol } from '../../data/activeProtocol'
 import { adherenceRepo, type AdherenceLogLocal, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
-import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { checkinParts, dailyCheckinRepo, type CheckinParts } from '../../data/dailyCheckinRepo'
 import type { LocalDb } from '../../data/localDb'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { workoutRepo } from '../../data/workoutRepo'
 import { weekdayOf, type Weekday } from '../../domain/calendarDate'
-import { buildDay, type DayKind, type DayTarget, type DayWorkoutPlan } from '../../domain/dayPlan'
+import {
+  buildDay,
+  CHECKIN_EVENING_KEY,
+  CHECKIN_MORNING_KEY,
+  LEGACY_CHECKIN_KEY,
+  type DayKind,
+  type DayTarget,
+  type DayWorkoutPlan,
+} from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import { localDate } from '../checkin/localDate'
 import { loadWorkoutPlans, type WorkoutPlanEntry } from '../workout/workoutPlans'
@@ -26,7 +34,7 @@ export const REASON_LABELS: Record<AdherenceReason, string> = {
 export interface TodayRow {
   target: DayTarget
   label: string
-  /** The stored mark, or the derived one for workout/check-in (finished session / saved check-in). */
+  /** The stored mark, or the derived one for workout/check-in (finished session / check-in part saved). */
   status: AdherenceStatus | null
   reason: AdherenceReason | null
   note: string | null
@@ -51,8 +59,8 @@ export interface TodaySources {
   logs: AdherenceLogLocal[]
   /** A session of the day was finished with at least one working set. */
   workoutDone: boolean
-  /** The day's check-in exists. */
-  checkinSaved: boolean
+  /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
+  checkinParts: CheckinParts
 }
 
 /** Reads everything the Hoje screen needs for `date` from the device. */
@@ -78,7 +86,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     slots,
     logs,
     workoutDone: sets.some((list) => list.some((s) => s.kind !== 'warmup')),
-    checkinSaved: checkin !== null,
+    checkinParts: checkin ? checkinParts(checkin) : { morning: false, evening: false },
   }
 }
 
@@ -115,10 +123,19 @@ function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): string
   }
 }
 
+function checkinPartSaved(key: string, parts: CheckinParts): boolean {
+  if (key === CHECKIN_MORNING_KEY) return parts.morning
+  if (key === CHECKIN_EVENING_KEY) return parts.evening
+  return false
+}
+
 /** Pure: the Hoje screen of `date`, rows in buildDay order. */
 export function buildTodayView(date: string, src: TodaySources): TodayView {
   const plan = buildDay(date, src.protocol, toDayPlans(src.plans), src.overrides, src.slots, { protocolActivatedOn: src.protocolActivatedOn })
-  const logOf = (t: DayTarget) => src.logs.find((l) => l.targetType === t.type && l.targetKey === t.key) ?? null
+  const find = (type: DayTarget['type'], key: string) => src.logs.find((l) => l.targetType === type && l.targetKey === key) ?? null
+  // The single check-in target before the split was `checkin`: its mark stands for the evening part.
+  const logOf = (t: DayTarget) =>
+    find(t.type, t.key) ?? (t.type === 'checkin' && t.key === CHECKIN_EVENING_KEY ? find('checkin', LEGACY_CHECKIN_KEY) : null)
 
   // The version active on the day names the workout ("Treino A"); buildDay only knows its key.
   const activeVersion = [...src.plans].reverse().find((p) => p.at.activatedOn <= date)
@@ -129,8 +146,8 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     const log = logOf(target)
     let status = log?.status ?? null
     if (target.type === 'workout' && src.workoutDone) status = 'done'
-    if (target.type === 'checkin' && src.checkinSaved) status = 'done'
-    const label = target.type === 'checkin' ? 'Check-in do dia' : target.type === 'workout' && workoutTitle ? workoutTitle : target.label
+    if (target.type === 'checkin' && checkinPartSaved(target.key, src.checkinParts)) status = 'done'
+    const label = target.type === 'workout' && workoutTitle ? workoutTitle : target.label
     return {
       target,
       label,

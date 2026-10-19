@@ -12,7 +12,7 @@
     "Target: { type: \"meal\"|\"protocol_item\"|\"cardio\"|\"workout\"|\"checkin\", key, label, slot: string|null, time: \"HH:mm\"|null, reminderEnabled }.",
     "Rules: meal -> key = meal.key, label = meal.label or \"REF n\" (1-based position) when blank, slot meal_<key>. protocol_item -> key = item.key, label = item.name, slot by timing (with_meal:<k> -> meal_<k>; fasting|after_meal|before_bed|pre_workout|intra_workout|post_workout -> same name; any/other -> null).",
     "Item schedule: daily; weekdays (days mon..sun); every_n_days (n, anchor ?? protocolActivatedOn; (date - anchor) mod n == 0); training_days_only (dayType training); off_days_only (dayType off or none). cardio (key \"cardio\", label \"Cardio\", slot cardio) when cardio.daily or cardio.sessionsPerWeek > 0.",
-    "workout (key \"workout\", label \"Treino <dayKey>\", slot workout) on training days. checkin (key \"checkin\", label \"Check-in\", slot checkin) every day.",
+    "workout (key \"workout\", label \"Treino <dayKey>\", slot workout) on training days. Two check-in targets every day (type checkin): key \"checkin_morning\", label \"Check-in da manhã\", slot checkin_morning; key \"checkin_evening\", label \"Check-in da noite\", slot checkin (the slot of the single check-in before the split).",
     "time/reminderEnabled: the slots row matching (slot, dayType of the day; none -> off); no row or null slot -> time null, reminderEnabled false.",
     "Order: time ascending, untimed last; ties by slot (ordinal; null slot last), then key (ordinal), then type (meal, protocol_item, cardio, workout, checkin).",
     "every_n_days before its anchor: the cycle runs backwards ((date - anchor) is negative; mod is non-negative), so it can be in.",
@@ -260,6 +260,18 @@
             "dayType": "off",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "slot": "checkin_morning",
+            "dayType": "training",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin_morning",
+            "dayType": "off",
+            "time": "07:15",
+            "reminderEnabled": true
           }
         ]
       },
@@ -281,6 +293,14 @@
             "label": "Suplemento Jejum B",
             "slot": "fasting",
             "time": "06:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": "07:00",
             "reminderEnabled": true
           },
           {
@@ -341,8 +361,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -655,8 +675,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -668,6 +688,14 @@
             "slot": "before_bed",
             "time": "23:00",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           },
           {
             "type": "protocol_item",
@@ -1001,8 +1029,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -1012,6 +1040,14 @@
             "key": "item_3d",
             "label": "Item A Cada 3",
             "slot": "after_meal",
+            "time": null,
+            "reminderEnabled": false
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
             "time": null,
             "reminderEnabled": false
           }
@@ -1258,8 +1294,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -1269,6 +1305,14 @@
             "key": "item_3d",
             "label": "Item A Cada 3",
             "slot": "after_meal",
+            "time": null,
+            "reminderEnabled": false
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
             "time": null,
             "reminderEnabled": false
           },
@@ -1512,11 +1556,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -1847,8 +1899,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -1860,6 +1912,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -2174,11 +2234,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           },
           {
             "type": "protocol_item",
@@ -2517,8 +2585,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -2530,6 +2598,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -2860,8 +2936,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -2871,6 +2947,14 @@
             "key": "item_3d",
             "label": "Item A Cada 3",
             "slot": "after_meal",
+            "time": null,
+            "reminderEnabled": false
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
             "time": null,
             "reminderEnabled": false
           }
@@ -3205,8 +3289,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -3218,6 +3302,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -3552,8 +3644,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -3565,6 +3657,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -3909,8 +4009,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -3922,6 +4022,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -4257,8 +4365,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -4270,6 +4378,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -4596,11 +4712,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -4925,8 +5049,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -4938,6 +5062,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -5246,8 +5378,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -5257,6 +5389,14 @@
             "key": "item_3d",
             "label": "Item A Cada 3",
             "slot": "after_meal",
+            "time": null,
+            "reminderEnabled": false
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
             "time": null,
             "reminderEnabled": false
           },
@@ -5495,11 +5635,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           },
           {
             "type": "protocol_item",
@@ -5676,11 +5824,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -5975,11 +6131,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           },
           {
             "type": "protocol_item",
@@ -6302,11 +6466,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           },
           {
             "type": "protocol_item",
@@ -6618,11 +6790,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           },
           {
             "type": "protocol_item",
@@ -6781,9 +6961,17 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
+            "time": null,
+            "reminderEnabled": false
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
             "time": null,
             "reminderEnabled": false
           },
@@ -7186,8 +7374,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -7197,6 +7385,14 @@
             "key": "item_3d",
             "label": "Item A Cada 3",
             "slot": "after_meal",
+            "time": null,
+            "reminderEnabled": false
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
             "time": null,
             "reminderEnabled": false
           }
@@ -7533,11 +7729,19 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -7872,8 +8076,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -7885,6 +8089,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -8220,8 +8432,8 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
@@ -8233,6 +8445,14 @@
             "slot": "before_bed",
             "time": "22:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }
@@ -8409,11 +8629,138 @@
           },
           {
             "type": "checkin",
-            "key": "checkin",
-            "label": "Check-in",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
             "slot": "checkin",
             "time": "21:30",
             "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "both_checkins_timed_off_day",
+      "description": "Rest day without a protocol: morning check-in at 07:00 (off row; training row ignored), evening check-in on the old slot checkin at 21:30 with reminder off.",
+      "input": {
+        "date": "2026-10-21",
+        "protocol": null,
+        "workouts": [
+          {
+            "planVersionId": "w1",
+            "activatedAt": "2026-10-19T12:00:00Z",
+            "activatedOn": "2026-10-19",
+            "rotation": {
+              "type": "sequence",
+              "items": [
+                "A",
+                "B",
+                "off",
+                "C"
+              ]
+            }
+          }
+        ],
+        "overrides": [],
+        "slots": [
+          {
+            "slot": "checkin_morning",
+            "dayType": "training",
+            "time": "06:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin_morning",
+            "dayType": "off",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "21:00",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": false
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "off",
+        "workoutDayKey": null,
+        "targets": [
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": "07:00",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "legacy_evening_slot_only",
+      "description": "A user configured before the split: only the old checkin slot has rows. Evening check-in keeps its time; the morning one is untimed (last) until ensureDefaults adds its slot.",
+      "input": {
+        "date": "2026-10-20",
+        "protocol": null,
+        "workouts": [],
+        "overrides": [],
+        "slots": [
+          {
+            "slot": "checkin",
+            "dayType": "off",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "slot": "checkin",
+            "dayType": "training",
+            "time": "20:00",
+            "reminderEnabled": true
+          }
+        ]
+      },
+      "expected": {
+        "dayType": "none",
+        "workoutDayKey": null,
+        "targets": [
+          {
+            "type": "checkin",
+            "key": "checkin_evening",
+            "label": "Check-in da noite",
+            "slot": "checkin",
+            "time": "21:30",
+            "reminderEnabled": true
+          },
+          {
+            "type": "checkin",
+            "key": "checkin_morning",
+            "label": "Check-in da manhã",
+            "slot": "checkin_morning",
+            "time": null,
+            "reminderEnabled": false
           }
         ]
       }

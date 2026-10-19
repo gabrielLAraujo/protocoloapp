@@ -73,9 +73,9 @@ describe('service worker', () => {
   })
 
   it('shows a notification for a push', async () => {
-    await dispatch('push', { data: { json: () => ({ title: 'Protocolo', body: 'Check-in do dia', url: '/hoje', tag: 'checkin' }) } })
+    await dispatch('push', { data: { json: () => ({ title: 'Protocolo', body: 'Check-in da noite', url: '/hoje', tag: 'checkin' }) } })
 
-    expect(worker.registration.showNotification).toHaveBeenCalledWith('Protocolo', expect.objectContaining({ body: 'Check-in do dia', tag: 'checkin' }))
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Protocolo', expect.objectContaining({ body: 'Check-in da noite', tag: 'checkin' }))
   })
 
   it('closes the notification and opens the app on a click', async () => {

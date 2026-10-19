@@ -58,9 +58,12 @@ describe('DailyCheckinPage', () => {
       weightKg: 82.4,
       note: 'Dormi bem',
     })
-    // The check-in and its adherence mark (which silences the "Check-in do dia" reminder).
-    await waitFor(async () => expect(await outbox.pendingCount(db)).toBe(2))
-    expect(await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).toMatchObject([{ targetType: 'checkin', targetKey: 'checkin', status: 'done' }])
+    // The check-in and the marks of both parts (which silence the "Check-in da manhã" / "Check-in da noite" reminders).
+    await waitFor(async () => expect(await outbox.pendingCount(db)).toBe(3))
+    expect(await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).toMatchObject([
+      { targetType: 'checkin', targetKey: 'checkin_evening', status: 'done' },
+      { targetType: 'checkin', targetKey: 'checkin_morning', status: 'done' },
+    ])
   })
 
   it('reopening the page loads the saved values', async () => {

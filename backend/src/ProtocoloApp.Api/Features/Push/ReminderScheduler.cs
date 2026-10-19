@@ -118,6 +118,7 @@ public sealed class ReminderScheduler(
                 .ToListAsync(ct))
             .Select(a => (a.TargetType, a.TargetKey))
             .ToHashSet();
+        await AddCheckinPartsDoneAsync(db, userId, date, logged, ct);
 
         var due = plan.Targets
             .Where(t => t is { ReminderEnabled: true, SlotKey: not null, Time: not null })
@@ -160,6 +161,33 @@ public sealed class ReminderScheduler(
         }
 
         return claimed;
+    }
+
+    /// <summary>
+    /// A check-in target is done when it is logged, or when its part is already saved in the day's check-in (the app saves
+    /// the part, its adherence log may not have reached the server yet). The legacy <c>checkin</c> log counts as the evening
+    /// part; a full check-in row (saved before the split) counts as both parts.
+    /// </summary>
+    private static async Task AddCheckinPartsDoneAsync(
+        AppDbContext db, Guid userId, DateOnly date, HashSet<(AdherenceTargetType, string)> logged, CancellationToken ct)
+    {
+        if (logged.Contains((AdherenceTargetType.Checkin, DayPlanner.LegacyCheckinKey)))
+            logged.Add((AdherenceTargetType.Checkin, DayPlanner.CheckinEveningKey));
+
+        var checkin = await db.DailyCheckins.AsNoTracking()
+            .Where(c => c.UserId == userId && c.Date == date && c.DeletedAt == null)
+            .Select(c => new
+            {
+                Morning = c.SleepQuality != null && c.EnergyWake != null && c.Bowel != null,
+                Evening = c.EnergyDay != null && c.Anxiety != null && c.WaterL != null,
+            })
+            .FirstOrDefaultAsync(ct);
+        if (checkin is null)
+            return;
+        if (checkin.Morning)
+            logged.Add((AdherenceTargetType.Checkin, DayPlanner.CheckinMorningKey));
+        if (checkin.Evening)
+            logged.Add((AdherenceTargetType.Checkin, DayPlanner.CheckinEveningKey));
     }
 
     private static async Task<DayPlan> BuildDayAsync(AppDbContext db, Guid userId, DateOnly date, TimeZoneInfo zone, CancellationToken ct)

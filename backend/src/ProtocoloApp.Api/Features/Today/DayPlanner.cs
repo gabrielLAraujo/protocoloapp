@@ -32,7 +32,14 @@ public static class DayPlanner
 {
     public const string CardioKey = "cardio";
     public const string WorkoutKey = "workout";
-    public const string CheckinKey = "checkin";
+    // The two parts of the daily check-in are two targets; the evening one keeps the old "checkin" slot (and its time).
+    public const string CheckinMorningKey = "checkin_morning";
+    public const string CheckinEveningKey = "checkin_evening";
+    public const string CheckinMorningSlot = "checkin_morning";
+    public const string CheckinEveningSlot = "checkin";
+
+    /// <summary>Adherence key of the single check-in target before it was split; a log with it counts as the evening check-in.</summary>
+    public const string LegacyCheckinKey = "checkin";
 
     private const string WithMealPrefix = "with_meal:";
 
@@ -86,7 +93,8 @@ public static class DayPlanner
 
         if (training)
             Add(AdherenceTargetType.Workout, WorkoutKey, $"Treino {dayKey}", "workout");
-        Add(AdherenceTargetType.Checkin, CheckinKey, "Check-in", "checkin");
+        Add(AdherenceTargetType.Checkin, CheckinMorningKey, "Check-in da manhã", CheckinMorningSlot);
+        Add(AdherenceTargetType.Checkin, CheckinEveningKey, "Check-in da noite", CheckinEveningSlot);
 
         // Order is stable, like Array.prototype.sort in the front.
         return new DayPlan(kind, training ? dayKey : null, targets.Order(Comparer<DayTarget>.Create(CompareTargets)).ToList());

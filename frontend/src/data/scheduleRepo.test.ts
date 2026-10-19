@@ -19,6 +19,7 @@ describe('defaultSlotTimes', () => {
       { slot: 'meal_2', time: '10:00' },
       { slot: 'meal_ceia', time: '13:00' },
       { slot: 'fasting', time: '06:30' },
+      { slot: 'checkin_morning', time: '07:00' },
       { slot: 'cardio', time: '07:30' },
       { slot: 'pre_workout', time: '17:30' },
       { slot: 'workout', time: '18:00' },
@@ -37,7 +38,7 @@ describe('defaultSlotTimes', () => {
   })
 
   it('without a protocol only the fixed slots', () => {
-    expect(defaultSlotTimes(null).map((t) => t.slot)).toEqual(['fasting', 'cardio', 'pre_workout', 'workout', 'post_workout', 'checkin', 'before_bed'])
+    expect(defaultSlotTimes(null).map((t) => t.slot)).toEqual(['fasting', 'checkin_morning', 'cardio', 'pre_workout', 'workout', 'post_workout', 'checkin', 'before_bed'])
   })
 })
 
@@ -47,9 +48,9 @@ describe('scheduleRepo', () => {
 
     const created = await scheduleRepo.ensureDefaults(db, USER_A, protocol(['1', '2']))
 
-    expect(created).toBe(18)
+    expect(created).toBe(20)
     const slots = await scheduleRepo.all(db)
-    expect(slots).toHaveLength(18)
+    expect(slots).toHaveLength(20)
     expect(slots.find((s) => s.slot === 'meal_2' && s.dayType === 'off')).toEqual({
       id: scheduleSlotId(USER_A, 'meal_2', 'off'),
       slot: 'meal_2',
@@ -59,7 +60,7 @@ describe('scheduleRepo', () => {
       clientUpdatedAt: DEFAULTS_CLIENT_UPDATED_AT,
     })
     const entries = await outbox.due(db, T0, 500)
-    expect(entries).toHaveLength(18)
+    expect(entries).toHaveLength(20)
     expect(new Set(entries.map((e) => e.id))).toEqual(new Set(slots.map((s) => s.id)))
     expect(entries.every((e) => e.entity === 'schedule_slot' && e.op === 'upsert' && e.clientUpdatedAt === DEFAULTS_CLIENT_UPDATED_AT)).toBe(true)
     expect(JSON.parse(entries.find((e) => e.id === scheduleSlotId(USER_A, 'workout', 'training'))!.payload!)).toEqual({
@@ -84,6 +85,24 @@ describe('scheduleRepo', () => {
     const slots = await scheduleRepo.all(db)
     expect(slots.find((s) => s.slot === 'meal_1' && s.dayType === 'training')).toMatchObject({ time: '08:15', reminderEnabled: false })
     expect(slots.find((s) => s.slot === 'meal_2' && s.dayType === 'training')).toMatchObject({ time: '10:00', reminderEnabled: true })
+  })
+
+  it('ensureDefaults adds the morning check-in for a user who already has the older slots, keeping the evening one', async () => {
+    const db = await newLocalDb()
+    // The rows a user had before the check-in was split: every default except checkin_morning, evening check-in edited.
+    for (const { slot, time } of defaultSlotTimes(protocol(['1'])).filter((t) => t.slot !== 'checkin_morning')) {
+      for (const dayType of ['training', 'off'] as const) await scheduleRepo.set(db, USER_A, slot, dayType, { time, reminderEnabled: true }, T0)
+    }
+    await scheduleRepo.set(db, USER_A, 'checkin', 'off', { time: '22:15', reminderEnabled: false }, T0)
+
+    expect(await scheduleRepo.ensureDefaults(db, USER_A, protocol(['1']))).toBe(2)
+
+    const slots = await scheduleRepo.all(db)
+    expect(slots.filter((s) => s.slot === 'checkin_morning').map((s) => [s.dayType, s.time, s.reminderEnabled])).toEqual([
+      ['off', '07:00', true],
+      ['training', '07:00', true],
+    ])
+    expect(slots.find((s) => s.slot === 'checkin' && s.dayType === 'off')).toMatchObject({ time: '22:15', reminderEnabled: false })
   })
 
   it('ensureDefaults does not revive a deleted row nor add a second row for a pulled slot', async () => {

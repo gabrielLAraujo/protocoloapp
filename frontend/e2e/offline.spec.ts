@@ -10,11 +10,11 @@ test('the installed app shell opens offline with the saved check-in', async ({ b
   const context = await browser.newContext()
   const page = await context.newPage()
 
-  // "/" is the summary; the check-in is opened from Hoje ("Check-in do dia").
+  // "/" is the summary; the check-in is opened from Hoje ("Check-in da noite").
   await login(page)
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
   await expect(page).toHaveURL(/\/hoje$/)
-  await page.getByRole('link', { name: 'Check-in do dia' }).click()
+  await page.getByRole('link', { name: 'Check-in da noite' }).click()
   await expect(page).toHaveURL(/\/checkin$/)
   await expect(page.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
 

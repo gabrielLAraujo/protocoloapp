@@ -72,8 +72,8 @@ describe('TodayPage', () => {
     const { db } = await render()
 
     expect(screen.getByText('Terça, 20/10 · Dia de treino — A')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('0 de 7 feitos')
-    expect(rowNames()).toEqual(['REF 1', 'Creatina', 'Cardio', 'REF 2', 'Treino A', 'Check-in do dia', 'Vitamina D'])
+    expect(screen.getByRole('status')).toHaveTextContent('0 de 8 feitos')
+    expect(rowNames()).toEqual(['Check-in da manhã', 'REF 1', 'Creatina', 'Cardio', 'REF 2', 'Treino A', 'Check-in da noite', 'Vitamina D'])
     // Opening Hoje created the suggested times.
     expect((await scheduleRepo.all(db)).length).toBeGreaterThan(0)
     expect(row('REF 1').getByText('07:00')).toBeInTheDocument()
@@ -85,7 +85,10 @@ describe('TodayPage', () => {
     expect(row('Cardio').getByText('30 min · moderada')).toBeInTheDocument()
 
     expect(row('Treino A').getByRole('link', { name: 'Treino A' })).toHaveAttribute('href', '/treino')
-    expect(row('Check-in do dia').getByRole('link', { name: 'Check-in do dia' })).toHaveAttribute('href', '/checkin')
+    expect(row('Check-in da manhã').getByText('07:00')).toBeInTheDocument()
+    expect(row('Check-in da noite').getByText('21:30')).toBeInTheDocument()
+    expect(row('Check-in da manhã').getByRole('link', { name: 'Check-in da manhã' })).toHaveAttribute('href', '/checkin')
+    expect(row('Check-in da noite').getByRole('link', { name: 'Check-in da noite' })).toHaveAttribute('href', '/checkin')
     expect(row('Treino A').queryByRole('button', { name: 'Feito' })).not.toBeInTheDocument()
   })
 
@@ -97,13 +100,13 @@ describe('TodayPage', () => {
     await user.click(done)
 
     await waitFor(() => expect(row('REF 2').getByRole('button', { name: 'Feito' })).toHaveAttribute('aria-pressed', 'true'))
-    expect(screen.getByRole('status')).toHaveTextContent('1 de 7 feitos')
+    expect(screen.getByRole('status')).toHaveTextContent('1 de 8 feitos')
     expect(await today(db)).toMatchObject([{ targetType: 'meal', targetKey: '2', status: 'done' }])
 
     await user.click(row('REF 2').getByRole('button', { name: 'Feito' }))
 
     await waitFor(() => expect(row('REF 2').getByRole('button', { name: 'Feito' })).toHaveAttribute('aria-pressed', 'false'))
-    expect(screen.getByRole('status')).toHaveTextContent('0 de 7 feitos')
+    expect(screen.getByRole('status')).toHaveTextContent('0 de 8 feitos')
     expect(await today(db)).toEqual([])
   })
 
@@ -120,7 +123,7 @@ describe('TodayPage', () => {
     await user.click(within(screen.getByRole('dialog', { name: 'Parcial — REF 1' })).getByRole('button', { name: 'Sem fome' }))
     await waitFor(() => expect(row('REF 1').getByRole('button', { name: 'Parcial' })).toHaveAttribute('aria-pressed', 'true'))
     expect(row('REF 1').getByText('Parcial: Sem fome')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('0 de 7 feitos · 1 parcial')
+    expect(screen.getByRole('status')).toHaveTextContent('0 de 8 feitos · 1 parcial')
 
     await user.click(row('Creatina').getByRole('button', { name: 'Não fiz' }))
     sheet = within(screen.getByRole('dialog', { name: 'Não fiz — Creatina' }))
@@ -158,10 +161,10 @@ describe('TodayPage', () => {
     expect(screen.getByText('Terça, 20/10 · Descanso')).toBeInTheDocument()
     expect(rowNames()).not.toContain('Treino A')
     expect(screen.queryByRole('link', { name: /Treino/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('0 de 6 feitos')
+    expect(screen.getByRole('status')).toHaveTextContent('0 de 7 feitos')
   })
 
-  it('the workout and the check-in show done from a finished session and a saved check-in', async () => {
+  it('the workout and both check-in parts show done from a finished session and a full check-in saved', async () => {
     const app = await setupApp()
     await seedExercises(app.db)
     await seedPlan(app.db, ['a', 'b'])
@@ -172,9 +175,21 @@ describe('TodayPage', () => {
     }, new Date())
     app.view(<TodayPage />)
 
-    expect(await screen.findByRole('status')).toHaveTextContent('2 de 7 feitos')
+    expect(await screen.findByRole('status')).toHaveTextContent('3 de 8 feitos')
     expect(row('Treino A').getByText('Feito')).toBeInTheDocument()
-    expect(row('Check-in do dia').getByText('Feito')).toBeInTheDocument()
+    expect(row('Check-in da manhã').getByText('Feito')).toBeInTheDocument()
+    expect(row('Check-in da noite').getByText('Feito')).toBeInTheDocument()
+  })
+
+  it('a check-in mark from before the split (key checkin) shows the evening part done, not the morning one', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db)
+    await adherenceRepo.mark(app.db, USER_A, { date: TODAY, targetType: 'checkin', targetKey: 'checkin', status: 'done' }, new Date())
+    app.view(<TodayPage />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('1 de 7 feitos')
+    expect(row('Check-in da noite').getByText('Feito')).toBeInTheDocument()
+    expect(row('Check-in da manhã').queryByText('Feito')).not.toBeInTheDocument()
   })
 
   it("marking cardio also answers cardio on today's check-in", async () => {
@@ -201,7 +216,7 @@ describe('TodayPage', () => {
     await screen.findByRole('list', { name: 'Itens de hoje' })
 
     expect(screen.getByText('Terça, 20/10 · Sem ficha de treino')).toBeInTheDocument()
-    expect(rowNames()).toEqual(['Check-in do dia'])
+    expect(rowNames()).toEqual(['Check-in da manhã', 'Check-in da noite'])
   })
 })
 
@@ -216,6 +231,6 @@ describe('/hoje', () => {
     app.viewRoutes([{ path: '/hoje', element: route!.element }])
 
     expect(await screen.findByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Check-in do dia' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Check-in da noite' })).toBeInTheDocument()
   })
 })

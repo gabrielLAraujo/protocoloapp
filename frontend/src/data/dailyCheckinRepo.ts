@@ -29,6 +29,33 @@ export interface DailyCheckinFields {
   cardioMinutes: number | null
 }
 
+/** Which parts of a day's check-in are saved. */
+export interface CheckinParts {
+  morning: boolean
+  evening: boolean
+}
+
+/** The fields that make each part complete (weight and note are optional; cardio is not a part of the check-in). */
+type PartFields = {
+  sleepQuality: number | null
+  energyWake: number | null
+  bowel: Bowel | null
+  energyDay: number | null
+  anxiety: number | null
+  waterL: number | null
+}
+
+/**
+ * Morning = sleep quality, energy on waking and bowel all set; evening = energy during the day, anxiety and water all
+ * set. A full check-in saved before the split counts as both; a row created only by cardio as neither.
+ */
+export function checkinParts(row: PartFields): CheckinParts {
+  return {
+    morning: row.sleepQuality != null && row.energyWake != null && row.bowel != null,
+    evening: row.energyDay != null && row.anxiety != null && row.waterL != null,
+  }
+}
+
 export interface DailyCheckin extends DailyCheckinFields {
   id: string
   /** yyyy-MM-dd. */
