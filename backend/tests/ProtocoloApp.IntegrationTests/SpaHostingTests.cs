@@ -25,6 +25,7 @@ public sealed class SpaHostingTests : IDisposable
         File.WriteAllText(Path.Combine(_wwwroot, "manifest.webmanifest"), "{\"name\":\"Protocolo\"}");
         File.WriteAllText(Path.Combine(_wwwroot, "pwa-192.png"), "not really a png");
         File.WriteAllText(Path.Combine(_wwwroot, "assets", "index-Ab12Cd34.js"), "console.log(1)");
+        File.WriteAllText(Path.Combine(_wwwroot, "assets", "sql-wasm.wasm"), "not really wasm");
 
         // The same API, now with a front to serve (the base factory has no wwwroot, so it does not map the fallback).
         _factory = factory.WithWebHostBuilder(builder => builder.UseWebRoot(_wwwroot));
@@ -61,6 +62,17 @@ public sealed class SpaHostingTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(Immutable, Assert.Single(response.Headers.GetValues("Cache-Control")));
+    }
+
+    [Fact]
+    public async Task Unhashed_files_under_assets_are_revalidated()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync(new Uri("/assets/sql-wasm.wasm", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(Revalidate, Assert.Single(response.Headers.GetValues("Cache-Control")));
     }
 
     [Theory]
