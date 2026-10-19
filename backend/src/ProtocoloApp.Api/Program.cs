@@ -10,6 +10,7 @@ using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Sync;
+using ProtocoloApp.Api.Features.Workouts;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
 using Scalar.AspNetCore;
