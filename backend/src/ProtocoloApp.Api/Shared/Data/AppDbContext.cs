@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
+using ProtocoloApp.Api.Features.Today;
 using ProtocoloApp.Api.Features.Workouts;
 
 namespace ProtocoloApp.Api.Shared.Data;
@@ -29,6 +30,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ExerciseChange> ExerciseChanges => Set<ExerciseChange>();
 
     public DbSet<RotationOverride> RotationOverrides => Set<RotationOverride>();
+
+    public DbSet<ScheduleSlot> ScheduleSlots => Set<ScheduleSlot>();
+
+    public DbSet<AdherenceLog> AdherenceLogs => Set<AdherenceLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
