@@ -15,13 +15,13 @@ internal static class PushApi
     public static Task<HttpResponseMessage> SubscribeAsync(HttpClient client, string endpoint, string p256dh = "BKey-fictitious", string auth = "auth-fictitious", string? userAgent = null) =>
         client.PostAsJsonAsync(new Uri("/api/push/subscribe", UriKind.Relative), new SubscribeRequest(endpoint, new SubscriptionKeys(p256dh, auth), userAgent));
 
-    public static Task<HttpResponseMessage> UnsubscribeAsync(HttpClient client, string endpoint)
+    public static async Task<HttpResponseMessage> UnsubscribeAsync(HttpClient client, string endpoint)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri("/api/push/subscribe", UriKind.Relative))
         {
             Content = JsonContent.Create(new UnsubscribeRequest(endpoint)),
         };
-        return client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     public static async Task<List<ProtocoloApp.Api.Features.Push.PushSubscription>> SubscriptionsAsync(ApiFactory factory, string endpoint)

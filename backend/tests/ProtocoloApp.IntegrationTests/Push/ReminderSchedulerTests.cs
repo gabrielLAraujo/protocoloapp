@@ -136,7 +136,7 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
     [Fact]
     public async Task Target_already_logged_on_the_server_is_not_reminded()
     {
-        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"), Adherence("meal", "2"));
+        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"), Adherence("meal", "2"), Adherence("protocol_item", "x2"));
         using var _ = api;
 
         await RunAsync(Local("12:30"));
@@ -145,9 +145,21 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Slot_with_a_target_still_open_is_reminded_with_the_meal_label()
+    {
+        // The meal is logged but the item taken with it is not: the slot still has something to do.
+        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"), Adherence("meal", "2"));
+        using var _ = api;
+
+        await RunAsync(Local("12:30"));
+
+        Assert.Equal("REF 2 — 12:30", Assert.Single(factory.Push.SentTo(endpoint)).Body);
+    }
+
+    [Fact]
     public async Task Missed_target_counts_as_logged_too()
     {
-        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"), Adherence("meal", "2", "missed"));
+        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"), Adherence("meal", "2", "missed"), Adherence("protocol_item", "x2", "missed"));
         using var _ = api;
 
         await RunAsync(Local("12:30"));
