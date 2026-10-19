@@ -4,13 +4,16 @@ import type { GroupTrends, Trend } from '../../domain/strength'
 const kg = (v: number) => `${Math.round(v)} kg`
 
 function TrendLine({ trend }: { trend: Trend }) {
-  const up = trend.delta >= 0
+  const rounded = Math.round(trend.delta)
+  const flat = rounded === 0
+  const up = trend.delta > 0
+  const tone = flat ? 'text-muted' : up ? 'text-ok' : 'text-danger'
   return (
     <li className="flex items-baseline justify-between gap-2 text-sm">
       <span className="min-w-0 truncate">{trend.name}</span>
-      <span className={`shrink-0 tabular-nums ${up ? 'text-ok' : 'text-danger'}`}>
-        <span aria-hidden="true">{up ? '▲' : '▼'}</span> {up ? '+' : '−'}
-        {Math.abs(Math.round(trend.delta))} kg <span className="text-muted">({kg(trend.firstE1rm)} → {kg(trend.lastE1rm)})</span>
+      <span className={`shrink-0 tabular-nums ${tone}`}>
+        <span aria-hidden="true">{flat ? '=' : up ? '▲' : '▼'}</span> {flat ? 'igual' : `${up ? '+' : '−'}${Math.abs(rounded)} kg`}{' '}
+        <span className="text-muted">({kg(trend.firstE1rm)} → {kg(trend.lastE1rm)})</span>
       </span>
     </li>
   )

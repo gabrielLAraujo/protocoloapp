@@ -69,4 +69,37 @@ describe('BottomNav', () => {
     setup()
     expect(document.documentElement.style.getPropertyValue('--bottom-nav-height')).toMatch(/px$/)
   })
+
+  it('moves focus into the menu, traps Tab, and Escape returns focus to "Mais"', async () => {
+    const user = userEvent.setup()
+    setup()
+    const more = screen.getByRole('button', { name: 'Mais' })
+    await user.click(more)
+    const dialog = screen.getByRole('dialog', { name: 'Mais' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    const diag = screen.getByRole('link', { name: 'Diagnóstico' })
+    const exit = screen.getByRole('button', { name: 'Sair' })
+    expect(diag).toHaveFocus()
+
+    await user.tab()
+    expect(exit).toHaveFocus()
+    await user.tab()
+    expect(diag).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(exit).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
+    expect(more).toHaveFocus()
+  })
+
+  it('closing with the "Mais" button or the backdrop also returns focus to it', async () => {
+    const user = userEvent.setup()
+    setup()
+    const more = screen.getByRole('button', { name: 'Mais' })
+    await user.click(more)
+    await user.click(more)
+    expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
+    expect(more).toHaveFocus()
+  })
 })

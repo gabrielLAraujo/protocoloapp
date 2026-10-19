@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { CycleDatesForm } from '../plans/CycleDatesForm'
 import { useData } from '../../data/dataContext'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
 import { exerciseRepo } from '../../data/exerciseRepo'
@@ -20,21 +21,19 @@ import { WeightSparkline } from './WeightSparkline'
 
 interface Loaded {
   summary: SummaryData
-  /** Where to fix a missing update date: the protocol draft when there is one, else the planning screen. */
-  reviewLink: string
+  /** The active protocol version (target of the dates form), when there is one. */
+  protocolId: string | null
+  billingDate: string | null
 }
 
 const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${String(n).replace('.', ',')}${unit}`)
 
 async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: string): Promise<Loaded> {
-  const [active, versions, plans, exercises] = await Promise.all([
+  const [active, plans, exercises] = await Promise.all([
     planRepo.getActive(db, 'protocol'),
-    planRepo.list(db, 'protocol'),
     loadWorkoutPlans(db),
     exerciseRepo.all(db),
   ])
-  const draft = versions.find((v) => v.status === 'draft')
-  const reviewLink = draft ? `/planejamento/revisao/${draft.id}` : '/planejamento'
 
   let protocol: SummaryInput['protocol'] = null
   if (active?.activatedAt) {
@@ -50,7 +49,7 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
   ])
   const sets: SetLocal[] = (await Promise.all(sessions.map((s) => workoutRepo.setsForSession(db, s.id)))).flat()
   const summary = buildSummary({ protocol, plans: plans.map((p) => p.at), overrides, sessions, sets, checkins, exercises }, today)
-  return { summary, reviewLink }
+  return { summary, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null }
 }
 
 /** `/`: the cycle at a glance - timeline, calendar, adherence, check-in averages, weight and strength. */
@@ -84,7 +83,7 @@ export function SummaryPage() {
   if (failed) return <p role="alert" className="text-danger">Não foi possível carregar o resumo.</p>
   if (!loaded) return <p className="text-muted">Carregando…</p>
 
-  const { summary, reviewLink } = loaded
+  const { summary, protocolId, billingDate } = loaded
   if (!summary.cycle) {
     return (
       <section className="grid gap-3">
@@ -101,7 +100,14 @@ export function SummaryPage() {
   return (
     <div className="grid gap-5">
       <h1 className="text-xl font-semibold tracking-tight">Resumo</h1>
-      <CycleTimeline cycle={summary.cycle} setDateLink={reviewLink} />
+      <CycleTimeline
+        cycle={summary.cycle}
+        datesForm={
+          protocolId && (
+            <CycleDatesForm planId={protocolId} updateDate={null} billingDate={billingDate} requireUpdateDate />
+          )
+        }
+      />
       <CycleCalendar days={summary.calendar} />
 
       <section aria-labelledby="stats-title" className="grid gap-2">

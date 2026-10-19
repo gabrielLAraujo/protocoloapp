@@ -160,4 +160,27 @@ describe('PlansPage', () => {
     const link = await within(await screen.findByRole('region', { name: 'Treino' })).findByRole('link', { name: 'Revisar rascunho' })
     expect(link).toHaveAttribute('href', `/planejamento/revisao/${PLAN_ID}`)
   })
+
+  it('"Editar datas" on the protocol card prefilled saves both dates through the API', async () => {
+    const calls = mockFetch({
+      [`PATCH /api/plans/${ACTIVE_ID}/cycle-dates`]: () => json({ id: ACTIVE_ID }),
+      'POST /api/sync/push': () => json({ results: [] }),
+      'GET /api/sync/pull': () => json({ records: [], nextSince: 0, hasMore: false }),
+    })
+    const user = userEvent.setup()
+    await renderPage()
+
+    await user.click(await within(await screen.findByRole('region', { name: 'Protocolo' })).findByRole('button', { name: 'Editar datas' }))
+    expect(card('Treino').queryByRole('button', { name: 'Editar datas' })).not.toBeInTheDocument()
+    const update = screen.getByLabelText('Próxima atualização')
+    expect(update).toHaveValue('2026-11-20')
+    await user.clear(update)
+    await user.type(update, '2026-12-04')
+    await user.type(screen.getByLabelText('Mensalidade'), '2026-12-10')
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(screen.queryByLabelText('Próxima atualização')).not.toBeInTheDocument())
+    const patch = calls.find((c) => c.method === 'PATCH')!
+    expect(JSON.parse(patch.body)).toEqual({ updateDate: '2026-12-04', billingDate: '2026-12-10' })
+  })
 })

@@ -4,6 +4,7 @@ import { useData } from '../../data/dataContext'
 import { planRepo, type PlanKind, type PlanVersionLocal } from '../../data/planRepo'
 import { parseProtocolDocument, parseWorkoutDocument } from '../../domain/planDocuments'
 import { useSync } from '../sync/syncContext'
+import { CycleDatesForm } from './CycleDatesForm'
 import { formatDayMonth, formatInstantDayMonth } from './labels'
 import { ImportError, OFFLINE_IMPORT_MESSAGE, uploadPdf, type UploadStage } from './uploadPdf'
 
@@ -47,6 +48,7 @@ export function PlansPage() {
   const [readingSince, setReadingSince] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<{ kind: PlanKind; message: string } | null>(null)
+  const [editingDates, setEditingDates] = useState(false)
   // Synchronous guard: two quick picks must not start two imports (state updates are not visible yet).
   const importing = useRef(false)
   // The import outlives a tap elsewhere: when it ends, only a page still on screen may take the user to the review.
@@ -153,12 +155,18 @@ export function PlansPage() {
                   Ver protocolo
                 </Link>
               )}
+              {kind === 'protocol' && active && (
+                <button type="button" className={linkButton} aria-expanded={editingDates} onClick={() => setEditingDates((v) => !v)}>
+                  Editar datas
+                </button>
+              )}
               {draft && (
                 <Link to={`/planejamento/revisao/${draft.id}`} className={linkButton}>
                   Revisar rascunho
                 </Link>
               )}
             </div>
+            {kind === 'protocol' && active && editingDates && <ProtocolDates plan={active} onSaved={() => setEditingDates(false)} />}
           </section>
         )
       })}
@@ -186,5 +194,15 @@ function UploadButton({ disabled, onPick }: { disabled: boolean; onPick: (file: 
       />
       <span>Enviar novo PDF</span>
     </label>
+  )
+}
+
+function ProtocolDates({ plan, onSaved }: { plan: PlanVersionLocal; onSaved: () => void }) {
+  const parsed = parseProtocolDocument(plan.document)
+  const doc = parsed.ok ? parsed.value : null
+  return (
+    <div className="border-t border-line pt-3">
+      <CycleDatesForm planId={plan.id} updateDate={doc?.updateDate ?? null} billingDate={doc?.billingDate ?? null} onSaved={onSaved} />
+    </div>
   )
 }

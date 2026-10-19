@@ -175,4 +175,25 @@ describe('dailyCheckinRepo', () => {
     const [entry] = await outbox.due(db, T0, 500)
     expect(JSON.parse(entry!.payload!)).toMatchObject({ cardio_done: false, cardio_minutes: null })
   })
+
+  it('between lists one check-in per date (the newest) inside the range, oldest first', async () => {
+    const db = await newLocalDb()
+    const other = '7d1f2a10-0000-5000-8000-0000000000aa'
+    await dailyCheckinRepo.applyRemote(db, remote({ id: ID, version: 1, clientUpdatedAt: '2026-10-18T10:00:00.000000+00:00' }))
+    await dailyCheckinRepo.applyRemote(
+      db,
+      remote({ id: other, version: 2, clientUpdatedAt: '2026-10-18T14:00:00.000000+00:00', payload: { ...remote().payload, sleep_quality: 5 } }),
+    )
+    const day2 = '7d1f2a10-0000-5000-8000-0000000000ab'
+    await dailyCheckinRepo.applyRemote(db, remote({ id: day2, version: 3, payload: { ...remote().payload, date: '2026-10-19' } }))
+    await dailyCheckinRepo.applyRemote(
+      db,
+      remote({ id: '7d1f2a10-0000-5000-8000-0000000000ac', version: 4, payload: { ...remote().payload, date: '2026-11-30' } }),
+    )
+
+    const list = await dailyCheckinRepo.between(db, '2026-10-18', '2026-10-31')
+
+    expect(list.map((c) => c.date)).toEqual(['2026-10-18', '2026-10-19'])
+    expect(list[0]!.sleepQuality).toBe(5)
+  })
 })

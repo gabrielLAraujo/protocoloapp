@@ -1,10 +1,10 @@
-import { Link } from 'react-router'
+import type { ReactNode } from 'react'
 import type { CycleInfo } from '../../domain/cycle'
 import { countdownText } from './cycleText'
 import { formatDate, formatShortDate } from '../workout/format'
 
 /** Start -> update date bar with a "Hoje" marker, the countdown and the billing date. */
-export function CycleTimeline({ cycle, setDateLink }: { cycle: CycleInfo; setDateLink: string }) {
+export function CycleTimeline({ cycle, datesForm }: { cycle: CycleInfo; datesForm: ReactNode }) {
   const countdown = countdownText(cycle)
   const overdue = cycle.overdueDays > 0
   const pct = Math.round((cycle.elapsedRatio ?? 0) * 100)
@@ -12,13 +12,13 @@ export function CycleTimeline({ cycle, setDateLink }: { cycle: CycleInfo; setDat
     <section aria-labelledby="cycle-title" className="grid gap-3 rounded-control border border-line bg-surface p-4">
       <h2 id="cycle-title" className="text-base font-semibold">Ciclo</h2>
       {cycle.end === null ? (
-        <p className="text-sm">
-          <span className="font-medium">Defina a data da próxima atualização</span>
-          <span className="text-muted"> — o protocolo não traz essa data. </span>
-          <Link to={setDateLink} className="font-semibold text-accent underline">
-            Abrir a revisão
-          </Link>
-        </p>
+        <div className="grid gap-3">
+          <p className="text-sm">
+            <span className="font-medium">Defina a data da próxima atualização</span>
+            <span className="text-muted"> — o protocolo não traz essa data.</span>
+          </p>
+          {datesForm}
+        </div>
       ) : (
         <>
           <div className="pt-6">
@@ -32,7 +32,7 @@ export function CycleTimeline({ cycle, setDateLink }: { cycle: CycleInfo; setDat
               className="relative h-2 rounded-full bg-line"
             >
               <div className={`h-full rounded-full ${overdue ? 'bg-danger' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
-              <span className="absolute -top-6 -translate-x-1/2 text-xs font-semibold" style={{ left: `${pct}%` }}>
+              <span className="absolute -top-6 -translate-x-1/2 text-xs font-semibold" style={{ left: `clamp(1rem, ${pct}%, calc(100% - 1rem))` }}>
                 Hoje
               </span>
               <span

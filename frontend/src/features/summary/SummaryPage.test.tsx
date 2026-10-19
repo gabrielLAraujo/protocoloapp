@@ -1,10 +1,11 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SyncRecord } from '../../data/apiClient'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
-import { mockFetch } from '../../test/fetch-mock'
+import { json, mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
@@ -37,27 +38,52 @@ describe('SummaryPage', () => {
     expect(screen.getByRole('link', { name: 'Ir para o planejamento' })).toHaveAttribute('href', '/planejamento')
   })
 
-  it('a protocol without update date asks for it, linking to the draft review when there is one', async () => {
+  it('a protocol without update date shows an inline form that saves through the API and syncs', async () => {
     const app = await setupApp()
+    const id = '7d1f2a10-0000-5000-8000-0000000000d1'
     await seedProtocol(app.db, { phaseName: 'Fase 1' })
-    app.view(<SummaryPage />)
-    expect(await screen.findByText('Defina a data da próxima atualização')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Abrir a revisão' })).toHaveAttribute('href', '/planejamento')
-  })
-
-  it('links to the review of the protocol draft when one exists', async () => {
-    const app = await setupApp()
-    await seedProtocol(app.db, { phaseName: 'Fase 1' })
-    await planVersionSync.applyRemote(app.db, {
-      entity: 'plan_version',
-      id: '7d1f2a10-0000-5000-8000-0000000000d2',
-      version: 1,
-      payload: { kind: 'protocol', status: 'draft', document: {}, activated_at: null, low_confidence: [] },
-      deletedAt: null,
-      clientUpdatedAt: '2026-10-21T12:00:00.000000+00:00',
+    const calls = mockFetch({
+      [`PATCH /api/plans/${id}/cycle-dates`]: () => json({ id }),
+      'POST /api/sync/push': () => json({ results: [] }),
+      'GET /api/sync/pull': () =>
+        json({
+          records: [
+            {
+              entity: 'plan_version',
+              id,
+              version: 2,
+              payload: { kind: 'protocol', status: 'active', document: { phaseName: 'Fase 1', updateDate: '2026-11-15', billingDate: '2026-11-05' }, activated_at: new Date(2026, 9, 20, 12).toISOString(), low_confidence: [] },
+              deletedAt: null,
+              clientUpdatedAt: '2026-10-27T12:00:00.000000+00:00',
+            },
+          ],
+          nextSince: 2,
+          hasMore: false,
+        }),
     })
     app.view(<SummaryPage />)
-    expect(await screen.findByRole('link', { name: 'Abrir a revisão' })).toHaveAttribute('href', '/planejamento/revisao/7d1f2a10-0000-5000-8000-0000000000d2')
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    expect(await screen.findByText('Defina a data da próxima atualização')).toBeInTheDocument()
+    const save = screen.getByRole('button', { name: 'Salvar' })
+    expect(save).toBeDisabled() // the update date is required here
+
+    await user.type(screen.getByLabelText('Próxima atualização'), '2026-11-15')
+    await user.type(screen.getByLabelText('Mensalidade'), '2026-11-05')
+    await user.click(save)
+
+    expect(await screen.findByText('Faltam 19 dias para a atualização')).toBeInTheDocument()
+    const patch = calls.find((c) => c.method === 'PATCH')!
+    expect(JSON.parse(patch.body)).toEqual({ updateDate: '2026-11-15', billingDate: '2026-11-05' })
+  })
+
+  it('offline, the form says to connect and cannot save', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { phaseName: 'Fase 1' })
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    app.view(<SummaryPage />)
+    await screen.findByText('Defina a data da próxima atualização')
+    expect(screen.getByText('Conecte-se à internet para salvar')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
   })
 
   it('shows the countdown, billing date, stats, calendar with legend and strength', async () => {
@@ -84,7 +110,7 @@ describe('SummaryPage', () => {
     expect(screen.getByRole('progressbar', { name: 'Andamento do ciclo' })).toBeInTheDocument()
 
     const stats = screen.getByRole('region', { name: 'Números do ciclo' })
-    expect(within(stats).getByText('Treinos').nextSibling).toHaveTextContent(/^2 de /)
+    expect(within(stats).getByText('Treinos').nextSibling).toHaveTextContent('2 de 8')
     expect(within(stats).getByText('Cardio').nextSibling).toHaveTextContent('1 de 8')
     expect(within(stats).getByText('Água').nextSibling).toHaveTextContent('2,5 L')
 

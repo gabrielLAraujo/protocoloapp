@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router'
 import { useAuth } from '../auth/authContext'
 
@@ -30,6 +30,13 @@ export function BottomNav() {
   const open = openPath === location.pathname
   const setOpen = (value: boolean) => setOpenPath(value ? location.pathname : null)
   const nav = useRef<HTMLElement>(null)
+  const moreButton = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  /** Closes the menu and puts the focus back on "Mais" (not used when a link navigates away). */
+  const closeAndRestore = () => {
+    setOpenPath(null)
+    moreButton.current?.focus()
+  }
 
   useEffect(() => {
     const el = nav.current
@@ -45,23 +52,43 @@ export function BottomNav() {
     }
   }, [])
 
+  // Opening moves the focus into the menu (first item).
   useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenPath(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    if (open) menu.current?.querySelector<HTMLElement>('a, button')?.focus()
   }, [open])
+
+  const onMenuKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      closeAndRestore()
+      return
+    }
+    if (e.key !== 'Tab') return
+    // Simple focus trap: Tab and Shift+Tab wrap inside the menu.
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('a, button'))
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 
   const moreActive = location.pathname.startsWith('/settings')
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-30" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-30" onClick={closeAndRestore}>
           <div
             id="more-menu"
+            ref={menu}
             role="dialog"
+            aria-modal="true"
+            onKeyDown={onMenuKey}
             aria-label="Mais"
             onClick={(e) => e.stopPropagation()}
             className="absolute inset-x-0 bottom-[var(--bottom-nav-height,0px)] grid gap-1 rounded-t-2xl border-t border-line bg-surface p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.12)]"
@@ -91,11 +118,12 @@ export function BottomNav() {
           </NavLink>
         ))}
         <button
+          ref={moreButton}
           type="button"
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-controls="more-menu"
-          onClick={() => setOpen(!open)}
+          onClick={() => (open ? closeAndRestore() : setOpen(true))}
           className={tabClass(moreActive || open)}
         >
           {icon(<><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>)}

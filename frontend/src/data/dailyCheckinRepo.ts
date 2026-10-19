@@ -143,7 +143,9 @@ export const dailyCheckinRepo = {
       'SELECT * FROM daily_checkins WHERE date >= ? AND date <= ? AND deleted_at IS NULL ORDER BY date, client_updated_at DESC',
       [from, to],
     )
-    return rows.map(toCheckin)
+    // Two live rows for one date (the same day written on two devices): the newest wins.
+    const seen = new Set<string>()
+    return rows.filter((r) => !seen.has(r.date) && !!seen.add(r.date)).map(toCheckin)
   },
 
   /**

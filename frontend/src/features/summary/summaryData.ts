@@ -74,7 +74,7 @@ function plannedCardio(protocol: ProtocolDocument, elapsedDays: number): number 
   const cardio = protocol.cardio
   if (!cardio || elapsedDays <= 0) return 0
   if (cardio.daily) return elapsedDays
-  if (cardio.sessionsPerWeek) return Math.floor(cardio.sessionsPerWeek * (elapsedDays / 7))
+  if (cardio.sessionsPerWeek) return Math.floor((cardio.sessionsPerWeek * elapsedDays) / 7)
   return 0
 }
 

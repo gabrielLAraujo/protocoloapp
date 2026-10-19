@@ -621,6 +621,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{id}/cycle-dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["CycleDatesRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanVersionResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/exercises": {
         parameters: {
             query?: never;
@@ -806,6 +863,12 @@ export interface components {
         ActivatePlanRequest: {
             /** Format: date */
             cycleStart: null | string;
+        };
+        CycleDatesRequest: {
+            /** Format: date */
+            updateDate: null | string;
+            /** Format: date */
+            billingDate: null | string;
         };
         DownloadUrlResponse: {
             /** Format: uri */
