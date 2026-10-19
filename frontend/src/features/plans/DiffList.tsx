@@ -17,7 +17,7 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
     return <p className="text-sm text-muted">Sem diferenças em relação à versão ativa.</p>
   }
   return (
-    <ul aria-label="Mudanças em relação à versão ativa" className="grid gap-1.5">
+    <ul aria-label="Mudanças em relação à versão ativa" className="grid gap-2">
       {diff.added.map((path) => (
         <li key={`a-${path}`} className={`${row} border-ok/40 bg-ok/10`}>
           <span aria-hidden="true" className="font-bold text-ok">
@@ -42,7 +42,7 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
             ~
           </span>
           <span className="sr-only">Alterado:</span>
-          <span className="grid gap-0.5">
+          <span className="grid gap-1">
             <code className="break-all">{change.path}</code>
             <span className="text-muted">
               {show(change.before)} <span aria-hidden="true">→</span>

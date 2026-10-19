@@ -8,6 +8,9 @@ import type { DayType } from '../../domain/dayPlan'
 import { buttonClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
 import { scheduleRows, type SlotRow } from './scheduleRows'
+import { buttonClasses } from '../../ui/styles'
+import { cardClasses } from '../../ui/styles'
+import { Icon } from '../../ui/Icon'
 
 const DAY_LABELS: Record<DayType, string> = { training: 'Dia de treino', off: 'Descanso' }
 const DAY_CONTEXT: Record<DayType, string> = { training: 'dia de treino', off: 'descanso' }
@@ -124,15 +127,16 @@ export function SchedulePage() {
   return (
     <section className="grid gap-6">
       <div>
-        <Link to="/configuracoes" className="text-sm text-muted hover:text-ink">
-          ← Configurações
+        <Link to="/configuracoes" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
+          <Icon name="chevronLeft" size={18} />
+          Configurações
         </Link>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight">Horários</h1>
+        <h1 className="text-xl font-bold tracking-tight">Horários</h1>
         <p className="mt-1 text-sm text-muted">Sem horário, o item fica sem lembrete.</p>
       </div>
 
       {DAY_TYPES.map((dayType) => (
-        <section key={dayType} aria-labelledby={`schedule-${dayType}`} className="grid gap-2">
+        <section key={dayType} aria-labelledby={`schedule-${dayType}`} className="grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id={`schedule-${dayType}`} className="text-base font-semibold">
               {DAY_LABELS[dayType]}
@@ -143,14 +147,14 @@ export function SchedulePage() {
               </button>
             )}
           </div>
-          <ul className="grid divide-y divide-line rounded-xl border border-line bg-surface">
+          <ul className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line' })}>
             {loaded.rows.map(({ slot, label }) => {
               const row = bySlot.get(key(slot, dayType))
               const draftKey = key(slot, dayType)
               const value = drafts[draftKey] ?? row?.time ?? ''
               const context = `${label} (${DAY_CONTEXT[dayType]})`
               return (
-                <li key={slot} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                <li key={slot} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
                   <span className="min-w-28 flex-1 text-sm font-medium">{label}</span>
                   <input
                     type="time"
@@ -173,7 +177,7 @@ export function SchedulePage() {
                         setDrafts((d) => without(d, draftKey)),
                       )
                     }}
-                    className="min-h-11 rounded-control border border-line bg-surface px-2 text-base text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                    className="min-h-11 rounded-control border border-control-line bg-surface px-2 text-base tabular-nums text-ink focus-visible:outline-2 focus-visible:outline-accent"
                   />
                   <label className="flex min-h-11 items-center gap-2 text-sm">
                     <input

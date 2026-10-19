@@ -11,6 +11,7 @@ import { useSync } from '../sync/syncContext'
 import { checkinSchema, type CheckinFormInput, type CheckinFormOutput } from './checkinSchema'
 import { ChoiceField, type Option } from './ScaleField'
 import { localDate, msToNextMidnight } from './localDate'
+import { buttonClasses } from '../../ui/styles'
 
 const SCALE: readonly Option<number>[] = [1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))
 const BOWEL: readonly Option<string>[] = [
@@ -148,8 +149,8 @@ const longDate = (date: string) => {
   return new Date(y!, m! - 1, d!).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
-const bannerClass = 'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm'
-const bannerButtonClass = 'font-semibold text-accent underline focus-visible:outline-2 focus-visible:outline-accent'
+const bannerClass = 'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium'
+const bannerButtonClass = 'min-h-11 font-semibold text-accent underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-accent'
 
 function CheckinForm({
   data,
@@ -254,10 +255,10 @@ function CheckinForm({
       onSubmit={(event) => void handleSubmit(save)(event)}
       onChange={() => setSaved(false)}
       noValidate
-      className="grid gap-5"
+      className="grid gap-6"
     >
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Check-in de hoje</h1>
+        <h1 className="text-xl font-bold tracking-tight">Check-in de hoje</h1>
         <p className="text-sm text-muted first-letter:uppercase">{longDate(date)}</p>
       </div>
 
@@ -284,7 +285,7 @@ function CheckinForm({
       <ChoiceField control={control} name="energyDay" legend="Disposição no dia (1–5)" options={SCALE} />
       <ChoiceField control={control} name="anxiety" legend="Ansiedade (1–5)" options={SCALE} />
 
-      <label className="grid gap-1.5 text-sm font-medium">
+      <label className="grid gap-2 text-sm font-medium">
         Água (litros)
         <input
           type="text"
@@ -301,7 +302,7 @@ function CheckinForm({
         )}
       </label>
 
-      <label className="grid gap-1.5 text-sm font-medium">
+      <label className="grid gap-2 text-sm font-medium">
         Peso (kg, opcional)
         <input
           type="text"
@@ -320,7 +321,7 @@ function CheckinForm({
 
       <ChoiceField control={control} name="cardioDone" legend="Cardio feito?" options={CARDIO} />
       {cardioDone === 'yes' && (
-        <label className="grid gap-1.5 text-sm font-medium">
+        <label className="grid gap-2 text-sm font-medium">
           Minutos de cardio
           <input
             type="text"
@@ -338,7 +339,7 @@ function CheckinForm({
         </label>
       )}
 
-      <label className="grid gap-1.5 text-sm font-medium">
+      <label className="grid gap-2 text-sm font-medium">
         Observações
         <textarea
           rows={3}
@@ -354,12 +355,12 @@ function CheckinForm({
       </label>
 
       {saveError && (
-        <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="rounded-card border border-danger/40 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
           Não foi possível salvar. Tente de novo.
         </p>
       )}
       {saved && (
-        <p role="status" className="rounded-control border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+        <p role="status" className="rounded-card border border-accent/30 bg-accent-soft px-4 py-3 text-sm font-medium">
           Salvo — será sincronizado
         </p>
       )}
@@ -367,7 +368,7 @@ function CheckinForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="min-h-12 rounded-control bg-accent px-4 text-base font-semibold text-on-accent disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className={buttonClasses({ variant: 'primary', size: 'lg' })}
       >
         Salvar
       </button>

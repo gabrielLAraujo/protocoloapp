@@ -4,6 +4,7 @@ import type { PlannedSet } from '../../domain/planDocuments'
 import { buttonClass, dangerButtonClass, inputClass } from '../plans/styles'
 import { formatKg, repsLabel } from './format'
 import { parseReps, parseWeight } from './setInput'
+import { Icon } from '../../ui/Icon'
 
 const KIND_OPTIONS: { value: SetKind; label: string }[] = [
   { value: 'normal', label: 'Normal' },
@@ -117,19 +118,19 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
   const technique = planned?.technique ? ` + ${planned.technique}` : ''
 
   return (
-    <li className={`grid gap-1 rounded-control border px-2 py-2 ${done ? 'border-ok/50 bg-ok/10' : 'border-line'}`}>
+    <li className={`grid gap-2 rounded-control border p-3 ${done ? 'border-ok/40 bg-ok/10' : 'border-line bg-raised'}`}>
       <div className="flex items-center justify-between gap-2 text-sm">
-        <span className="font-medium">Série {n}</span>
-        <span className="text-muted">
+        <span className="font-semibold">Série {n}</span>
+        <span className="tabular-nums text-muted">
           {planText}
           {technique}
         </span>
       </div>
       <div className="grid grid-cols-[1fr_1fr_auto] items-start gap-2">
-        <label className="grid gap-0.5 text-xs text-muted">
+        <label className="grid gap-1 text-xs font-medium text-muted">
           Carga (kg)
           <input
-            className={`${inputClass} min-h-11 text-center`}
+            className={`${inputClass} text-center text-lg! font-semibold tabular-nums placeholder:font-normal placeholder:opacity-80`}
             inputMode="decimal"
             autoComplete="off"
             aria-label={`Carga da série ${n} (kg)`}
@@ -141,10 +142,10 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
             onChange={(e) => setWeight(e.target.value)}
           />
         </label>
-        <label className="grid gap-0.5 text-xs text-muted">
+        <label className="grid gap-1 text-xs font-medium text-muted">
           Reps
           <input
-            className={`${inputClass} min-h-11 text-center`}
+            className={`${inputClass} text-center text-lg! font-semibold tabular-nums placeholder:font-normal placeholder:opacity-80`}
             inputMode="numeric"
             autoComplete="off"
             aria-label={`Repetições da série ${n}`}
@@ -161,15 +162,15 @@ export function SetRow({ index, planned, logged, hint, onSave, onUpdate, onDelet
           onClick={() => void submit()}
           disabled={busy}
           aria-label={locked ? `Editar série ${n}` : editing ? `Salvar série ${n}` : `Concluir série ${n}`}
-          className={`mt-4 grid size-11 place-items-center rounded-control border text-xl font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ok bg-ok text-on-accent' : 'border-line bg-surface text-muted'}`}
+          className={`mt-5 grid size-12 place-items-center rounded-control border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ok bg-ok text-on-accent' : 'border-control-line bg-surface text-muted hover:text-ok'}`}
         >
-          ✓
+          <Icon name="check" size={24} strokeWidth={2.6} />
         </button>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted">
         Tipo
         <select
-          className="min-h-11 rounded-control border border-line bg-surface px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          className="min-h-11 rounded-control border border-control-line bg-surface px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:border-line disabled:bg-transparent"
           aria-label={`Tipo da série ${n}`}
           disabled={locked}
           value={logged && locked ? logged.kind : kind}

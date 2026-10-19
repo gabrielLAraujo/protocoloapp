@@ -9,6 +9,11 @@ import { OFF, type WorkoutDay } from '../../domain/planDocuments'
 import { activePlanAt, resolveDay } from '../../domain/rotation'
 import { useSync } from '../sync/syncContext'
 import { buttonClass } from '../plans/styles'
+import { Button } from '../../ui/Button'
+import { buttonClasses } from '../../ui/styles'
+import { cardClasses } from '../../ui/styles'
+import { EmptyState } from '../../ui/EmptyState'
+import { Icon } from '../../ui/Icon'
 import { formatShortDate, repsLabel } from './format'
 import { DiscardSession } from './DiscardSession'
 import { FinishSummary } from './FinishSummary'
@@ -27,8 +32,7 @@ interface Loaded {
   openHasSets: boolean
 }
 
-const primaryClass =
-  'min-h-12 rounded-control bg-accent px-4 text-base font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50'
+const primaryClass = buttonClasses({ variant: 'primary', size: 'lg' })
 
 const now = () => new Date()
 
@@ -144,8 +148,8 @@ export function WorkoutTodayPage() {
   if (open) {
     return (
       <div className="grid gap-3">
-        <h1 className="text-xl font-semibold">Treino</h1>
-        <p role="alert" className="rounded-control border border-warn/40 bg-warn/10 px-3 py-2">
+        <h1 className="text-xl font-bold tracking-tight">Treino</h1>
+        <p role="alert" className={cardClasses({ tone: 'warn', padding: 'sm', className: 'font-medium' })}>
           Você tem um treino aberto de {formatShortDate(open.date)}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -211,12 +215,18 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
 
   if (loaded.plans.length === 0 || resolved.kind === 'none') {
     return (
-      <div className="grid gap-3">
-        <h1 className="text-xl font-semibold">Treino</h1>
-        <p>{loaded.plans.length === 0 ? 'Nenhuma ficha de treino ativa.' : 'Não há treino definido para hoje.'}</p>
-        <Link to="/planejamento" className={`${buttonClass} grid place-items-center`}>
-          Ir para o Planejamento
-        </Link>
+      <div className="grid gap-4">
+        <h1 className="text-xl font-bold tracking-tight">Treino</h1>
+        <EmptyState
+          icon="dumbbell"
+          action={
+            <Link to="/planejamento" className={buttonClasses({ variant: 'primary' })}>
+              Ir para o Planejamento
+            </Link>
+          }
+        >
+          {loaded.plans.length === 0 ? 'Nenhuma ficha de treino ativa.' : 'Não há treino definido para hoje.'}
+        </EmptyState>
         <HistoryLink />
       </div>
     )
@@ -256,30 +266,38 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
   return (
     <div className="grid gap-4">
       {resolved.kind === 'off' ? (
-        <h1 className="text-xl font-semibold">Hoje é descanso</h1>
+        <h1 className="text-xl font-bold tracking-tight">Hoje é descanso</h1>
       ) : (
-        <h1 className="text-xl font-semibold">
+        <h1 className="text-xl font-bold tracking-tight">
           {day ? day.name : resolved.dayKey}
           {day?.notes ? ` — ${day.notes}` : ''}
         </h1>
       )}
-      {loaded.doneToday && <p className="text-sm text-ok">Você já concluiu um treino hoje.</p>}
+      {loaded.doneToday && (
+        <p className="flex items-center gap-2 text-sm font-medium text-ok">
+          <Icon name="check" size={18} strokeWidth={2.4} />
+          Você já concluiu um treino hoje.
+        </p>
+      )}
 
       {resolved.kind === 'workout' && day && (
         <>
-          <ul aria-label="Exercícios do dia" className="grid gap-1">
-            {day.exercises.map((e) => (
-              <li key={e.key} className="flex justify-between gap-3 border-b border-line py-1.5">
-                <span>{e.name}</span>
-                <span className="shrink-0 text-sm text-muted">
+          <ol aria-label="Exercícios do dia" className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line' })}>
+            {day.exercises.map((e, i) => (
+              <li key={e.key} className="flex items-center gap-3 px-4 py-3">
+                <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-raised text-xs font-bold tabular-nums text-muted">
+                  {i + 1}
+                </span>
+                <span className="min-w-0 flex-1 font-medium">{e.name}</span>
+                <span className="shrink-0 text-sm tabular-nums text-muted">
                   {e.sets.length} × {e.sets[0] ? repsLabel(e.sets[0].repsMin, e.sets[0].repsMax) : '—'}
                 </span>
               </li>
             ))}
-          </ul>
-          <button type="button" className={primaryClass} disabled={busy} onClick={() => void start()}>
+          </ol>
+          <Button variant="primary" size="lg" icon="dumbbell" disabled={busy} onClick={() => void start()}>
             Começar treino
-          </button>
+          </Button>
         </>
       )}
       {resolved.kind === 'workout' && !day && <p role="alert">Este treino não existe mais na ficha. Troque o treino de hoje.</p>}
@@ -291,31 +309,31 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
       )}
 
       {swapping && plan ? (
-        <section aria-label="Trocar o treino de hoje" className="grid gap-2 rounded-control border border-line p-3">
+        <section aria-label="Trocar o treino de hoje" className={cardClasses({ className: 'grid gap-3' })}>
           <h2 className="text-base font-semibold">Trocar o treino de hoje</h2>
           <ul className="grid gap-2">
             {plan.document.days.map((d) => (
               <li key={d.key}>
-                <button type="button" className={`${buttonClass} w-full text-left`} disabled={busy} onClick={() => void choose(d.key)}>
+                <button type="button" className={`${buttonClass} w-full justify-start! text-left`} disabled={busy} onClick={() => void choose(d.key)}>
                   {d.name}
                   {d.notes ? ` — ${d.notes}` : ''}
                 </button>
               </li>
             ))}
             <li>
-              <button type="button" className={`${buttonClass} w-full text-left`} disabled={busy} onClick={() => void choose(OFF)}>
+              <button type="button" className={`${buttonClass} w-full justify-start! text-left`} disabled={busy} onClick={() => void choose(OFF)}>
                 Descanso
               </button>
             </li>
           </ul>
-          <button type="button" className={buttonClass} onClick={() => setSwapping(false)}>
+          <Button variant="ghost" onClick={() => setSwapping(false)}>
             Cancelar
-          </button>
+          </Button>
         </section>
       ) : (
-        <button type="button" className={buttonClass} onClick={() => setSwapping(true)}>
+        <Button icon="swap" onClick={() => setSwapping(true)}>
           Trocar o treino de hoje
-        </button>
+        </Button>
       )}
       <HistoryLink />
     </div>
@@ -323,7 +341,8 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
 }
 
 const HistoryLink = () => (
-  <Link to="/treino/historico" className="text-sm font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent">
+  <Link to="/treino/historico" className={buttonClasses({ variant: 'ghost', className: 'w-fit -ml-2' })}>
+    <Icon name="history" size={18} />
     Histórico de treinos
   </Link>
 )

@@ -13,6 +13,9 @@ import {
 } from '../../pwa/push'
 import { buttonClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
+import { buttonClasses } from '../../ui/styles'
+import { cardClasses } from '../../ui/styles'
+import { Icon } from '../../ui/Icon'
 
 type Message = { kind: 'status' | 'alert'; text: string }
 
@@ -126,7 +129,10 @@ export function RemindersCard() {
   } else if (support === 'granted' && subscribed) {
     body = (
       <>
-        <p className="font-medium">Lembretes ativados</p>
+        <p className="flex items-center gap-2 font-semibold text-ok">
+          <Icon name="check" size={18} strokeWidth={2.4} />
+          Lembretes ativados
+        </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={buttonClass} disabled={busy} onClick={() => void test()}>
             Enviar teste
@@ -142,7 +148,8 @@ export function RemindersCard() {
       <>
         <p className="text-sm text-muted">Receba um aviso nos horários do seu protocolo, só do que ainda não foi marcado.</p>
         <div>
-          <button type="button" className={buttonClass} disabled={busy || !data} onClick={enable}>
+          <button type="button" className={buttonClasses({ variant: 'primary' })} disabled={busy || !data} onClick={enable}>
+            <Icon name="bell" size={18} />
             {busy ? 'Ativando…' : 'Ativar lembretes'}
           </button>
         </div>
@@ -151,10 +158,15 @@ export function RemindersCard() {
   }
 
   return (
-    <section aria-labelledby="reminders-title" className="grid gap-3 rounded-xl border border-line bg-surface p-4">
-      <h2 id="reminders-title" className="text-base font-semibold">
-        Lembretes
-      </h2>
+    <section aria-labelledby="reminders-title" className={cardClasses({ className: 'grid gap-3' })}>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+          <Icon name="bell" />
+        </span>
+        <h2 id="reminders-title" className="text-lg font-bold tracking-tight">
+          Lembretes
+        </h2>
+      </div>
       {body}
       {message && (
         <p role={message.kind} className={`text-sm ${message.kind === 'alert' ? 'text-danger' : 'text-muted'}`}>

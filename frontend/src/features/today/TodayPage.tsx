@@ -7,7 +7,7 @@ import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
 import { DayTimeline } from './DayTimeline'
 import { ReasonSheet } from './ReasonSheet'
-import { buildTodayView, headerText, loadTodaySources, type TodayRow, type TodayView } from './todayData'
+import { buildTodayView, headerText, isLate, loadTodaySources, type TodayRow, type TodayView } from './todayData'
 
 const CLOCK_MS = 30_000
 
@@ -27,6 +27,28 @@ function useClock(): Date {
 }
 
 const Message = ({ children }: { children: ReactNode }) => <p className="text-muted">{children}</p>
+
+const SEGMENT: Record<AdherenceStatus | 'late' | 'open', string> = {
+  done: 'bg-ok',
+  partial: 'bg-warn',
+  missed: 'bg-danger',
+  late: 'bg-danger/35',
+  open: 'bg-line',
+}
+
+/** The day at a glance: one segment per target, in time order, colored by its state (the counts say it in words). */
+function DayStrip({ view, now }: { view: TodayView; now: Date }) {
+  return (
+    <div aria-hidden="true" className="flex h-2 gap-1">
+      {view.rows.map((row) => (
+        <span
+          key={`${row.target.type}:${row.target.key}`}
+          className={`flex-1 rounded-full ${SEGMENT[row.status ?? (isLate(row, view.date, now) ? 'late' : 'open')]}`}
+        />
+      ))}
+    </div>
+  )
+}
 
 const SHEET_TITLE: Record<'partial' | 'missed', string> = { partial: 'Parcial', missed: 'Não fiz' }
 
@@ -106,18 +128,21 @@ export function TodayPage() {
   const partial = view.rows.filter((r) => r.status === 'partial').length
 
   return (
-    <div className="grid gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Hoje</h1>
-        <p className="text-sm text-muted">{headerText(view)}</p>
-        <p role="status" className="mt-1 text-sm font-medium">
+    <div className="grid gap-6">
+      <div className="grid gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
+          <p className="text-sm text-muted">{headerText(view)}</p>
+        </div>
+        {view.rows.length > 0 && <DayStrip view={view} now={now} />}
+        <p role="status" className="text-base font-semibold tabular-nums">
           {done} de {view.rows.length} feitos
-          {partial > 0 && <span className="text-muted"> · {partial} {partial === 1 ? 'parcial' : 'parciais'}</span>}
+          {partial > 0 && <span className="font-medium text-muted"> · {partial} {partial === 1 ? 'parcial' : 'parciais'}</span>}
         </p>
       </div>
 
       {error && (
-        <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
           Não foi possível salvar. Tente de novo.
         </p>
       )}

@@ -21,6 +21,9 @@ import { StatCard } from './StatCard'
 import { StrengthByGroup } from './StrengthByGroup'
 import { adherenceRates, buildSummary, formatRate, type AdherenceRate, type SummaryData, type SummaryInput } from './summaryData'
 import { WeightSparkline } from './WeightSparkline'
+import { buttonClasses } from '../../ui/styles'
+import { Card } from '../../ui/Card'
+import { EmptyState } from '../../ui/EmptyState'
 
 interface Loaded {
   summary: SummaryData
@@ -109,20 +112,27 @@ export function SummaryPage() {
   const { summary, rates, protocolId, billingDate } = loaded
   if (!summary.cycle) {
     return (
-      <section className="grid gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">Resumo</h1>
-        <p>Importe o protocolo para ver o ciclo.</p>
-        <Link to="/planejamento" className="min-h-11 w-fit rounded-control bg-accent px-4 py-2.5 font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-accent">
-          Ir para o planejamento
-        </Link>
+      <section className="grid gap-4">
+        <h1 className="text-xl font-bold tracking-tight">Resumo</h1>
+        <EmptyState
+          icon="plan"
+          title="Nenhum ciclo ainda"
+          action={
+            <Link to="/planejamento" className={buttonClasses({ variant: 'primary' })}>
+              Ir para o planejamento
+            </Link>
+          }
+        >
+          Importe o protocolo para ver o ciclo.
+        </EmptyState>
       </section>
     )
   }
 
   const { workouts, cardio } = summary
   return (
-    <div className="grid gap-5">
-      <h1 className="text-xl font-semibold tracking-tight">Resumo</h1>
+    <div className="grid gap-6">
+      <h1 className="text-xl font-bold tracking-tight">Resumo</h1>
       <CycleTimeline
         cycle={summary.cycle}
         datesForm={
@@ -133,7 +143,7 @@ export function SummaryPage() {
       />
       <CycleCalendar days={summary.calendar} />
 
-      <section aria-labelledby="stats-title" className="grid gap-2">
+      <section aria-labelledby="stats-title" className="grid gap-3">
         <h2 id="stats-title" className="text-base font-semibold">Números do ciclo</h2>
         <dl className="grid grid-cols-2 gap-2">
           <StatCard label="Treinos" value={`${workouts.done} de ${workouts.planned}`} hint="feitos / previstos até hoje" />
@@ -161,9 +171,11 @@ export function SummaryPage() {
         </dl>
       </section>
 
-      <section aria-labelledby="weight-title" className="grid gap-2">
+      <section aria-labelledby="weight-title" className="grid gap-3">
         <h2 id="weight-title" className="text-base font-semibold">Peso</h2>
-        <WeightSparkline points={summary.weight} />
+        <Card padding="sm">
+          <WeightSparkline points={summary.weight} />
+        </Card>
       </section>
 
       <StrengthByGroup strength={summary.strength} />

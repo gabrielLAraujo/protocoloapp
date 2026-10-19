@@ -4,9 +4,10 @@ import { getAppVersion } from '../../platform/appInfo'
 import { runStorageCheck, StorageCheckError, type StorageCheckStep } from '../../data/storageCheck'
 import { camera } from '../../platform/camera'
 import { notifications } from '../../platform/notifications'
+import { buttonClasses } from '../../ui/styles'
+import { Icon } from '../../ui/Icon'
 
-const BUTTON =
-  'min-h-11 rounded-control border border-line px-4 py-2 text-sm font-medium hover:bg-line/40 focus-visible:outline-2 focus-visible:outline-accent'
+const BUTTON = buttonClasses({ variant: 'secondary' })
 
 const STORAGE_FAILURE: Record<StorageCheckStep, string> = {
   'upload-url': 'o servidor não gerou o link de envio',
@@ -76,10 +77,11 @@ export function DiagnosticsPage() {
   return (
     <section className="space-y-6">
       <div>
-        <Link to="/configuracoes" className="text-sm text-muted hover:text-ink">
-          ← Configurações
+        <Link to="/configuracoes" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
+          <Icon name="chevronLeft" size={18} />
+          Configurações
         </Link>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight">Diagnóstico</h1>
+        <h1 className="text-xl font-bold tracking-tight">Diagnóstico</h1>
       </div>
 
       <p className="text-sm">

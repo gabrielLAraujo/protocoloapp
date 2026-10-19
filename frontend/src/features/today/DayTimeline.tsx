@@ -15,7 +15,7 @@ export function DayTimeline({
   onChoose(row: TodayRow, status: AdherenceStatus): void
 }) {
   return (
-    <ul aria-label="Itens de hoje" className="grid gap-2">
+    <ul aria-label="Itens de hoje" className="grid gap-3">
       {view.rows.map((row) => (
         <TargetRow
           key={`${row.target.type}:${row.target.key}`}

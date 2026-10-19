@@ -20,7 +20,8 @@ import { useSync } from '../sync/syncContext'
 import { DiffList, type PlanDiff } from './DiffList'
 import { Section, TextField } from './fields'
 import { LowConfidenceContext } from './lowConfidence'
-import { buttonClass } from './styles'
+import { buttonClass, dangerButtonClass } from './styles'
+import { buttonClasses } from '../../ui/styles'
 import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
 import { initialGroups, newExerciseEntries } from './newExercises'
@@ -157,7 +158,7 @@ export function PlanReviewPage() {
             }}>
             Tentar de novo
           </button>
-          <Link to="/planejamento" className={`${buttonClass} grid place-items-center`}>
+          <Link to="/planejamento" className={buttonClass}>
             Voltar
           </Link>
         </div>
@@ -250,23 +251,23 @@ export function PlanReviewPage() {
     <LowConfidenceContext value={plan.lowConfidence}>
       <div className="grid gap-4 pb-4">
         {blocker.state === 'blocked' && (
-          <div role="alertdialog" aria-label="Descartar alterações?" className="grid gap-3 rounded-control border border-danger/40 bg-surface p-4">
+          <div role="alertdialog" aria-label="Descartar alterações?" className="grid gap-3 rounded-card border border-danger/40 bg-surface p-4 shadow-card">
             <p className="font-semibold">Descartar alterações?</p>
             <p className="text-sm text-muted">Você editou este plano e não salvou.</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={buttonClass} onClick={() => blocker.reset()}>
                 Continuar editando
               </button>
-              <button type="button" className={`${buttonClass} text-danger`} onClick={() => blocker.proceed()}>
+              <button type="button" className={dangerButtonClass} onClick={() => blocker.proceed()}>
                 Descartar
               </button>
             </div>
           </div>
         )}
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-xl font-bold tracking-tight">{title}</h1>
 
         {plan.extractionError && (
-          <p role="alert" className="rounded-control border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
+          <p role="alert" className="rounded-card border border-warn/40 bg-warn/10 px-4 py-3 text-sm font-medium">
             {EXTRACTION_BANNER}
           </p>
         )}
@@ -346,7 +347,7 @@ export function PlanReviewPage() {
               disabled={blocked || working !== null}
               aria-describedby={issues.length > 0 ? issuesId : undefined}
               onClick={() => void run('activating')}
-              className="min-h-11 rounded-control bg-accent px-5 text-sm font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+              className={buttonClasses({ variant: 'primary', className: 'px-6' })}
             >
               {working === 'activating' ? 'Ativando…' : 'Ativar'}
             </button>

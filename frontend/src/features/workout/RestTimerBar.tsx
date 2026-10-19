@@ -1,5 +1,6 @@
 import { buttonClass } from '../plans/styles'
 import { formatClock } from './format'
+import { Icon } from '../../ui/Icon'
 import type { RestTimerControls } from './useRestTimer'
 
 /**
@@ -12,18 +13,23 @@ export function RestTimerBar({ timer }: { timer: RestTimerControls }) {
     <div
       role="timer"
       aria-live="off"
-      className="fixed inset-x-0 bottom-[var(--bottom-nav-height,0px)] z-20 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgb(0_0_0/0.08)]"
+      className="fixed inset-x-0 bottom-[var(--bottom-nav-height,0px)] z-20 border-t border-line bg-surface px-4 py-3 shadow-raised"
     >
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
-        <div className="min-w-0">
-          {timer.finished ? (
-            <p role="status" className="text-lg font-semibold text-ok">
-              Descanso terminou
-            </p>
-          ) : (
-            <p className="text-lg font-semibold tabular-nums">Descanso {formatClock(timer.remaining)}</p>
-          )}
-          {timer.label && <p className="truncate text-xs text-muted">{timer.label}</p>}
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`grid size-10 shrink-0 place-items-center rounded-full ${timer.finished ? 'bg-ok/15 text-ok' : 'bg-accent-soft text-accent'}`}>
+            <Icon name={timer.finished ? 'check' : 'timer'} size={22} />
+          </span>
+          <div className="min-w-0">
+            {timer.finished ? (
+              <p role="status" className="text-lg font-bold text-ok">
+                Descanso terminou
+              </p>
+            ) : (
+              <p className="text-lg font-bold tabular-nums">Descanso {formatClock(timer.remaining)}</p>
+            )}
+            {timer.label && <p className="truncate text-xs text-muted">{timer.label}</p>}
+          </div>
         </div>
         <div className="flex shrink-0 gap-2">
           {!timer.finished && (

@@ -7,6 +7,9 @@ import { sessionPRs, type PR } from '../../domain/strength'
 import { buttonClass } from '../plans/styles'
 import { formatDuration, formatKg, formatVolume } from './format'
 import { volumeByGroup, volumeOf } from './volume'
+import { Button } from '../../ui/Button'
+import { cardClasses } from '../../ui/styles'
+import { Icon } from '../../ui/Icon'
 
 interface Summary {
   session: SessionLocal
@@ -72,16 +75,16 @@ export function FinishSummary({
   const groups = volumeByGroup(sets, catalog)
 
   return (
-    <div className="grid gap-4">
-      <h1 className="text-xl font-semibold">Treino finalizado</h1>
+    <div className="grid gap-6">
+      <h1 className="text-xl font-bold tracking-tight">Treino finalizado</h1>
       <dl className="grid grid-cols-2 gap-3">
-        <div className="rounded-control border border-line p-3">
-          <dt className="text-sm text-muted">Duração</dt>
-          <dd className="text-lg font-semibold">{formatDuration(duration)}</dd>
+        <div className={cardClasses({ padding: 'sm', className: 'grid gap-1' })}>
+          <dt className="text-sm font-medium text-muted">Duração</dt>
+          <dd className="text-lg font-bold tabular-nums">{formatDuration(duration)}</dd>
         </div>
-        <div className="rounded-control border border-line p-3">
-          <dt className="text-sm text-muted">Volume total</dt>
-          <dd className="text-lg font-semibold">{formatVolume(volumeOf(sets))}</dd>
+        <div className={cardClasses({ padding: 'sm', className: 'grid gap-1' })}>
+          <dt className="text-sm font-medium text-muted">Volume total</dt>
+          <dd className="text-lg font-bold tabular-nums">{formatVolume(volumeOf(sets))}</dd>
         </div>
       </dl>
 
@@ -90,9 +93,9 @@ export function FinishSummary({
         {groups.length === 0 ? (
           <p className="text-sm text-muted">Nenhuma série registrada.</p>
         ) : (
-          <ul className="grid gap-1">
+          <ul className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line' })}>
             {groups.map((g) => (
-              <li key={g.group} className="flex justify-between gap-3 border-b border-line py-1">
+              <li key={g.group} className="flex justify-between gap-3 px-4 py-3">
                 <span>{muscleGroupLabel(g.group)}</span>
                 <span className="tabular-nums">{formatVolume(g.volume)}</span>
               </li>
@@ -104,9 +107,10 @@ export function FinishSummary({
       {prs.length > 0 && (
         <section aria-label="Recordes" className="grid gap-2">
           <h2 className="text-base font-semibold">Recordes</h2>
-          <ul className="grid gap-1">
+          <ul className="grid gap-2">
             {prs.map((pr) => (
-              <li key={`${pr.exerciseId}:${pr.kind}`} className="rounded-control border border-ok/50 bg-ok/10 px-3 py-2">
+              <li key={`${pr.exerciseId}:${pr.kind}`} className={cardClasses({ tone: 'ok', padding: 'sm', className: 'flex items-start gap-3 font-medium' })}>
+                <Icon name="trophy" className="mt-0.5 text-ok" />
                 {pr.kind === 'maxWeight'
                   ? `Novo recorde: ${name(pr.exerciseId)} — ${formatKg(pr.value)} kg`
                   : `Novo recorde de 1RM estimado: ${name(pr.exerciseId)} — ${formatKg(pr.value)} kg`}
@@ -116,13 +120,9 @@ export function FinishSummary({
         </section>
       )}
 
-      <button
-        type="button"
-        onClick={onDone}
-        className="min-h-12 rounded-control bg-accent px-4 text-base font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
+      <Button variant="primary" size="lg" onClick={onDone}>
         Concluir
-      </button>
+      </Button>
     </div>
   )
 }
