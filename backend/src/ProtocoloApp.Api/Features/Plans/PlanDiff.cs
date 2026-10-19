@@ -37,7 +37,14 @@ public static class PlanDiff
         if (before is { ValueKind: JsonValueKind.Object } && after is { ValueKind: JsonValueKind.Object })
         {
             foreach (var name in PropertyNames(before, after))
+            {
+                // A draft's exercises are linked to the catalog only when activated: no id there is not a change.
+                if (name == "exerciseId" && Normalize(Property(after, name)) is null)
+                    continue;
+
                 Walk(Join(path, name), Property(before, name), Property(after, name), added, removed, changed);
+            }
+
             return;
         }
 
