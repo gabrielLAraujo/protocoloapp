@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router'
 import { AppShell } from './app/AppShell'
 import { RequireAuth } from './auth/RequireAuth'
 import { DailyCheckinPage } from './features/checkin/DailyCheckinPage'
+import { SummaryPage } from './features/summary/SummaryPage'
 import { ExerciseHistoryPage } from './features/workout/ExerciseHistoryPage'
 import { HistoryPage } from './features/workout/HistoryPage'
 import { WorkoutTodayPage } from './features/workout/WorkoutTodayPage'
@@ -19,9 +20,9 @@ export const routes: RouteObject[] = [
     children: [
       {
         element: <AppShell />,
-        // "/" is today's check-in until the "Hoje" screen replaces it.
         children: [
-          { path: '/', element: <DailyCheckinPage /> },
+          { path: '/', element: <SummaryPage /> },
+          { path: '/checkin', element: <DailyCheckinPage /> },
           { path: '/planejamento', element: <PlansPage /> },
           { path: '/planejamento/revisao/:id', element: <PlanReviewPage /> },
           { path: '/planejamento/protocolo', element: <ProtocolView /> },

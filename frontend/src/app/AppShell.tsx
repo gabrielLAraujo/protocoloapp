@@ -1,17 +1,15 @@
 import { Capacitor } from '@capacitor/core'
 import { useEffect } from 'react'
-import { Link, Outlet } from 'react-router'
-import { useAuth } from '../auth/authContext'
+import { Outlet } from 'react-router'
 import { SyncProvider } from '../features/sync/SyncProvider'
 import { SyncStatus } from '../features/sync/SyncStatus'
 import { InstallHint } from '../pwa/InstallHint'
 import { requestPersistentStorage } from '../pwa/persistentStorage'
 import { WebUpdateBanner } from '../pwa/WebUpdateBanner'
+import { BottomNav } from './BottomNav'
 import { UpdateBanner } from './UpdateBanner'
 
 export function AppShell() {
-  const { logout } = useAuth()
-
   // Once per session, after login (this shell only exists while signed in).
   useEffect(() => {
     void requestPersistentStorage()
@@ -24,39 +22,14 @@ export function AppShell() {
           <span className="text-lg font-semibold tracking-tight">Protocolo</span>
           <div className="flex items-center gap-3">
             <SyncStatus />
-            {/* Temporary: the bottom navigation (Task 9) replaces this link. */}
-            <Link
-              to="/treino"
-              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              Treino
-            </Link>
-            <Link
-              to="/planejamento"
-              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              Planejamento
-            </Link>
-            <Link
-              to="/settings/diagnostics"
-              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              Diagnóstico
-            </Link>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              Sair
-            </button>
           </div>
         </header>
         {Capacitor.isNativePlatform() ? <UpdateBanner /> : <WebUpdateBanner />}
         <InstallHint />
-        <main className="mx-auto max-w-2xl px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6">
+        <main className="mx-auto max-w-2xl px-4 pb-[calc(1.5rem+var(--bottom-nav-height,0px))] pt-6">
           <Outlet />
         </main>
+        <BottomNav />
       </div>
     </SyncProvider>
   )

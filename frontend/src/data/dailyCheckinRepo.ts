@@ -137,6 +137,15 @@ export const dailyCheckinRepo = {
     return row ? toCheckin(row) : null
   },
 
+  /** Live check-ins with `from <= date <= to` (yyyy-MM-dd), oldest first. */
+  async between(db: LocalDb, from: string, to: string): Promise<DailyCheckin[]> {
+    const rows = await db.query<Row>(
+      'SELECT * FROM daily_checkins WHERE date >= ? AND date <= ? AND deleted_at IS NULL ORDER BY date, client_updated_at DESC',
+      [from, to],
+    )
+    return rows.map(toCheckin)
+  },
+
   /**
    * Saves the day's check-in and queues it for the server, in one transaction. Returns the row's new client_updated_at.
    * With `expected` (the client_updated_at the screen loaded, null when there was no live row), throws
