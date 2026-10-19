@@ -84,7 +84,7 @@ export interface DayInfo {
   /** Every meal of the whole day done; null when the day has no meals. False on future days. */
   dietComplete: boolean | null
   workout: { planned: boolean; done: boolean }
-  /** `planned`: the day lists cardio. `done`: cardio marked done, or "cardio feito" on the check-in. */
+  /** `planned`: the day lists cardio. `done`: its status is done (marked, or "cardio feito" on the check-in without a mark). */
   cardio: { planned: boolean; done: boolean }
   /** Saved check-in parts (false on future days). */
   checkin: { morning: boolean; evening: boolean }
@@ -99,8 +99,6 @@ export interface DayInfoInput {
   statuses: TargetStatuses
   checkinParts: { morning: boolean; evening: boolean }
   waterL: number | null
-  /** The check-in says cardio was done. */
-  cardioOnCheckin: boolean
   cardioOptional: boolean
 }
 
@@ -136,7 +134,7 @@ export function buildDayInfo(input: DayInfoInput, now: Date = new Date()): DayIn
     workout: { planned: workout !== undefined, done: workout !== undefined && statusOf(targetId(workout)) === 'done' },
     cardio: {
       planned: cardio !== undefined,
-      done: !future && ((cardio !== undefined && statusOf(targetId(cardio)) === 'done') || input.cardioOnCheckin),
+      done: cardio !== undefined && statusOf(targetId(cardio)) === 'done',
     },
     checkin: future ? { morning: false, evening: false } : { ...input.checkinParts },
     waterL: future ? null : input.waterL,
@@ -242,10 +240,10 @@ export function waterMinL(protocol: ProtocolDocument | null | undefined): number
  * - cardio: days with cardio done of the planned sessions: every day listing cardio for a daily protocol, else
  *   `sessionsPerWeek` (at most the days listing it). Left out when none is planned.
  * - water: days with `waterL ≥ water_min_l`, target 5. Left out without the guideline.
- * - checkins: days with both parts saved, target 7.
+ * - checkins: days with both parts saved, target 7 (fewer when `historyStart` falls inside the week: the days from it).
  * A `count` goal is done once progress reaches the target (progress may pass it).
  */
-export function weekGoals(week: readonly DayInfo[], protocol: ProtocolDocument | null): WeekGoal[] {
+export function weekGoals(week: readonly DayInfo[], protocol: ProtocolDocument | null, opts: { historyStart?: string } = {}): WeekGoal[] {
   const elapsed = week.filter((d) => d.when !== 'future')
   const goals: WeekGoal[] = []
 
@@ -283,7 +281,10 @@ export function weekGoals(week: readonly DayInfo[], protocol: ProtocolDocument |
     countGoal('water', 'Água na meta em 5 dias', elapsed.filter((d) => d.waterL !== null && d.waterL >= water).length, WATER_DAYS_TARGET)
   }
 
-  countGoal('checkins', 'Check-ins completos', elapsed.filter((d) => d.checkin.morning && d.checkin.evening).length, CHECKIN_DAYS_TARGET)
+  const start = opts.historyStart
+  const checkinDays = start === undefined ? CHECKIN_DAYS_TARGET : Math.min(CHECKIN_DAYS_TARGET, Math.max(1, week.filter((d) => d.date >= start).length))
+  const checkinsDone = elapsed.filter((d) => (start === undefined || d.date >= start) && d.checkin.morning && d.checkin.evening).length
+  countGoal('checkins', 'Check-ins completos', checkinsDone, checkinDays)
   return goals
 }
 
@@ -332,8 +333,8 @@ export interface CycleWorkouts {
 
 /**
  * Workouts of each protocol cycle that starts on or after `historyStart` (earlier ones cannot be checked), plus the
- * cycle in force today in any case (from `historyStart` when it began before). A span replaced on its own first day is
- * left out.
+ * open cycle in force today in any case (from `historyStart` when it began before). A closed cycle that began before
+ * `historyStart` is left out (it could earn the medal on partial data), and so is a span replaced on its own first day.
  */
 export function cycleWorkouts(
   spans: readonly ProtocolSpan[],
@@ -347,7 +348,8 @@ export function cycleWorkouts(
   const out: CycleWorkouts[] = []
   for (const s of spans) {
     if (s.end !== null && s.end < s.activatedOn) continue
-    if (s.activatedOn < historyStart && s !== current) continue
+    const closed = s.end !== null && s.end < today
+    if (s.activatedOn < historyStart && (s !== current || closed)) continue
     if (s.activatedOn > today) continue
     const start = s.activatedOn < historyStart ? historyStart : s.activatedOn
     const planned = plannedWorkoutDays(start, s.end ?? today, plans, overrides)
@@ -356,7 +358,7 @@ export function cycleWorkouts(
       end: s.end,
       planned: planned.length,
       done: planned.filter((d) => d <= today && workedOut.has(d)).length,
-      closed: s.end !== null && s.end < today,
+      closed,
     })
   }
   return out

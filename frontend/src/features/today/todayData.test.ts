@@ -13,6 +13,7 @@ const sources = (over: Partial<TodaySources> = {}): TodaySources => ({
   logs: [],
   workoutDone: false,
   checkinParts: { morning: false, evening: false },
+  cardioDone: false,
   cardioMinutes: null,
   ...over,
 })
@@ -45,5 +46,17 @@ describe('buildTodayView check-in parts', () => {
     expect(statusOf(sources({ logs: [log('checkin')] }))).toEqual({ checkin_morning: null, checkin_evening: 'done' })
     expect(statusOf(sources({ logs: [log('checkin'), log('checkin_evening', 'missed')] }))).toEqual({ checkin_morning: null, checkin_evening: 'missed' })
     expect(statusOf(sources({ logs: [log('checkin_morning')] }))).toEqual({ checkin_morning: 'done', checkin_evening: null })
+  })
+})
+
+describe('buildTodayView cardio from the check-in', () => {
+  const protocol = { meals: [], items: [], guidelines: [], cardio: { daily: true } }
+  const cardioStatus = (src: TodaySources) => buildTodayView(DATE, src).rows.find((r) => r.target.type === 'cardio')?.status
+
+  it('cardio done on the check-in shows an unmarked cardio as done; a mark of its own wins', () => {
+    expect(cardioStatus(sources({ protocol, cardioDone: true }))).toBe('done')
+    expect(cardioStatus(sources({ protocol, cardioDone: false }))).toBeNull()
+    const partial: AdherenceLogLocal = { ...log('cardio', 'partial'), targetType: 'cardio' }
+    expect(cardioStatus(sources({ protocol, cardioDone: true, logs: [partial] }))).toBe('partial')
   })
 })

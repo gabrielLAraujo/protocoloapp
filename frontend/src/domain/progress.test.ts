@@ -201,6 +201,13 @@ describe('weekGoals', () => {
     expect(goal(weekGoals(weekOf(), proto()), 'diet')).toBeUndefined()
   })
 
+  it('check-ins: the target is the days of the week inside the history when it starts mid-week', () => {
+    const week = weekOf(() => ({ checkin: { morning: true, evening: true } }))
+    expect(goal(weekGoals(week, null, { historyStart: '2026-10-21' }), 'checkins')).toMatchObject({ progress: 2, target: 5, done: false })
+    expect(goal(weekGoals(week, null, { historyStart: '2026-10-01' }), 'checkins')).toMatchObject({ progress: 4, target: 7 })
+    expect(goal(weekGoals(week, null, { historyStart: '2026-10-25' }), 'checkins')).toMatchObject({ progress: 0, target: 1 })
+  })
+
   it('check-ins: days with both parts, target 7; goals come in a fixed order', () => {
     const week = weekOf((_, i) => ({ checkin: { morning: true, evening: i !== 1 } }))
     const goals = weekGoals(week, proto({ guidelines: [{ kind: 'water_min_l', value: 2 }], cardio: { daily: true } }))
@@ -211,15 +218,15 @@ describe('weekGoals', () => {
 
 describe('buildDayInfo', () => {
   const p = plan([target('meal', '1', '08:00'), target('meal', '2', '20:00'), target('workout', 'workout'), target('cardio', 'cardio'), target('checkin', 'checkin_morning')], 'training')
-  const base = { plan: p, checkinParts: { morning: true, evening: false }, waterL: 2.5, cardioOnCheckin: false, cardioOptional: false }
+  const base = { plan: p, checkinParts: { morning: true, evening: false }, waterL: 2.5, cardioOptional: false }
 
   it('a past day: rates, complete diet, workout and cardio from the statuses or the check-in', () => {
-    const d = buildDayInfo({ ...base, date: '2026-10-20', when: 'past', statuses: statuses({ 'meal:1': 'done', 'meal:2': 'done', 'workout:workout': 'done' }), cardioOnCheckin: true })
+    const d = buildDayInfo({ ...base, date: '2026-10-20', when: 'past', statuses: statuses({ 'meal:1': 'done', 'meal:2': 'done', 'workout:workout': 'done', 'cardio:cardio': 'done' }) })
     expect(d).toMatchObject({
       diet: { done: 2, partial: 0, planned: 2 }, dietComplete: true, workout: { planned: true, done: true },
       cardio: { planned: true, done: true }, checkin: { morning: true, evening: false }, waterL: 2.5,
     })
-    expect(d.score).toMatchObject({ done: 3, planned: 5 })
+    expect(d.score).toMatchObject({ done: 4, planned: 5 })
   })
 
   it('today: due-or-marked rates; a future day has nothing done and an empty score', () => {
@@ -263,10 +270,12 @@ describe('protocol spans and cycles', () => {
       { start: '2026-10-01', end: '2026-10-10', planned: 5, done: 5, closed: true },
       { start: '2026-10-11', end: '2026-10-31', planned: 11, done: 3, closed: false },
     ])
-    // A cycle that began before the history is left out unless it is the one in force (then counted from the history start).
+    // A cycle that began before the history is left out unless it is the open one in force (then counted from the history start).
     expect(cycleWorkouts(spans, TODAY, '2026-10-12', plans, [], worked)).toEqual([
       { start: '2026-10-11', end: '2026-10-31', planned: 10, done: 2, closed: false },
     ])
+    // Overdue (closed) and begun before the history: left out, so partial data cannot earn the medal.
+    expect(cycleWorkouts(spans, '2026-11-05', '2026-10-12', plans, [], worked)).toEqual([])
   })
 })
 

@@ -13,6 +13,8 @@ export interface DerivedDone {
   workoutDone: boolean
   /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
   checkinParts: { morning: boolean; evening: boolean }
+  /** The check-in says cardio was done ("Sim"); counts when the cardio target has no mark (rows from before the marks). */
+  cardioDone: boolean
 }
 
 /** Finds the day's mark of a target (type + key), or null. */
@@ -29,7 +31,8 @@ function checkinPartSaved(key: string, parts: DerivedDone['checkinParts']): bool
 
 /**
  * The mark of `target` (the legacy `checkin` mark stands for the evening check-in when the part has none of its own) and
- * its status: a finished workout or a saved check-in part makes the target done whatever its mark says.
+ * its status: a finished workout or a saved check-in part makes the target done whatever its mark says; cardio done
+ * on the check-in makes an unmarked cardio done.
  */
 export function resolveTargetStatus<L extends { status: TargetStatus }>(
   target: Pick<DayTarget, 'type' | 'key'>,
@@ -40,6 +43,7 @@ export function resolveTargetStatus<L extends { status: TargetStatus }>(
   let status = log?.status ?? null
   if (target.type === 'workout' && derived.workoutDone) status = 'done'
   if (target.type === 'checkin' && checkinPartSaved(target.key, derived.checkinParts)) status = 'done'
+  if (target.type === 'cardio' && status === null && derived.cardioDone) status = 'done'
   return { log, status }
 }
 

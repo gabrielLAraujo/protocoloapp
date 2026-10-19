@@ -32,8 +32,8 @@ import { localDate } from '../checkin/localDate'
 import { toDayPlans } from '../today/todayData'
 import { loadWorkoutPlans } from '../workout/workoutPlans'
 
-/** How far back the history goes at most (today included). */
-export const HISTORY_DAYS = 90
+/** Safety cap on how far back the history goes (today included): three years. */
+export const HISTORY_DAYS = 3 * 365 + 1
 
 export interface ProgressData {
   today: string
@@ -90,7 +90,11 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
   ])
 
   const logsByDate = new Map<string, AdherenceLogLocal[]>()
-  for (const l of logs) logsByDate.set(l.date, [...(logsByDate.get(l.date) ?? []), l])
+  for (const l of logs) {
+    const list = logsByDate.get(l.date)
+    if (list) list.push(l)
+    else logsByDate.set(l.date, [l])
+  }
   const checkinByDate = new Map<string, DailyCheckin>(checkins.map((c) => [c.date, c]))
   const workedOut = new Set(worked)
   const dayPlans = toDayPlans(plans)
@@ -103,7 +107,7 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
     const find = (type: AdherenceLogLocal['targetType'], key: string) => dayLogs.find((l) => l.targetType === type && l.targetKey === key) ?? null
     const checkin = checkinByDate.get(date) ?? null
     const parts = checkin ? checkinParts(checkin) : { morning: false, evening: false }
-    const derived = { workoutDone: workedOut.has(date), checkinParts: parts }
+    const derived = { workoutDone: workedOut.has(date), checkinParts: parts, cardioDone: checkin?.cardioDone === true }
     const statuses = new Map(plan.targets.map((t) => [targetId(t), resolveTargetStatus(t, find, derived).status]))
     return buildDayInfo(
       {
@@ -113,7 +117,6 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
         statuses,
         checkinParts: parts,
         waterL: checkin?.waterL ?? null,
-        cardioOnCheckin: checkin?.cardioDone === true,
         cardioOptional: span?.document.cardio != null && span.document.cardio.daily !== true,
       },
       now,
@@ -122,7 +125,7 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
 
   const history = days.filter((d) => d.date >= historyStart && d.date <= today)
   const week = days.filter((d) => d.date >= monday)
-  const goals = weekGoals(week, current?.document ?? null)
+  const goals = weekGoals(week, current?.document ?? null, { historyStart })
   const weeks = closedWeeks(history, spans, today)
   const cycles = cycleWorkouts(spans, today, historyStart, plansAt, overrides, workedOut)
 

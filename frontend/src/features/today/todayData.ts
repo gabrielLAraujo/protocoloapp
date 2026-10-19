@@ -54,6 +54,8 @@ export interface TodaySources {
   workoutDone: boolean
   /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
   checkinParts: CheckinParts
+  /** The check-in says cardio was done (an unmarked cardio row then shows done). */
+  cardioDone: boolean
   /** Minutes of the day's cardio as saved on the check-in (only when cardio is done there). */
   cardioMinutes: number | null
 }
@@ -82,6 +84,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     logs,
     workoutDone: sets.some((list) => list.some((s) => s.kind !== 'warmup')),
     checkinParts: checkin ? checkinParts(checkin) : { morning: false, evening: false },
+    cardioDone: checkin?.cardioDone === true,
     cardioMinutes: checkin?.cardioDone === true ? checkin.cardioMinutes : null,
   }
 }
@@ -123,7 +126,7 @@ function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): string
 export function buildTodayView(date: string, src: TodaySources): TodayView {
   const plan = buildDay(date, src.protocol, toDayPlans(src.plans), src.overrides, src.slots, { protocolActivatedOn: src.protocolActivatedOn })
   const find = (type: DayTarget['type'], key: string) => src.logs.find((l) => l.targetType === type && l.targetKey === key) ?? null
-  const derived = { workoutDone: src.workoutDone, checkinParts: src.checkinParts }
+  const derived = { workoutDone: src.workoutDone, checkinParts: src.checkinParts, cardioDone: src.cardioDone }
 
   // The version active on the day names the workout ("Treino A"); buildDay only knows its key.
   const activeVersion = [...src.plans].reverse().find((p) => p.at.activatedOn <= date)
