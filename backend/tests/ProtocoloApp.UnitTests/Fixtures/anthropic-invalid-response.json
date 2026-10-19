@@ -11,7 +11,7 @@
       "name": "submit_workout",
       "input": {
         "document": {
-          "rotation": { "type": "sequence", "items": ["A", "Z"], "anchor": null, "map": null },
+          "rotation": { "type": "sequence", "items": ["A", "Z"], "map": null },
           "days": [
             { "key": "A", "name": "Treino A - Exemplo", "notes": null, "exercises": [
               { "key": "A1", "exerciseId": null, "name": "Exercicio Ficticio Alfa",

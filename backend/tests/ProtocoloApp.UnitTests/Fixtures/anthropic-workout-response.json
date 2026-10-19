@@ -12,7 +12,7 @@
       "name": "submit_workout",
       "input": {
         "document": {
-          "rotation": { "type": "sequence", "items": ["A", "B", "off"], "anchor": null, "map": null },
+          "rotation": { "type": "sequence", "items": ["A", "B", "off"], "map": null },
           "days": [
             {
               "key": "A",

@@ -86,6 +86,23 @@ public sealed class PlanImportTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_invalid_extraction_keeps_the_pdf_attached_to_the_empty_draft()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        factory.Extractor.Handler = (_, _, _, _) => Task.FromResult(PlanExtractionResult.Failure(PlanExtractionResult.InvalidExtraction));
+        var fileId = await api.CreateFileAsync();
+
+        var response = await api.ImportAsync(fileId, PlanKind.Workout);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var draft = (await response.Content.ReadFromJsonAsync<PlanVersionResponse>(PlanApi.Json))!;
+        Assert.Equal(PlanExtractionResult.InvalidExtraction, draft.ExtractionError);
+        Assert.Equal(fileId, draft.SourceFileId);
+        var file = await api.WithDbAsync(db => db.Files.AsNoTracking().SingleAsync(f => f.Id == fileId));
+        Assert.Equal(FileStatus.Confirmed, file.Status);
+    }
+
+    [Fact]
     public async Task An_empty_draft_can_be_filled_in_and_activated()
     {
         using var api = await PlanApi.CreateAsync(factory);

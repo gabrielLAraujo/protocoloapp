@@ -178,14 +178,37 @@ public sealed class PlanExtractorTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.BadRequest)]
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.RequestEntityTooLarge)]
     [InlineData(HttpStatusCode.InternalServerError)]
     public async Task Fatal_http_errors_are_unavailable_without_retry(HttpStatusCode status)
     {
         var handler = new FakeHandler((_, _) => Json("""{ "type": "error", "error": { "type": "invalid_request_error", "message": "secret detail" } }""", status));
+
+        var result = await Extract(Create(handler), PlanKind.Workout);
+
+        Assert.Equal("unavailable", result.Error);
+        Assert.Single(handler.Bodies);
+    }
+
+    [Fact]
+    public async Task Provider_400_invalid_request_is_an_invalid_extraction_without_retry()
+    {
+        // The provider refused this PDF (unreadable, too many pages...): the user gets an empty draft, not "unavailable".
+        var handler = new FakeHandler((_, _) => Json("""{ "type": "error", "error": { "type": "invalid_request_error", "message": "secret detail" } }""", HttpStatusCode.BadRequest));
+
+        var result = await Extract(Create(handler), PlanKind.Workout);
+
+        Assert.Equal("invalid_extraction", result.Error);
+        Assert.Single(handler.Bodies);
+    }
+
+    [Fact]
+    public async Task Provider_400_of_another_type_stays_unavailable()
+    {
+        var handler = new FakeHandler((_, _) => Json("""{ "type": "error", "error": { "type": "billing_error", "message": "x" } }""", HttpStatusCode.BadRequest));
 
         var result = await Extract(Create(handler), PlanKind.Workout);
 

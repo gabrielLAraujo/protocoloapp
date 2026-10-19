@@ -121,7 +121,6 @@ internal static class ExtractionSchemas
                 {
                     ["type"] = Enum([RotationDto.Sequence, RotationDto.FixedWeekdays]),
                     ["items"] = Nullable(new JsonObject { ["type"] = "array", ["items"] = Str() }, "Sequence of day keys; DESCANSO becomes \"off\"."),
-                    ["anchor"] = Date(),
                     ["map"] = Nullable(
                         Obj(
                             PlanDocumentRules.Weekdays.ToDictionary(d => d, _ => (JsonNode)Str()).ToJsonObject(),

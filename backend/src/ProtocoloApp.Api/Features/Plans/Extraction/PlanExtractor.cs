@@ -55,8 +55,12 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             if (call.Status == AnthropicCallStatus.Unavailable)
             {
                 logger.LogWarning("Plan extraction ({Kind}) attempt {Attempt}: provider unavailable (status {Status}, error type {ErrorType}).", kind, attempt, call.StatusCode, call.ErrorType);
+                // The provider refused this very request (a PDF it cannot read...): the service is fine, the file is the problem.
+                if (call.StatusCode == 400 && call.ErrorType == "invalid_request_error")
+                    return PlanExtractionResult.Failure(PlanExtractionResult.InvalidExtraction);
+
                 error = PlanExtractionResult.Unavailable;
-                // Overloaded or rate limited: worth one more try after a short wait. Anything else (400/401/403/413, network) is final.
+                // Overloaded or rate limited: worth one more try after a short wait. Anything else (401/403/404/413, 5xx, network) is final.
                 if (call.StatusCode is 429 or 503 or 529 && attempt < Attempts)
                 {
                     await Task.Delay(options.Value.RetryDelay, ct);

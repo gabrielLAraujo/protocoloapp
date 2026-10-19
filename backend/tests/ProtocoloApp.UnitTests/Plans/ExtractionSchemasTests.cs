@@ -11,6 +11,9 @@ public sealed class ExtractionSchemasTests
 
     private static string[] Enum(JsonElement node) => node.GetProperty("enum").EnumerateArray().Select(e => e.GetString()!).ToArray();
 
+    /// <summary>DTO properties the model is not asked for (the app fills them in, or the user does in the review).</summary>
+    private static readonly HashSet<string> DtoOnly = ["document.rotation.anchor"];
+
     private static string Camel(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 
     private static void AssertMirrors(JsonElement schema, Type clr, string path)
@@ -26,7 +29,7 @@ public sealed class ExtractionSchemasTests
                 return;
 
             var schemaProps = schema.GetProperty("properties").EnumerateObject().Select(p => p.Name).Order().ToArray();
-            var clrProps = clr.GetProperties().Select(p => Camel(p.Name)).Order().ToArray();
+            var clrProps = clr.GetProperties().Select(p => Camel(p.Name)).Where(name => !DtoOnly.Contains($"{path}.{name}")).Order().ToArray();
             Assert.True(clrProps.SequenceEqual(schemaProps), $"{path}: schema [{string.Join(",", schemaProps)}] vs {clr.Name} [{string.Join(",", clrProps)}]");
 
             if (schema.TryGetProperty("required", out var required))
@@ -55,6 +58,13 @@ public sealed class ExtractionSchemasTests
     public void Workout_schema_properties_mirror_the_document_dtos()
     {
         AssertMirrors(Document(ExtractionSchemas.Workout()), typeof(WorkoutDocument), "document");
+    }
+
+    [Fact]
+    public void Workout_rotation_does_not_ask_the_model_for_an_anchor()
+    {
+        var rotation = Document(ExtractionSchemas.Workout()).GetProperty("properties").GetProperty("rotation").GetProperty("properties");
+        Assert.False(rotation.TryGetProperty("anchor", out _));
     }
 
     [Fact]
