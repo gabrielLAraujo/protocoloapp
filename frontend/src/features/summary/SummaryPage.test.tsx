@@ -5,6 +5,7 @@ import type { SyncRecord } from '../../data/apiClient'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { json, mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
@@ -132,5 +133,18 @@ describe('SummaryPage', () => {
     app.view(<SummaryPage />)
     expect(await screen.findByText('Atualização atrasada há 2 dias')).toBeInTheDocument()
     expect(screen.queryByText(/Faltam/)).not.toBeInTheDocument()
+  })
+
+  it('applies rotation overrides set before the protocol cycle started, like /treino does', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'off']) // anchored on 2026-10-18 (a), so 2026-10-28 would be a workout day
+    await seedProtocol(app.db, { updateDate: '2026-11-15' }) // cycle starts on the 20th
+    // Before the cycle start but after the workout version was activated (10-10): postpones the rotation by one day.
+    await rotationOverrideRepo.set(app.db, USER_A, '2026-10-12', 'off', new Date(2026, 9, 12, 8))
+    app.view(<SummaryPage />)
+
+    const calendar = await screen.findByRole('table', { name: 'Calendário do ciclo' })
+    expect(within(calendar).getByRole('cell', { name: '28/10, ainda não chegou' })).toBeInTheDocument()
   })
 })

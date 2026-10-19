@@ -42,8 +42,11 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
   }
   const from = protocol?.activatedOn ?? today
   const to = protocol?.document.updateDate && protocol.document.updateDate > today ? protocol.document.updateDate : today
+  // Overrides re-anchor the rotation cumulatively from each workout version's activation (see rotation.ts), so load
+  // them since the first activation, not just since the cycle start - otherwise the calendar can differ from /treino.
+  const overridesFrom = plans.map((p) => p.at.activatedOn).sort()[0] ?? '0000-01-01'
   const [overrides, sessions, checkins] = await Promise.all([
-    rotationOverrideRepo.between(db, from, to),
+    rotationOverrideRepo.between(db, overridesFrom, to),
     workoutRepo.sessionsBetween(db, from, today),
     dailyCheckinRepo.between(db, from, to),
   ])
