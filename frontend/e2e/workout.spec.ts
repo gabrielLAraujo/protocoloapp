@@ -2,10 +2,8 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page, type Response } from '@playwright/test'
+import { login } from './support/auth.ts'
 
-// The user is created beforehand with `create-user` (CI does it); fictitious credentials.
-const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
-const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
 // The Anthropic stand-in the API talks to (CI starts it); it also lists what it received.
 const ANTHROPIC_STUB = process.env.E2E_ANTHROPIC_STUB_URL ?? 'http://127.0.0.1:9100'
 
@@ -28,15 +26,6 @@ async function expectSynced(page: Page) {
 }
 
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
-
-async function login(page: Page) {
-  await page.goto('/')
-  await expect(page).toHaveURL(/\/login$/)
-  await page.getByLabel('E-mail').fill(EMAIL)
-  await page.getByLabel('Senha').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Entrar' }).click()
-  await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
-}
 
 /** Sends the fictitious PDF in the card of `title`, reviews the draft the stub produced and activates it. */
 async function importAndActivate(page: Page, title: 'Protocolo' | 'Treino') {

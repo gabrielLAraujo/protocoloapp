@@ -1,8 +1,5 @@
 import { expect, test, type Page, type Response } from '@playwright/test'
-
-// The user is created beforehand with `create-user` (CI does it); fictitious credentials.
-const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
-const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
+import { login as signIn } from './support/auth.ts'
 
 /** Remembers what the page asked of the API, so a failed wait can say what happened (CI cannot download traces). */
 function watch(page: Page) {
@@ -49,13 +46,8 @@ async function expectSynced(page: Page, seen: string[]) {
 }
 
 async function login(page: Page) {
-  await page.goto('/')
-  await expect(page).toHaveURL(/\/login$/)
-  await page.getByLabel('E-mail').fill(EMAIL)
-  await page.getByLabel('Senha').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Entrar' }).click()
   // "/" is the summary; the check-in is opened from Hoje ("Check-in do dia").
-  await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
+  await signIn(page)
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
   await expect(page).toHaveURL(/\/hoje$/)
   await page.getByRole('link', { name: 'Check-in do dia' }).click()

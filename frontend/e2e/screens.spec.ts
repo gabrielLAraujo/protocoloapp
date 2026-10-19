@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
+import { login } from './support/auth.ts'
 
-// Full-page screenshots of the main screens, light and dark, at iPhone size. Runs after the other specs (project
-// `screenshots` in playwright.config.ts depends on them), so the fictitious protocol, workout and session they created
-// are on screen. Only reads: nothing is marked or saved. CI uploads the folder as the `screenshots` artifact; the PNGs
-// are never committed (.gitignore).
-const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
-const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
+// Screenshots of the main screens, light and dark, at iPhone size: the viewport as it looks (fixed header and bottom nav)
+// and the whole page (bottom nav hidden, it would sit in the middle of a full-page capture). Runs after the other specs
+// (project `screenshots` in playwright.config.ts depends on them), so the fictitious protocol, workout and session they
+// created are on screen. Only reads: nothing is marked or saved. CI uploads the folder as the `screenshots` artifact; the
+// PNGs are never committed (.gitignore).
 const OUT = 'e2e-screenshots'
+const HIDE_NAV = 'nav[aria-label="Navegação principal"] { display: none !important; }'
 
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
 
@@ -15,22 +16,23 @@ async function shoot(page: Page, name: string) {
   await page.waitForLoadState('networkidle').catch(() => undefined)
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme })
-    await page.screenshot({ path: `${OUT}/${name}-${scheme}.png`, fullPage: true })
+    await page.screenshot({ path: `${OUT}/${name}-${scheme}.png` })
+    const style = await page.addStyleTag({ content: HIDE_NAV })
+    await page.screenshot({ path: `${OUT}/${name}-${scheme}-full.png`, fullPage: true })
+    await style.evaluate((el) => el.remove())
   }
 }
 
-// One sign-in for both themes (the login endpoint is rate limited and the other specs already used it).
+// One sign-in for both themes: the auth endpoints are rate limited per IP (see support/auth.ts).
 test('screenshots of the main screens, light and dark', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, reducedMotion: 'reduce' })
   const page = await context.newPage()
 
-  await page.goto('/')
-  await expect(page).toHaveURL(/\/login$/)
+  await page.goto('/login')
+  await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible()
   await shoot(page, '0-login')
-  await page.getByLabel('E-mail').fill(EMAIL)
-  await page.getByLabel('Senha').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Entrar' }).click()
-  await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
+
+  await login(page)
   await expect(page.getByRole('status').filter({ hasText: /^Sincronizado$/ })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Ciclo', exact: true })).toBeVisible()
   await shoot(page, '1-resumo')

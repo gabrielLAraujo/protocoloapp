@@ -1,8 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-
-// The user is created beforehand with `create-user` (CI does it); fictitious credentials.
-const EMAIL = process.env.E2E_EMAIL ?? 'e2e@example.com'
-const PASSWORD = process.env.E2E_PASSWORD ?? 'Senha-e2e-123456'
+import { login } from './support/auth.ts'
 
 /** Clicks the label of one option of a radio group (the radio inputs themselves are visually hidden). */
 async function choose(page: Page, group: string, option: string) {
@@ -13,13 +10,8 @@ test('the installed app shell opens offline with the saved check-in', async ({ b
   const context = await browser.newContext()
   const page = await context.newPage()
 
-  await page.goto('/')
-  await expect(page).toHaveURL(/\/login$/)
-  await page.getByLabel('E-mail').fill(EMAIL)
-  await page.getByLabel('Senha').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Entrar' }).click()
   // "/" is the summary; the check-in is opened from Hoje ("Check-in do dia").
-  await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
+  await login(page)
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
   await expect(page).toHaveURL(/\/hoje$/)
   await page.getByRole('link', { name: 'Check-in do dia' }).click()
