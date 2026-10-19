@@ -9,6 +9,9 @@ public sealed record UpdatePlanRequest(JsonElement Document, IReadOnlyList<NewEx
 
 public sealed record ActivatePlanRequest(DateOnly? CycleStart);
 
+/// <summary>Both dates replace the stored ones; null clears a date.</summary>
+public sealed record CycleDatesRequest(DateOnly? UpdateDate, DateOnly? BillingDate);
+
 public sealed record PlanVersionResponse(
     Guid Id,
     PlanKind Kind,

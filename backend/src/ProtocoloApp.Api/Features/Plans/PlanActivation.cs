@@ -41,6 +41,10 @@ public static class PlanActivation
     public static bool IsValidCycleStart(DateOnly cycleStart, DateTimeOffset now) =>
         cycleStart >= MinCycleStart && cycleStart <= DateOnly.FromDateTime(now.UtcDateTime).AddYears(1);
 
+    /// <summary>A date written in a plan document (update, billing): 2000-01-01 up to five years after today (UTC date).</summary>
+    public static bool IsValidDocumentDate(DateOnly date, DateTimeOffset now) =>
+        date >= MinCycleStart && date <= DateOnly.FromDateTime(now.UtcDateTime).AddYears(5);
+
     /// <summary>Structural validation of a document of the given kind; keys are JSON paths.</summary>
     public static Dictionary<string, string[]> Validate(PlanKind kind, JsonElement document)
     {

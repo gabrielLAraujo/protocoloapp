@@ -27,6 +27,7 @@ public static class PlanEndpoints
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPut("/{id:guid}", UpdateAsync);
         group.MapPost("/{id:guid}/activate", ActivateAsync);
+        group.MapPatch("/{id:guid}/cycle-dates", UpdateCycleDatesAsync);
     }
 
     private static async Task<Results<Created<PlanVersionResponse>, NotFound, ValidationProblem, ProblemHttpResult>> ImportAsync(
@@ -283,6 +284,56 @@ public static class PlanEndpoints
             ActivationOutcome.NotADraft => Problem(StatusCodes.Status409Conflict, "Conflito", "Esta versão já foi arquivada."),
             _ => TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Key, e => e.Value)),
         };
+    }
+
+    /// <summary>
+    /// Sets the update and billing dates of a protocol (draft or active) without a full review: only those two fields of the
+    /// stored document change, and the row is stamped so devices pull it.
+    /// </summary>
+    private static async Task<Results<Ok<PlanVersionResponse>, NotFound, ValidationProblem, ProblemHttpResult>> UpdateCycleDatesAsync(
+        Guid id,
+        CycleDatesRequest? request,
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        if (request is null)
+            return Invalid("body", "Corpo da requisição inválido.");
+
+        var errors = new Dictionary<string, string[]>();
+        if (request.UpdateDate is { } update && !PlanActivation.IsValidDocumentDate(update, clock.GetUtcNow()))
+            errors["updateDate"] = ["Data de atualização inválida."];
+        if (request.BillingDate is { } billing && !PlanActivation.IsValidDocumentDate(billing, clock.GetUtcNow()))
+            errors["billingDate"] = ["Data da mensalidade inválida."];
+        if (errors.Count > 0)
+            return TypedResults.ValidationProblem(errors);
+
+        var userId = principal.GetUserId();
+        await using var transaction = await SyncWrites.BeginAsync(db, userId, ct);
+        var plan = await db.PlanVersions.SingleOrDefaultAsync(p => p.Id == id && p.UserId == userId && p.DeletedAt == null, ct);
+        if (plan is null)
+            return TypedResults.NotFound();
+        if (plan.Kind != PlanKind.Protocol)
+            return Invalid("kind", "Só o protocolo tem datas de ciclo.");
+        if (plan.Status == PlanStatus.Archived)
+            return Problem(StatusCodes.Status409Conflict, "Conflito", "Uma versão arquivada não pode ser editada.");
+
+        if (!PlanDocuments.TryRead<ProtocolDocument>(plan.Document.RootElement, out var protocol, out _))
+            return Problem(StatusCodes.Status409Conflict, "Conflito", "O documento do protocolo não pôde ser lido.");
+
+        var updated = protocol! with { UpdateDate = request.UpdateDate, BillingDate = request.BillingDate };
+        plan.Document = JsonDocument.Parse(PlanDocuments.Serialize(updated).GetRawText());
+        db.Entry(plan).Property(p => p.Document).IsModified = true;
+        await SyncWrites.StampAsync(db, plan, userId, clock, ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        return TypedResults.Ok(PlanMapping.ToResponse(plan, null));
     }
 
     /// <summary>The document read through <see cref="PlanDocuments.TryRead{T}"/> and written back in its canonical form.</summary>
