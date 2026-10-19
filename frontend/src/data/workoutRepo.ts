@@ -331,7 +331,7 @@ export const workoutRepo = {
 
   async changesForSession(db: LocalDb, sessionId: string): Promise<ExerciseChangeLocal[]> {
     const rows = await db.query<ChangeRow>(
-      'SELECT * FROM exercise_changes WHERE session_id = ? AND deleted_at IS NULL ORDER BY client_updated_at, id',
+      'SELECT * FROM exercise_changes WHERE session_id = ? AND deleted_at IS NULL ORDER BY client_updated_at, rowid',
       [sessionId],
     )
     return rows.map(toChange)

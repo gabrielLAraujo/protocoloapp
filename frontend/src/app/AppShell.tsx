@@ -26,6 +26,12 @@ export function AppShell() {
             <SyncStatus />
             {/* Temporary: the bottom navigation (Task 9) replaces this link. */}
             <Link
+              to="/treino"
+              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Treino
+            </Link>
+            <Link
               to="/planejamento"
               className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
             >
