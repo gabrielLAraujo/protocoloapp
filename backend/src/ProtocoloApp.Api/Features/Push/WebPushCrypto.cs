@@ -13,8 +13,11 @@ public static class WebPushCrypto
 {
     public const int RecordSize = 4096;
 
-    /// <summary>The record holds the data, a 0x02 delimiter and the 16-byte GCM tag.</summary>
-    public const int MaxPlaintextLength = RecordSize - 17;
+    /// <summary>
+    /// Push services cap the whole body at 4096 bytes: the 86-byte header (salt, rs, idlen, key)
+    /// plus one record holding the data, a 0x02 delimiter and the 16-byte GCM tag.
+    /// </summary>
+    public const int MaxPlaintextLength = RecordSize - 86 - 17;
 
     public const int PublicKeyLength = 65;
     public const int AuthSecretLength = 16;
