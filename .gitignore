@@ -13,6 +13,7 @@ node_modules/
 dist/
 frontend/playwright-report/
 frontend/test-results/
+frontend/e2e-screenshots/
 frontend/android/.gradle/
 frontend/android/build/
 frontend/android/app/build/
