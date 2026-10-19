@@ -6,6 +6,15 @@ internal static class PlanDocumentRules
 {
     public const int MaxRestSeconds = 900;
 
+    public const int MaxDays = 14;
+
+    public const int MaxExercisesPerDay = 50;
+
+    public const int MaxSetsPerExercise = 50;
+
+    /// <summary>Cap on the meals of a protocol, on the items of one meal and on the protocol items.</summary>
+    public const int MaxMealsOrItems = 100;
+
     public static readonly string[] Weekdays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
     public static readonly string[] ItemCategories = ["supplement", "compound", "hormone", "thermogenic", "sleep_optional"];
@@ -16,6 +25,50 @@ internal static class PlanDocumentRules
     public static readonly string[] ScheduleTypes = ["daily", "weekdays", "every_n_days", "training_days_only", "off_days_only"];
 
     public static readonly string[] GuidelineKinds = ["water_min_l", "free_meals_per_week", "text"];
+
+    /// <summary>
+    /// Size caps of a workout (days, exercises per day, sets per exercise), keyed by the path of the list. Also applied to
+    /// drafts, which otherwise only have to be readable.
+    /// </summary>
+    public static void CheckCounts(WorkoutDocument doc, Action<string, string> fail)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        ArgumentNullException.ThrowIfNull(fail);
+
+        var days = doc.Days ?? [];
+        if (days.Count > MaxDays)
+            fail("days", $"No máximo {MaxDays} dias.");
+        for (var i = 0; i < days.Count; i++)
+        {
+            var exercises = days[i]?.Exercises ?? [];
+            if (exercises.Count > MaxExercisesPerDay)
+                fail($"days[{i}].exercises", $"No máximo {MaxExercisesPerDay} exercícios por dia.");
+            for (var j = 0; j < exercises.Count; j++)
+            {
+                if ((exercises[j]?.Sets ?? []).Count > MaxSetsPerExercise)
+                    fail($"days[{i}].exercises[{j}].sets", $"No máximo {MaxSetsPerExercise} séries por exercício.");
+            }
+        }
+    }
+
+    /// <summary>Size caps of a protocol (meals, items of a meal, protocol items), keyed by the path of the list.</summary>
+    public static void CheckCounts(ProtocolDocument doc, Action<string, string> fail)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        ArgumentNullException.ThrowIfNull(fail);
+
+        var meals = doc.Meals ?? [];
+        if (meals.Count > MaxMealsOrItems)
+            fail("meals", $"No máximo {MaxMealsOrItems} refeições.");
+        for (var i = 0; i < meals.Count; i++)
+        {
+            if ((meals[i]?.Items ?? []).Count > MaxMealsOrItems)
+                fail($"meals[{i}].items", $"No máximo {MaxMealsOrItems} alimentos por refeição.");
+        }
+
+        if ((doc.Items ?? []).Count > MaxMealsOrItems)
+            fail("items", $"No máximo {MaxMealsOrItems} itens.");
+    }
 
     public static bool IsValidTiming(string? timing) =>
         timing is not null && (Timings.Contains(timing, StringComparer.Ordinal)
@@ -38,6 +91,7 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
             var meals = doc.Meals ?? [];
             var items = doc.Items ?? [];
             var guidelines = doc.Guidelines ?? [];
+            PlanDocumentRules.CheckCounts(doc, Fail);
 
             AddDuplicateKeys(meals.Select(m => m?.Key), "meals", Fail);
             for (var i = 0; i < meals.Count; i++)
@@ -165,6 +219,7 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
             var days = doc.Days ?? [];
             if (days.Count == 0)
                 Fail("days", "Informe ao menos um dia de treino.");
+            PlanDocumentRules.CheckCounts(doc, Fail);
             ProtocolDocumentValidator.AddDuplicateKeys(days.Select(d => d?.Key), "days", Fail);
 
             var dayKeys = days.Select(d => d?.Key).Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k!).ToHashSet(StringComparer.Ordinal);

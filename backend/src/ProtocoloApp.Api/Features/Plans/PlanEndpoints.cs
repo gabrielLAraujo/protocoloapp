@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProtocoloApp.Api.Features.Auth;
@@ -23,11 +24,11 @@ public static class PlanEndpoints
 
         var group = api.MapGroup("/plans").WithTags("Plans");
         group.MapPost("/import", ImportAsync);
-        group.MapPost("/drafts", CreateDraftAsync);
+        group.MapPost("/drafts", CreateDraftAsync).WithMetadata(new BodySizeLimit(MaxDocumentBodyBytes));
         group.MapGet("/extraction", GetExtraction);
         group.MapGet("/", ListAsync);
         group.MapGet("/{id:guid}", GetAsync);
-        group.MapPut("/{id:guid}", UpdateAsync);
+        group.MapPut("/{id:guid}", UpdateAsync).WithMetadata(new BodySizeLimit(MaxDocumentBodyBytes));
         group.MapPost("/{id:guid}/activate", ActivateAsync);
         group.MapPatch("/{id:guid}/cycle-dates", UpdateCycleDatesAsync);
     }
@@ -412,6 +413,14 @@ public static class PlanEndpoints
 
     private const int MaxLowConfidence = 500;
 
+    private const int MaxNewExercises = 500;
+
+    /// <summary>Body cap of the endpoints that take a whole plan document (a real one is a few dozen KB).</summary>
+    private const long MaxDocumentBodyBytes = 1024 * 1024;
+
+    /// <summary>Read by the endpoint middleware, which lowers the server's body limit for the request (413 above it).</summary>
+    private sealed record BodySizeLimit(long? MaxRequestBodySize) : IRequestSizeLimitMetadata;
+
     private const string WrongKindMessage = "O arquivo não é do tipo esperado para este plano.";
 
     private const string NotConfirmedMessage = "O envio do arquivo ainda não foi confirmado.";
@@ -442,6 +451,12 @@ public static class PlanEndpoints
     private static Dictionary<string, string[]> ValidateSuggestions(IReadOnlyList<NewExerciseSuggestion?> suggestions)
     {
         var problems = new Dictionary<string, string[]>();
+        if (suggestions.Count > MaxNewExercises)
+        {
+            problems["newExercises"] = [$"No máximo {MaxNewExercises} exercícios novos."];
+            return problems;
+        }
+
         for (var i = 0; i < suggestions.Count; i++)
         {
             var suggestion = suggestions[i];
@@ -454,19 +469,31 @@ public static class PlanEndpoints
         return problems;
     }
 
-    /// <summary>The document read through <see cref="PlanDocuments.TryRead{T}"/> and written back in its canonical form.</summary>
+    /// <summary>
+    /// The document read through <see cref="PlanDocuments.TryRead{T}"/> and written back in its canonical form; null with
+    /// field errors when it does not read or goes over a size cap (<see cref="PlanDocumentRules.CheckCounts(WorkoutDocument, Action{string, string})"/>).
+    /// </summary>
     private static JsonElement? Normalize(PlanKind kind, JsonElement document, out Dictionary<string, string[]> errors)
     {
         errors = [];
+        var tooLarge = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        void Fail(string path, string message) => tooLarge[path] = [message];
+
         IReadOnlyList<string> paths;
         if (kind == PlanKind.Protocol)
         {
             if (PlanDocuments.TryRead<ProtocolDocument>(document, out var protocol, out paths))
-                return PlanDocuments.Serialize(protocol!);
+            {
+                PlanDocumentRules.CheckCounts(protocol!, Fail);
+                errors = tooLarge;
+                return tooLarge.Count > 0 ? null : PlanDocuments.Serialize(protocol!);
+            }
         }
         else if (PlanDocuments.TryRead<WorkoutDocument>(document, out var workout, out paths))
         {
-            return PlanDocuments.Serialize(workout!);
+            PlanDocumentRules.CheckCounts(workout!, Fail);
+            errors = tooLarge;
+            return tooLarge.Count > 0 ? null : PlanDocuments.Serialize(workout!);
         }
 
         errors = paths.Distinct(StringComparer.Ordinal).ToDictionary(p => p, _ => new[] { "Valor inválido." }, StringComparer.Ordinal);

@@ -32,6 +32,54 @@ public sealed class PlanDocumentValidatorTests
     public void Valid_workout_has_no_errors() => Assert.Empty(Errors(Doc()));
 
     [Fact]
+    public void Workout_over_the_size_caps_is_an_error_on_each_list()
+    {
+        var set = new PlannedSetDto { RepsMin = 8, RepsMax = 12 };
+        var bigExercise = new PlannedExerciseDto { Key = "e0", Name = "Exercício fictício", Sets = Enumerable.Repeat(set, PlanDocumentRules.MaxSetsPerExercise + 1).ToList() };
+        var crowdedDay = new WorkoutDayDto
+        {
+            Key = "d0",
+            Name = "Dia",
+            Exercises = Enumerable.Range(0, PlanDocumentRules.MaxExercisesPerDay + 1)
+                .Select(j => j == 0 ? bigExercise : new PlannedExerciseDto { Key = $"e{j}", Name = "Exercício fictício", Sets = [set] })
+                .ToList(),
+        };
+        var days = Enumerable.Range(0, PlanDocumentRules.MaxDays + 1)
+            .Select(i => i == 0 ? crowdedDay : new WorkoutDayDto { Key = $"d{i}", Name = "Dia", Exercises = [] })
+            .ToList();
+        var doc = Doc() with { Days = days, Rotation = new RotationDto { Type = RotationDto.Sequence, Items = ["d0"] } };
+
+        var errors = Errors(doc);
+
+        Assert.Contains("days", errors);
+        Assert.Contains("days[0].exercises", errors);
+        Assert.Contains("days[0].exercises[0].sets", errors);
+        var atTheCap = Enumerable.Range(0, PlanDocumentRules.MaxDays)
+            .Select(i => new WorkoutDayDto { Key = $"d{i}", Name = "Dia", Exercises = [new PlannedExerciseDto { Key = "e", Name = "n", Sets = [set] }] })
+            .ToList();
+        Assert.Empty(Errors(doc with { Days = atTheCap }));
+    }
+
+    [Fact]
+    public void Protocol_over_the_size_caps_is_an_error_on_each_list()
+    {
+        var food = new MealItemDto { Food = "Alimento fictício", Alternatives = [] };
+        var meals = Enumerable.Range(0, PlanDocumentRules.MaxMealsOrItems + 1)
+            .Select(i => new MealDto { Key = $"m{i}", Label = "Refeição", Items = i == 0 ? Enumerable.Repeat(food, PlanDocumentRules.MaxMealsOrItems + 1).ToList() : [food] })
+            .ToList();
+        var items = Enumerable.Range(0, PlanDocumentRules.MaxMealsOrItems + 1)
+            .Select(i => new ProtocolItemDto { Key = $"i{i}", Category = "supplement", Name = "Item fictício", Timing = "any", Schedule = new ScheduleDto { Type = "daily" } })
+            .ToList();
+
+        var errors = Protocol.Validate(new ProtocolDocument { Meals = meals, Items = items }).Errors.Select(e => e.PropertyName).ToList();
+
+        Assert.Contains("meals", errors);
+        Assert.Contains("meals[0].items", errors);
+        Assert.Contains("items", errors);
+        Assert.DoesNotContain("meals[1].items", errors);
+    }
+
+    [Fact]
     public void Rotation_item_with_unknown_day_key_is_an_error()
     {
         var doc = Doc(ValidWorkout.Replace("\"items\": [\"A\", \"B\", \"off\"]", "\"items\": [\"A\", \"Z\", \"off\"]", StringComparison.Ordinal));

@@ -85,6 +85,73 @@ public sealed class PlanDraftTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_unknown_exercise_id_is_dropped_flagged_and_relinked_by_name()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var bench = Guid.NewGuid();
+        await AddExerciseAsync(api, bench, "Supino inclinado halteres");
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+        var document = PlanSamples.Workout.Replace(
+            "\"key\":\"bench\",", "\"key\":\"bench\",\"exerciseId\":\"99999999-9999-9999-9999-999999999999\",", StringComparison.Ordinal);
+        Assert.Contains("99999999-9999-9999-9999-999999999999", document, StringComparison.Ordinal);
+
+        var id = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, document));
+
+        var plan = await api.GetAsync(id);
+        Assert.Equal(bench, plan.Document.GetProperty("days")[0].GetProperty("exercises")[0].GetProperty("exerciseId").GetGuid());
+        Assert.Equal(["days[0].exercises[0].exerciseId"], plan.LowConfidence);
+    }
+
+    [Fact]
+    public async Task Documents_over_the_size_caps_return_400_on_post_and_put()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+        var days = string.Join(',', Enumerable.Range(0, PlanDocumentRules.MaxDays + 1).Select(i => $$"""{"key":"d{{i}}","name":"Dia","exercises":[]}"""));
+        var tooManyDays = $$"""{"days":[{{days}}]}""";
+
+        var post = await api.CreateDraftAsync(fileId, PlanKind.Workout, tooManyDays);
+        var draft = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, PlanSamples.Workout));
+        var put = await api.PutAsync(draft, tooManyDays);
+
+        Assert.Equal(HttpStatusCode.BadRequest, post.StatusCode);
+        Assert.True((await ProblemErrorsAsync(post)).TryGetProperty("days", out _));
+        Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
+        Assert.True((await ProblemErrorsAsync(put)).TryGetProperty("days", out _));
+    }
+
+    [Fact]
+    public async Task Too_many_new_exercises_return_400()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+        var suggestions = Enumerable.Range(0, 501).Select(i => new NewExerciseSuggestion($"Exercício fictício {i}", MuscleGroup.Other)).ToList();
+
+        var response = await api.CreateDraftAsync(fileId, PlanKind.Workout, PlanSamples.Workout, newExercises: suggestions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True((await ProblemErrorsAsync(response)).TryGetProperty("newExercises", out _));
+    }
+
+    [Fact]
+    public async Task A_body_over_1_mb_returns_413_on_post_and_put()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+        var draft = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, PlanSamples.Workout));
+        var padding = new string('x', 1024 * 1024);
+        var body = $$"""{"fileId":"{{fileId}}","kind":"workout","document":{"days":[],"padding":"{{padding}}"}}""";
+
+        using var postContent = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        using var putContent = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        var post = await api.Client.PostAsync(new Uri("/api/plans/drafts", UriKind.Relative), postContent);
+        var put = await api.Client.PutAsync(new Uri($"/api/plans/{draft}", UriKind.Relative), putContent);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, post.StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, put.StatusCode);
+    }
+
+    [Fact]
     public async Task An_alias_links_the_exercise_too()
     {
         using var api = await PlanApi.CreateAsync(factory);
