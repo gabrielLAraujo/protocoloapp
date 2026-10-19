@@ -15,6 +15,7 @@ const cors = {
 
 createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://stub')
+  console.log(`${req.method} ${url.pathname}`)
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors)
     return res.end()
