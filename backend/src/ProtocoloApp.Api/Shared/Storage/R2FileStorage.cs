@@ -11,6 +11,7 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
 {
     private readonly AmazonS3Client _client;
     private readonly string _bucket;
+    private readonly Protocol _protocol;
     private readonly TimeProvider _clock;
 
     /// <summary>How long the readiness probe waits for the bucket.</summary>
@@ -25,6 +26,8 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
 
         var settings = options.Value;
         _bucket = settings.Bucket;
+        // Presigned URLs are https unless the endpoint is explicitly plain http (the e2e storage stub).
+        _protocol = settings.Endpoint.Scheme == Uri.UriSchemeHttp ? Protocol.HTTP : Protocol.HTTPS;
         _client = new AmazonS3Client(
             new BasicAWSCredentials(settings.AccessKeyId, settings.SecretAccessKey),
             new AmazonS3Config
@@ -124,7 +127,7 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
         // would make 10 minutes come out as 599 or 600 depending on the clock.
         var now = _clock.GetUtcNow().UtcDateTime;
         var expires = new DateTime(now.Ticks - (now.Ticks % TimeSpan.TicksPerSecond), DateTimeKind.Utc) + ttl;
-        var request = new GetPreSignedUrlRequest { BucketName = _bucket, Key = key, Verb = verb, Expires = expires };
+        var request = new GetPreSignedUrlRequest { BucketName = _bucket, Key = key, Verb = verb, Expires = expires, Protocol = _protocol };
         if (contentType is not null)
             request.ContentType = contentType;
 
