@@ -24,6 +24,13 @@ export function AppShell() {
           <span className="text-lg font-semibold tracking-tight">Protocolo</span>
           <div className="flex items-center gap-3">
             <SyncStatus />
+            {/* Temporary: the bottom navigation (Task 9) replaces this link. */}
+            <Link
+              to="/planejamento"
+              className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Planejamento
+            </Link>
             <Link
               to="/settings/diagnostics"
               className="rounded-control px-3 py-1.5 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
