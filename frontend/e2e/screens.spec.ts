@@ -32,7 +32,7 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: /^Sincronizado$/ })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Ciclo' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Ciclo', exact: true })).toBeVisible()
   await shoot(page, '1-resumo')
 
   await nav(page, 'Hoje').click()
