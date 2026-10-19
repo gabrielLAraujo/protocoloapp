@@ -345,6 +345,73 @@
         }
       }
     },
+    "/api/plans/drafts": {
+      "post": {
+        "tags": [
+          "Plans"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CreateDraftRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDraftResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/extraction": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanExtractionInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plans": {
       "get": {
         "tags": [
@@ -853,6 +920,58 @@
           }
         }
       },
+      "CreateDraftRequest": {
+        "required": [
+          "fileId",
+          "kind",
+          "document",
+          "lowConfidence",
+          "newExercises"
+        ],
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlanKind"
+          },
+          "document": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "lowConfidence": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "newExercises": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/NewExerciseSuggestion"
+            }
+          }
+        }
+      },
+      "CreateDraftResponse": {
+        "required": [
+          "planVersionId"
+        ],
+        "type": "object",
+        "properties": {
+          "planVersionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "CycleDatesRequest": {
         "required": [
           "updateDate",
@@ -1114,6 +1233,17 @@
             "items": {
               "$ref": "#/components/schemas/PlanChange"
             }
+          }
+        }
+      },
+      "PlanExtractionInfo": {
+        "required": [
+          "ai"
+        ],
+        "type": "object",
+        "properties": {
+          "ai": {
+            "type": "boolean"
           }
         }
       },
