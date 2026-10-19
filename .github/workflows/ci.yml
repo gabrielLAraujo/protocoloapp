@@ -193,7 +193,8 @@ jobs:
           tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
 
   # The offline-first promise end to end: the real API (published like the image, serving the built front) on a real Postgres,
-  # and two browsers. Nothing is mocked except R2, which this flow never touches (the settings are only checked for presence).
+  # and two browsers. Two small Node stubs (frontend/e2e/fixtures) stand in for the outside world: the Anthropic API (plan
+  # import) and the R2 bucket (the PDF upload); the API reaches them through Anthropic__BaseUrl and R2__ServiceUrl.
   e2e:
     name: E2E smoke
     runs-on: ubuntu-latest
@@ -221,6 +222,10 @@ jobs:
       R2__AccessKeyId: e2e-access-key
       R2__SecretAccessKey: e2e-secret-key-not-real
       R2__Bucket: e2e-bucket
+      R2__ServiceUrl: http://localhost:9101
+      Anthropic__ApiKey: test
+      Anthropic__BaseUrl: http://localhost:9100
+      E2E_ANTHROPIC_STUB_URL: http://localhost:9100
       ASPNETCORE_URLS: http://localhost:5190
       E2E_BASE_URL: http://localhost:5190
       E2E_EMAIL: e2e@example.com
@@ -269,6 +274,16 @@ jobs:
         env:
           PROTOCOLOAPP_PASSWORD: ${{ env.E2E_PASSWORD }}
         run: dotnet ProtocoloApp.Api.dll create-user "$E2E_EMAIL"
+
+      - name: Start the Anthropic and storage stubs
+        run: |
+          nohup node frontend/e2e/fixtures/anthropic-stub.mjs 9100 > "$RUNNER_TEMP/anthropic-stub.log" 2>&1 &
+          nohup node frontend/e2e/fixtures/storage-stub.mjs 9101 > "$RUNNER_TEMP/storage-stub.log" 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:9100/__requests > /dev/null 2>&1 && curl -fsS http://localhost:9101/e2e-bucket/ > /dev/null 2>&1; then echo "Stubs are up"; exit 0; fi
+            sleep 0.5
+          done
+          echo "Stubs did not start"; cat "$RUNNER_TEMP"/*-stub.log; exit 1
 
       - name: Start the API
         working-directory: ${{ runner.temp }}/api

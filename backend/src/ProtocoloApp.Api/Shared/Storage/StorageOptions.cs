@@ -13,6 +13,9 @@ public sealed class StorageOptions
 
     public string Bucket { get; set; } = "";
 
+    /// <summary>Replaces the account endpoint with another S3-compatible server (the e2e storage stub). Unset in production.</summary>
+    public Uri? ServiceUrl { get; set; }
+
     /// <summary>The S3-compatible endpoint of the account.</summary>
-    public Uri Endpoint => new($"https://{AccountId}.r2.cloudflarestorage.com");
+    public Uri Endpoint => ServiceUrl ?? new($"https://{AccountId}.r2.cloudflarestorage.com");
 }
