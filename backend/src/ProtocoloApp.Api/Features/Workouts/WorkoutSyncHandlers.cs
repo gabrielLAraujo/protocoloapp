@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Plans;
@@ -28,6 +29,7 @@ public sealed class WorkoutSessionSyncHandler(AppDbContext db, TimeProvider cloc
         entity.StartedAt = payload.StartedAt!.Value;
         entity.EndedAt = payload.EndedAt;
         entity.Note = payload.Note;
+        entity.ExerciseNotes = payload.Notes is { Count: > 0 } notes ? JsonSerializer.SerializeToDocument(notes) : null;
     }
 
     protected override WorkoutSessionPayload CreatePayload(WorkoutSession entity) => new()
@@ -38,6 +40,7 @@ public sealed class WorkoutSessionSyncHandler(AppDbContext db, TimeProvider cloc
         StartedAt = entity.StartedAt,
         EndedAt = entity.EndedAt,
         Note = entity.Note,
+        Notes = entity.ExerciseNotes?.Deserialize<Dictionary<string, string?>>(),
     };
 
     // The plan version may be archived (a session keeps pointing at the version it followed); it only has to be the user's.

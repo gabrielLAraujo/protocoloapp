@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Workouts;
@@ -7,6 +8,7 @@ public sealed class WorkoutSession : ISyncEntity
 {
     public const int MaxKeyLength = 64;
     public const int MaxNoteLength = 2000;
+    public const int MaxExerciseNotes = 30;
 
     public Guid Id { get; set; }
 
@@ -34,4 +36,7 @@ public sealed class WorkoutSession : ISyncEntity
     public DateTimeOffset? EndedAt { get; set; }
 
     public string? Note { get; set; }
+
+    /// <summary>Per-exercise notes: a JSON object <c>planned_exercise_key -> text</c>, column <c>exercise_notes</c> (<c>jsonb</c>). Null when there are none.</summary>
+    public JsonDocument? ExerciseNotes { get; set; }
 }

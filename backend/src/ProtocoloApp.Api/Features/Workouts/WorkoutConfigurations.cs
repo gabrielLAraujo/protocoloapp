@@ -19,6 +19,7 @@ public sealed class WorkoutSessionConfiguration : IEntityTypeConfiguration<Worko
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.WorkoutDayKey).HasMaxLength(WorkoutSession.MaxKeyLength);
         builder.Property(s => s.Note).HasMaxLength(WorkoutSession.MaxNoteLength);
+        builder.Property(s => s.ExerciseNotes).HasColumnType("jsonb");
 
         builder.HasIndex(s => new { s.UserId, s.Date });
         builder.HasIndex(s => new { s.UserId, s.Version }).IsUnique();

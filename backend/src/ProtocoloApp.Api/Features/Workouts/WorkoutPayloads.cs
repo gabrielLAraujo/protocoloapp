@@ -6,8 +6,9 @@ namespace ProtocoloApp.Api.Features.Workouts;
 // invalid_payload:<field> instead of silently becoming a default. Unknown properties are ignored.
 
 /// <summary>
-/// <c>workout_session</c>: <c>{date, plan_version_id, workout_day_key, started_at, ended_at?, note?}</c>.
-/// <c>plan_version_id</c> must be a (non-deleted) plan version of the user, archived or not.
+/// <c>workout_session</c>: <c>{date, plan_version_id, workout_day_key, started_at, ended_at?, note?, notes?}</c>.
+/// <c>plan_version_id</c> must be a (non-deleted) plan version of the user, archived or not. <c>notes</c> maps a planned exercise
+/// key to a text (at most 30 keys, 2000 characters each).
 /// </summary>
 public sealed record WorkoutSessionPayload
 {
@@ -22,6 +23,8 @@ public sealed record WorkoutSessionPayload
     public DateTimeOffset? EndedAt { get; init; }
 
     public string? Note { get; init; }
+
+    public Dictionary<string, string?>? Notes { get; init; }
 }
 
 public sealed class WorkoutSessionPayloadValidator : AbstractValidator<WorkoutSessionPayload>
@@ -34,6 +37,14 @@ public sealed class WorkoutSessionPayloadValidator : AbstractValidator<WorkoutSe
         RuleFor(p => p.StartedAt).NotNull().OverridePropertyName("started_at");
         RuleFor(p => p.EndedAt).Must((p, ended) => ended is null || p.StartedAt is null || ended >= p.StartedAt).OverridePropertyName("ended_at");
         RuleFor(p => p.Note).MaximumLength(WorkoutSession.MaxNoteLength).OverridePropertyName("note");
+        RuleFor(p => p.Notes)
+            .Must(notes => notes is null
+                || (notes.Count <= WorkoutSession.MaxExerciseNotes
+                    && notes.All(n => !string.IsNullOrWhiteSpace(n.Key)
+                        && n.Key.Length <= WorkoutSession.MaxKeyLength
+                        && n.Value is not null
+                        && n.Value.Length <= WorkoutSession.MaxNoteLength)))
+            .OverridePropertyName("notes");
     }
 }
 

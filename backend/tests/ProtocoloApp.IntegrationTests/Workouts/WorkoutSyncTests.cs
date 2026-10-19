@@ -42,6 +42,16 @@ public sealed class WorkoutSyncTests(ApiFactory factory)
             ("ended_at", null),
             ("note", note)), minutesAgo);
 
+    private static SyncChange SessionWithNotes(Guid id, Guid planVersionId, IDictionary<string, string?>? notes, int minutesAgo = 60) =>
+        Upsert("workout_session", id, Json(
+            ("date", Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+            ("plan_version_id", planVersionId),
+            ("workout_day_key", "a"),
+            ("started_at", SyncApi.Past(90)),
+            ("ended_at", null),
+            ("note", null),
+            ("notes", notes)), minutesAgo);
+
     private static SyncChange Set(Guid id, Guid sessionId, Guid exerciseId, int index = 0, string kind = "normal", Guid? parent = null, decimal weight = 60.5m, int reps = 10) =>
         Upsert("set_log", id, Json(
             ("session_id", sessionId),
@@ -299,5 +309,47 @@ public sealed class WorkoutSyncTests(ApiFactory factory)
         var payload = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Id == id).Payload!.Value;
         Assert.Equal(JsonValueKind.Null, payload.GetProperty("cardio_done").ValueKind);
         Assert.Equal(JsonValueKind.Null, payload.GetProperty("cardio_minutes").ValueKind);
+    }
+
+    [Fact]
+    public async Task Session_exercise_notes_roundtrip_and_are_cleared_by_a_newer_payload_without_them()
+    {
+        var s = await NewUserAsync();
+        using var api = s.Api;
+        var id = Guid.NewGuid();
+        var notes = new Dictionary<string, string?> { ["e1"] = "Subir 2 kg na próxima", ["e2"] = "Ombro estalando" };
+
+        var stored = await SyncApi.PushOneAsync(api.Client, SessionWithNotes(id, s.PlanVersionId, notes, 60));
+
+        Assert.Equal(SyncResultStatus.Applied, stored.Status);
+        var payload = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Id == id).Payload!.Value;
+        var pulled = payload.GetProperty("notes");
+        Assert.Equal("Subir 2 kg na próxima", pulled.GetProperty("e1").GetString());
+        Assert.Equal("Ombro estalando", pulled.GetProperty("e2").GetString());
+        var column = await api.WithDbAsync(db => db.WorkoutSessions.AsNoTracking().SingleAsync(x => x.Id == id));
+        Assert.Equal("Ombro estalando", column.ExerciseNotes!.RootElement.GetProperty("e2").GetString());
+
+        var cleared = await SyncApi.PushOneAsync(api.Client, Session(id, s.PlanVersionId, minutesAgo: 30));
+
+        Assert.Equal(SyncResultStatus.Applied, cleared.Status);
+        var after = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Id == id).Payload!.Value;
+        Assert.Equal(JsonValueKind.Null, after.GetProperty("notes").ValueKind);
+    }
+
+    [Fact]
+    public async Task Session_exercise_notes_are_validated()
+    {
+        var s = await NewUserAsync();
+        using var api = s.Api;
+
+        var tooMany = Enumerable.Range(0, 31).ToDictionary(i => $"e{i}", _ => (string?)"x");
+        var atLimit = Enumerable.Range(0, 30).ToDictionary(i => $"e{i}", _ => (string?)new string('x', 2000));
+
+        AssertRejected(await SyncApi.PushOneAsync(api.Client, SessionWithNotes(Guid.NewGuid(), s.PlanVersionId, tooMany)), "invalid_payload:notes");
+        AssertRejected(await SyncApi.PushOneAsync(api.Client, SessionWithNotes(Guid.NewGuid(), s.PlanVersionId, new Dictionary<string, string?> { ["e1"] = new string('x', 2001) })), "invalid_payload:notes");
+        AssertRejected(await SyncApi.PushOneAsync(api.Client, SessionWithNotes(Guid.NewGuid(), s.PlanVersionId, new Dictionary<string, string?> { [" "] = "x" })), "invalid_payload:notes");
+        AssertRejected(await SyncApi.PushOneAsync(api.Client, SessionWithNotes(Guid.NewGuid(), s.PlanVersionId, new Dictionary<string, string?> { ["e1"] = null })), "invalid_payload:notes");
+        AssertRejected(await SyncApi.PushOneAsync(api.Client, SessionWithNotes(Guid.NewGuid(), s.PlanVersionId, new Dictionary<string, string?> { [new string('k', 65)] = "x" })), "invalid_payload:notes");
+        Assert.Equal(SyncResultStatus.Applied, (await SyncApi.PushOneAsync(api.Client, SessionWithNotes(Guid.NewGuid(), s.PlanVersionId, atLimit))).Status);
     }
 }
