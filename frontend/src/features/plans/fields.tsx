@@ -11,10 +11,13 @@ export function Field({
   path,
   children,
   invalid,
+  error,
 }: {
   label: string
   path?: string
   invalid?: boolean
+  /** Shown under the input (and marks it invalid). */
+  error?: string
   children: (props: { id: string; className: string; 'aria-invalid'?: true }) => ReactNode
 }) {
   const id = useId()
@@ -29,9 +32,10 @@ export function Field({
       </div>
       {children({
         id,
-        className: `${inputClass}${low ? ' border-warn bg-warn/10' : ''}${invalid ? ' border-danger' : ''}`,
-        ...(invalid && { 'aria-invalid': true as const }),
+        className: `${inputClass}${low ? ' border-warn bg-warn/10' : ''}${invalid || error ? ' border-danger' : ''}`,
+        ...((invalid || error) && { 'aria-invalid': true as const }),
       })}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   )
 }
@@ -78,12 +82,14 @@ export function NumberField({
   value,
   onChange,
   decimal,
+  error,
 }: {
   label: string
   path?: string
   value: number | null | undefined
   onChange: (value: number | undefined) => void
   decimal?: boolean
+  error?: string
 }) {
   const [text, setText] = useState(value == null ? '' : String(value))
   const [seen, setSeen] = useState(value)
@@ -93,7 +99,7 @@ export function NumberField({
     if (parse(text) !== (value ?? undefined)) setText(value == null ? '' : String(value))
   }
   return (
-    <Field label={label} path={path}>
+    <Field label={label} path={path} error={error}>
       {(props) => (
         <input
           {...props}

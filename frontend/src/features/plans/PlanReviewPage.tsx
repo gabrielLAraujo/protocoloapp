@@ -1,8 +1,12 @@
-import { useEffect, useId, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Link, useBlocker, useNavigate, useParams } from 'react-router'
 import { api } from '../../api/client'
 import type { components } from '../../api/schema'
 import { toProblem } from '../../api/problem'
+import { useData } from '../../data/dataContext'
+import { exerciseRepo } from '../../data/exerciseRepo'
+import { normalizeExerciseName } from '../../domain/exerciseNames'
+import type { MuscleGroup } from '../../domain/muscleGroups'
 import {
   parseProtocolDocument,
   parseWorkoutDocument,
@@ -18,7 +22,8 @@ import { LowConfidenceContext } from './lowConfidence'
 import { buttonClass } from './styles'
 import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
-import { WorkoutPlanEditor, type NewExercise } from './WorkoutPlanEditor'
+import { initialGroups, newExerciseEntries } from './newExercises'
+import { WorkoutPlanEditor } from './WorkoutPlanEditor'
 
 type PlanVersion = components['schemas']['PlanVersionResponse']
 type Doc = WorkoutDocument | ProtocolDocument
@@ -49,18 +54,48 @@ function problemMessages(error: unknown): string[] {
 
 export function PlanReviewPage() {
   const { id } = useParams()
-  const { online, syncNow } = useSync()
+  const { online, syncNow, dataVersion } = useSync()
+  const data = useData()
   const navigate = useNavigate()
   const [plan, setPlan] = useState<PlanVersion | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
-  const [newExercises, setNewExercises] = useState<NewExercise[]>([])
+  const [groups, setGroups] = useState<Record<string, MuscleGroup>>({})
+  const [catalog, setCatalog] = useState<ReadonlySet<string>>(new Set())
   const [diff, setDiff] = useState<PlanDiff | null>(null)
   const [cycleStart, setCycleStart] = useState(() => localDate())
   const [working, setWorking] = useState<'saving' | 'activating' | null>(null)
   const [actionErrors, setActionErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // Unsaved edits. A ref, so the blocker and the unload handler see a change made a moment ago (and a save that just ended).
+  const dirty = useRef(false)
+  const blocker = useBlocker(() => dirty.current)
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!dirty.current) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [])
+
+  // The catalog on the device: what is not in it needs a muscle group.
+  useEffect(() => {
+    if (!data) return
+    let cancelled = false
+    exerciseRepo
+      .all(data.db)
+      .then((list) => {
+        if (!cancelled) setCatalog(new Set(list.flatMap((e) => [e.normalizedName, ...e.aliases.map(normalizeExerciseName)])))
+      })
+      .catch((e: unknown) => console.error('could not read the exercises', e))
+    return () => {
+      cancelled = true
+    }
+  }, [data, dataVersion])
   const issuesId = useId()
 
   useEffect(() => {
@@ -74,10 +109,12 @@ export function PlanReviewPage() {
           setLoadError(response.status === 404 ? 'Plano não encontrado.' : 'Não foi possível abrir o plano.')
           return
         }
+        const editable = toEditable(data)
         setPlan(data)
-        setDoc(toEditable(data))
-        setNewExercises(data.newExercises)
+        setDoc(editable)
+        setGroups(data.kind === 'workout' ? initialGroups(editable as WorkoutDocument, data.newExercises) : {})
         setDiff(data.diff)
+        dirty.current = false
       })
       .catch(() => {
         if (!cancelled) setLoadError('Conecte-se à internet para revisar o plano.')
@@ -90,9 +127,14 @@ export function PlanReviewPage() {
   const issues: Issue[] = useMemo(() => {
     if (!plan || !doc) return []
     const found = plan.kind === 'workout' ? validateWorkout(doc) : validateProtocol(doc)
-    if (cycleStart !== '' && !isCalendarDate(cycleStart)) found.push({ path: 'cycleStart', message: 'Data de início do ciclo inválida.' })
+    if (plan.kind === 'protocol' && cycleStart !== '' && !isCalendarDate(cycleStart)) found.push({ path: 'cycleStart', message: 'Data de início do ciclo inválida.' })
     return found
   }, [plan, doc, cycleStart])
+
+  const newExercises = useMemo(
+    () => (plan?.kind === 'workout' && doc ? newExerciseEntries(doc as WorkoutDocument, catalog, groups) : []),
+    [plan, doc, catalog, groups],
+  )
 
   if (loadError) {
     return (
@@ -127,10 +169,14 @@ export function PlanReviewPage() {
   }
 
   const edit = (next: Doc) => {
+    dirty.current = true
     setDoc(next)
     setSaved(false)
   }
-  const body = () => ({ document: doc as unknown, newExercises: plan.kind === 'workout' ? newExercises : null })
+  const body = () => ({
+    document: doc as unknown,
+    newExercises: plan.kind === 'workout' ? newExercises.map(({ name, group }) => ({ name, group })) : null,
+  })
 
   /** Saves the draft; resolves with whether it worked. */
   const save = async (): Promise<boolean> => {
@@ -139,7 +185,10 @@ export function PlanReviewPage() {
       setActionErrors(problemMessages(error))
       return false
     }
+    // The server keeps the extraction error on the draft; once the user has filled it in, the banner is done.
+    setPlan({ ...data, extractionError: null })
     setDiff(data.diff)
+    dirty.current = false
     return true
   }
 
@@ -156,7 +205,7 @@ export function PlanReviewPage() {
       }
       const { data, error } = await api.POST('/api/plans/{id}/activate', {
         params: { path: { id: plan.id } },
-        body: { cycleStart: cycleStart === '' ? null : cycleStart },
+        body: { cycleStart: plan.kind === 'protocol' && cycleStart !== '' ? cycleStart : null },
       })
       if (!data) {
         setActionErrors(problemMessages(error))
@@ -171,12 +220,28 @@ export function PlanReviewPage() {
     }
   }
 
+  // A cleared reps box cannot be saved even as a draft (it would come back as 0).
+  const incomplete = issues.some((i) => /\.reps(Min|Max)$/.test(i.path))
   const blocked = issues.length > 0 || !online
   const title = plan.kind === 'workout' ? 'Revisar treino' : 'Revisar protocolo'
 
   return (
     <LowConfidenceContext value={plan.lowConfidence}>
       <div className="grid gap-4 pb-4">
+        {blocker.state === 'blocked' && (
+          <div role="alertdialog" aria-label="Descartar alterações?" className="grid gap-3 rounded-control border border-danger/40 bg-surface p-4">
+            <p className="font-semibold">Descartar alterações?</p>
+            <p className="text-sm text-muted">Você editou este plano e não salvou.</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={buttonClass} onClick={() => blocker.reset()}>
+                Continuar editando
+              </button>
+              <button type="button" className={`${buttonClass} text-danger`} onClick={() => blocker.proceed()}>
+                Descartar
+              </button>
+            </div>
+          </div>
+        )}
         <h1 className="text-xl font-semibold">{title}</h1>
 
         {plan.extractionError && (
@@ -197,8 +262,9 @@ export function PlanReviewPage() {
             doc={doc as WorkoutDocument}
             onChange={edit}
             newExercises={newExercises}
-            onNewExercisesChange={(list) => {
-              setNewExercises(list)
+            onGroupChange={(id, group) => {
+              dirty.current = true
+              setGroups((current) => ({ ...current, [id]: group }))
               setSaved(false)
             }}
           />
@@ -207,7 +273,17 @@ export function PlanReviewPage() {
         )}
 
         <Section title="Ativação">
-          <TextField label="Início do ciclo" type="date" value={cycleStart} onChange={(v) => setCycleStart(v ?? '')} />
+          {plan.kind === 'protocol' && (
+            <TextField
+              label="Início do ciclo"
+              type="date"
+              value={cycleStart}
+              onChange={(v) => {
+                dirty.current = true
+                setCycleStart(v ?? '')
+              }}
+            />
+          )}
           {issues.length > 0 && (
             <div id={issuesId} className="grid gap-1 text-sm text-danger">
               <p className="font-semibold">Corrija antes de ativar:</p>
@@ -234,7 +310,7 @@ export function PlanReviewPage() {
           )}
           {saved && <p role="status" className="text-sm text-ok">Rascunho salvo</p>}
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={buttonClass} disabled={!online || working !== null} onClick={() => void run('saving')}>
+            <button type="button" className={buttonClass} disabled={!online || working !== null || incomplete} onClick={() => void run('saving')}>
               {working === 'saving' ? 'Salvando…' : 'Salvar rascunho'}
             </button>
             <button

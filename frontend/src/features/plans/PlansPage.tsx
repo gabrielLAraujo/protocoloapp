@@ -49,6 +49,14 @@ export function PlansPage() {
   const [error, setError] = useState<{ kind: PlanKind; message: string } | null>(null)
   // Synchronous guard: two quick picks must not start two imports (state updates are not visible yet).
   const importing = useRef(false)
+  // The import outlives a tap elsewhere: when it ends, only a page still on screen may take the user to the review.
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!data) return
@@ -86,7 +94,7 @@ export function PlansPage() {
         }
         setBusy({ kind, stage })
       })
-      void navigate(`/planejamento/revisao/${id}`)
+      if (mounted.current) void navigate(`/planejamento/revisao/${id}`)
     } catch (e) {
       setError({ kind, message: e instanceof ImportError ? e.message : 'Não foi possível importar o PDF. Tente novamente.' })
     } finally {

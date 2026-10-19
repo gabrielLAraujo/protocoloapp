@@ -34,10 +34,12 @@ function duplicates(keys: (string | undefined)[], path: string, issues: Issue[])
 export function validateWorkout(doc: unknown): Issue[] {
   const parsed = parseWorkoutDocument(doc)
   if (!parsed.ok) return parsed.errors.map((message) => ({ path: 'document', message }))
-  return workoutIssues(parsed.value)
+  return workoutIssues(parsed.value, doc)
 }
 
-function workoutIssues(doc: WorkoutDocument): Issue[] {
+type RawSets = { days?: { exercises?: { sets?: { repsMin?: number | null; repsMax?: number | null }[] }[] }[] }
+
+function workoutIssues(doc: WorkoutDocument, rawDoc: unknown): Issue[] {
   const issues: Issue[] = []
   if (doc.days.length === 0) issues.push({ path: 'days', message: 'Informe ao menos um dia de treino.' })
   duplicates(doc.days.map((d) => d.key), 'days', issues)
@@ -75,6 +77,13 @@ function workoutIssues(doc: WorkoutDocument): Issue[] {
       if (blank(ex.name)) issues.push({ path: `${p}.name`, message: 'Obrigatório.' })
       if (ex.sets.length === 0) issues.push({ path: `${p}.sets`, message: 'Informe ao menos uma série.' })
       ex.sets.forEach((set, k) => {
+        // The editors leave a cleared box undefined; the parser's default (0) must not hide it.
+        const raw = (rawDoc as RawSets).days?.[i]?.exercises?.[j]?.sets?.[k] ?? {}
+        if (raw.repsMin == null || raw.repsMax == null) {
+          if (raw.repsMin == null) issues.push({ path: `${p}.sets[${k}].repsMin`, message: 'Obrigatório.' })
+          if (raw.repsMax == null) issues.push({ path: `${p}.sets[${k}].repsMax`, message: 'Obrigatório.' })
+          return
+        }
         if (set.repsMin < 0 || set.repsMax > MAX_REPS || set.repsMin > set.repsMax) {
           issues.push({ path: `${p}.sets[${k}]`, message: 'Repetições inválidas (mín. ≤ máx., 0–200).' })
         }

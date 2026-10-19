@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router'
+import { Link, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SyncRecord } from '../../data/apiClient'
 import { planVersionSync } from '../../data/planRepo'
@@ -33,7 +33,16 @@ async function renderPage() {
   await planVersionSync.applyRemote(app.db, planRecord('7d1f2a10-0000-5000-8000-0000000000b2', 'workout', 'active', workoutDocument(), '2026-10-12T15:00:00.000Z'))
   app.view(
     <Routes>
-      <Route path="/" element={<PlansPage />} />
+      <Route
+        path="/"
+        element={
+          <>
+            <PlansPage />
+            <Link to="/outra">Ir para outra tela</Link>
+          </>
+        }
+      />
+      <Route path="/outra" element={<p>OUTRA TELA</p>} />
       <Route path="/planejamento/revisao/:id" element={<p>TELA DE REVISÃO</p>} />
     </Routes>,
   )
@@ -76,6 +85,25 @@ describe('PlansPage', () => {
     finish()
     expect(await screen.findByText('TELA DE REVISÃO')).toBeInTheDocument()
     expect(calls.filter((c) => c.path === '/api/plans/import')).toHaveLength(1)
+  })
+
+  it('an import that ends after the user went elsewhere does not take them to the review', async () => {
+    let finish!: () => void
+    const gate = new Promise<void>((resolve) => (finish = resolve))
+    const calls = mockFetch(routes(async () => (await gate, json({ id: PLAN_ID }, 201))))
+    const user = userEvent.setup()
+    await renderPage()
+    await screen.findByRole('heading', { name: 'Treino' })
+    await user.upload(card('Treino').getByLabelText('Enviar novo PDF'), pdf())
+    await card('Treino').findByText(/Lendo o PDF…/)
+
+    await user.click(screen.getByRole('link', { name: 'Ir para outra tela' }))
+    finish()
+    await waitFor(() => expect(calls.some((c) => c.path === '/api/plans/import')).toBe(true))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(screen.getByText('OUTRA TELA')).toBeInTheDocument()
+    expect(screen.queryByText('TELA DE REVISÃO')).not.toBeInTheDocument()
   })
 
   it('an unavailable import shows the message and allows trying again', async () => {

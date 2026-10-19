@@ -5,7 +5,8 @@ import { freshKey, move, setIn, updateList } from './docEdit'
 import { NumberField, Section, SelectField, TextField } from './fields'
 import { buttonClass, dangerButtonClass } from './styles'
 
-export type NewExercise = { name: string; group: MuscleGroup }
+/** An exercise of the document that the catalog does not know yet: it needs a muscle group. `id` is `dayKey/exerciseKey`. */
+export type NewExercise = { id: string; name: string; group: MuscleGroup }
 
 const GROUP_OPTIONS = MUSCLE_GROUPS.map((g) => ({ value: g, label: MUSCLE_GROUP_LABELS[g] }))
 
@@ -13,10 +14,10 @@ type Props = {
   doc: WorkoutDocument
   onChange: (doc: WorkoutDocument) => void
   newExercises: NewExercise[]
-  onNewExercisesChange: (list: NewExercise[]) => void
+  onGroupChange: (id: string, group: MuscleGroup) => void
 }
 
-export function WorkoutPlanEditor({ doc, onChange, newExercises, onNewExercisesChange }: Props) {
+export function WorkoutPlanEditor({ doc, onChange, newExercises, onGroupChange }: Props) {
   const set = (path: string, value: unknown) => onChange(setIn(doc, path, value))
 
   const addDay = () => {
@@ -29,15 +30,13 @@ export function WorkoutPlanEditor({ doc, onChange, newExercises, onNewExercisesC
       {newExercises.length > 0 && (
         <Section title="Exercícios novos">
           <p className="text-sm text-muted">Esses exercícios ainda não existem no seu catálogo. Confirme o grupo muscular de cada um.</p>
-          {newExercises.map((ex, i) => (
+          {newExercises.map((ex) => (
             <SelectField
-              key={`${ex.name}-${i}`}
+              key={ex.id}
               label={`Grupo de ${ex.name}`}
               value={ex.group}
               options={GROUP_OPTIONS}
-              onChange={(group) =>
-                onNewExercisesChange(newExercises.map((n, k) => (k === i ? { ...n, group: group as MuscleGroup } : n)))
-              }
+              onChange={(group) => onGroupChange(ex.id, group as MuscleGroup)}
             />
           ))}
         </Section>
@@ -208,8 +207,8 @@ function ExerciseEditor({
         <span className="text-sm font-medium">Séries (repetições)</span>
         {exercise.sets.map((s, k) => (
           <div key={k} role="group" aria-label={`Série ${k + 1}`} className="grid grid-cols-2 gap-2 rounded-control border border-line p-2">
-            <NumberField label="Mín." path={`${base}.sets[${k}]`} value={s.repsMin} onChange={(v) => set(`sets[${k}].repsMin`, v ?? 0)} />
-            <NumberField label="Máx." path={`${base}.sets[${k}]`} value={s.repsMax} onChange={(v) => set(`sets[${k}].repsMax`, v ?? 0)} />
+            <NumberField label="Mín." path={`${base}.sets[${k}]`} value={s.repsMin} error={s.repsMin == null ? 'Obrigatório' : undefined} onChange={(v) => set(`sets[${k}].repsMin`, v)} />
+            <NumberField label="Máx." path={`${base}.sets[${k}]`} value={s.repsMax} error={s.repsMax == null ? 'Obrigatório' : undefined} onChange={(v) => set(`sets[${k}].repsMax`, v)} />
             <div className="col-span-2">
               <TextField label="Técnica da série" path={`${base}.sets[${k}].technique`} value={s.technique} onChange={(v) => set(`sets[${k}].technique`, v)} />
             </div>
