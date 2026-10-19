@@ -63,7 +63,11 @@ builder.Services.AddAppRateLimiting();
 builder.Services.AddSync()
     .AddSyncHandler<DailyCheckinSyncHandler>()
     .AddSyncHandler<PlanVersionSyncHandler>()
-    .AddSyncHandler<ExerciseSyncHandler>();
+    .AddSyncHandler<ExerciseSyncHandler>()
+    .AddSyncHandler<WorkoutSessionSyncHandler>()
+    .AddSyncHandler<SetLogSyncHandler>()
+    .AddSyncHandler<ExerciseChangeSyncHandler>()
+    .AddSyncHandler<RotationOverrideSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
 builder.Services.AddPlanExtraction(builder.Configuration);

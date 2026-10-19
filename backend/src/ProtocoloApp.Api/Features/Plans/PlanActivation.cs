@@ -35,6 +35,12 @@ public static class PlanActivation
             ? new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), BrazilOffset).ToUniversalTime()
             : now;
 
+    public static readonly DateOnly MinCycleStart = new(2000, 1, 1);
+
+    /// <summary>2000-01-01 up to one year after today (UTC date).</summary>
+    public static bool IsValidCycleStart(DateOnly cycleStart, DateTimeOffset now) =>
+        cycleStart >= MinCycleStart && cycleStart <= DateOnly.FromDateTime(now.UtcDateTime).AddYears(1);
+
     /// <summary>Structural validation of a document of the given kind; keys are JSON paths.</summary>
     public static Dictionary<string, string[]> Validate(PlanKind kind, JsonElement document)
     {

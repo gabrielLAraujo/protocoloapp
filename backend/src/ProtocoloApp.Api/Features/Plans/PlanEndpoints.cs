@@ -251,6 +251,8 @@ public static class PlanEndpoints
         db.Entry(plan).Property(p => p.Document).IsModified = true;
         plan.NewExercises = newExercises;
         db.Entry(plan).Property(p => p.NewExercises).IsModified = true;
+        // The user has now filled in what the failed extraction left empty.
+        plan.ExtractionError = null;
         await SyncWrites.StampAsync(db, plan, userId, clock, ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -269,6 +271,9 @@ public static class PlanEndpoints
         ArgumentNullException.ThrowIfNull(principal);
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(clock);
+
+        if (request?.CycleStart is { } cycleStart && !PlanActivation.IsValidCycleStart(cycleStart, clock.GetUtcNow()))
+            return Invalid("cycleStart", "Data de início do ciclo inválida.");
 
         var result = await PlanActivation.ActivateAsync(db, clock, principal.GetUserId(), id, request?.CycleStart, ct);
         return result.Outcome switch

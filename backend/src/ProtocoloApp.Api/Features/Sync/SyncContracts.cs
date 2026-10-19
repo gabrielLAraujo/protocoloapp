@@ -72,6 +72,9 @@ public static class SyncErrors
     /// <summary>The entity is written by the server only (plan_version, exercise); clients can pull it but not push it.</summary>
     public const string ReadOnly = "read_only";
 
+    /// <summary>A referenced row (session, exercise, plan version, parent set) is missing, deleted or belongs to another user.</summary>
+    public const string InvalidReference = "invalid_reference";
+
     /// <summary>The database refused the row (a constraint the validation did not anticipate).</summary>
     public const string ConstraintViolation = "constraint_violation";
 

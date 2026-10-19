@@ -34,6 +34,48 @@ public sealed class PlanActivationTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Successful_put_clears_the_extraction_error()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        factory.Extractor.Handler = (_, _, _, _) => Task.FromResult(PlanExtractionResult.Failure(PlanExtractionResult.InvalidExtraction));
+        var draft = await api.ImportDraftAsync();
+        Assert.Equal(PlanExtractionResult.InvalidExtraction, draft.ExtractionError);
+
+        Assert.Equal(HttpStatusCode.OK, (await api.PutAsync(draft.Id, PlanSamples.Workout)).StatusCode);
+
+        Assert.Null((await api.GetAsync(draft.Id)).ExtractionError);
+    }
+
+    [Theory]
+    [InlineData("1999-12-31")]
+    [InlineData("2200-01-01")]
+    public async Task Activate_rejects_a_cycle_start_out_of_range(string cycleStart)
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var draft = await api.ImportDraftAsync();
+
+        var response = await api.ActivateAsync(draft.Id, DateOnly.Parse(cycleStart, System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True((await ProblemErrorsAsync(response)).TryGetProperty("cycleStart", out _));
+        Assert.Equal(PlanStatus.Draft, (await api.GetAsync(draft.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Activate_accepts_the_range_limits()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var first = await api.ImportDraftAsync();
+        var second = await api.ImportDraftAsync();
+
+        var early = await api.ActivateAsync(first.Id, new DateOnly(2000, 1, 1));
+        var late = await api.ActivateAsync(second.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(11));
+
+        Assert.Equal(HttpStatusCode.OK, early.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, late.StatusCode);
+    }
+
+    [Fact]
     public async Task Put_saves_the_edited_draft_and_rejects_unreadable_documents()
     {
         using var api = await PlanApi.CreateAsync(factory);
