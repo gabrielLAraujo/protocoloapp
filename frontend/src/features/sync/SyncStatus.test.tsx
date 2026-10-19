@@ -23,6 +23,8 @@ const fields: DailyCheckinFields = {
   waterL: 2,
   weightKg: null,
   note: null,
+  cardioDone: null,
+  cardioMinutes: null,
 }
 const at = new Date('2026-10-18T12:00:00Z')
 

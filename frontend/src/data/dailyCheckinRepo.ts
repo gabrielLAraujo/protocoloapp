@@ -23,6 +23,10 @@ export interface DailyCheckinFields {
   /** Kg, 30–300. */
   weightKg: number | null
   note: string | null
+  /** Null: not answered. */
+  cardioDone: boolean | null
+  /** 0–300; only with cardioDone === true, else null. */
+  cardioMinutes: number | null
 }
 
 export interface DailyCheckin extends DailyCheckinFields {
@@ -43,6 +47,8 @@ export interface DailyCheckinPayload {
   water_l: number
   weight_kg: number | null
   note: string | null
+  cardio_done: boolean | null
+  cardio_minutes: number | null
 }
 
 type Row = {
@@ -56,6 +62,8 @@ type Row = {
   water_l: number
   weight_kg: number | null
   note: string | null
+  cardio_done: number | null
+  cardio_minutes: number | null
   client_updated_at: string
   version: number | null
   deleted_at: string | null
@@ -71,6 +79,8 @@ const toPayload = (date: string, f: DailyCheckinFields): DailyCheckinPayload => 
   water_l: f.waterL,
   weight_kg: f.weightKg,
   note: f.note,
+  cardio_done: f.cardioDone,
+  cardio_minutes: f.cardioDone === true ? f.cardioMinutes : null,
 })
 
 const toCheckin = (row: Row): DailyCheckin => ({
@@ -84,6 +94,8 @@ const toCheckin = (row: Row): DailyCheckin => ({
   waterL: row.water_l,
   weightKg: row.weight_kg,
   note: row.note,
+  cardioDone: row.cardio_done == null ? null : row.cardio_done !== 0,
+  cardioMinutes: row.cardio_minutes,
   clientUpdatedAt: row.client_updated_at,
 })
 
@@ -94,15 +106,17 @@ const byId = async (db: LocalDb, id: string) =>
 async function writeRow(db: LocalDb, id: string, p: DailyCheckinPayload, clientUpdatedAt: string, version: number | null) {
   await db.execute(
     `INSERT INTO daily_checkins
-       (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, client_updated_at, version, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+       (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, cardio_done, cardio_minutes, client_updated_at, version, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT (id) DO UPDATE SET
        date = excluded.date, sleep_quality = excluded.sleep_quality, bowel = excluded.bowel,
        energy_wake = excluded.energy_wake, energy_day = excluded.energy_day, anxiety = excluded.anxiety,
        water_l = excluded.water_l, weight_kg = excluded.weight_kg, note = excluded.note,
+       cardio_done = excluded.cardio_done, cardio_minutes = excluded.cardio_minutes,
        client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, daily_checkins.version),
        deleted_at = NULL`,
-    [id, p.date, p.sleep_quality, p.bowel, p.energy_wake, p.energy_day, p.anxiety, p.water_l, p.weight_kg, p.note, clientUpdatedAt, version],
+    [id, p.date, p.sleep_quality, p.bowel, p.energy_wake, p.energy_day, p.anxiety, p.water_l, p.weight_kg, p.note,
+      p.cardio_done == null ? null : p.cardio_done ? 1 : 0, p.cardio_minutes ?? null, clientUpdatedAt, version],
   )
 }
 
@@ -181,6 +195,7 @@ export const dailyCheckinRepo = {
         ])
       return
     }
+    // Payloads from clients that predate cardio lack the two fields (read as not answered).
     await writeRow(db, record.id, record.payload as DailyCheckinPayload, clientUpdatedAt, record.version)
   },
 }

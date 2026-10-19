@@ -1,0 +1,399 @@
+import { applyPulled, nextClientUpdatedAt, type SyncEntityAdapter } from './entities'
+import { newId } from './ids'
+import type { LocalDb } from './localDb'
+import { outbox } from './outbox'
+
+export const WORKOUT_SESSION_ENTITY = 'workout_session'
+export const SET_LOG_ENTITY = 'set_log'
+export const EXERCISE_CHANGE_ENTITY = 'exercise_change'
+
+export type SetKind = 'normal' | 'drop' | 'partial' | 'rest_pause' | 'warmup'
+export type ExerciseChangeAction = 'swapped' | 'skipped'
+
+export interface SessionLocal {
+  id: string
+  /** yyyy-MM-dd, the device's calendar day. */
+  date: string
+  planVersionId: string
+  dayKey: string
+  startedAt: string
+  /** Null while the session is open. */
+  endedAt: string | null
+  note: string | null
+  clientUpdatedAt: string
+}
+
+export interface SetLocal {
+  id: string
+  sessionId: string
+  exerciseId: string
+  /** Key of the planned exercise this set belongs to; null for an exercise added on the spot. */
+  plannedExerciseKey: string | null
+  setIndex: number
+  weightKg: number
+  reps: number
+  kind: SetKind
+  parentSetId: string | null
+  completedAt: string
+  clientUpdatedAt: string
+}
+
+export interface ExerciseChangeLocal {
+  id: string
+  sessionId: string
+  plannedExerciseKey: string
+  action: ExerciseChangeAction
+  replacementExerciseId: string | null
+  note: string | null
+  clientUpdatedAt: string
+}
+
+export interface SetInput {
+  sessionId: string
+  exerciseId: string
+  plannedExerciseKey: string | null
+  /** 0–50. */
+  setIndex: number
+  /** 0–1000. */
+  weightKg: number
+  /** 0–200. */
+  reps: number
+  kind: SetKind
+  parentSetId?: string | null
+}
+
+export type SetPatch = Partial<Pick<SetInput, 'weightKg' | 'reps' | 'kind' | 'setIndex'>>
+
+export interface ExerciseChangeInput {
+  sessionId: string
+  plannedExerciseKey: string
+  action: ExerciseChangeAction
+  replacementExerciseId?: string | null
+  note?: string | null
+}
+
+/** The server's payloads (snake_case), see WorkoutPayloads.cs on the API. */
+interface SessionPayload {
+  date: string
+  plan_version_id: string
+  workout_day_key: string
+  started_at: string
+  ended_at: string | null
+  note: string | null
+}
+
+interface SetPayload {
+  session_id: string
+  exercise_id: string
+  planned_exercise_key: string | null
+  set_index: number
+  weight_kg: number
+  reps: number
+  kind: SetKind
+  parent_set_id: string | null
+  completed_at: string
+}
+
+interface ChangePayload {
+  session_id: string
+  planned_exercise_key: string
+  action: ExerciseChangeAction
+  replacement_exercise_id: string | null
+  note: string | null
+}
+
+type SessionRow = SessionPayload & { id: string; plan_version_id: string; client_updated_at: string; deleted_at: string | null }
+type SetRow = SetPayload & { id: string; client_updated_at: string; deleted_at: string | null }
+type ChangeRow = ChangePayload & { id: string; client_updated_at: string; deleted_at: string | null }
+
+const iso = (value: string) => new Date(value).toISOString()
+
+const toSession = (r: SessionRow): SessionLocal => ({
+  id: r.id,
+  date: r.date,
+  planVersionId: r.plan_version_id,
+  dayKey: r.workout_day_key,
+  startedAt: r.started_at,
+  endedAt: r.ended_at,
+  note: r.note,
+  clientUpdatedAt: r.client_updated_at,
+})
+
+const toSet = (r: SetRow): SetLocal => ({
+  id: r.id,
+  sessionId: r.session_id,
+  exerciseId: r.exercise_id,
+  plannedExerciseKey: r.planned_exercise_key,
+  setIndex: r.set_index,
+  weightKg: r.weight_kg,
+  reps: r.reps,
+  kind: r.kind,
+  parentSetId: r.parent_set_id,
+  completedAt: r.completed_at,
+  clientUpdatedAt: r.client_updated_at,
+})
+
+const toChange = (r: ChangeRow): ExerciseChangeLocal => ({
+  id: r.id,
+  sessionId: r.session_id,
+  plannedExerciseKey: r.planned_exercise_key,
+  action: r.action,
+  replacementExerciseId: r.replacement_exercise_id,
+  note: r.note,
+  clientUpdatedAt: r.client_updated_at,
+})
+
+async function writeSession(db: LocalDb, id: string, p: SessionPayload, clientUpdatedAt: string, version: number | null) {
+  await db.execute(
+    `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, client_updated_at, version, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+     ON CONFLICT (id) DO UPDATE SET
+       date = excluded.date, plan_version_id = excluded.plan_version_id, workout_day_key = excluded.workout_day_key,
+       started_at = excluded.started_at, ended_at = excluded.ended_at, note = excluded.note,
+       client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, workout_sessions.version), deleted_at = NULL`,
+    [id, p.date, p.plan_version_id, p.workout_day_key, p.started_at, p.ended_at, p.note, clientUpdatedAt, version],
+  )
+}
+
+async function writeSet(db: LocalDb, id: string, p: SetPayload, clientUpdatedAt: string, version: number | null) {
+  await db.execute(
+    `INSERT INTO set_logs (id, session_id, exercise_id, planned_exercise_key, set_index, weight_kg, reps, kind, parent_set_id, completed_at, client_updated_at, version, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+     ON CONFLICT (id) DO UPDATE SET
+       session_id = excluded.session_id, exercise_id = excluded.exercise_id, planned_exercise_key = excluded.planned_exercise_key,
+       set_index = excluded.set_index, weight_kg = excluded.weight_kg, reps = excluded.reps, kind = excluded.kind,
+       parent_set_id = excluded.parent_set_id, completed_at = excluded.completed_at,
+       client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, set_logs.version), deleted_at = NULL`,
+    [id, p.session_id, p.exercise_id, p.planned_exercise_key, p.set_index, p.weight_kg, p.reps, p.kind, p.parent_set_id, p.completed_at, clientUpdatedAt, version],
+  )
+}
+
+async function writeChange(db: LocalDb, id: string, p: ChangePayload, clientUpdatedAt: string, version: number | null) {
+  await db.execute(
+    `INSERT INTO exercise_changes (id, session_id, planned_exercise_key, action, replacement_exercise_id, note, client_updated_at, version, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+     ON CONFLICT (id) DO UPDATE SET
+       session_id = excluded.session_id, planned_exercise_key = excluded.planned_exercise_key, action = excluded.action,
+       replacement_exercise_id = excluded.replacement_exercise_id, note = excluded.note,
+       client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, exercise_changes.version), deleted_at = NULL`,
+    [id, p.session_id, p.planned_exercise_key, p.action, p.replacement_exercise_id, p.note, clientUpdatedAt, version],
+  )
+}
+
+const sessionPayload = (r: SessionRow): SessionPayload => ({
+  date: r.date,
+  plan_version_id: r.plan_version_id,
+  workout_day_key: r.workout_day_key,
+  started_at: r.started_at,
+  ended_at: r.ended_at,
+  note: r.note,
+})
+
+const setPayload = (r: SetRow): SetPayload => ({
+  session_id: r.session_id,
+  exercise_id: r.exercise_id,
+  planned_exercise_key: r.planned_exercise_key,
+  set_index: r.set_index,
+  weight_kg: r.weight_kg,
+  reps: r.reps,
+  kind: r.kind,
+  parent_set_id: r.parent_set_id,
+  completed_at: r.completed_at,
+})
+
+/**
+ * Every write stores the row and queues it in one transaction. The session is queued when it starts, so it always
+ * precedes its sets in the outbox (the server requires the session to exist); later edits queue new entries after.
+ */
+export const workoutRepo = {
+  /** Starts a session now and returns its id. */
+  async startSession(
+    db: LocalDb,
+    _userId: string,
+    input: { date: string; planVersionId: string; dayKey: string },
+    now: Date,
+  ): Promise<string> {
+    const id = newId()
+    const payload: SessionPayload = {
+      date: input.date,
+      plan_version_id: input.planVersionId,
+      workout_day_key: input.dayKey,
+      started_at: now.toISOString(),
+      ended_at: null,
+      note: null,
+    }
+    const clientUpdatedAt = now.toISOString()
+    await db.transaction(async (tx) => {
+      await writeSession(tx, id, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: WORKOUT_SESSION_ENTITY, id, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+    })
+    return id
+  },
+
+  /** Ends the session now. No-op when it is already ended. */
+  async finishSession(db: LocalDb, _userId: string, sessionId: string, now: Date): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [row] = await tx.query<SessionRow>('SELECT * FROM workout_sessions WHERE id = ? AND deleted_at IS NULL', [sessionId])
+      if (!row) throw new Error('Session not found.')
+      if (row.ended_at !== null) return
+      // The server requires ended_at >= started_at, even if the clock went backwards.
+      const endedAt = new Date(Math.max(now.getTime(), Date.parse(row.started_at))).toISOString()
+      const payload = { ...sessionPayload(row), ended_at: endedAt }
+      const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
+      await writeSession(tx, sessionId, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: WORKOUT_SESSION_ENTITY, id: sessionId, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+    })
+  },
+
+  /** The session started and not yet finished (the newest one), or null. */
+  async openSession(db: LocalDb): Promise<SessionLocal | null> {
+    const [row] = await db.query<SessionRow>(
+      'SELECT * FROM workout_sessions WHERE ended_at IS NULL AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 1',
+    )
+    return row ? toSession(row) : null
+  },
+
+  /** Live sessions with `from <= date <= to` (yyyy-MM-dd), oldest first. */
+  async sessionsBetween(db: LocalDb, from: string, to: string): Promise<SessionLocal[]> {
+    const rows = await db.query<SessionRow>(
+      'SELECT * FROM workout_sessions WHERE date >= ? AND date <= ? AND deleted_at IS NULL ORDER BY date, started_at',
+      [from, to],
+    )
+    return rows.map(toSession)
+  },
+
+  async logSet(db: LocalDb, _userId: string, input: SetInput, now: Date): Promise<string> {
+    const id = newId()
+    const payload: SetPayload = {
+      session_id: input.sessionId,
+      exercise_id: input.exerciseId,
+      planned_exercise_key: input.plannedExerciseKey,
+      set_index: input.setIndex,
+      weight_kg: input.weightKg,
+      reps: input.reps,
+      kind: input.kind,
+      parent_set_id: input.parentSetId ?? null,
+      completed_at: now.toISOString(),
+    }
+    const clientUpdatedAt = now.toISOString()
+    await db.transaction(async (tx) => {
+      await writeSet(tx, id, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: SET_LOG_ENTITY, id, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+    })
+    return id
+  },
+
+  async updateSet(db: LocalDb, _userId: string, setId: string, patch: SetPatch, now: Date): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [row] = await tx.query<SetRow>('SELECT * FROM set_logs WHERE id = ? AND deleted_at IS NULL', [setId])
+      if (!row) throw new Error('Set not found.')
+      const payload: SetPayload = {
+        ...setPayload(row),
+        ...(patch.weightKg !== undefined && { weight_kg: patch.weightKg }),
+        ...(patch.reps !== undefined && { reps: patch.reps }),
+        ...(patch.kind !== undefined && { kind: patch.kind }),
+        ...(patch.setIndex !== undefined && { set_index: patch.setIndex }),
+      }
+      const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
+      await writeSet(tx, setId, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: SET_LOG_ENTITY, id: setId, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+    })
+  },
+
+  /** Deletes the set (soft, like the server) and queues the delete. No-op when it is already gone. */
+  async deleteSet(db: LocalDb, _userId: string, setId: string, now: Date): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [row] = await tx.query<SetRow>('SELECT * FROM set_logs WHERE id = ?', [setId])
+      if (!row || row.deleted_at !== null) return
+      const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
+      await tx.execute('UPDATE set_logs SET deleted_at = ?, client_updated_at = ? WHERE id = ?', [clientUpdatedAt, clientUpdatedAt, setId])
+      await outbox.enqueue(tx, { entity: SET_LOG_ENTITY, id: setId, op: 'delete', payload: null, clientUpdatedAt })
+    })
+  },
+
+  /** Records that a planned exercise was swapped for another or skipped in this session. */
+  async recordChange(db: LocalDb, _userId: string, input: ExerciseChangeInput, now: Date): Promise<string> {
+    const id = newId()
+    const payload: ChangePayload = {
+      session_id: input.sessionId,
+      planned_exercise_key: input.plannedExerciseKey,
+      action: input.action,
+      replacement_exercise_id: input.action === 'swapped' ? (input.replacementExerciseId ?? null) : null,
+      note: input.note ?? null,
+    }
+    const clientUpdatedAt = now.toISOString()
+    await db.transaction(async (tx) => {
+      await writeChange(tx, id, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: EXERCISE_CHANGE_ENTITY, id, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+    })
+    return id
+  },
+
+  async changesForSession(db: LocalDb, sessionId: string): Promise<ExerciseChangeLocal[]> {
+    const rows = await db.query<ChangeRow>(
+      'SELECT * FROM exercise_changes WHERE session_id = ? AND deleted_at IS NULL ORDER BY client_updated_at, id',
+      [sessionId],
+    )
+    return rows.map(toChange)
+  },
+
+  /** The session's live sets in the order they were done. */
+  async setsForSession(db: LocalDb, sessionId: string): Promise<SetLocal[]> {
+    const rows = await db.query<SetRow>(
+      'SELECT * FROM set_logs WHERE session_id = ? AND deleted_at IS NULL ORDER BY completed_at, set_index, id',
+      [sessionId],
+    )
+    return rows.map(toSet)
+  },
+
+  /** The latest `limit` live sets of an exercise across sessions, newest first. */
+  async setsForExercise(db: LocalDb, exerciseId: string, limit: number): Promise<SetLocal[]> {
+    const rows = await db.query<SetRow>(
+      'SELECT * FROM set_logs WHERE exercise_id = ? AND deleted_at IS NULL ORDER BY completed_at DESC, set_index DESC, id LIMIT ?',
+      [exerciseId, limit],
+    )
+    return rows.map(toSet)
+  },
+}
+
+export const workoutSessionSync: SyncEntityAdapter = {
+  entity: WORKOUT_SESSION_ENTITY,
+  table: 'workout_sessions',
+  applyRemote: (db, record) =>
+    applyPulled(db, WORKOUT_SESSION_ENTITY, 'workout_sessions', record, async (payload, clientUpdatedAt) => {
+      const p = payload as SessionPayload
+      await writeSession(
+        db,
+        record.id,
+        { ...p, ended_at: p.ended_at === null ? null : iso(p.ended_at), started_at: iso(p.started_at), note: p.note ?? null },
+        clientUpdatedAt,
+        record.version,
+      )
+    }),
+}
+
+export const setLogSync: SyncEntityAdapter = {
+  entity: SET_LOG_ENTITY,
+  table: 'set_logs',
+  applyRemote: (db, record) =>
+    applyPulled(db, SET_LOG_ENTITY, 'set_logs', record, async (payload, clientUpdatedAt) => {
+      const p = payload as SetPayload
+      await writeSet(
+        db,
+        record.id,
+        { ...p, planned_exercise_key: p.planned_exercise_key ?? null, parent_set_id: p.parent_set_id ?? null, completed_at: iso(p.completed_at) },
+        clientUpdatedAt,
+        record.version,
+      )
+    }),
+}
+
+export const exerciseChangeSync: SyncEntityAdapter = {
+  entity: EXERCISE_CHANGE_ENTITY,
+  table: 'exercise_changes',
+  applyRemote: (db, record) =>
+    applyPulled(db, EXERCISE_CHANGE_ENTITY, 'exercise_changes', record, async (payload, clientUpdatedAt) => {
+      const p = payload as ChangePayload
+      await writeChange(db, record.id, { ...p, replacement_exercise_id: p.replacement_exercise_id ?? null, note: p.note ?? null }, clientUpdatedAt, record.version)
+    }),
+}

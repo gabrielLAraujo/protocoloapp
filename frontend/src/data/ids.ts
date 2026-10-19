@@ -1,4 +1,4 @@
-import { v5 } from 'uuid'
+import { v4, v5 } from 'uuid'
 
 /** Fixed namespace of the deterministic check-in ids. Never change it: ids already stored would no longer match. */
 export const CHECKIN_NAMESPACE = '6f1c0b8e-3a52-4d7e-9a61-1f2b8c7d4e90'
@@ -10,3 +10,11 @@ export const CHECKIN_NAMESPACE = '6f1c0b8e-3a52-4d7e-9a61-1f2b8c7d4e90'
 export function checkinIdForDate(userId: string, date: string): string {
   return v5(`${userId}:daily_checkin:${date}`, CHECKIN_NAMESPACE)
 }
+
+/** The id of a user's rotation override for a date (yyyy-MM-dd): one per day, the same on every device. */
+export function rotationOverrideIdForDate(userId: string, date: string): string {
+  return v5(`${userId}:rotation_override:${date}`, CHECKIN_NAMESPACE)
+}
+
+/** A new random id for records without a natural key (sessions, sets, exercise changes). */
+export const newId = (): string => v4()

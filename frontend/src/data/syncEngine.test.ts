@@ -21,6 +21,8 @@ const fields: DailyCheckinFields = {
   waterL: 2.5,
   weightKg: null,
   note: null,
+  cardioDone: null,
+  cardioMinutes: null,
 }
 
 /** A mutable clock the engine reads through `clock()`. */

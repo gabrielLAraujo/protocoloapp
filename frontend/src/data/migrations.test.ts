@@ -79,3 +79,33 @@ describe('migrateLocalDb', () => {
     expect(await db.query('SELECT key FROM sync_state')).toEqual([{ key: 'b' }])
   })
 })
+
+describe('local migration 2', () => {
+  it('keeps the check-ins and outbox of a device on version 1 and adds the new tables', async () => {
+    const db = await createSqlJsLocalDb()
+    // Version 1 as released.
+    await migrateLocalDb(db, 1)
+    await db.execute(
+      `INSERT INTO daily_checkins (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, client_updated_at, version, deleted_at)
+       VALUES ('c1', '2026-10-01', 4, 'normal', 3, 4, 2, 2.5, 80.4, 'ok', '2026-10-01T10:00:00.000Z', 7, NULL)`,
+    )
+    await db.execute(
+      "INSERT INTO outbox (entity, id, op, payload, client_updated_at, next_attempt_at) VALUES ('daily_checkin', 'c1', 'upsert', '{}', '2026-10-01T10:00:00.000Z', '1970-01-01T00:00:00.000Z')",
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT * FROM daily_checkins')).toEqual([
+      {
+        id: 'c1', date: '2026-10-01', sleep_quality: 4, bowel: 'normal', energy_wake: 3, energy_day: 4, anxiety: 2,
+        water_l: 2.5, weight_kg: 80.4, note: 'ok', client_updated_at: '2026-10-01T10:00:00.000Z', version: 7, deleted_at: null,
+        cardio_done: null, cardio_minutes: null,
+      },
+    ])
+    expect(await db.query('SELECT id FROM outbox')).toEqual([{ id: 'c1' }])
+    const tables = await db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'")
+    expect(tables.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['plan_versions', 'exercises', 'workout_sessions', 'set_logs', 'exercise_changes', 'rotation_overrides']),
+    )
+  })
+})

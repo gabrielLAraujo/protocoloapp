@@ -42,3 +42,37 @@ export function nextClientUpdatedAt(now: Date, previous: string | undefined): st
 
 /** Remote timestamps carry microseconds and an offset; locally everything is `toISOString()` (ms, UTC). */
 export const normalizeTimestamp = (value: string) => new Date(value).toISOString()
+
+/**
+ * The common part of applying a pulled record to a row of `table` (a constant, never user input): skips records the
+ * device already has (or a pending local change that is newer), turns a delete into `deleted_at`, and otherwise
+ * calls `write` with the payload and the normalized client_updated_at.
+ */
+export async function applyPulled(
+  db: LocalDb,
+  entity: string,
+  table: string,
+  record: SyncRecord,
+  write: (payload: unknown, clientUpdatedAt: string) => Promise<void>,
+): Promise<void> {
+  const [local] = await db.query<{ version: number | null; client_updated_at: string }>(
+    `SELECT version, client_updated_at FROM ${table} WHERE id = ?`,
+    [record.id],
+  )
+  if (local?.version != null && record.version <= local.version) return
+  if (await localChangeWins(db, entity, record.id, local?.client_updated_at, record.clientUpdatedAt)) return
+
+  const clientUpdatedAt = normalizeTimestamp(record.clientUpdatedAt)
+  if (record.deletedAt !== null || record.payload === null) {
+    // Nothing to hide when the row never reached this device.
+    if (local)
+      await db.execute(`UPDATE ${table} SET deleted_at = ?, client_updated_at = ?, version = ? WHERE id = ?`, [
+        normalizeTimestamp(record.deletedAt ?? record.clientUpdatedAt),
+        clientUpdatedAt,
+        record.version,
+        record.id,
+      ])
+    return
+  }
+  await write(record.payload, clientUpdatedAt)
+}

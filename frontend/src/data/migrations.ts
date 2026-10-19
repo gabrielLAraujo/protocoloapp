@@ -45,18 +45,100 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'CREATE INDEX ix_daily_checkins_date ON daily_checkins (date)',
     ],
   },
+  {
+    version: 2,
+    // Additive only: devices already hold real check-ins.
+    statements: [
+      'ALTER TABLE daily_checkins ADD COLUMN cardio_done INTEGER',
+      'ALTER TABLE daily_checkins ADD COLUMN cardio_minutes INTEGER',
+      // Plans and the exercise catalog are written by the server only (pull).
+      `CREATE TABLE plan_versions (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        document TEXT NOT NULL,
+        low_confidence TEXT NOT NULL DEFAULT '[]',
+        activated_at TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_plan_versions_kind_status ON plan_versions (kind, status)',
+      `CREATE TABLE exercises (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL,
+        primary_muscle_group TEXT NOT NULL,
+        aliases TEXT NOT NULL DEFAULT '[]',
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      `CREATE TABLE workout_sessions (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        plan_version_id TEXT NOT NULL,
+        workout_day_key TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        note TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_workout_sessions_date ON workout_sessions (date)',
+      `CREATE TABLE set_logs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        exercise_id TEXT NOT NULL,
+        planned_exercise_key TEXT,
+        set_index INTEGER NOT NULL,
+        weight_kg REAL NOT NULL,
+        reps INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        parent_set_id TEXT,
+        completed_at TEXT NOT NULL,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_set_logs_session ON set_logs (session_id)',
+      'CREATE INDEX ix_set_logs_exercise ON set_logs (exercise_id, completed_at)',
+      `CREATE TABLE exercise_changes (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        planned_exercise_key TEXT NOT NULL,
+        action TEXT NOT NULL,
+        replacement_exercise_id TEXT,
+        note TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_exercise_changes_session ON exercise_changes (session_id)',
+      `CREATE TABLE rotation_overrides (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        workout_day_key TEXT NOT NULL,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_rotation_overrides_date ON rotation_overrides (date)',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version
 
-/** Applies the pending migrations, each in its own transaction. Safe to run on every start. */
-export async function migrateLocalDb(db: LocalDb): Promise<void> {
+/** Applies the pending migrations (up to `upTo`, which only tests lower), each in its own transaction. Safe to run on every start. */
+export async function migrateLocalDb(db: LocalDb, upTo: number = LATEST_LOCAL_VERSION): Promise<void> {
   await db.execute('CREATE TABLE IF NOT EXISTS local_schema_version (version INTEGER PRIMARY KEY)')
   const [row] = await db.query<{ version: number | null }>('SELECT MAX(version) AS version FROM local_schema_version')
   const current = row?.version ?? 0
 
   for (const migration of MIGRATIONS) {
-    if (migration.version <= current) continue
+    if (migration.version <= current || migration.version > upTo) continue
     await db.transaction(async (tx) => {
       for (const statement of migration.statements) await tx.execute(statement)
       await tx.execute('INSERT INTO local_schema_version (version) VALUES (?)', [migration.version])

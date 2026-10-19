@@ -26,6 +26,17 @@ export const checkinSchema = z.object({
     .refine((v) => v === '' || NUMBER.test(v), 'Informe um número válido')
     .refine((v) => !NUMBER.test(v) || (toNumber(v) >= 30 && toNumber(v) <= 300), 'Peso entre 30 e 300 kg')
     .transform((v) => (v === '' ? null : toNumber(v))),
+  cardioDone: z
+    .enum(['yes', 'no'], { error: CHOOSE })
+    .optional()
+    .transform((v) => (v === undefined ? null : v === 'yes')),
+  /** Only used when cardioDone is yes (the form clears it otherwise); whole minutes. */
+  cardioMinutes: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^\d+$/.test(v), 'Informe os minutos (número inteiro)')
+    .refine((v) => !/^\d+$/.test(v) || Number(v) <= 300, 'Máximo 300 min')
+    .transform((v) => (v === '' ? null : Number(v))),
   note: z
     .string()
     .max(2000, 'Máximo 2000 caracteres')

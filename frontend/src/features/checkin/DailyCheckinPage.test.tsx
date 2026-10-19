@@ -94,6 +94,34 @@ describe('DailyCheckinPage', () => {
     expect(await dailyCheckinRepo.get(db, '2026-10-18')).toBeNull()
   })
 
+  it('saves cardio: minutes appear only for Sim, are limited to 300 and are dropped for Não', async () => {
+    const { db, view } = await setupApp()
+    const user = userEvent.setup()
+    view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    await fillAll(user)
+    expect(screen.queryByLabelText('Minutos de cardio')).not.toBeInTheDocument()
+
+    await pick(user, 'Cardio feito?', 'Sim')
+    await user.type(screen.getByLabelText(/Minutos de cardio/), '301')
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(await screen.findByText('Máximo 300 min')).toBeInTheDocument()
+    expect(await dailyCheckinRepo.get(db, '2026-10-18')).toBeNull()
+
+    await user.clear(screen.getByLabelText(/Minutos de cardio/))
+    await user.type(screen.getByLabelText(/Minutos de cardio/), '40')
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+    await screen.findByText('Salvo — será sincronizado')
+    expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ cardioDone: true, cardioMinutes: 40 })
+
+    await pick(user, 'Cardio feito?', 'Não')
+    expect(screen.queryByLabelText('Minutos de cardio')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+    await waitFor(async () =>
+      expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ cardioDone: false, cardioMinutes: null }),
+    )
+  })
+
   it('asks for the required answers', async () => {
     const { view } = await setupApp()
     const user = userEvent.setup()
