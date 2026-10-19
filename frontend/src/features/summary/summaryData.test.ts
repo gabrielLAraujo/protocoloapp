@@ -187,6 +187,7 @@ describe('adherenceRates', () => {
         protocol: { activatedOn: '2026-10-20', document },
         workoutPlans,
         overrides: [],
+        slots: [],
         adherence: [
           log('2026-10-20', 'meal', '1', 'done'),
           log('2026-10-20', 'meal', '2', 'partial'),
@@ -199,11 +200,33 @@ describe('adherenceRates', () => {
       },
       '2026-10-20',
       '2026-10-21',
+      new Date(2026, 9, 25, 12), // both days are past: every planned target counts
     )
     expect(rates.diet).toEqual({ done: 2, partial: 1, planned: 4 })
     expect(formatRate(rates.diet)).toBe('63%')
     expect(rates.items).toEqual({ done: 0, partial: 1, planned: 1 })
     expect(formatRate(rates.items)).toBe('50%')
+  })
+
+  it('today only counts the marked targets and those whose time has come', () => {
+    const slots = [
+      { slot: 'meal_1', dayType: 'off' as const, time: '07:00', reminderEnabled: true },
+      { slot: 'meal_2', dayType: 'off' as const, time: '12:00', reminderEnabled: true },
+    ]
+    const at = (h: number, m: number, adherence: AdherenceLogLocal[] = []) =>
+      adherenceRates({ protocol: { activatedOn: '2026-10-20', document }, workoutPlans, overrides: [], adherence, slots }, '2026-10-21', '2026-10-21', new Date(2026, 9, 21, h, m))
+
+    expect(at(6, 59).diet).toEqual({ done: 0, partial: 0, planned: 0 })
+    expect(formatRate(at(6, 59).diet)).toBe('—')
+    expect(at(7, 0).diet).toEqual({ done: 0, partial: 0, planned: 1 }) // REF 1 is due at 07:00
+    expect(at(9, 0, [log('2026-10-21', 'meal', '2', 'done')]).diet).toEqual({ done: 1, partial: 0, planned: 2 }) // REF 2 marked early
+    expect(at(12, 0).diet).toEqual({ done: 0, partial: 0, planned: 2 })
+
+    // An untimed target counts today only once marked.
+    const untimed = (adherence: AdherenceLogLocal[]) =>
+      adherenceRates({ protocol: { activatedOn: '2026-10-20', document }, workoutPlans, overrides: [], adherence, slots: [] }, '2026-10-21', '2026-10-21', new Date(2026, 9, 21, 23, 0))
+    expect(untimed([]).diet.planned).toBe(0)
+    expect(untimed([log('2026-10-21', 'meal', '1', 'partial')]).diet).toEqual({ done: 0, partial: 1, planned: 1 })
   })
 
   it('nothing planned shows "—"', () => {

@@ -125,6 +125,35 @@ describe('DailyCheckinPage', () => {
     await waitFor(async () =>
       expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ cardioDone: false, cardioMinutes: null }),
     )
+    expect((await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).find((l) => l.targetType === 'cardio')).toMatchObject({ status: 'missed', reason: null })
+  })
+
+  it.each([
+    ['done', 'Sim'],
+    ['missed', 'Não'],
+  ] as const)('prefills cardio from a %s mark on Hoje while the check-in has not answered it', async (status, answer) => {
+    const { db, view } = await setupApp()
+    await adherenceRepo.mark(db, USER_A, { date: '2026-10-18', targetType: 'cardio', targetKey: 'cardio', status }, new Date())
+    view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    expect(within(screen.getByRole('radiogroup', { name: 'Cardio feito?' })).getByRole('radio', { name: answer })).toBeChecked()
+  })
+
+  it('a partial cardio mark leaves cardio empty, and an answered check-in wins over the mark', async () => {
+    const { db, view } = await setupApp()
+    await adherenceRepo.mark(db, USER_A, { date: '2026-10-18', targetType: 'cardio', targetKey: 'cardio', status: 'partial' }, new Date())
+    const first = view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    for (const radio of within(screen.getByRole('radiogroup', { name: 'Cardio feito?' })).getAllByRole('radio')) expect(radio).not.toBeChecked()
+    first.unmount()
+
+    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-18', {
+      sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone: false, cardioMinutes: null,
+    }, new Date())
+    await adherenceRepo.mark(db, USER_A, { date: '2026-10-18', targetType: 'cardio', targetKey: 'cardio', status: 'done' }, new Date())
+    view(<DailyCheckinPage />)
+    await screen.findByRole('button', { name: 'Salvar' })
+    expect(within(screen.getByRole('radiogroup', { name: 'Cardio feito?' })).getByRole('radio', { name: 'Não' })).toBeChecked()
   })
 
   it('asks for the required answers', async () => {

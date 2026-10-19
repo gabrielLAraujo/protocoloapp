@@ -57,7 +57,9 @@ describe('BottomNav', () => {
 
   it('"Hoje" is highlighted on the check-in it opens', () => {
     setup('/checkin')
+    expect(screen.getByRole('link', { name: 'Hoje' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Hoje' }).className).toContain('text-accent')
+    expect(screen.getByRole('link', { name: 'Resumo' })).not.toHaveAttribute('aria-current')
     expect(screen.getByRole('link', { name: 'Resumo' }).className).not.toContain('text-accent')
   })
 

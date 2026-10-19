@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
-import { NavLink, useLocation } from 'react-router'
+import { Link, NavLink, useLocation } from 'react-router'
 import { useAuth } from '../auth/authContext'
 
 const icon = (children: ReactNode) => (
@@ -15,6 +15,11 @@ const TABS: { to: string; label: string; end: boolean; also?: string[]; icon: Re
   { to: '/treino', label: 'Treino', end: false, icon: icon(<><path d="M6 8v8" /><path d="M18 8v8" /><path d="M3 10v4" /><path d="M21 10v4" /><path d="M6 12h12" /></>) },
   { to: '/planejamento', label: 'Planejamento', end: false, icon: icon(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" /></>) },
 ]
+
+/** Its own path (exactly, with `end`, or with sub-paths) or one of `also`. */
+const isTabActive = (tab: (typeof TABS)[number], pathname: string) =>
+  (tab.end ? pathname === tab.to : pathname === tab.to || pathname.startsWith(`${tab.to}/`)) ||
+  (tab.also?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? false)
 
 const tabClass = (active: boolean) =>
   `flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-accent ${active ? 'text-accent' : 'text-muted hover:text-ink'}`
@@ -112,17 +117,15 @@ export function BottomNav() {
         aria-label="Navegação principal"
         className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
       >
-        {TABS.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            end={tab.end}
-            className={({ isActive }) => tabClass(isActive || (tab.also?.some((p) => location.pathname.startsWith(p)) ?? false))}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </NavLink>
-        ))}
+        {TABS.map((tab) => {
+          const active = isTabActive(tab, location.pathname)
+          return (
+            <Link key={tab.to} to={tab.to} aria-current={active ? 'page' : undefined} className={tabClass(active)}>
+              {tab.icon}
+              <span>{tab.label}</span>
+            </Link>
+          )
+        })}
         <button
           ref={moreButton}
           type="button"

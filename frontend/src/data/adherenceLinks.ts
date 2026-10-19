@@ -30,7 +30,8 @@ export async function finishSessionAndMark(db: LocalDb, userId: string, sessionI
 
 /**
  * Saves the day's check-in (dailyCheckinRepo.upsert, same `expected` guard) and marks the check-in done; cardio
- * answered "Sim" also marks cardio done. "Não" leaves the cardio mark alone (it may hold a reason given on Hoje).
+ * answered "Sim" marks cardio done; "Não" marks it missed unless it is already missed or partial (keeping the reason
+ * given on Hoje).
  */
 export async function saveCheckinAndMark(
   db: LocalDb,
@@ -43,8 +44,13 @@ export async function saveCheckinAndMark(
   return db.transaction(async (tx) => {
     const stamp = await dailyCheckinRepo.upsert(tx, userId, date, fields, now, options)
     await adherenceRepo.mark(tx, userId, { date, targetType: 'checkin', targetKey: CHECKIN_KEY, status: 'done' }, now)
+    const cardio = { date, targetType: 'cardio' as const, targetKey: CARDIO_KEY }
     if (fields.cardioDone === true) {
-      await adherenceRepo.mark(tx, userId, { date, targetType: 'cardio', targetKey: CARDIO_KEY, status: 'done' }, now)
+      await adherenceRepo.mark(tx, userId, { ...cardio, status: 'done' }, now)
+    } else if (fields.cardioDone === false) {
+      // "Não" overrides a done mark (or fills a missing one), but keeps a missed/partial mark with its reason from Hoje.
+      const current = (await adherenceRepo.between(tx, date, date)).find((l) => l.targetType === 'cardio' && l.targetKey === CARDIO_KEY)
+      if (!current || current.status === 'done') await adherenceRepo.mark(tx, userId, { ...cardio, status: 'missed' }, now)
     }
     return stamp
   })

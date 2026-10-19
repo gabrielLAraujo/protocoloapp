@@ -1,10 +1,11 @@
 import type { AdherenceLogLocal } from '../../data/adherenceRepo'
+import { localDate } from '../checkin/localDate'
 import type { DailyCheckin } from '../../data/dailyCheckinRepo'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import { dateRange, diffDays } from '../../domain/calendarDate'
 import { cycleInfo, type CycleInfo } from '../../domain/cycle'
-import { buildDay, type DayWorkoutPlan } from '../../domain/dayPlan'
+import { buildDay, type DaySlot, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { MuscleGroup } from '../../domain/muscleGroups'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import { plannedWorkoutDays, resolveDay, type RotationOverrideAt, type WorkoutPlanAt } from '../../domain/rotation'
@@ -20,6 +21,8 @@ export interface SummaryInput {
   sets: SetLocal[]
   checkins: DailyCheckin[]
   exercises: ExerciseLocal[]
+  /** Days with a cardio `done` mark (Hoje); counted with the check-in's "Sim", once per day. */
+  cardioMarkDates?: readonly string[]
 }
 
 export type DayState = 'done' | 'missed' | 'rest' | 'future' | 'today'
@@ -104,7 +107,9 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
   // A session counts as a workout done only with at least one working set (an empty or warm-up-only session is not a workout).
   const withWorkingSets = new Set(input.sets.filter((s) => s.kind !== 'warmup').map((s) => s.sessionId))
   const sessionDates = new Set(input.sessions.filter((s) => s.date >= start && s.date <= statsTo && withWorkingSets.has(s.id)).map((s) => s.date))
-  const cardioDates = new Set(input.checkins.filter((c) => c.cardioDone === true && c.date >= start && c.date <= calendarTo).map((c) => c.date))
+  const cardioDates = new Set(
+    [...input.checkins.filter((c) => c.cardioDone === true).map((c) => c.date), ...(input.cardioMarkDates ?? [])].filter((d) => d >= start && d <= calendarTo),
+  )
 
   const calendar: CalendarDay[] = dateRange(start, calendarTo).map((date) => {
     const planned = resolveDay(date, input.plans, input.overrides).kind === 'workout'
@@ -128,7 +133,7 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
     calendar,
     workouts: { done: sessionDates.size, planned: plannedDays.length },
     cardio: {
-      done: inRange.filter((c) => c.cardioDone === true).length,
+      done: [...cardioDates].filter((d) => d <= statsTo).length,
       planned: plannedCardio(protocol.document, elapsedDays),
     },
     sleep: average(inRange.map((c) => c.sleepQuality)),
@@ -160,23 +165,31 @@ export interface AdherenceInput {
   workoutPlans: DayWorkoutPlan[]
   overrides: RotationOverrideAt[]
   adherence: AdherenceLogLocal[]
+  /** The reminder times: today, a target is only due once its time has come. */
+  slots: readonly DaySlot[]
 }
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
 
 /**
  * Diet (meals) and protocol items from `from` to `to` (inclusive): what buildDay plans for each day, and how much of
- * it was marked. A mark of something not planned that day does not count.
+ * it was marked. A mark of something not planned that day does not count. On past days every planned target counts;
+ * today (the local date of `now`) only the marked ones and those whose time has come, so the morning does not read low.
  */
-export function adherenceRates(input: AdherenceInput, from: string, to: string): { diet: AdherenceRate; items: AdherenceRate } {
+export function adherenceRates(input: AdherenceInput, from: string, to: string, now: Date): { diet: AdherenceRate; items: AdherenceRate } {
+  const today = localDate(now)
+  const clock = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
   const diet: AdherenceRate = { done: 0, partial: 0, planned: 0 }
   const items: AdherenceRate = { done: 0, partial: 0, planned: 0 }
   const marks = new Map(input.adherence.map((l) => [`${l.date}\n${l.targetType}\n${l.targetKey}`, l.status]))
   for (const date of dateRange(from, to)) {
-    const plan = buildDay(date, input.protocol.document, input.workoutPlans, input.overrides, [], { protocolActivatedOn: input.protocol.activatedOn })
+    const plan = buildDay(date, input.protocol.document, input.workoutPlans, input.overrides, input.slots, { protocolActivatedOn: input.protocol.activatedOn })
     for (const t of plan.targets) {
       const rate = t.type === 'meal' ? diet : t.type === 'protocol_item' ? items : null
       if (!rate) continue
-      rate.planned++
       const status = marks.get(`${date}\n${t.type}\n${t.key}`)
+      if (date === today && status === undefined && (t.time === null || t.time > clock)) continue
+      rate.planned++
       if (status === 'done') rate.done++
       else if (status === 'partial') rate.partial++
     }

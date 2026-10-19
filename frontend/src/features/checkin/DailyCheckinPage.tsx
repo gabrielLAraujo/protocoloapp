@@ -2,8 +2,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { saveCheckinAndMark } from '../../data/adherenceLinks'
+import { adherenceRepo, type AdherenceStatus } from '../../data/adherenceRepo'
 import { dailyCheckinRepo, StaleCheckinError, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import { useData, type Data } from '../../data/dataContext'
+import { CARDIO_KEY } from '../../domain/dayPlan'
 import { onResume } from '../../platform/lifecycle'
 import { useSync } from '../sync/syncContext'
 import { checkinSchema, type CheckinFormInput, type CheckinFormOutput } from './checkinSchema'
@@ -56,7 +58,17 @@ function useToday(): [string, () => void] {
   return [today, refresh]
 }
 
-const defaultsFor = (checkin: DailyCheckin | null): Partial<CheckinFormInput> => ({
+/** Cardio not answered on the check-in yet: take it from the day's cardio mark on Hoje (done → Sim, missed → Não). */
+const cardioDefault = (checkin: DailyCheckin | null, cardioMark: AdherenceStatus | null): CheckinFormInput['cardioDone'] | undefined => {
+  if (checkin?.cardioDone != null) return checkin.cardioDone ? 'yes' : 'no'
+  return cardioMark === 'done' ? 'yes' : cardioMark === 'missed' ? 'no' : undefined
+}
+
+/** The day's cardio mark (Hoje), or null. */
+const readCardioMark = async (db: Data['db'], date: string): Promise<AdherenceStatus | null> =>
+  (await adherenceRepo.between(db, date, date)).find((l) => l.targetType === 'cardio' && l.targetKey === CARDIO_KEY)?.status ?? null
+
+const defaultsFor = (checkin: DailyCheckin | null, cardioMark: AdherenceStatus | null = null): Partial<CheckinFormInput> => ({
   sleepQuality: checkin?.sleepQuality,
   bowel: checkin?.bowel,
   energyWake: checkin?.energyWake,
@@ -64,7 +76,7 @@ const defaultsFor = (checkin: DailyCheckin | null): Partial<CheckinFormInput> =>
   anxiety: checkin?.anxiety,
   waterL: checkin ? String(checkin.waterL) : '',
   weightKg: checkin?.weightKg == null ? '' : String(checkin.weightKg),
-  cardioDone: checkin?.cardioDone == null ? undefined : checkin.cardioDone ? 'yes' : 'no',
+  cardioDone: cardioDefault(checkin, cardioMark),
   cardioMinutes: checkin?.cardioMinutes == null ? '' : String(checkin.cardioMinutes),
   note: checkin?.note ?? '',
 })
@@ -80,7 +92,7 @@ export function DailyCheckinPage() {
   // The day on screen. It follows `today`, except while the form holds unsaved input (the form then says the day changed).
   const [date, setDate] = useState(today)
   const dirty = useRef(false)
-  const [loaded, setLoaded] = useState<{ date: string; checkin: DailyCheckin | null } | null>(null)
+  const [loaded, setLoaded] = useState<{ date: string; checkin: DailyCheckin | null; cardioMark: AdherenceStatus | null } | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -90,10 +102,9 @@ export function DailyCheckinPage() {
   useEffect(() => {
     if (!data) return
     let cancelled = false
-    dailyCheckinRepo
-      .get(data.db, date)
-      .then((checkin) => {
-        if (!cancelled) setLoaded({ date, checkin })
+    Promise.all([dailyCheckinRepo.get(data.db, date), readCardioMark(data.db, date)])
+      .then(([checkin, cardioMark]) => {
+        if (!cancelled) setLoaded({ date, checkin, cardioMark })
       })
       .catch((error: unknown) => {
         console.error('could not read the check-in', error)
@@ -123,6 +134,7 @@ export function DailyCheckinPage() {
       date={date}
       dayChanged={today !== date}
       initial={loaded.checkin}
+      cardioMark={loaded.cardioMark}
       onDirtyChange={onDirtyChange}
       onOpenToday={openToday}
     />
@@ -144,6 +156,7 @@ function CheckinForm({
   date,
   dayChanged,
   initial,
+  cardioMark,
   onDirtyChange,
   onOpenToday,
 }: {
@@ -153,6 +166,8 @@ function CheckinForm({
   dayChanged: boolean
   /** The stored check-in, re-read after every pull. */
   initial: DailyCheckin | null
+  /** The day's cardio mark from Hoje: prefills cardio while the check-in has not answered it. */
+  cardioMark: AdherenceStatus | null
   onDirtyChange(isDirty: boolean): void
   onOpenToday(): void
 }) {
@@ -174,7 +189,7 @@ function CheckinForm({
     formState: { errors, isSubmitting, isDirty },
   } = useForm<CheckinFormInput, unknown, CheckinFormOutput>({
     resolver: zodResolver(checkinSchema),
-    defaultValues: defaultsFor(initial),
+    defaultValues: defaultsFor(initial, cardioMark),
   })
 
   const cardioDone = useWatch({ control, name: 'cardioDone' })
@@ -197,14 +212,14 @@ function CheckinForm({
       return
     }
     shown.current = stamp
-    reset(defaultsFor(initial))
+    reset(defaultsFor(initial, cardioMark))
     setStale((s) => (s === 'remote' ? null : s))
-  }, [initial, reset])
+  }, [initial, cardioMark, reset])
 
   const reload = async () => {
-    const latest = await dailyCheckinRepo.get(data.db, date)
+    const [latest, mark] = await Promise.all([dailyCheckinRepo.get(data.db, date), readCardioMark(data.db, date)])
     shown.current = latest?.clientUpdatedAt ?? null
-    reset(defaultsFor(latest))
+    reset(defaultsFor(latest, mark))
     setStale(null)
     setSaved(false)
   }

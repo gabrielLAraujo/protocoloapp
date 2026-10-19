@@ -171,8 +171,29 @@ describe('SummaryPage', () => {
     expect(within(diet).getByText('63%')).toBeInTheDocument()
     expect(within(diet).getByText('2 feitas · 1 parcial de 4 previstas')).toBeInTheDocument()
     const items = screen.getByText('Itens do protocolo').parentElement!
-    expect(within(items).getByText('25%')).toBeInTheDocument()
-    expect(within(items).getByText('1 feito · 0 parciais de 4 previstos')).toBeInTheDocument()
+    // Today (the 23rd) the untimed, unmarked item is not due yet: 3 planned.
+    expect(within(items).getByText('33%')).toBeInTheDocument()
+    expect(within(items).getByText('1 feito · 0 parciais de 3 previstos')).toBeInTheDocument()
+  })
+
+  it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-11-15', cardio: { daily: true } })
+    const checkin = (date: string, cardioDone: boolean) =>
+      dailyCheckinRepo.upsert(app.db, USER_A, date, {
+        sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone, cardioMinutes: null,
+      }, new Date(2026, 9, 27, 12))
+    const cardio = (date: string, status: 'done' | 'missed') =>
+      adherenceRepo.mark(app.db, USER_A, { date, targetType: 'cardio', targetKey: 'cardio', status }, new Date(2026, 9, 27, 12))
+    await checkin('2026-10-21', true)
+    await cardio('2026-10-21', 'done') // same day: once
+    await cardio('2026-10-22', 'done') // mark only
+    await checkin('2026-10-23', false)
+    await cardio('2026-10-24', 'missed')
+    app.view(<SummaryPage />)
+
+    const card = (await screen.findByText('Cardio')).parentElement!
+    expect(within(card).getByText('2 de 8')).toBeInTheDocument()
   })
 
   it('Dieta shows "—" when the protocol has no meals', async () => {

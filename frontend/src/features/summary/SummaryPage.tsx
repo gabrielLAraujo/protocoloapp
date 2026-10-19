@@ -7,6 +7,7 @@ import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
 import { exerciseRepo } from '../../data/exerciseRepo'
 import { planRepo } from '../../data/planRepo'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
+import { scheduleRepo } from '../../data/scheduleRepo'
 import { workoutRepo, type SetLocal } from '../../data/workoutRepo'
 import { parseProtocolDocument } from '../../domain/planDocuments'
 import { localDate } from '../checkin/localDate'
@@ -55,19 +56,21 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
   // Overrides re-anchor the rotation cumulatively from each workout version's activation (see rotation.ts), so load
   // them since the first activation, not just since the cycle start - otherwise the calendar can differ from /treino.
   const overridesFrom = plans.map((p) => p.at.activatedOn).sort()[0] ?? '0000-01-01'
-  const [overrides, sessions, checkins] = await Promise.all([
+  const [overrides, sessions, checkins, adherence, slots] = await Promise.all([
     rotationOverrideRepo.between(db, overridesFrom, to),
     workoutRepo.sessionsBetween(db, from, today),
     dailyCheckinRepo.between(db, from, to),
+    adherenceRepo.between(db, from, to),
+    scheduleRepo.all(db),
   ])
   const sets: SetLocal[] = (await Promise.all(sessions.map((s) => workoutRepo.setsForSession(db, s.id)))).flat()
-  const summary = buildSummary({ protocol, plans: plans.map((p) => p.at), overrides, sessions, sets, checkins, exercises }, today)
+  const cardioMarkDates = adherence.filter((l) => l.targetType === 'cardio' && l.status === 'done').map((l) => l.date)
+  const summary = buildSummary({ protocol, plans: plans.map((p) => p.at), overrides, sessions, sets, checkins, exercises, cardioMarkDates }, today)
   let rates: Loaded['rates'] = null
   if (protocol && summary.cycle) {
     // Same span as the other statistics: cycle start through today (or the update date once the cycle is over).
     const statsTo = summary.cycle.end && summary.cycle.end < today ? summary.cycle.end : today
-    const adherence = await adherenceRepo.between(db, summary.cycle.start, statsTo)
-    rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence }, summary.cycle.start, statsTo)
+    rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence, slots }, summary.cycle.start, statsTo, new Date())
   }
   return { summary, rates, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null }
 }

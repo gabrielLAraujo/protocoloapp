@@ -67,7 +67,34 @@ describe('saveCheckinAndMark', () => {
     expect(await marks(db)).toEqual([['cardio', 'done'], ['checkin', 'done']])
   })
 
-  it('cardio "Não" keeps a cardio mark given on Hoje', async () => {
+  it('cardio "Sim" then "Não" leaves cardio missed (no reason); "Não" alone marks it missed', async () => {
+    const db = await newLocalDb()
+    await saveCheckinAndMark(db, USER_A, DAY, { ...fields, cardioDone: true, cardioMinutes: 30 }, T0)
+    await saveCheckinAndMark(db, USER_A, DAY, { ...fields, cardioDone: false }, later(1000))
+    expect(await adherenceRepo.between(db, DAY, DAY)).toMatchObject([
+      { targetType: 'cardio', status: 'missed', reason: null },
+      { targetType: 'checkin', status: 'done' },
+    ])
+
+    const other = await newLocalDb()
+    await saveCheckinAndMark(other, USER_A, DAY, { ...fields, cardioDone: false }, T0)
+    expect(await marks(other)).toEqual([['cardio', 'missed'], ['checkin', 'done']])
+  })
+
+  it('cardio "Não" keeps a partial cardio mark given on Hoje', async () => {
+    const db = await newLocalDb()
+    await adherenceRepo.mark(db, USER_A, { date: DAY, targetType: 'cardio', targetKey: 'cardio', status: 'partial', reason: 'felt_sick' }, T0)
+    await saveCheckinAndMark(db, USER_A, DAY, { ...fields, cardioDone: false }, later(1000))
+    expect(await adherenceRepo.between(db, DAY, DAY)).toMatchObject([{ targetType: 'cardio', status: 'partial', reason: 'felt_sick' }, { targetType: 'checkin' }])
+  })
+
+  it('cardio null (not answered) leaves the cardio mark alone', async () => {
+    const db = await newLocalDb()
+    await saveCheckinAndMark(db, USER_A, DAY, fields, T0)
+    expect(await marks(db)).toEqual([['checkin', 'done']])
+  })
+
+  it('cardio "Não" keeps a missed cardio mark with its reason given on Hoje', async () => {
     const db = await newLocalDb()
     await adherenceRepo.mark(db, USER_A, { date: DAY, targetType: 'cardio', targetKey: 'cardio', status: 'missed', reason: 'no_time' }, T0)
 
