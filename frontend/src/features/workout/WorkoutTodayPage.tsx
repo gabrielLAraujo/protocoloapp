@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { finishSessionAndMark } from '../../data/adherenceLinks'
 import { useData, type Data } from '../../data/dataContext'
 import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { rotationOverrideRepo, type RotationOverrideLocal } from '../../data/rotationOverrideRepo'
@@ -172,7 +173,7 @@ function EndOpenSession({ data, session, onEnded }: { data: Data; session: Sessi
     try {
       const sets = await workoutRepo.setsForSession(data.db, session.id)
       const last = sets.reduce((max, s) => (s.completedAt > max ? s.completedAt : max), session.startedAt)
-      await workoutRepo.finishSession(data.db, data.userId, session.id, new Date(last))
+      await finishSessionAndMark(data.db, data.userId, session.id, new Date(last), now())
       void syncNow()
       await onEnded()
     } catch (e) {

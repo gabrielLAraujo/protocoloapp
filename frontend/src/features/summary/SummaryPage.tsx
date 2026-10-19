@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { CycleDatesForm } from '../plans/CycleDatesForm'
 import { useData } from '../../data/dataContext'
+import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
 import { exerciseRepo } from '../../data/exerciseRepo'
 import { planRepo } from '../../data/planRepo'
@@ -12,21 +13,30 @@ import { localDate } from '../checkin/localDate'
 import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
 import { loadWorkoutPlans } from '../workout/workoutPlans'
+import { toDayPlans } from '../today/todayData'
 import { CycleCalendar } from './CycleCalendar'
 import { CycleTimeline } from './CycleTimeline'
 import { StatCard } from './StatCard'
 import { StrengthByGroup } from './StrengthByGroup'
-import { buildSummary, type SummaryData, type SummaryInput } from './summaryData'
+import { adherenceRates, buildSummary, formatRate, type AdherenceRate, type SummaryData, type SummaryInput } from './summaryData'
 import { WeightSparkline } from './WeightSparkline'
 
 interface Loaded {
   summary: SummaryData
+  /** Meals and protocol items of the cycle so far; null without an active protocol. */
+  rates: { diet: AdherenceRate; items: AdherenceRate } | null
   /** The active protocol version (target of the dates form), when there is one. */
   protocolId: string | null
   billingDate: string | null
 }
 
 const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${String(n).replace('.', ',')}${unit}`)
+
+/** "2 feitas · 1 parcial de 4 previstas" (feminine for meals, masculine for items). */
+function rateHint(rate: AdherenceRate, one: string, many: string, planned: string): string {
+  if (rate.planned === 0) return 'nada previsto até hoje'
+  return `${rate.done} ${rate.done === 1 ? one : many} · ${rate.partial} ${rate.partial === 1 ? 'parcial' : 'parciais'} de ${rate.planned} ${planned}`
+}
 
 async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: string): Promise<Loaded> {
   const [active, plans, exercises] = await Promise.all([
@@ -52,7 +62,14 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
   ])
   const sets: SetLocal[] = (await Promise.all(sessions.map((s) => workoutRepo.setsForSession(db, s.id)))).flat()
   const summary = buildSummary({ protocol, plans: plans.map((p) => p.at), overrides, sessions, sets, checkins, exercises }, today)
-  return { summary, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null }
+  let rates: Loaded['rates'] = null
+  if (protocol && summary.cycle) {
+    // Same span as the other statistics: cycle start through today (or the update date once the cycle is over).
+    const statsTo = summary.cycle.end && summary.cycle.end < today ? summary.cycle.end : today
+    const adherence = await adherenceRepo.between(db, summary.cycle.start, statsTo)
+    rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence }, summary.cycle.start, statsTo)
+  }
+  return { summary, rates, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null }
 }
 
 /** `/`: the cycle at a glance - timeline, calendar, adherence, check-in averages, weight and strength. */
@@ -86,7 +103,7 @@ export function SummaryPage() {
   if (failed) return <p role="alert" className="text-danger">Não foi possível carregar o resumo.</p>
   if (!loaded) return <p className="text-muted">Carregando…</p>
 
-  const { summary, protocolId, billingDate } = loaded
+  const { summary, rates, protocolId, billingDate } = loaded
   if (!summary.cycle) {
     return (
       <section className="grid gap-3">
@@ -122,6 +139,12 @@ export function SummaryPage() {
             value={cardio.planned > 0 ? `${cardio.done} de ${cardio.planned}` : String(cardio.done)}
             hint={cardio.planned > 0 ? 'feitos / previstos até hoje' : 'dias com cardio'}
           />
+          {rates && (
+            <>
+              <StatCard label="Dieta" value={formatRate(rates.diet)} hint={rateHint(rates.diet, 'feita', 'feitas', 'previstas')} />
+              <StatCard label="Itens do protocolo" value={formatRate(rates.items)} hint={rateHint(rates.items, 'feito', 'feitos', 'previstos')} />
+            </>
+          )}
           <StatCard label="Sono" value={fmt(summary.sleep)} hint="média, 1–5" />
           <StatCard label="Disposição ao acordar" value={fmt(summary.energyWake)} hint="média, 1–5" />
           <StatCard label="Disposição no dia" value={fmt(summary.energyDay)} hint="média, 1–5" />

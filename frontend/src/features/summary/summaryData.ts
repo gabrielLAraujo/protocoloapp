@@ -1,8 +1,10 @@
+import type { AdherenceLogLocal } from '../../data/adherenceRepo'
 import type { DailyCheckin } from '../../data/dailyCheckinRepo'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import { dateRange, diffDays } from '../../domain/calendarDate'
 import { cycleInfo, type CycleInfo } from '../../domain/cycle'
+import { buildDay, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { MuscleGroup } from '../../domain/muscleGroups'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import { plannedWorkoutDays, resolveDay, type RotationOverrideAt, type WorkoutPlanAt } from '../../domain/rotation'
@@ -144,3 +146,44 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
   }
 }
 
+
+/** Marks of planned targets: done counts 1, partial 0.5. */
+export interface AdherenceRate {
+  done: number
+  partial: number
+  planned: number
+}
+
+export interface AdherenceInput {
+  protocol: { activatedOn: string; document: ProtocolDocument }
+  /** Every workout version that was active, with its full activation instant (buildDay orders by it). */
+  workoutPlans: DayWorkoutPlan[]
+  overrides: RotationOverrideAt[]
+  adherence: AdherenceLogLocal[]
+}
+
+/**
+ * Diet (meals) and protocol items from `from` to `to` (inclusive): what buildDay plans for each day, and how much of
+ * it was marked. A mark of something not planned that day does not count.
+ */
+export function adherenceRates(input: AdherenceInput, from: string, to: string): { diet: AdherenceRate; items: AdherenceRate } {
+  const diet: AdherenceRate = { done: 0, partial: 0, planned: 0 }
+  const items: AdherenceRate = { done: 0, partial: 0, planned: 0 }
+  const marks = new Map(input.adherence.map((l) => [`${l.date}\n${l.targetType}\n${l.targetKey}`, l.status]))
+  for (const date of dateRange(from, to)) {
+    const plan = buildDay(date, input.protocol.document, input.workoutPlans, input.overrides, [], { protocolActivatedOn: input.protocol.activatedOn })
+    for (const t of plan.targets) {
+      const rate = t.type === 'meal' ? diet : t.type === 'protocol_item' ? items : null
+      if (!rate) continue
+      rate.planned++
+      const status = marks.get(`${date}\n${t.type}\n${t.key}`)
+      if (status === 'done') rate.done++
+      else if (status === 'partial') rate.partial++
+    }
+  }
+  return { diet, items }
+}
+
+/** Rounded percent ("63%" for 62.5%), or "—" when nothing was planned. */
+export const formatRate = (rate: AdherenceRate): string =>
+  rate.planned === 0 ? '—' : `${Math.round(((2 * rate.done + rate.partial) * 50) / rate.planned)}%` // (done + 0.5 × partial) / planned, in integers

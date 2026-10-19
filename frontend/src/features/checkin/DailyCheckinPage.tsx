@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { saveCheckinAndMark } from '../../data/adherenceLinks'
 import { dailyCheckinRepo, StaleCheckinError, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import { useData, type Data } from '../../data/dataContext'
 import { onResume } from '../../platform/lifecycle'
@@ -216,7 +217,7 @@ function CheckinForm({
     }
     let stamp: string
     try {
-      stamp = await dailyCheckinRepo.upsert(data.db, data.userId, date, values, now(), { expected: shown.current })
+      stamp = await saveCheckinAndMark(data.db, data.userId, date, values, now(), { expected: shown.current })
     } catch (error) {
       if (error instanceof StaleCheckinError) {
         setStale('remote')

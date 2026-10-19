@@ -54,9 +54,11 @@ async function login(page: Page) {
   await page.getByLabel('E-mail').fill(EMAIL)
   await page.getByLabel('Senha').fill(PASSWORD)
   await page.getByRole('button', { name: 'Entrar' }).click()
-  // "/" is the summary; the check-in lives at /checkin.
+  // "/" is the summary; the check-in is opened from Hoje ("Check-in do dia").
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Check-in' }).click()
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
+  await expect(page).toHaveURL(/\/hoje$/)
+  await page.getByRole('link', { name: 'Check-in do dia' }).click()
   await expect(page).toHaveURL(/\/checkin$/)
   await expect(page.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
 }
@@ -92,7 +94,8 @@ test('offline checkin syncs to a second browser', async ({ browser }) => {
   await a.getByRole('button', { name: 'Salvar' }).click()
 
   await expect(a.getByText('Salvo — será sincronizado')).toBeVisible()
-  await expect(a.getByText('Offline — 1 pendente')).toBeVisible()
+  // The check-in and its adherence mark ("Check-in do dia" done).
+  await expect(a.getByText('Offline — 2 pendentes')).toBeVisible()
 
   // The network comes back: the pending change is sent (the 'online' event may already start the run).
   const pushed = a.waitForResponse(isPush)

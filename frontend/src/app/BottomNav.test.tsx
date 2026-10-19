@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, Outlet } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
@@ -18,7 +18,7 @@ function setup(entry = '/') {
             <BottomNav />
           </>
         ),
-        children: ['/', '/treino', '/checkin', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
+        children: ['/', '/hoje', '/treino', '/checkin', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
       },
     ],
     { initialEntries: [entry] },
@@ -38,12 +38,27 @@ describe('BottomNav', () => {
     const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
     expect(screen.getByRole('link', { name: 'Resumo' })).toHaveAttribute('aria-current', 'page')
 
-    for (const [name, path] of [['Treino', '/treino'], ['Check-in', '/checkin'], ['Planejamento', '/planejamento'], ['Resumo', '/']] as const) {
+    for (const [name, path] of [['Hoje', '/hoje'], ['Treino', '/treino'], ['Planejamento', '/planejamento'], ['Resumo', '/']] as const) {
       await user.click(screen.getByRole('link', { name }))
       expect(router.state.location.pathname).toBe(path)
       expect(screen.getByRole('link', { name })).toHaveAttribute('aria-current', 'page')
       expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
     }
+  })
+
+  it('has Resumo, Hoje, Treino, Planejamento and Mais, and no Check-in tab', () => {
+    setup()
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    const names = within(nav).getAllByRole('link').map((l) => l.textContent)
+    expect(names).toEqual(['Resumo', 'Hoje', 'Treino', 'Planejamento'])
+    expect(within(nav).getByRole('button', { name: 'Mais' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Check-in' })).not.toBeInTheDocument()
+  })
+
+  it('"Hoje" is highlighted on the check-in it opens', () => {
+    setup('/checkin')
+    expect(screen.getByRole('link', { name: 'Hoje' }).className).toContain('text-accent')
+    expect(screen.getByRole('link', { name: 'Resumo' }).className).not.toContain('text-accent')
   })
 
   it('"Resumo" is not current on other routes', () => {

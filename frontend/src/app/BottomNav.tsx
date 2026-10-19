@@ -8,10 +8,11 @@ const icon = (children: ReactNode) => (
   </svg>
 )
 
-const TABS = [
+/** `also`: other paths that belong to the tab (the check-in is opened from Hoje). */
+const TABS: { to: string; label: string; end: boolean; also?: string[]; icon: ReactNode }[] = [
   { to: '/', label: 'Resumo', end: true, icon: icon(<><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-8" /><path d="M22 20H2" /></>) },
+  { to: '/hoje', label: 'Hoje', end: false, also: ['/checkin'], icon: icon(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>) },
   { to: '/treino', label: 'Treino', end: false, icon: icon(<><path d="M6 8v8" /><path d="M18 8v8" /><path d="M3 10v4" /><path d="M21 10v4" /><path d="M6 12h12" /></>) },
-  { to: '/checkin', label: 'Check-in', end: false, icon: icon(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>) },
   { to: '/planejamento', label: 'Planejamento', end: false, icon: icon(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" /></>) },
 ]
 
@@ -112,7 +113,12 @@ export function BottomNav() {
         className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
       >
         {TABS.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => tabClass(isActive)}>
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            end={tab.end}
+            className={({ isActive }) => tabClass(isActive || (tab.also?.some((p) => location.pathname.startsWith(p)) ?? false))}
+          >
             {tab.icon}
             <span>{tab.label}</span>
           </NavLink>

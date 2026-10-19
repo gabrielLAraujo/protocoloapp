@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SyncRecord } from '../../data/apiClient'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
+import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { json, mockFetch } from '../../test/fetch-mock'
@@ -146,5 +147,39 @@ describe('SummaryPage', () => {
 
     const calendar = await screen.findByRole('table', { name: 'Calendário do ciclo' })
     expect(within(calendar).getByRole('cell', { name: '28/10, ainda não chegou' })).toBeInTheDocument()
+  })
+
+  it('shows Dieta and Itens do protocolo for the cycle so far: 2 done + 1 partial of 4 planned meals is "63%"', async () => {
+    vi.setSystemTime(new Date(2026, 9, 23, 12, 0)) // cycle 20..23: four days
+    const app = await setupApp()
+    await seedProtocol(app.db, {
+      updateDate: '2026-11-15',
+      meals: [{ key: '1', label: 'REF 1', items: [] }],
+      items: [{ key: 'creatina', category: 'supplement', name: 'Creatina', timing: 'any', schedule: { type: 'daily' } }],
+    })
+    const mark = (date: string, targetType: 'meal' | 'protocol_item', targetKey: string, status: 'done' | 'partial' | 'missed') =>
+      adherenceRepo.mark(app.db, USER_A, { date, targetType, targetKey, status }, new Date(2026, 9, 23, 12))
+    await mark('2026-10-20', 'meal', '1', 'done')
+    await mark('2026-10-21', 'meal', '1', 'done')
+    await mark('2026-10-22', 'meal', '1', 'partial')
+    await mark('2026-10-23', 'meal', '1', 'missed')
+    await mark('2026-10-21', 'protocol_item', 'creatina', 'done')
+    await mark('2026-10-19', 'meal', '1', 'done') // before the cycle
+    app.view(<SummaryPage />)
+
+    const diet = (await screen.findByText('Dieta')).parentElement!
+    expect(within(diet).getByText('63%')).toBeInTheDocument()
+    expect(within(diet).getByText('2 feitas · 1 parcial de 4 previstas')).toBeInTheDocument()
+    const items = screen.getByText('Itens do protocolo').parentElement!
+    expect(within(items).getByText('25%')).toBeInTheDocument()
+    expect(within(items).getByText('1 feito · 0 parciais de 4 previstos')).toBeInTheDocument()
+  })
+
+  it('Dieta shows "—" when the protocol has no meals', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    app.view(<SummaryPage />)
+    const diet = (await screen.findByText('Dieta')).parentElement!
+    expect(within(diet).getByText('—')).toBeInTheDocument()
   })
 })

@@ -5,6 +5,7 @@ import { workoutRepo } from '../../data/workoutRepo'
 import { mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
+import { adherenceRepo } from '../../data/adherenceRepo'
 import { BENCH, PLAN, seedExercises, seedPastSession, seedPlan } from './testData'
 import { WorkoutTodayPage } from './WorkoutTodayPage'
 
@@ -472,6 +473,8 @@ describe('WorkoutTodayPage', () => {
     expect(within(groups).getByText('550 kg')).toBeInTheDocument()
     expect(screen.getByText('Novo recorde: Supino reto — 110 kg')).toBeInTheDocument()
     expect(await workoutRepo.openSession(app.db)).toBeNull()
+    // The finish also marks today's workout done (the server then skips the "Hora do treino" reminder).
+    expect(await adherenceRepo.between(app.db, '2026-10-18', '2026-10-18')).toMatchObject([{ targetType: 'workout', targetKey: 'workout', status: 'done' }])
 
     await user.click(screen.getByRole('button', { name: 'Concluir' }))
     expect(await screen.findByText('Você já concluiu um treino hoje.')).toBeInTheDocument()
@@ -523,7 +526,7 @@ describe('WorkoutTodayPage', () => {
   })
 
   it('finishing a session without sets does not count as a workout done today', async () => {
-    const { user } = await render()
+    const { db, user } = await render()
     await startWorkout(user)
     await user.click(screen.getByRole('button', { name: 'Finalizar treino' }))
     await user.click(screen.getByRole('button', { name: 'Sim, finalizar' }))
@@ -532,6 +535,7 @@ describe('WorkoutTodayPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Começar treino' })).toBeInTheDocument()
     expect(screen.queryByText('Você já concluiu um treino hoje.')).not.toBeInTheDocument()
+    expect(await adherenceRepo.between(db, '2026-10-18', '2026-10-18')).toEqual([])
   })
 
   it('finishing without beating the history shows no record', async () => {

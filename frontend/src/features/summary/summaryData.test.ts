@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type { AdherenceLogLocal } from '../../data/adherenceRepo'
 import type { DailyCheckin } from '../../data/dailyCheckinRepo'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
+import type { DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import type { WorkoutPlanAt } from '../../domain/rotation'
-import { buildSummary, type SummaryInput } from './summaryData'
+import { adherenceRates, buildSummary, formatRate, type SummaryInput } from './summaryData'
 
 const TODAY = '2026-10-27'
 const protocolDoc = (extra: Partial<ProtocolDocument> = {}): ProtocolDocument => ({
@@ -165,5 +167,46 @@ describe('buildSummary', () => {
       TODAY,
     )
     expect(s.strength?.chest.best[0].delta).toBeCloseTo(13.33, 1)
+  })
+})
+
+describe('adherenceRates', () => {
+  const log = (date: string, targetType: AdherenceLogLocal['targetType'], targetKey: string, status: AdherenceLogLocal['status']): AdherenceLogLocal => ({
+    id: `${date}-${targetType}-${targetKey}`, date, targetType, targetKey, status, reason: null, note: null, clientUpdatedAt: `${date}T12:00:00.000Z`,
+  })
+  const document = protocolDoc({
+    meals: [{ key: '1', label: 'REF 1', items: [] }, { key: '2', label: 'REF 2', items: [] }],
+    items: [{ key: 'pre', category: 'supplement', name: 'Pré', timing: 'pre_workout', schedule: { type: 'training_days_only' } }],
+  })
+  const workoutPlans: DayWorkoutPlan[] = [{ ...plan, activatedAt: '2026-10-01T12:00:00.000Z' }]
+
+  it('diet: 2 done + 1 partial of 4 planned is 62.5%, shown as "63%"; marks of unplanned targets do not count', () => {
+    // Tue 20 and Wed 21: two meals each; the training-only item only on Tuesday (Wednesday is off).
+    const rates = adherenceRates(
+      {
+        protocol: { activatedOn: '2026-10-20', document },
+        workoutPlans,
+        overrides: [],
+        adherence: [
+          log('2026-10-20', 'meal', '1', 'done'),
+          log('2026-10-20', 'meal', '2', 'partial'),
+          log('2026-10-21', 'meal', '1', 'done'),
+          log('2026-10-21', 'meal', '2', 'missed'),
+          log('2026-10-21', 'meal', '9', 'done'),
+          log('2026-10-21', 'protocol_item', 'pre', 'done'),
+          log('2026-10-20', 'protocol_item', 'pre', 'partial'),
+        ],
+      },
+      '2026-10-20',
+      '2026-10-21',
+    )
+    expect(rates.diet).toEqual({ done: 2, partial: 1, planned: 4 })
+    expect(formatRate(rates.diet)).toBe('63%')
+    expect(rates.items).toEqual({ done: 0, partial: 1, planned: 1 })
+    expect(formatRate(rates.items)).toBe('50%')
+  })
+
+  it('nothing planned shows "—"', () => {
+    expect(formatRate({ done: 0, partial: 0, planned: 0 })).toBe('—')
   })
 })

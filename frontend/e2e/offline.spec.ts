@@ -18,9 +18,11 @@ test('the installed app shell opens offline with the saved check-in', async ({ b
   await page.getByLabel('E-mail').fill(EMAIL)
   await page.getByLabel('Senha').fill(PASSWORD)
   await page.getByRole('button', { name: 'Entrar' }).click()
-  // "/" is the summary; the check-in lives at /checkin.
+  // "/" is the summary; the check-in is opened from Hoje ("Check-in do dia").
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Check-in' }).click()
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
+  await expect(page).toHaveURL(/\/hoje$/)
+  await page.getByRole('link', { name: 'Check-in do dia' }).click()
   await expect(page).toHaveURL(/\/checkin$/)
   await expect(page.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
 
