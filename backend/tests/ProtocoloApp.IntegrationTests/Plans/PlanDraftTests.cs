@@ -140,7 +140,7 @@ public sealed class PlanDraftTests(ApiFactory factory)
         var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
         var draft = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, PlanSamples.Workout));
         var padding = new string('x', 1024 * 1024);
-        var body = $$"""{"fileId":"{{fileId}}","kind":"workout","document":{"days":[],"padding":"{{padding}}"}}""";
+        var body = $$$"""{"fileId":"{{{fileId}}}","kind":"workout","document":{"days":[],"padding":"{{{padding}}}"}}""";
 
         using var postContent = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
         using var putContent = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
