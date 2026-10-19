@@ -148,7 +148,10 @@ entram na imagem).
 | `Cors__AllowedOrigins__0` | sim | `https://localhost` |
 | `Cors__AllowedOrigins__1` | sim | `capacitor://localhost` |
 | `GitHub__Token` | não | Token de leitura do repositório (passo 7). Sem ele só a checagem de atualização do APK responde 503. |
-| `Anthropic__ApiKey` | não | Chave da API Anthropic. **Ainda não é usada**: entra a partir do subprojeto 2. |
+| `Anthropic__ApiKey` | para importar PDFs | Chave da API Anthropic. Sem ela o app funciona, mas a importação de protocolo e treino responde 503 ("Importação indisponível"). |
+| `Anthropic__Model` | não | Modelo usado na extração. Padrão: `claude-sonnet-5-5`. |
+| `Anthropic__BaseUrl` | não | URL base da API. Padrão: `https://api.anthropic.com`. Só muda em testes (o e2e do CI aponta para um stub). |
+| `R2__ServiceUrl` | não | Troca o endpoint do R2 por outro servidor S3. **Não defina em produção**: existe só para o e2e do CI. |
 | `MIGRATE_ON_START` | não | `true` (padrão): aplica as migrations antes de subir a API. |
 
 Pontos de atenção:
@@ -256,7 +259,7 @@ Critérios do spec (seção 9.1). Marque um a um.
 - [ ] **Release do APK:** o CI da `main` publicou a release `v0.1.<n>` com o arquivo `protocolo-0.1.<n>.apk`.
 - [ ] **Aviso de atualização:** com um APK mais antigo instalado, ao abrir o app aparece "Nova versão disponível" e o botão
   "Baixar atualização" baixa o APK (precisa de `GitHub__Token`). Se não aparecer, veja a tabela abaixo.
-- [ ] **CI:** todos os jobs do último run da `main` verdes (Backend, Frontend, Docker image, E2E smoke, Android APK, Android release).
+- [ ] **CI:** todos os jobs do último run da `main` verdes (Backend, Frontend, Docker image, E2E smoke (inclui a importação de ficha com a IA simulada), Android APK, Android release).
 
 ## Problemas comuns
 

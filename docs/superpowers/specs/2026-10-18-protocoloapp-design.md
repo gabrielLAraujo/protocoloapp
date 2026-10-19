@@ -216,10 +216,12 @@ Falha da IA (timeout / JSON inválido) → 1 retry → senão draft vazio com o 
 | # | Subprojeto | Entrega | Depende de |
 |---|---|---|---|
 | 1 | **Fundação** | Repo, back e front esqueletos, auth, sync engine, R2, CI (back/front/imagem/APK), deploy Coolify, shell Capacitor | — |
-| 2 | **Protocolo e treino** | Upload, extração IA, revisão com diff, versões, catálogo de exercícios | 1 |
+| 2 | **Protocolo e treino** (entregue) | Upload, extração IA, revisão com diff, versões, catálogo de exercícios | 1 |
 | 3 | **Hoje** | `resolveDay`, agenda, lembretes, aderência, check-in diário | 2 |
-| 4 | **Registro de treino** | Sessão, séries, timer, histórico, PRs | 2 (paralelo ao 3) |
+| 4 | **Registro de treino** (entregue) | Sessão, séries, timer, histórico, PRs | 2 (paralelo ao 3) |
 | 5 | **Atualização** | Fotos com overlay, cálculos, rascunho IA, PDF + zip | 3, 4 |
+
+Os subprojetos 2 e 4 foram entregues juntos, com a tela **Resumo** (ciclo, calendário e números), no spec `2026-10-18-planejamento-treino-resumo-design.md`.
 
 ### 9.1 Subprojeto 1 — Fundação (detalhe)
 

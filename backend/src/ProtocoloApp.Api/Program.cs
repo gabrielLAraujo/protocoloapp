@@ -7,7 +7,10 @@ using ProtocoloApp.Api.Features.App;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
+using ProtocoloApp.Api.Features.Plans;
+using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Sync;
+using ProtocoloApp.Api.Features.Workouts;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
 using Scalar.AspNetCore;
@@ -59,9 +62,16 @@ builder.Services.AddCors(options => options.AddPolicy(AppCorsPolicy, policy => p
 builder.Services.AddAuth(builder.Configuration);
 builder.Services.AddAppRateLimiting();
 builder.Services.AddSync()
-    .AddSyncHandler<DailyCheckinSyncHandler>();
+    .AddSyncHandler<DailyCheckinSyncHandler>()
+    .AddSyncHandler<PlanVersionSyncHandler>()
+    .AddSyncHandler<ExerciseSyncHandler>()
+    .AddSyncHandler<WorkoutSessionSyncHandler>()
+    .AddSyncHandler<SetLogSyncHandler>()
+    .AddSyncHandler<ExerciseChangeSyncHandler>()
+    .AddSyncHandler<RotationOverrideSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
+builder.Services.AddPlanExtraction(builder.Configuration);
 builder.Services.AddAppUpdates(builder.Configuration);
 
 builder.Services.AddOpenApi();
@@ -113,6 +123,7 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuth();
 api.MapSync();
 api.MapFiles();
+api.MapPlans();
 api.MapApp();
 
 app.MapSpaFallback();

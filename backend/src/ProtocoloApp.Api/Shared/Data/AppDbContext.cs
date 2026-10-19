@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.Files;
+using ProtocoloApp.Api.Features.Plans;
+using ProtocoloApp.Api.Features.Workouts;
 
 namespace ProtocoloApp.Api.Shared.Data;
 
@@ -15,6 +17,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DailyCheckin> DailyCheckins => Set<DailyCheckin>();
 
     public DbSet<FileRecord> Files => Set<FileRecord>();
+
+    public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
+
+    public DbSet<Exercise> Exercises => Set<Exercise>();
+
+    public DbSet<WorkoutSession> WorkoutSessions => Set<WorkoutSession>();
+
+    public DbSet<SetLog> SetLogs => Set<SetLog>();
+
+    public DbSet<ExerciseChange> ExerciseChanges => Set<ExerciseChange>();
+
+    public DbSet<RotationOverride> RotationOverrides => Set<RotationOverride>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

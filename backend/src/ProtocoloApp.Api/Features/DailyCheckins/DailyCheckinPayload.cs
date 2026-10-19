@@ -14,9 +14,12 @@ namespace ProtocoloApp.Api.Features.DailyCheckins;
 ///   "anxiety": 2,                // required, integer 1–5
 ///   "water_l": 2.5,              // required, liters 0–15, at most 2 decimals
 ///   "weight_kg": 80.4,           // optional (null), kg 30–300, at most 2 decimals
-///   "note": "..."                // optional (null), up to 2000 characters
+///   "note": "...",               // optional (null), up to 2000 characters
+///   "cardio_done": true,         // optional (null = not answered)
+///   "cardio_minutes": 30         // optional (null), integer 0–300, only with cardio_done == true
 /// }
 /// </code>
+/// Last write wins over the whole payload: a check-in sent without the cardio fields (an older client) stores them as null.
 /// Every property is nullable here so that a missing field is reported as <c>invalid_payload:&lt;field&gt;</c> by
 /// <see cref="DailyCheckinPayloadValidator"/> instead of silently becoming 0. Unknown properties are ignored.
 /// </summary>
@@ -39,6 +42,10 @@ public sealed record DailyCheckinPayload
     public decimal? WeightKg { get; init; }
 
     public string? Note { get; init; }
+
+    public bool? CardioDone { get; init; }
+
+    public int? CardioMinutes { get; init; }
 }
 
 /// <summary>Field limits of <see cref="DailyCheckinPayload"/>. Property names are the snake_case JSON names (error codes).</summary>
@@ -55,5 +62,9 @@ public sealed class DailyCheckinPayloadValidator : AbstractValidator<DailyChecki
         RuleFor(p => p.WaterL).NotNull().InclusiveBetween(0m, (decimal)DailyCheckin.MaxWaterL).PrecisionScale(4, 2, true).OverridePropertyName("water_l");
         RuleFor(p => p.WeightKg).InclusiveBetween((decimal)DailyCheckin.MinWeightKg, (decimal)DailyCheckin.MaxWeightKg).PrecisionScale(5, 2, true).OverridePropertyName("weight_kg");
         RuleFor(p => p.Note).MaximumLength(DailyCheckin.MaxNoteLength).OverridePropertyName("note");
+        RuleFor(p => p.CardioMinutes).InclusiveBetween(0, DailyCheckin.MaxCardioMinutes).OverridePropertyName("cardio_minutes");
+        RuleFor(p => p.CardioMinutes)
+            .Must((p, minutes) => minutes is null || p.CardioDone == true)
+            .OverridePropertyName("cardio_minutes");
     }
 }

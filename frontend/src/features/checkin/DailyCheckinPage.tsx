@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { dailyCheckinRepo, StaleCheckinError, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import { useData, type Data } from '../../data/dataContext'
 import { onResume } from '../../platform/lifecycle'
@@ -14,6 +14,11 @@ const BOWEL: readonly Option<string>[] = [
   { value: 'normal', label: 'Normal' },
   { value: 'loose', label: 'Solto' },
   { value: 'constipated', label: 'Preso' },
+]
+
+const CARDIO: readonly Option<string>[] = [
+  { value: 'yes', label: 'Sim' },
+  { value: 'no', label: 'Não' },
 ]
 
 const now = () => new Date()
@@ -58,6 +63,8 @@ const defaultsFor = (checkin: DailyCheckin | null): Partial<CheckinFormInput> =>
   anxiety: checkin?.anxiety,
   waterL: checkin ? String(checkin.waterL) : '',
   weightKg: checkin?.weightKg == null ? '' : String(checkin.weightKg),
+  cardioDone: checkin?.cardioDone == null ? undefined : checkin.cardioDone ? 'yes' : 'no',
+  cardioMinutes: checkin?.cardioMinutes == null ? '' : String(checkin.cardioMinutes),
   note: checkin?.note ?? '',
 })
 
@@ -162,11 +169,18 @@ function CheckinForm({
     handleSubmit,
     reset,
     getValues,
+    setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<CheckinFormInput, unknown, CheckinFormOutput>({
     resolver: zodResolver(checkinSchema),
     defaultValues: defaultsFor(initial),
   })
+
+  const cardioDone = useWatch({ control, name: 'cardioDone' })
+  // Minutes only make sense with cardio done: clear them (and any error about them) when it is not.
+  useEffect(() => {
+    if (cardioDone !== 'yes' && getValues('cardioMinutes') !== '') setValue('cardioMinutes', '', { shouldDirty: true })
+  }, [cardioDone, getValues, setValue])
 
   useEffect(() => {
     isDirtyRef.current = isDirty
@@ -287,6 +301,26 @@ function CheckinForm({
           </span>
         )}
       </label>
+
+      <ChoiceField control={control} name="cardioDone" legend="Cardio feito?" options={CARDIO} />
+      {cardioDone === 'yes' && (
+        <label className="grid gap-1.5 text-sm font-medium">
+          Minutos de cardio
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            aria-invalid={errors.cardioMinutes ? true : undefined}
+            className={inputClass}
+            {...register('cardioMinutes')}
+          />
+          {errors.cardioMinutes && (
+            <span role="alert" className="font-normal text-danger">
+              {errors.cardioMinutes.message}
+            </span>
+          )}
+        </label>
+      )}
 
       <label className="grid gap-1.5 text-sm font-medium">
         Observações

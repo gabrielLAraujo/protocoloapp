@@ -23,6 +23,9 @@ public sealed class DailyCheckinConfiguration : IEntityTypeConfiguration<DailyCh
             table.HasCheckConstraint(
                 "ck_daily_checkins_weight_kg",
                 $"weight_kg IS NULL OR weight_kg BETWEEN {DailyCheckin.MinWeightKg} AND {DailyCheckin.MaxWeightKg}");
+            table.HasCheckConstraint(
+                "ck_daily_checkins_cardio_minutes",
+                $"cardio_minutes IS NULL OR (cardio_done IS TRUE AND cardio_minutes BETWEEN 0 AND {DailyCheckin.MaxCardioMinutes})");
         });
 
         builder.HasKey(c => c.Id);

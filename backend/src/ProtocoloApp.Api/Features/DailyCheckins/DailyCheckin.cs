@@ -11,6 +11,7 @@ public sealed class DailyCheckin : ISyncEntity
     public const int MinWeightKg = 30;
     public const int MaxWeightKg = 300;
     public const int MaxNoteLength = 2000;
+    public const int MaxCardioMinutes = 300;
 
     public Guid Id { get; set; }
 
@@ -50,6 +51,12 @@ public sealed class DailyCheckin : ISyncEntity
 
     /// <summary>Up to 2000 characters. Optional.</summary>
     public string? Note { get; set; }
+
+    /// <summary>Whether cardio was done. Null = not answered (also every row written before this field existed).</summary>
+    public bool? CardioDone { get; set; }
+
+    /// <summary>Minutes of cardio, 0–300. Only with <see cref="CardioDone"/> true.</summary>
+    public int? CardioMinutes { get; set; }
 }
 
 public enum Bowel

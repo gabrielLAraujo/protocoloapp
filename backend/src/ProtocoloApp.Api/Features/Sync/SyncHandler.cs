@@ -33,6 +33,15 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
     protected abstract TPayload CreatePayload(TEntity entity);
 
     /// <summary>
+    /// Cross-row references the payload carries (session, exercise, plan version...): each must exist, belong to
+    /// <paramref name="userId"/> and not be soft-deleted. Checked after <see cref="Apply"/>, before <see cref="FindConflictAsync"/>.
+    /// Returns an error code (<see cref="SyncErrors.InvalidReference"/>) or null. References are resolved against the stored
+    /// rows, so inside one push batch a parent must come before its children.
+    /// </summary>
+    protected virtual Task<string?> ValidateReferencesAsync(TEntity entity, Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>(null);
+
+    /// <summary>
     /// Business uniqueness the payload can break (checked after <see cref="Apply"/>, before saving). Returns an error code
     /// or null. Race-free: all sync writes of the user run under the user's lock.
     /// </summary>
@@ -72,6 +81,10 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
             target = existing ?? Create(change.Id, userId);
             Apply(payload, target);
             target.DeletedAt = null;
+
+            var invalidReference = await ValidateReferencesAsync(target, userId, ct);
+            if (invalidReference is not null)
+                return SyncChangeResult.Rejected(change.Id, invalidReference);
 
             var conflict = await FindConflictAsync(target, ct);
             if (conflict is not null)

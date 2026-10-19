@@ -33,6 +33,54 @@ public sealed partial class R2FileStorageTests : IDisposable
         Assert.Contains("content-type", Uri.UnescapeDataString(url.Query), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static StorageOptions With(string? serviceUrl) => new()
+    {
+        AccountId = "0123456789abcdef0123456789abcdef",
+        AccessKeyId = "test-access-key",
+        SecretAccessKey = "test-secret-key-not-real",
+        Bucket = "test-bucket",
+        ServiceUrl = serviceUrl is null ? null : new Uri(serviceUrl),
+    };
+
+    [Fact]
+    public void Unset_service_url_uses_the_account_endpoint()
+    {
+        var options = With(null);
+
+        Assert.True(options.HasValidServiceUrl);
+        Assert.Equal("https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/", options.Endpoint.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("http://localhost:9101")]
+    [InlineData("http://127.0.0.1:9101")]
+    [InlineData("http://[::1]:9101")]
+    public void Http_loopback_service_url_is_valid_and_presigns_http(string serviceUrl)
+    {
+        var options = With(serviceUrl);
+        using var storage = new R2FileStorage(Options.Create(options), TimeProvider.System);
+
+        Assert.True(options.HasValidServiceUrl);
+        var url = storage.GetUploadUrl("k", "application/pdf", 10, TimeSpan.FromMinutes(1));
+        Assert.Equal("http", url.Scheme);
+        Assert.Equal(options.Endpoint.Port, url.Port);
+    }
+
+    [Theory]
+    [InlineData("http://storage.example.com")]
+    [InlineData("http://10.0.0.5:9000")]
+    [InlineData("ftp://localhost")]
+    public void Http_non_loopback_service_url_is_invalid(string serviceUrl)
+    {
+        Assert.False(With(serviceUrl).HasValidServiceUrl);
+    }
+
+    [Fact]
+    public void Https_service_url_is_valid()
+    {
+        Assert.True(With("https://storage.example.com").HasValidServiceUrl);
+    }
+
     [Fact]
     public void Download_url_expires_in_the_requested_time()
     {

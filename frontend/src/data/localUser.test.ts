@@ -15,6 +15,8 @@ const fields = {
   waterL: 2.5,
   weightKg: null,
   note: null,
+  cardioDone: null,
+  cardioMinutes: null,
 }
 const T0 = new Date('2026-10-18T12:00:00.000Z')
 

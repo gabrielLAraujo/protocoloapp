@@ -34,6 +34,8 @@ public sealed class DailyCheckinSyncHandler(AppDbContext db, TimeProvider clock)
         entity.WaterL = payload.WaterL!.Value;
         entity.WeightKg = payload.WeightKg;
         entity.Note = payload.Note;
+        entity.CardioDone = payload.CardioDone;
+        entity.CardioMinutes = payload.CardioMinutes;
     }
 
     protected override DailyCheckinPayload CreatePayload(DailyCheckin entity)
@@ -51,6 +53,8 @@ public sealed class DailyCheckinSyncHandler(AppDbContext db, TimeProvider clock)
             WaterL = entity.WaterL,
             WeightKg = entity.WeightKg,
             Note = entity.Note,
+            CardioDone = entity.CardioDone,
+            CardioMinutes = entity.CardioMinutes,
         };
     }
 

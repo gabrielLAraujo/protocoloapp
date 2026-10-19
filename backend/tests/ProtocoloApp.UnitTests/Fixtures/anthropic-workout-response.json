@@ -1,0 +1,77 @@
+{
+  "id": "msg_fixture_workout",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "stop_reason": "tool_use",
+  "content": [
+    { "type": "text", "text": "Extraindo a ficha." },
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_1",
+      "name": "submit_workout",
+      "input": {
+        "document": {
+          "rotation": { "type": "sequence", "items": ["A", "B", "off"], "map": null },
+          "days": [
+            {
+              "key": "A",
+              "name": "Treino A - Exemplo",
+              "notes": null,
+              "exercises": [
+                {
+                  "key": "A1",
+                  "exerciseId": null,
+                  "name": "Supino inclinado c/ halteres",
+                  "sets": [
+                    { "repsMin": 15, "repsMax": 20, "technique": null },
+                    { "repsMin": 10, "repsMax": 15, "technique": null },
+                    { "repsMin": 6, "repsMax": 10, "technique": "drop" }
+                  ],
+                  "restSeconds": 90,
+                  "restSequence": null,
+                  "technique": null,
+                  "supersetWith": null
+                },
+                {
+                  "key": "A2",
+                  "exerciseId": null,
+                  "name": "Exercicio Ficticio Alfa",
+                  "sets": [
+                    { "repsMin": 8, "repsMax": 12, "technique": null },
+                    { "repsMin": 8, "repsMax": 12, "technique": null },
+                    { "repsMin": 8, "repsMax": 12, "technique": null },
+                    { "repsMin": 8, "repsMax": 12, "technique": null }
+                  ],
+                  "restSeconds": null,
+                  "restSequence": [45, 30, 15],
+                  "technique": null,
+                  "supersetWith": null
+                }
+              ]
+            },
+            {
+              "key": "B",
+              "name": "Treino B - Exemplo",
+              "notes": null,
+              "exercises": [
+                {
+                  "key": "B1",
+                  "exerciseId": "99999999-9999-9999-9999-999999999999",
+                  "name": "Exercicio Ficticio Beta",
+                  "sets": [ { "repsMin": 10, "repsMax": 12, "technique": null } ],
+                  "restSeconds": 60,
+                  "restSequence": null,
+                  "technique": null,
+                  "supersetWith": null
+                }
+              ]
+            }
+          ]
+        },
+        "lowConfidence": ["days[0].exercises[1].restSequence"],
+        "newExercises": [ { "name": "Exercicio Ficticio Alfa", "group": "chest" }, { "name": "Exercicio Ficticio Beta", "group": "nonsense" } ]
+      }
+    }
+  ]
+}
