@@ -321,6 +321,8 @@ jobs:
         if: ${{ failure() }}
         run: |
           echo "::error title=Playwright::$(tail -n 40 "$RUNNER_TEMP/playwright.log" 2>/dev/null | tr '\n' '|' | cut -c1-900)"
+          echo "::error title=API exceptions::$(grep -iE 'exception|error' "$RUNNER_TEMP/api.log" 2>/dev/null | grep -v '\"RequestPath\"' | head -n 12 | cut -c1-300 | tr '\n' '|' | cut -c1-1500)"
+          echo "::error title=API 500 entries::$(grep -E '\"StatusCode\":500' "$RUNNER_TEMP/api.log" 2>/dev/null | tail -n 2 | cut -c1-1200 | tr '\n' '|' | cut -c1-1500)"
           echo "::error title=Stub logs::$(tail -n 8 "$RUNNER_TEMP/storage-stub.log" 2>/dev/null | tr '\n' '|' | cut -c1-600)"
           echo "::error title=API log::$(grep -E '"RequestPath":"/api' "$RUNNER_TEMP/api.log" 2>/dev/null | jq -r '"\(.RequestMethod) \(.RequestPath) \(.StatusCode)"' | tail -n 25 | tr '\n' '|' | cut -c1-900)"
 
