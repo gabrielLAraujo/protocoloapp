@@ -70,7 +70,7 @@ public sealed class ReminderScheduler(
 
     /// <summary>
     /// One pass at <paramref name="now"/>; returns how many slot reminders were claimed and kept (reached a device or removed
-    /// one). A slot whose push reached no device and removed none is released for the next tick.
+    /// one). A slot whose push reached no device, removed none and failed transiently is released for the next tick.
     /// </summary>
     public async Task<int> RunOnceAsync(DateTimeOffset now, CancellationToken ct)
     {
@@ -144,10 +144,13 @@ public sealed class ReminderScheduler(
             var mealLabel = plan.Targets.FirstOrDefault(t => t.SlotKey == slot.Key && t.Type == AdherenceTargetType.Meal)?.Label;
             var time = slot.First().Time!.Value;
             var result = await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), logger, ct);
-            if (result is { Sent: 0, Removed: 0 })
+            if (result is { Sent: 0, Removed: 0, Transient: > 0 })
             {
-                // No device got it and none was dropped: release this claim (only ours, by id) so the next tick retries.
-                // The retry stops by itself once the slot is more than LateTolerance minutes late.
+                // No device got it, none was dropped and some failure was transient: release this claim (only ours, by id)
+                // so the next tick retries. Permanent failures are not retried (they were counted once). The retry stops by
+                // itself once the slot is more than LateTolerance minutes late.
+                // A timeout counted as transient may hide a push that was in fact delivered, so a retry can show it twice;
+                // the notification tag replaces the earlier one on the device, and that is accepted.
                 await db.ReminderSends.Where(r => r.Id == claimId).ExecuteDeleteAsync(ct);
                 logger.LogWarning("Reminder for a slot reached no device; released for a retry within the tolerance window.");
                 continue;

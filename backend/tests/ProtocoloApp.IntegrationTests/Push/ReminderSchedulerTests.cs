@@ -273,6 +273,22 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
         Assert.Equal(1, await ClaimsAsync(api));
     }
 
+    [Fact]
+    public async Task A_slot_where_every_device_fails_permanently_is_claimed_once_and_counts_one_failure()
+    {
+        var (api, endpoint) = await SetupAsync(Slot("meal_2", "12:30"));
+        using var _ = api;
+        factory.Push.Results[endpoint] = PushResult.Failed;
+
+        await RunAsync(Local("12:30"));
+        await RunAsync(Local("12:31"));
+        await RunAsync(Local("12:32"));
+
+        Assert.Single(factory.Push.SentTo(endpoint));
+        Assert.Equal(1, Assert.Single(await PushApi.SubscriptionsAsync(factory, endpoint)).FailureCount);
+        Assert.Equal(1, await ClaimsAsync(api));
+    }
+
     private static Task<int> ClaimsAsync(PlanApi api) =>
         api.WithDbAsync(db => db.ReminderSends.CountAsync(r => r.UserId == api.UserId && r.Date == Day && r.Slot == "meal_2"));
 
