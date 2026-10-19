@@ -29,6 +29,18 @@ public sealed class DailyCheckin : ISyncEntity
 
     public DateOnly Date { get; set; }
 
+    // Last-write-wins per part (see DailyCheckinSyncHandler): the client_updated_at of the change that last wrote each part.
+    // Null = the part was never written. ClientUpdatedAt (the row clock used by pull) is the latest of the three.
+
+    /// <summary>Clock of the morning part (sleep_quality, energy_wake, bowel, weight_kg).</summary>
+    public DateTimeOffset? MorningClientUpdatedAt { get; set; }
+
+    /// <summary>Clock of the evening part (energy_day, anxiety, water_l, note).</summary>
+    public DateTimeOffset? EveningClientUpdatedAt { get; set; }
+
+    /// <summary>Clock of the cardio part (cardio_done, cardio_minutes).</summary>
+    public DateTimeOffset? CardioClientUpdatedAt { get; set; }
+
     // The check-in is saved in two parts (morning: sleep, energy on waking, bowel; evening: energy during the day, anxiety,
     // water), so each part field is null until its part is saved. A row created only by the cardio item has all of them null.
 
@@ -61,6 +73,18 @@ public sealed class DailyCheckin : ISyncEntity
 
     /// <summary>Minutes of cardio, 0–300. Only with <see cref="CardioDone"/> true.</summary>
     public int? CardioMinutes { get; set; }
+}
+
+/// <summary>The parts of a check-in, as listed in the payload's <c>parts</c>.</summary>
+public static class CheckinPart
+{
+    public const string Morning = "morning";
+    public const string Evening = "evening";
+    public const string Cardio = "cardio";
+
+    public static IReadOnlyList<string> All { get; } = [Morning, Evening, Cardio];
+
+    public static bool IsValid(string? part) => part is Morning or Evening or Cardio;
 }
 
 public enum Bowel

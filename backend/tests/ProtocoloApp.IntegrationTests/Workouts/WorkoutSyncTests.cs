@@ -292,7 +292,7 @@ public sealed class WorkoutSyncTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Old_checkin_payload_without_cardio_fields_is_valid_and_keeps_stored_cardio()
+    public async Task Old_checkin_payload_without_cardio_fields_is_valid_and_clears_stored_cardio()
     {
         var s = await NewUserAsync();
         using var api = s.Api;
@@ -302,13 +302,13 @@ public sealed class WorkoutSyncTests(ApiFactory factory)
         withCardio["cardio_minutes"] = 30;
         await SyncApi.PushAsync(api.Client, new SyncChange(SyncApi.Entity, id, SyncOp.Upsert, JsonSerializer.SerializeToElement(withCardio), SyncApi.Past(30)));
 
-        // Field-wise merge: a payload without the cardio fields (an older client, or a check-in part) keeps them.
+        // Last write wins over the whole payload: an old client that does not know the fields sets them to null.
         var result = await SyncApi.PushOneAsync(api.Client, SyncApi.Checkin(id, Day, SyncApi.Past(10)));
 
         Assert.Equal(SyncResultStatus.Applied, result.Status);
         var payload = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Id == id).Payload!.Value;
-        Assert.True(payload.GetProperty("cardio_done").GetBoolean());
-        Assert.Equal(30, payload.GetProperty("cardio_minutes").GetInt32());
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("cardio_done").ValueKind);
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("cardio_minutes").ValueKind);
     }
 
     [Fact]

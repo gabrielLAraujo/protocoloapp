@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FluentValidation;
 
 namespace ProtocoloApp.Api.Features.DailyCheckins;
@@ -7,25 +8,32 @@ namespace ProtocoloApp.Api.Features.DailyCheckins;
 /// <code>
 /// {
 ///   "date": "2026-01-31",        // required, yyyy-MM-dd; one live check-in per user and date
-///   "sleep_quality": 4,          // morning part, integer 1–5
-///   "bowel": "normal",           // morning part, "normal" | "loose" | "constipated"
-///   "energy_wake": 3,            // morning part, integer 1–5
-///   "weight_kg": 80.4,           // morning part (optional), kg 30–300, at most 2 decimals
-///   "energy_day": 4,             // evening part, integer 1–5
-///   "anxiety": 2,                // evening part, integer 1–5
-///   "water_l": 2.5,              // evening part, liters 0–15, at most 2 decimals
-///   "note": "...",               // evening part (optional), up to 2000 characters; "" clears the stored note
-///   "cardio_done": true,         // from the Today cardio item (null = not answered)
-///   "cardio_minutes": 30         // integer 0–300, only with cardio_done == true in the same payload
+///   "parts": ["morning"],        // optional: the parts this change writes; missing = all three (full overwrite)
+///   "sleep_quality": 4,          // morning, integer 1–5
+///   "energy_wake": 3,            // morning, integer 1–5
+///   "bowel": "normal",           // morning, "normal" | "loose" | "constipated"
+///   "weight_kg": 80.4,           // morning (optional), kg 30–300, at most 2 decimals
+///   "energy_day": 4,             // evening, integer 1–5
+///   "anxiety": 2,                // evening, integer 1–5
+///   "water_l": 2.5,              // evening, liters 0–15, at most 2 decimals
+///   "note": "...",               // evening (optional), up to 2000 characters
+///   "cardio_done": true,         // cardio (null = not answered)
+///   "cardio_minutes": 30         // cardio, integer 0–300, only with cardio_done == true
 /// }
 /// </code>
-/// Only <c>date</c> is required; every other field is validated only when present. The handler merges field by field: a
-/// null (or missing) field keeps the stored value, so the morning part saved on one device and the evening part on another
-/// never erase each other. Unknown properties are ignored. In pull every field is written, null when not stored.
+/// Each listed part replaces all of its fields, null included (null clears); parts not listed keep their stored values and
+/// their fields in the payload are ignored. A listed morning or evening part is either complete (its required fields
+/// non-null; weight and note stay optional) or entirely null (clears the part). Without <c>parts</c> the payload must carry
+/// some data (a date-only payload is <c>invalid_payload:parts</c>). Each part has its own last-write-wins clock (see
+/// <see cref="DailyCheckinSyncHandler"/>). Unknown properties are ignored. Pull writes every field (null when not stored)
+/// and no <c>parts</c>.
 /// </summary>
 public sealed record DailyCheckinPayload
 {
     public DateOnly? Date { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Parts { get; init; }
 
     public int? SleepQuality { get; init; }
 
@@ -46,6 +54,15 @@ public sealed record DailyCheckinPayload
     public bool? CardioDone { get; init; }
 
     public int? CardioMinutes { get; init; }
+
+    /// <summary>Whether this change writes <paramref name="part"/> (no <c>parts</c> = every part).</summary>
+    public bool Writes(string part) => Parts is null || Parts.Contains(part, StringComparer.Ordinal);
+
+    internal bool HasMorningData => SleepQuality is not null || EnergyWake is not null || Bowel is not null || WeightKg is not null;
+
+    internal bool HasEveningData => EnergyDay is not null || Anxiety is not null || WaterL is not null || Note is not null;
+
+    internal bool HasCardioData => CardioDone is not null || CardioMinutes is not null;
 }
 
 /// <summary>Field limits of <see cref="DailyCheckinPayload"/>. Property names are the snake_case JSON names (error codes).</summary>
@@ -54,7 +71,16 @@ public sealed class DailyCheckinPayloadValidator : AbstractValidator<DailyChecki
     public DailyCheckinPayloadValidator()
     {
         RuleFor(p => p.Date).NotNull().OverridePropertyName("date");
-        // Null means "not in this payload" (the stored value is kept); FluentValidation's range rules pass on null.
+
+        // A list of known parts, not empty; without a list the payload must carry something.
+        RuleFor(p => p.Parts)
+            .Must(parts => parts is null || (parts.Count > 0 && parts.All(CheckinPart.IsValid)))
+            .OverridePropertyName("parts");
+        RuleFor(p => p)
+            .Must(p => p.Parts is not null || p.HasMorningData || p.HasEveningData || p.HasCardioData)
+            .OverridePropertyName("parts");
+
+        // Ranges apply to any field present (FluentValidation's range rules pass on null).
         RuleFor(p => p.SleepQuality).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("sleep_quality");
         RuleFor(p => p.Bowel).Must(BowelText.IsValid).When(p => p.Bowel is not null).OverridePropertyName("bowel");
         RuleFor(p => p.EnergyWake).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_wake");
@@ -67,5 +93,19 @@ public sealed class DailyCheckinPayloadValidator : AbstractValidator<DailyChecki
         RuleFor(p => p.CardioMinutes)
             .Must((p, minutes) => minutes is null || p.CardioDone == true)
             .OverridePropertyName("cardio_minutes");
+
+        // A written part with any data must be complete; all null clears it.
+        When(p => p.Writes(CheckinPart.Morning) && p.HasMorningData, () =>
+        {
+            RuleFor(p => p.SleepQuality).NotNull().OverridePropertyName("sleep_quality");
+            RuleFor(p => p.EnergyWake).NotNull().OverridePropertyName("energy_wake");
+            RuleFor(p => p.Bowel).NotNull().OverridePropertyName("bowel");
+        });
+        When(p => p.Writes(CheckinPart.Evening) && p.HasEveningData, () =>
+        {
+            RuleFor(p => p.EnergyDay).NotNull().OverridePropertyName("energy_day");
+            RuleFor(p => p.Anxiety).NotNull().OverridePropertyName("anxiety");
+            RuleFor(p => p.WaterL).NotNull().OverridePropertyName("water_l");
+        });
     }
 }

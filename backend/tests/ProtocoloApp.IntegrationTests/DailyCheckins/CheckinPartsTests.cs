@@ -8,7 +8,10 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.DailyCheckins;
 
-/// <summary>The check-in saved in parts (morning, evening, cardio): field-wise merge on the server. Fictitious values.</summary>
+/// <summary>
+/// The check-in saved in parts (<c>parts</c>: morning, evening, cardio), each with its own last-write-wins clock.
+/// Fictitious values.
+/// </summary>
 [Collection("api")]
 public sealed class CheckinPartsTests(ApiFactory factory)
 {
@@ -16,117 +19,240 @@ public sealed class CheckinPartsTests(ApiFactory factory)
 
     private Task<HttpClient> NewUserAsync() => factory.CreateAuthenticatedClientAsync(AuthApi.NewEmail());
 
-    private static SyncChange Upsert(Guid id, DateTimeOffset at, params (string Key, object? Value)[] fields)
+    /// <summary>Whole seconds in the past, so the stored (microsecond) clock compares equal.</summary>
+    private static DateTimeOffset At(int minutesAgo)
+    {
+        var at = SyncApi.Past(minutesAgo);
+        return new DateTimeOffset(at.UtcTicks - (at.UtcTicks % TimeSpan.TicksPerSecond), TimeSpan.Zero);
+    }
+
+    private static SyncChange Upsert(Guid id, DateTimeOffset at, string[]? parts, params (string Key, object? Value)[] fields)
     {
         var payload = new Dictionary<string, object?> { ["date"] = Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
+        if (parts is not null)
+            payload["parts"] = parts;
         foreach (var (key, value) in fields)
             payload[key] = value;
         return new SyncChange(SyncApi.Entity, id, SyncOp.Upsert, JsonSerializer.SerializeToElement(payload), at);
     }
 
-    // What the morning screen sends: its part, the other part's fields as null (nothing pulled yet).
-    private static SyncChange Morning(Guid id, DateTimeOffset at) => Upsert(id, at,
-        ("sleep_quality", 4), ("energy_wake", 3), ("bowel", "loose"), ("weight_kg", 80.4m),
+    // What the morning screen sends: the whole local row, the evening still empty (nothing pulled yet).
+    private static SyncChange Morning(Guid id, DateTimeOffset at, int sleepQuality = 4) => Upsert(id, at, ["morning"],
+        ("sleep_quality", sleepQuality), ("energy_wake", 3), ("bowel", "loose"), ("weight_kg", 80.4m),
         ("energy_day", null), ("anxiety", null), ("water_l", null), ("note", null));
 
-    private static SyncChange Evening(Guid id, DateTimeOffset at) => Upsert(id, at,
+    private static SyncChange Evening(Guid id, DateTimeOffset at) => Upsert(id, at, ["evening"],
         ("sleep_quality", null), ("energy_wake", null), ("bowel", null), ("weight_kg", null),
         ("energy_day", 2), ("anxiety", 5), ("water_l", 3.25m), ("note", "Dia corrido."));
 
-    private static async Task<JsonElement> PulledAsync(HttpClient client, Guid id) =>
-        (await SyncApi.PullAllAsync(client)).Single(r => r.Id == id).Payload!.Value;
+    private static SyncChange Cardio(Guid id, DateTimeOffset at, bool? done, int? minutes) =>
+        Upsert(id, at, ["cardio"], ("cardio_done", done), ("cardio_minutes", minutes));
 
-    [Fact]
-    public async Task Morning_on_one_device_and_evening_on_another_keep_both_parts()
+    private static async Task<SyncRecord> PulledAsync(HttpClient client, Guid id) =>
+        (await SyncApi.PullAllAsync(client)).Single(r => r.Id == id);
+
+    private static void AssertMorning(DailyCheckin row)
     {
-        using var client = await NewUserAsync();
-        var id = Guid.NewGuid();
-
-        var morning = await SyncApi.PushOneAsync(client, Morning(id, SyncApi.Past(60)));
-        // The second device never pulled the morning: its evening payload carries the morning fields as null.
-        var evening = await SyncApi.PushOneAsync(client, Evening(id, SyncApi.Past(10)));
-
-        Assert.Equal(SyncResultStatus.Applied, morning.Status);
-        Assert.Equal(SyncResultStatus.Applied, evening.Status);
-        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
         Assert.Equal(4, row.SleepQuality);
         Assert.Equal(3, row.EnergyWake);
         Assert.Equal(Bowel.Loose, row.Bowel);
         Assert.Equal(80.4m, row.WeightKg);
+    }
+
+    private static void AssertEvening(DailyCheckin row)
+    {
         Assert.Equal(2, row.EnergyDay);
         Assert.Equal(5, row.Anxiety);
         Assert.Equal(3.25m, row.WaterL);
         Assert.Equal("Dia corrido.", row.Note);
-        var payload = await PulledAsync(client, id);
-        Assert.Equal(4, payload.GetProperty("sleep_quality").GetInt32());
-        Assert.Equal("loose", payload.GetProperty("bowel").GetString());
-        Assert.Equal(5, payload.GetProperty("anxiety").GetInt32());
     }
 
     [Fact]
-    public async Task Older_part_is_still_stale_and_merges_nothing()
+    public async Task Evening_part_keeps_the_morning_fields()
     {
         using var client = await NewUserAsync();
         var id = Guid.NewGuid();
 
-        await SyncApi.PushOneAsync(client, Evening(id, SyncApi.Past(10)));
-        var older = await SyncApi.PushOneAsync(client, Morning(id, SyncApi.Past(60)));
+        await SyncApi.PushOneAsync(client, Morning(id, At(60)));
+        var result = await SyncApi.PushOneAsync(client, Evening(id, At(10)));
+
+        Assert.Equal(SyncResultStatus.Applied, result.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        AssertMorning(row);
+        AssertEvening(row);
+        var payload = (await PulledAsync(client, id)).Payload!.Value;
+        Assert.Equal(4, payload.GetProperty("sleep_quality").GetInt32());
+        Assert.Equal(5, payload.GetProperty("anxiety").GetInt32());
+        Assert.False(payload.TryGetProperty("parts", out _));
+    }
+
+    [Fact]
+    public async Task Morning_saved_offline_earlier_but_pushed_after_a_newer_evening_keeps_both()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+        var t1 = At(60);
+        var t2 = At(10);
+
+        // The PC pushes the evening (t2) first; the phone comes online later with its morning saved at t1 < t2.
+        var evening = await SyncApi.PushOneAsync(client, Evening(id, t2));
+        var morning = await SyncApi.PushOneAsync(client, Morning(id, t1));
+
+        Assert.Equal(SyncResultStatus.Applied, evening.Status);
+        Assert.Equal(SyncResultStatus.Applied, morning.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        AssertMorning(row);
+        AssertEvening(row);
+        Assert.Equal(t1, row.MorningClientUpdatedAt);
+        Assert.Equal(t2, row.EveningClientUpdatedAt);
+        Assert.Null(row.CardioClientUpdatedAt);
+        Assert.Equal(t2, row.ClientUpdatedAt);
+        Assert.Equal(t2, (await PulledAsync(client, id)).ClientUpdatedAt);
+    }
+
+    [Fact]
+    public async Task Older_morning_after_a_newer_morning_is_stale()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        await SyncApi.PushOneAsync(client, Morning(id, At(10), sleepQuality: 5));
+        var version = Assert.Single(await SyncApi.RowsAsync(factory, id)).Version;
+        var older = await SyncApi.PushOneAsync(client, Morning(id, At(60), sleepQuality: 1));
 
         Assert.Equal(SyncResultStatus.Stale, older.Status);
         var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
-        Assert.Null(row.SleepQuality);
-        Assert.Equal(2, row.EnergyDay);
+        Assert.Equal(5, row.SleepQuality);
+        Assert.Equal(version, row.Version);
     }
 
     [Fact]
-    public async Task Cardio_only_payload_creates_a_row_with_null_parts()
+    public async Task Legacy_payload_overwrites_only_the_parts_it_is_newer_than()
     {
         using var client = await NewUserAsync();
         var id = Guid.NewGuid();
 
-        var result = await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(), ("cardio_done", true), ("cardio_minutes", 25)));
+        // Morning at t3 and evening at t1; a full legacy write at t2 (t1 < t2 < t3) only beats the evening.
+        await SyncApi.PushOneAsync(client, Morning(id, At(10)));
+        await SyncApi.PushOneAsync(client, Evening(id, At(60)));
+        var legacy = await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, At(30), sleepQuality: 1, note: "Outro dia."));
+
+        Assert.Equal(SyncResultStatus.Applied, legacy.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        AssertMorning(row);
+        Assert.Equal("Outro dia.", row.Note);
+        Assert.Equal(4, row.EnergyDay);
+    }
+
+    [Fact]
+    public async Task Legacy_full_payload_older_than_every_part_clock_is_stale()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        await SyncApi.PushOneAsync(client, Morning(id, At(20)));
+        await SyncApi.PushOneAsync(client, Evening(id, At(15)));
+        await SyncApi.PushOneAsync(client, Cardio(id, At(10), true, 25));
+        var version = Assert.Single(await SyncApi.RowsAsync(factory, id)).Version;
+        var legacy = await SyncApi.PushOneAsync(client, SyncApi.Checkin(id, Day, At(30), sleepQuality: 1));
+
+        Assert.Equal(SyncResultStatus.Stale, legacy.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        Assert.Equal(version, row.Version);
+        AssertMorning(row);
+        AssertEvening(row);
+        Assert.True(row.CardioDone);
+    }
+
+    [Fact]
+    public async Task Cardio_part_alone_creates_a_row_with_null_parts()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        var result = await SyncApi.PushOneAsync(client, Cardio(id, At(5), true, 25));
 
         Assert.Equal(SyncResultStatus.Applied, result.Status);
         var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
         Assert.True(row.CardioDone);
         Assert.Equal(25, row.CardioMinutes);
-        Assert.Null(row.SleepQuality);
-        Assert.Null(row.Bowel);
-        Assert.Null(row.WaterL);
-        var payload = await PulledAsync(client, id);
+        Assert.Null(row.MorningClientUpdatedAt);
+        var payload = (await PulledAsync(client, id)).Payload!.Value;
         foreach (var field in new[] { "sleep_quality", "bowel", "energy_wake", "energy_day", "anxiety", "water_l", "weight_kg", "note" })
             Assert.Equal(JsonValueKind.Null, payload.GetProperty(field).ValueKind);
         Assert.Equal(25, payload.GetProperty("cardio_minutes").GetInt32());
     }
 
     [Fact]
-    public async Task A_part_after_cardio_keeps_the_cardio()
+    public async Task Cardio_part_with_done_null_clears_both_cardio_fields_and_keeps_the_rest()
     {
         using var client = await NewUserAsync();
         var id = Guid.NewGuid();
 
-        await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(60), ("cardio_done", true), ("cardio_minutes", 25)));
-        await SyncApi.PushOneAsync(client, Morning(id, SyncApi.Past(10)));
-
-        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
-        Assert.True(row.CardioDone);
-        Assert.Equal(25, row.CardioMinutes);
-        Assert.Equal(4, row.SleepQuality);
-    }
-
-    [Fact]
-    public async Task Cardio_not_done_drops_the_stored_minutes()
-    {
-        using var client = await NewUserAsync();
-        var id = Guid.NewGuid();
-
-        await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(60), ("cardio_done", true), ("cardio_minutes", 25)));
-        var result = await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(10), ("cardio_done", false)));
+        await SyncApi.PushOneAsync(client, Morning(id, At(60)));
+        await SyncApi.PushOneAsync(client, Cardio(id, At(50), true, 25));
+        var result = await SyncApi.PushOneAsync(client, Cardio(id, At(40), null, null));
 
         Assert.Equal(SyncResultStatus.Applied, result.Status);
         var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
-        Assert.False(row.CardioDone);
+        Assert.Null(row.CardioDone);
         Assert.Null(row.CardioMinutes);
+        AssertMorning(row);
+    }
+
+    [Fact]
+    public async Task Listed_part_with_every_field_null_clears_it()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        await SyncApi.PushOneAsync(client, Morning(id, At(60)));
+        await SyncApi.PushOneAsync(client, Evening(id, At(50)));
+        var result = await SyncApi.PushOneAsync(client, Upsert(id, At(40), ["evening"],
+            ("energy_day", null), ("anxiety", null), ("water_l", null), ("note", null)));
+
+        Assert.Equal(SyncResultStatus.Applied, result.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        Assert.Null(row.EnergyDay);
+        Assert.Null(row.Note);
+        AssertMorning(row);
+    }
+
+    [Fact]
+    public async Task Unknown_part_is_rejected()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        var result = await SyncApi.PushOneAsync(client, Upsert(id, At(5), ["night"], ("energy_day", 2)));
+
+        Assert.Equal(SyncResultStatus.Rejected, result.Status);
+        Assert.Equal(new[] { "invalid_payload:parts" }, result.Errors!);
+        Assert.Empty(await SyncApi.RowsAsync(factory, id));
+    }
+
+    [Fact]
+    public async Task Incomplete_part_is_rejected()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        var result = await SyncApi.PushOneAsync(client, Upsert(id, At(5), ["morning"], ("sleep_quality", 4), ("bowel", "normal")));
+
+        Assert.Equal(SyncResultStatus.Rejected, result.Status);
+        Assert.Equal(new[] { "invalid_payload:energy_wake" }, result.Errors!);
+        Assert.Empty(await SyncApi.RowsAsync(factory, id));
+    }
+
+    [Fact]
+    public async Task Date_only_payload_without_parts_is_rejected()
+    {
+        using var client = await NewUserAsync();
+
+        var result = await SyncApi.PushOneAsync(client, Upsert(Guid.NewGuid(), At(5), null));
+
+        Assert.Equal(SyncResultStatus.Rejected, result.Status);
+        Assert.Equal(new[] { "invalid_payload:parts" }, result.Errors!);
     }
 
     [Theory]
@@ -139,43 +265,15 @@ public sealed class CheckinPartsTests(ApiFactory factory)
     {
         using var client = await NewUserAsync();
         var id = Guid.NewGuid();
+        var payload = SyncApi.Checkin(id, Day, At(5));
+        var fields = JsonSerializer.Deserialize<Dictionary<string, object?>>(payload.Payload!.Value.GetRawText())!;
+        fields[field] = value;
 
-        var result = await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(), (field, value)));
+        var result = await SyncApi.PushOneAsync(client, payload with { Payload = JsonSerializer.SerializeToElement(fields) });
 
         Assert.Equal(SyncResultStatus.Rejected, result.Status);
         Assert.Equal(new[] { $"invalid_payload:{field}" }, result.Errors!);
         Assert.Empty(await SyncApi.RowsAsync(factory, id));
-    }
-
-    [Fact]
-    public async Task Invalid_bowel_is_rejected()
-    {
-        using var client = await NewUserAsync();
-
-        var result = await SyncApi.PushOneAsync(client, Upsert(Guid.NewGuid(), SyncApi.Past(), ("bowel", "watery")));
-
-        Assert.Equal(SyncResultStatus.Rejected, result.Status);
-        Assert.Equal(new[] { "invalid_payload:bowel" }, result.Errors!);
-    }
-
-    [Fact]
-    public async Task Empty_note_clears_and_null_note_keeps()
-    {
-        using var client = await NewUserAsync();
-        var id = Guid.NewGuid();
-
-        await SyncApi.PushOneAsync(client, Evening(id, SyncApi.Past(60)));
-        await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(50), ("note", null), ("anxiety", 3)));
-        var kept = Assert.Single(await SyncApi.RowsAsync(factory, id));
-        var result = await SyncApi.PushOneAsync(client, Upsert(id, SyncApi.Past(40), ("note", "")));
-
-        Assert.Equal("Dia corrido.", kept.Note);
-        Assert.Equal(3, kept.Anxiety);
-        Assert.Equal(SyncResultStatus.Applied, result.Status);
-        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
-        Assert.Null(row.Note);
-        Assert.Equal(3, row.Anxiety);
-        Assert.Equal(JsonValueKind.Null, (await PulledAsync(client, id)).GetProperty("note").ValueKind);
     }
 
     [Fact]
@@ -184,15 +282,30 @@ public sealed class CheckinPartsTests(ApiFactory factory)
         using var client = await NewUserAsync();
         var id = Guid.NewGuid();
 
-        await SyncApi.PushOneAsync(client, Morning(id, SyncApi.Past(60)));
-        await SyncApi.PushOneAsync(client, SyncApi.Delete(id, SyncApi.Past(50)));
-        var result = await SyncApi.PushOneAsync(client, Evening(id, SyncApi.Past(40)));
+        await SyncApi.PushOneAsync(client, Morning(id, At(60)));
+        await SyncApi.PushOneAsync(client, SyncApi.Delete(id, At(50)));
+        var result = await SyncApi.PushOneAsync(client, Evening(id, At(40)));
 
         Assert.Equal(SyncResultStatus.Applied, result.Status);
         var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
         Assert.Null(row.DeletedAt);
         Assert.Null(row.SleepQuality);
         Assert.Null(row.WeightKg);
-        Assert.Equal(2, row.EnergyDay);
+        Assert.Null(row.MorningClientUpdatedAt);
+        AssertEvening(row);
+    }
+
+    [Fact]
+    public async Task Part_older_than_the_delete_is_stale()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        await SyncApi.PushOneAsync(client, Evening(id, At(60)));
+        await SyncApi.PushOneAsync(client, SyncApi.Delete(id, At(40)));
+        var result = await SyncApi.PushOneAsync(client, Morning(id, At(50)));
+
+        Assert.Equal(SyncResultStatus.Stale, result.Status);
+        Assert.NotNull(Assert.Single(await SyncApi.RowsAsync(factory, id)).DeletedAt);
     }
 }
