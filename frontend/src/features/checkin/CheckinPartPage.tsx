@@ -3,11 +3,11 @@ import { useForm, type DefaultValues, type FieldValues, type Resolver, type UseF
 import { useNavigate } from 'react-router'
 import { dailyCheckinRepo, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import { useData, type Data } from '../../data/dataContext'
-import { onResume } from '../../platform/lifecycle'
 import { Button } from '../../ui/Button'
 import { useSync } from '../sync/syncContext'
 import type { TodayNotice } from '../today/TodayPage'
-import { localDate, longDate, msToNextMidnight } from './localDate'
+import { useTodayState } from '../workout/useToday'
+import { localDate, longDate } from './localDate'
 
 /** One part of the check-in (morning or evening): its form, how it reads the stored row and how it saves. */
 export interface CheckinPart<I extends FieldValues, O> {
@@ -23,35 +23,6 @@ export interface CheckinPart<I extends FieldValues, O> {
   fields(form: UseFormReturn<I, unknown, O>): ReactNode
 }
 
-/**
- * The device's calendar day. Recomputed when the window gets focus, when the app returns to the foreground and at
- * every local midnight (the app may stay open across it).
- */
-function useToday(): [string, () => void] {
-  const [today, setToday] = useState(() => localDate())
-  const [tick, setTick] = useState(0)
-  const refresh = useCallback(() => setToday(localDate()), [])
-
-  useEffect(() => {
-    window.addEventListener('focus', refresh)
-    const offResume = onResume(refresh)
-    return () => {
-      window.removeEventListener('focus', refresh)
-      offResume()
-    }
-  }, [refresh])
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      refresh()
-      setTick((t) => t + 1) // re-arm for the following midnight, even if the clock said the same day
-    }, msToNextMidnight(new Date()))
-    return () => clearTimeout(timer)
-  }, [tick, refresh])
-
-  return [today, refresh]
-}
-
 const Message = ({ children }: { children: ReactNode }) => <p className="text-muted">{children}</p>
 
 /**
@@ -62,7 +33,7 @@ const Message = ({ children }: { children: ReactNode }) => <p className="text-mu
 export function CheckinPartPage<I extends FieldValues, O>({ part }: { part: CheckinPart<I, O> }) {
   const data = useData()
   const { dataVersion } = useSync()
-  const [today, refreshToday] = useToday()
+  const [today, refreshToday] = useTodayState()
   // The day on screen. It follows `today`, except while the form holds unsaved input (the form then says the day changed).
   const [date, setDate] = useState(today)
   const dirty = useRef(false)
@@ -230,7 +201,8 @@ function PartForm<I extends FieldValues, O>({
         </p>
       )}
 
-      <Button type="submit" variant="primary" size="lg" loading={isSubmitting}>
+      {/* While another device's version is pending a reload, saving would silently overwrite it. */}
+      <Button type="submit" variant="primary" size="lg" loading={isSubmitting} disabled={stale === 'remote'}>
         Salvar
       </Button>
     </form>

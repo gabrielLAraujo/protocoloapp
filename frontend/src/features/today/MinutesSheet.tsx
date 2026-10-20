@@ -16,7 +16,7 @@ function parseMinutes(text: string): number | null | undefined {
 
 /**
  * "Quantos minutos?" after marking cardio done. The minutes are optional: "Salvar" with the field empty or "Pular"
- * marks it done without them. Escape (or a tap outside) cancels: nothing is marked.
+ * marks it done without them. "Cancelar", Escape or a tap outside cancels: nothing is marked.
  */
 export function MinutesSheet({
   busy,
@@ -80,6 +80,9 @@ export function MinutesSheet({
             Pular
           </Button>
         </div>
+        <Button variant="ghost" block onClick={onCancel}>
+          Cancelar
+        </Button>
       </form>
     </Sheet>
   )

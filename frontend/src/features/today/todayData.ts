@@ -8,7 +8,8 @@ import { workoutRepo } from '../../data/workoutRepo'
 import { weekdayOf, type Weekday } from '../../domain/calendarDate'
 import { buildDay, type DayKind, type DayTarget, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
-import { resolveTargetStatus } from '../../domain/targetStatus'
+import { dayScore, type DayScore } from '../../domain/progress'
+import { resolveTargetStatus, targetId } from '../../domain/targetStatus'
 import { localDate } from '../checkin/localDate'
 import { loadWorkoutPlans, type WorkoutPlanEntry } from '../workout/workoutPlans'
 
@@ -41,6 +42,8 @@ export interface TodayView {
   /** Day name for the header ("A" for "Treino A"), only on training days. */
   workoutName: string | null
   rows: TodayRow[]
+  /** The protocol asks for N cardio sessions a week (not daily): an unmarked cardio does not count in the day's score. */
+  cardioOptional: boolean
 }
 
 export interface TodaySources {
@@ -154,7 +157,18 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     dayType: plan.dayType,
     workoutName: workoutTitle === null ? null : workoutTitle.replace(/^treino\s+/i, '') || workoutTitle,
     rows,
+    cardioOptional: src.protocol?.cardio != null && src.protocol.cardio.daily !== true,
   }
+}
+
+/**
+ * The day's score over everything planned for the whole day (the ring of Hoje): the same rows and rules as the
+ * gamification's `dayScore`, counted as a closed day, so 100 % means every target of the day is done.
+ */
+export function wholeDayScore(view: TodayView): DayScore {
+  const plan = { dayType: view.dayType, workoutDayKey: null, targets: view.rows.map((r) => r.target) }
+  const statuses = new Map(view.rows.map((r) => [targetId(r.target), r.status]))
+  return dayScore(plan, statuses, { isToday: false, cardioOptional: view.cardioOptional })
 }
 
 /** Not marked and more than LATE_AFTER_MIN minutes past its time (today only). */

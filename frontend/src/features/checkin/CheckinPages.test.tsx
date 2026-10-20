@@ -210,10 +210,13 @@ describe('/checkin/noite', () => {
 
       expect(await screen.findByText('Atualizado em outro aparelho —')).toBeInTheDocument()
       expect(screen.getByLabelText('Observações')).toHaveValue('digitando')
+      // Saving now would overwrite the other device's version unseen: blocked until the reload.
+      expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
 
       await user.click(screen.getByRole('button', { name: 'recarregar' }))
       await waitFor(() => expect(screen.getByLabelText('Observações')).toHaveValue('do outro aparelho'))
       expect(screen.queryByText('Atualizado em outro aparelho —')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled()
     })
 
     it('a pull that only brings the other part does not disturb the form', async () => {

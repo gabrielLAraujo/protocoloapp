@@ -1,5 +1,6 @@
 import type { RouteObject } from 'react-router'
 import { AppShell } from './app/AppShell'
+import { AchievementsPage } from './features/achievements/AchievementsPage'
 import { RequireAuth } from './auth/RequireAuth'
 import { CheckinHubPage } from './features/checkin/CheckinHubPage'
 import { EveningCheckinPage } from './features/checkin/EveningCheckinPage'
@@ -31,6 +32,7 @@ export const routes: RouteObject[] = [
           { path: '/checkin', element: <CheckinHubPage /> },
           { path: '/checkin/manha', element: <MorningCheckinPage /> },
           { path: '/checkin/noite', element: <EveningCheckinPage /> },
+          { path: '/conquistas', element: <AchievementsPage /> },
           { path: '/planejamento', element: <PlansPage /> },
           { path: '/planejamento/revisao/:id', element: <PlanReviewPage /> },
           { path: '/planejamento/protocolo', element: <ProtocolView /> },

@@ -4,12 +4,21 @@ import { ensureScheduleDefaults } from '../../data/activeProtocol'
 import { setCardio } from '../../data/adherenceLinks'
 import { adherenceRepo, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
 import { useData } from '../../data/dataContext'
+import { isOnTarget, type DayScore } from '../../domain/progress'
+import { Icon } from '../../ui/Icon'
+import { localDate } from '../checkin/localDate'
+import { loadProgress, type ProgressData } from '../progress/progressData'
 import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
+import { Celebration, GoalToast } from './Celebration'
 import { DayTimeline } from './DayTimeline'
 import { MinutesSheet } from './MinutesSheet'
+import { claimOnceADay, prefersReducedMotion } from './onceADay'
+import { ProgressRing } from './ProgressRing'
 import { ReasonSheet } from './ReasonSheet'
-import { buildTodayView, headerText, isLate, loadTodaySources, type TodayRow, type TodayView } from './todayData'
+import { StreakLink } from './StreakLink'
+import { buildTodayView, headerText, isLate, loadTodaySources, wholeDayScore, type TodayRow, type TodayView } from './todayData'
+import { WeekCard } from './WeekCard'
 
 const CLOCK_MS = 30_000
 
@@ -26,6 +35,47 @@ function useClock(): Date {
     }
   }, [])
   return now
+}
+
+const CELEBRATION_MS = 1600
+const TOAST_MS = 4500
+
+/**
+ * The day's two moments, each at most once per day (kept in localStorage): the celebration when every target of the
+ * whole day is done (skipped with reduced motion; the header then just says "Dia completo"), and the "Meta do dia
+ * batida" toast the first time the day reaches 90 %. Reaching 100 % straight away spends the toast too.
+ */
+function useDayMoments(date: string | null, score: DayScore | null) {
+  const [celebrating, setCelebrating] = useState(false)
+  const [toast, setToast] = useState(false)
+  const complete = score !== null && score.planned > 0 && score.done === score.planned
+  const onTarget = score !== null && isOnTarget(score)
+
+  // The claim is the external system here (localStorage); the state change follows it in a microtask, so a re-run of
+  // the effect (Strict Mode, a re-render) finds the day already claimed and shows nothing twice.
+  useEffect(() => {
+    if (date === null) return
+    if (complete) {
+      claimOnceADay('goal', date)
+      if (claimOnceADay('complete', date) && !prefersReducedMotion()) void Promise.resolve().then(() => setCelebrating(true))
+    } else if (onTarget && claimOnceADay('goal', date)) {
+      void Promise.resolve().then(() => setToast(true))
+    }
+  }, [date, complete, onTarget])
+
+  useEffect(() => {
+    if (!celebrating) return
+    const timer = setTimeout(() => setCelebrating(false), CELEBRATION_MS)
+    return () => clearTimeout(timer)
+  }, [celebrating])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(false), TOAST_MS)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  return { celebrating, toast, closeToast: () => setToast(false), complete, onTarget }
 }
 
 const Message = ({ children }: { children: ReactNode }) => <p className="text-muted">{children}</p>
@@ -52,6 +102,19 @@ function DayStrip({ view, now }: { view: TodayView; now: Date }) {
   )
 }
 
+/** Where the day stands against its 90 % goal ("Dia completo" is also the static form of the celebration). */
+function DayGoalLine({ complete, onTarget }: { complete: boolean; onTarget: boolean }) {
+  if (complete)
+    return (
+      <p className="flex items-center gap-1 text-sm font-semibold text-ok">
+        <Icon name="check" size={16} strokeWidth={2.4} />
+        Dia completo
+      </p>
+    )
+  if (onTarget) return <p className="text-sm font-medium text-ok">Meta do dia batida</p>
+  return <p className="text-sm text-muted">Meta do dia: 90%</p>
+}
+
 /** What another screen sends along when it returns here (`navigate('/hoje', { state })`). */
 export interface TodayNotice {
   /** A short confirmation shown at the top ("Check-in da manhã salvo"). */
@@ -76,6 +139,7 @@ export function TodayPage() {
   const [error, setError] = useState(false)
   const [sheet, setSheet] = useState<{ row: TodayRow; status: 'partial' | 'missed' } | null>(null)
   const [minutesFor, setMinutesFor] = useState<TodayRow | null>(null)
+  const [progress, setProgress] = useState<ProgressData | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   // Shown for this visit only: the history entry drops it, so a reload or coming back does not repeat it.
@@ -109,9 +173,29 @@ export function TodayPage() {
     }
   }, [data, today, dataVersion, reload, syncNow])
 
+  // Streak and week goals: the whole history, re-read after every mark or pull and when the day changes.
+  useEffect(() => {
+    if (!data) return
+    let cancelled = false
+    const at = new Date()
+    loadProgress(data.db, localDate(at), at).then(
+      (result) => {
+        if (!cancelled) setProgress(result)
+      },
+      (e: unknown) => console.error('could not compute the progress', e),
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [data, today, dataVersion, reload])
+
+  const ready = view !== null && view.date === today
+  const score = ready ? wholeDayScore(view) : null
+  const moments = useDayMoments(ready ? today : null, score)
+
   if (failed) return <Message>Não foi possível abrir os dados do aparelho.</Message>
   if (!data) return <Message>Preparando os dados do aparelho…</Message>
-  if (!view || view.date !== today) return <Message>Carregando…</Message>
+  if (!view || !ready || !score) return <Message>Carregando…</Message>
 
   /** `minutes` (cardio done only): undefined keeps the minutes already saved. */
   async function save(
@@ -149,21 +233,36 @@ export function TodayPage() {
     else setSheet({ row, status })
   }
 
-  const done = view.rows.filter((r) => r.status === 'done').length
-  const partial = view.rows.filter((r) => r.status === 'partial').length
+  // The counter follows the ring (whole day); a day with nothing that counts (no plan) still counts its rows.
+  const counted = score.planned > 0
+  const done = counted ? score.done : view.rows.filter((r) => r.status === 'done').length
+  const total = counted ? score.planned : view.rows.length
+  const partial = counted ? score.partial : view.rows.filter((r) => r.status === 'partial').length
+  const weekGoals = progress?.today === today ? progress.weekGoals : []
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
-          <p className="text-sm text-muted">{headerText(view)}</p>
+      <div className="grid gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
+            <p className="text-sm text-muted">{headerText(view)}</p>
+          </div>
+          {progress?.today === today && <StreakLink current={progress.streak.current} />}
         </div>
-        {view.rows.length > 0 && <DayStrip view={view} now={now} />}
-        <p role="status" className="text-base font-semibold tabular-nums">
-          {done} de {view.rows.length} feitos
-          {partial > 0 && <span className="font-medium text-muted"> · {partial} {partial === 1 ? 'parcial' : 'parciais'}</span>}
-        </p>
+        {view.rows.length > 0 && (
+          <div className="flex items-center gap-4">
+            <ProgressRing score={score}>{moments.celebrating && <Celebration />}</ProgressRing>
+            <div className="grid min-w-0 flex-1 gap-2">
+              <p role="status" className="text-base font-semibold tabular-nums">
+                {done} de {total} feitos
+                {partial > 0 && <span className="font-medium text-muted"> · {partial} {partial === 1 ? 'parcial' : 'parciais'}</span>}
+              </p>
+              {counted && <DayGoalLine complete={moments.complete} onTarget={moments.onTarget} />}
+              <DayStrip view={view} now={now} />
+            </div>
+          </div>
+        )}
       </div>
 
       {notice && (
@@ -179,6 +278,10 @@ export function TodayPage() {
       )}
 
       <DayTimeline view={view} now={now} busy={busy} onChoose={choose} />
+
+      <WeekCard goals={weekGoals} />
+
+      <div aria-live="polite">{moments.toast && <GoalToast onClose={moments.closeToast} />}</div>
 
       {sheet && (
         <ReasonSheet

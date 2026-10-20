@@ -27,7 +27,7 @@ export const eveningSchema = z.object({
     .string()
     .trim()
     .min(1, 'Informe a água em litros')
-    .refine((v) => v === '' || NUMBER.test(v), 'Informe um número válido')
+    .refine((v) => NUMBER.test(v), 'Informe um número válido')
     .refine((v) => !NUMBER.test(v) || toNumber(v) <= 15, 'Máximo 15 L')
     .transform(toNumber),
   note: z

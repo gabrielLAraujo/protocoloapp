@@ -11,6 +11,7 @@ import { json, mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
+import { seedGamificationHistory } from '../achievements/testSeed'
 import { SummaryPage } from './SummaryPage'
 
 // Tuesday 2026-10-27; the protocol was activated on the 20th.
@@ -125,6 +126,29 @@ describe('SummaryPage', () => {
     const strength = screen.getByRole('region', { name: 'Força por grupo' })
     expect(within(strength).getByText('Peito')).toBeInTheDocument()
     expect(within(strength).getByText('Supino reto')).toBeInTheDocument()
+  })
+
+  it('shows the "Sequência" (current and records) and "Semanas na meta" cards', async () => {
+    const app = await setupApp()
+    await seedGamificationHistory(app.db) // same today (10-27): streak 12, one perfect week of two closed
+    app.view(<SummaryPage />)
+
+    const card = within(await screen.findByRole('region', { name: 'Constância' }))
+    expect(card.getByText('Sequência').nextSibling).toHaveTextContent('12 dias')
+    expect(card.getByText('recorde: 12 dias no ciclo, 12 dias no geral')).toBeInTheDocument()
+    expect(card.getByText('Semanas na meta').nextSibling).toHaveTextContent('1 de 2')
+    expect(card.getByRole('link', { name: 'Ver conquistas' })).toHaveAttribute('href', '/conquistas')
+  })
+
+  it('"Semanas na meta" says so when no week has closed yet', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    app.view(<SummaryPage />)
+
+    const card = within(await screen.findByRole('region', { name: 'Constância' }))
+    expect(card.getByText('Sequência').nextSibling).toHaveTextContent('0 dias')
+    expect(card.getByText('Semanas na meta').nextSibling).toHaveTextContent('—')
+    expect(card.getByText('nenhuma semana fechada ainda')).toBeInTheDocument()
   })
 
   it('says how late the update is once past the update date', async () => {

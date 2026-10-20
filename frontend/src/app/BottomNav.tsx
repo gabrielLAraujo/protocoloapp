@@ -89,7 +89,8 @@ export function BottomNav() {
     }
   }
 
-  const moreActive = location.pathname.startsWith('/configuracoes') || location.pathname.startsWith('/settings')
+  const moreActive =
+    location.pathname.startsWith('/configuracoes') || location.pathname.startsWith('/settings') || location.pathname.startsWith('/conquistas')
   return (
     <>
       {open && (
@@ -104,6 +105,14 @@ export function BottomNav() {
             onClick={(e) => e.stopPropagation()}
             className="absolute inset-x-0 bottom-[var(--bottom-nav-height,0px)] mx-auto grid max-w-2xl gap-1 rounded-t-sheet border-t border-line bg-surface p-3 shadow-raised"
           >
+            <NavLink to="/conquistas" className={MENU_ITEM}>
+              <Icon name="medal" className="text-muted" />
+              Conquistas
+            </NavLink>
+            <NavLink to="/checkin" end className={MENU_ITEM}>
+              <Icon name="note" className="text-muted" />
+              Check-in de hoje
+            </NavLink>
             <NavLink to="/configuracoes" className={MENU_ITEM}>
               <Icon name="settings" className="text-muted" />
               Configurações

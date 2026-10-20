@@ -238,13 +238,20 @@ describe('TodayPage', () => {
     expect(row('Cardio').getByText('Feito: 40 min')).toBeInTheDocument()
   })
 
-  it('Escape on "Quantos minutos?" marks nothing; ½ and ✗ on Cardio still ask for the reason', async () => {
+  it('Escape or Cancelar on "Quantos minutos?" marks nothing; ½ and ✗ on Cardio still ask for the reason', async () => {
     const { db, user } = await render()
 
     await user.click(row('Cardio').getByRole('button', { name: 'Feito' }))
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(await today(db)).toEqual([])
+
+    // "Cancelar" does the same.
+    await user.click(row('Cardio').getByRole('button', { name: 'Feito' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Quantos minutos?' })).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await today(db)).toEqual([])
+    expect(await dailyCheckinRepo.get(db, TODAY)).toBeNull()
 
     await user.click(row('Cardio').getByRole('button', { name: 'Não fiz' }))
     await user.click(within(screen.getByRole('dialog', { name: 'Não fiz — Cardio' })).getByRole('button', { name: 'Sem tempo' }))
