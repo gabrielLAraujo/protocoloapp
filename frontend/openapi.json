@@ -749,6 +749,65 @@
         }
       }
     },
+    "/api/exercises/{id}/catalog": {
+      "put": {
+        "tags": [
+          "Exercises"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetExerciseCatalogRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/app/latest-release": {
       "get": {
         "tags": [
@@ -1518,6 +1577,20 @@
           }
         }
       },
+      "SetExerciseCatalogRequest": {
+        "required": [
+          "catalogId"
+        ],
+        "type": "object",
+        "properties": {
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SubscribeRequest": {
         "required": [
           "endpoint",
@@ -1768,12 +1841,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "catalogId": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },
