@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dailyCheckinRepo, type DailyCheckinFields } from '../../data/dailyCheckinRepo'
+import { dailyCheckinRepo, type MorningFields } from '../../data/dailyCheckinRepo'
 import { outbox } from '../../data/outbox'
 import { json, mockFetch } from '../../test/fetch-mock'
 import { syncState } from '../../data/syncState'
@@ -14,18 +14,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const fields: DailyCheckinFields = {
-  sleepQuality: 4,
-  bowel: 'normal',
-  energyWake: 3,
-  energyDay: 4,
-  anxiety: 2,
-  waterL: 2,
-  weightKg: null,
-  note: null,
-  cardioDone: null,
-  cardioMinutes: null,
-}
+const fields: MorningFields = { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }
 const at = new Date('2026-10-18T12:00:00Z')
 
 describe('SyncStatus', () => {
@@ -52,7 +41,7 @@ describe('SyncStatus', () => {
     })
     const { db, engine, view } = await setupApp()
     await syncState.set(db, 'last_sync_at', '2026-10-18T12:00:00.000Z')
-    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-17', fields, at)
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-17', fields, at)
     view(<SyncStatus />)
     await engine.runOnce()
     expect(await screen.findByText('Erro ao sincronizar — 1 pendente')).toBeInTheDocument()
@@ -72,7 +61,7 @@ describe('SyncStatus', () => {
   ])('shows the pending count (%i)', async (count, text) => {
     mockFetch({})
     const { db, view } = await setupApp()
-    for (let day = 0; day < count; day++) await dailyCheckinRepo.upsert(db, USER_A, `2026-10-1${day}`, fields, at)
+    for (let day = 0; day < count; day++) await dailyCheckinRepo.saveMorning(db, USER_A, `2026-10-1${day}`, fields, at)
     view(<SyncStatus />)
     expect(await screen.findByText(text)).toBeInTheDocument()
   })
@@ -81,7 +70,7 @@ describe('SyncStatus', () => {
     mockFetch({})
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
     const { db, view } = await setupApp()
-    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-17', fields, at)
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-17', fields, at)
     view(<SyncStatus />)
     expect(await screen.findByText('Offline — 1 pendente')).toBeInTheDocument()
   })
@@ -90,7 +79,7 @@ describe('SyncStatus', () => {
     mockFetch({})
     const { db, view } = await setupApp()
     await syncState.set(db, 'last_sync_at', '2026-10-18T12:00:00.000Z')
-    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-17', fields, at)
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-17', fields, at)
     const [entry] = await db.query<{ seq: number }>('SELECT seq FROM outbox')
     await outbox.reject(db, entry!.seq, ['date_conflict'])
 
@@ -115,7 +104,7 @@ describe('SyncStatus', () => {
       'GET /api/sync/pull': () => json({ records: [], nextSince: 0, hasMore: false }),
     })
     const { db, view } = await setupApp()
-    await dailyCheckinRepo.upsert(db, USER_A, '2026-10-17', fields, at)
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-17', fields, at)
     const user = userEvent.setup()
     view(<SyncStatus />)
 
@@ -130,7 +119,7 @@ describe('SyncStatus', () => {
 describe('AttentionList', () => {
   async function seedRejected(errors: string[]) {
     const app = await setupApp()
-    await dailyCheckinRepo.upsert(app.db, USER_A, '2026-10-17', fields, at)
+    await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-17', fields, at)
     const [entry] = await app.db.query<{ seq: number }>('SELECT seq FROM outbox')
     await outbox.reject(app.db, entry!.seq, errors)
     return app

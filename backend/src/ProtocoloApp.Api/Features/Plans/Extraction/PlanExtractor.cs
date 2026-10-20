@@ -54,6 +54,12 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             var call = await client.CallToolAsync(ExtractionSchemas.ToolName(kind), schema, prompt, pdfBase64, ct);
             if (call.Status == AnthropicCallStatus.Unavailable)
             {
+                if (call.ErrorHint == AnthropicErrorHint.CreditBalance)
+                {
+                    logger.LogWarning("Plan extraction ({Kind}) attempt {Attempt}: {Code} (status {Status}).", kind, attempt, PlanExtractionResult.NoCredits, call.StatusCode);
+                    return PlanExtractionResult.Failure(PlanExtractionResult.NoCredits);
+                }
+
                 logger.LogWarning("Plan extraction ({Kind}) attempt {Attempt}: provider unavailable (status {Status}, error type {ErrorType}).", kind, attempt, call.StatusCode, call.ErrorType);
                 // The provider refused this very request (a PDF it cannot read...): the service is fine, the file is the problem.
                 if (call.StatusCode == 400 && call.ErrorType == "invalid_request_error")

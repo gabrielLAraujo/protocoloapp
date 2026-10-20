@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { components } from '../api/schema'
 import { json, mockFetch, problem, type Call } from '../test/fetch-mock'
 import { newLocalDb, newTestApi, USER_A } from '../test/localDb'
-import { dailyCheckinRepo, dailyCheckinSync, type DailyCheckinFields } from './dailyCheckinRepo'
+import { dailyCheckinRepo, dailyCheckinSync, type MorningFields } from './dailyCheckinRepo'
 import { checkinIdForDate } from './ids'
 import type { LocalDb } from './localDb'
 import { outbox } from './outbox'
@@ -12,18 +12,7 @@ import { syncState } from './syncState'
 type SyncChange = components['schemas']['SyncChange']
 type SyncRecord = components['schemas']['SyncRecord']
 
-const fields: DailyCheckinFields = {
-  sleepQuality: 4,
-  bowel: 'normal',
-  energyWake: 3,
-  energyDay: 4,
-  anxiety: 2,
-  waterL: 2.5,
-  weightKg: null,
-  note: null,
-  cardioDone: null,
-  cardioMinutes: null,
-}
+const fields: MorningFields = { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }
 
 /** A mutable clock the engine reads through `clock()`. */
 function testClock(start = '2026-10-18T12:00:00.000Z') {
@@ -42,7 +31,7 @@ const pulls = (calls: Call[]) => calls.filter((c) => c.path.startsWith('/api/syn
 const emptyPull = () => json({ records: [], nextSince: 0, hasMore: false })
 
 async function seed(db: LocalDb, dates: string[], at: Date) {
-  for (const date of dates) await dailyCheckinRepo.upsert(db, USER_A, date, fields, at)
+  for (const date of dates) await dailyCheckinRepo.saveMorning(db, USER_A, date, fields, at)
 }
 
 const remoteRecord = (date: string, version: number, overrides: Partial<SyncRecord> = {}): SyncRecord => ({
@@ -361,8 +350,40 @@ describe('SyncEngine', () => {
     const result = await new SyncEngine(db, newTestApi(), clock).runOnce()
 
     expect(result).toMatchObject({ pulled: 1, offline: false })
-    expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ sleepQuality: 4, note: null })
+    // The pending morning stays; the evening (not pending here) is the server's.
+    expect(await dailyCheckinRepo.get(db, '2026-10-18')).toMatchObject({ sleepQuality: 4, note: 'remoto' })
     expect(await outbox.pendingCount(db)).toBe(1)
+    expect(await syncState.get(db, 'last_since')).toBe('9')
+  })
+
+  it('daily check-in: a pending part pulled over by a newer server row comes back stale, and the next pull brings the server values', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    const date = '2026-10-18'
+    // Morning saved here at 12:00 and still pending (in backoff); the server row was written at 13:00 by another device.
+    await dailyCheckinRepo.saveMorning(db, USER_A, date, { sleepQuality: 4, energyWake: 3, bowel: 'normal', weightKg: null }, clock())
+    const [entry] = await outbox.due(db, clock(), 500)
+    await outbox.fail(db, [entry!.seq], clock())
+    const record = remoteRecord(date, 9, { clientUpdatedAt: '2026-10-18T13:00:00.000000+00:00' })
+    const calls = mockFetch({
+      'POST /api/sync/push': (call) => json({ results: changesOf(call).map((c) => ({ id: c.id, status: 'stale', errors: null })) }),
+      'GET /api/sync/pull': (call) => {
+        const since = Number(new URL(call.path, 'http://x').searchParams.get('since'))
+        return since < 9 ? json({ records: [record], nextSince: 9, hasMore: false }) : json({ records: [], nextSince: since, hasMore: false })
+      },
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+
+    await engine.runOnce()
+    // Pull only (the change is in backoff): the pending morning stays, the evening is the server's.
+    expect(await dailyCheckinRepo.get(db, date)).toMatchObject({ sleepQuality: 4, bowel: 'normal', energyDay: 1, anxiety: 5, note: 'remoto' })
+    expect(await syncState.get(db, 'last_since')).toBe('9')
+
+    await engine.runOnce({ ignoreBackoff: true })
+    // stale → the cursor went back below the record, which came again with nothing pending.
+    expect(pulls(calls).at(-1)?.path).toBe('/api/sync/pull?since=8&limit=500')
+    expect(await outbox.pendingCount(db)).toBe(0)
+    expect(await dailyCheckinRepo.get(db, date)).toMatchObject({ sleepQuality: 1, bowel: 'constipated', weightKg: 81 })
     expect(await syncState.get(db, 'last_since')).toBe('9')
   })
 

@@ -13,7 +13,13 @@ export type AdherenceTargetType = 'meal' | 'protocol_item' | 'cardio' | 'workout
 
 export const CARDIO_KEY = 'cardio'
 export const WORKOUT_KEY = 'workout'
-export const CHECKIN_KEY = 'checkin'
+/** The two parts of the daily check-in are two targets; the evening one keeps the old `checkin` slot (and its time). */
+export const CHECKIN_MORNING_KEY = 'checkin_morning'
+export const CHECKIN_EVENING_KEY = 'checkin_evening'
+export const CHECKIN_MORNING_SLOT = 'checkin_morning'
+export const CHECKIN_EVENING_SLOT = 'checkin'
+/** Adherence key of the single check-in target before it was split; a mark with it counts as the evening check-in. */
+export const LEGACY_CHECKIN_KEY = 'checkin'
 
 /** A workout version that was active. `activatedOn` is the local date of `activatedAt` (ISO instant). */
 export interface DayWorkoutPlan {
@@ -146,7 +152,8 @@ export function buildDay(
   }
 
   if (resolved.kind === 'workout') add('workout', WORKOUT_KEY, `Treino ${resolved.dayKey}`, 'workout')
-  add('checkin', CHECKIN_KEY, 'Check-in', 'checkin')
+  add('checkin', CHECKIN_MORNING_KEY, 'Check-in da manhã', CHECKIN_MORNING_SLOT)
+  add('checkin', CHECKIN_EVENING_KEY, 'Check-in da noite', CHECKIN_EVENING_SLOT)
 
   return {
     dayType: resolved.kind === 'workout' ? 'training' : resolved.kind,

@@ -39,7 +39,19 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
 
   await nav(page, 'Hoje').click()
   await expect(page.getByRole('list', { name: 'Itens de hoje' })).toBeVisible()
+  // The day's ring, the streak and the week card (loaded after the list).
+  await expect(page.getByRole('progressbar', { name: 'Progresso do dia' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Sequência: / })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Semana' })).toBeVisible()
   await shoot(page, '2-hoje')
+
+  await page.getByRole('link', { name: 'Check-in da manhã' }).click()
+  await expect(page.getByRole('heading', { name: 'Check-in da manhã' })).toBeVisible()
+  await shoot(page, '2b-checkin-manha')
+
+  await page.goto('/checkin')
+  await expect(page.getByRole('heading', { name: 'Check-in de hoje' })).toBeVisible()
+  await shoot(page, '2c-checkin')
 
   await nav(page, 'Treino').click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -48,6 +60,12 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
   await nav(page, 'Planejamento').click()
   await expect(page.getByRole('heading', { name: 'Planejamento' })).toBeVisible()
   await shoot(page, '4-planejamento')
+
+  await page.getByRole('button', { name: 'Mais' }).click()
+  await page.getByRole('dialog', { name: 'Mais' }).getByRole('link', { name: 'Conquistas' }).click()
+  await expect(page.getByRole('heading', { name: 'Conquistas' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Sequência' })).toBeVisible()
+  await shoot(page, '4b-conquistas')
 
   await page.getByRole('button', { name: 'Mais' }).click()
   await page.getByRole('dialog', { name: 'Mais' }).getByRole('link', { name: 'Configurações' }).click()

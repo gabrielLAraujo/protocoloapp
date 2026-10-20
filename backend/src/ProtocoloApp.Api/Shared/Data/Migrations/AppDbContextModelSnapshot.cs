@@ -193,15 +193,18 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<int>("Anxiety")
+                    b.Property<int?>("Anxiety")
                         .HasColumnType("integer")
                         .HasColumnName("anxiety");
 
                     b.Property<string>("Bowel")
-                        .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("bowel");
+
+                    b.Property<DateTimeOffset?>("CardioClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cardio_client_updated_at");
 
                     b.Property<bool?>("CardioDone")
                         .HasColumnType("boolean")
@@ -227,20 +230,28 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
-                    b.Property<int>("EnergyDay")
+                    b.Property<int?>("EnergyDay")
                         .HasColumnType("integer")
                         .HasColumnName("energy_day");
 
-                    b.Property<int>("EnergyWake")
+                    b.Property<int?>("EnergyWake")
                         .HasColumnType("integer")
                         .HasColumnName("energy_wake");
+
+                    b.Property<DateTimeOffset?>("EveningClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("evening_client_updated_at");
+
+                    b.Property<DateTimeOffset?>("MorningClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("morning_client_updated_at");
 
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("note");
 
-                    b.Property<int>("SleepQuality")
+                    b.Property<int?>("SleepQuality")
                         .HasColumnType("integer")
                         .HasColumnName("sleep_quality");
 
@@ -256,7 +267,7 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("version");
 
-                    b.Property<decimal>("WaterL")
+                    b.Property<decimal?>("WaterL")
                         .HasPrecision(4, 2)
                         .HasColumnType("numeric(4,2)")
                         .HasColumnName("water_l");

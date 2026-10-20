@@ -18,7 +18,7 @@ function setup(entry = '/') {
             <BottomNav />
           </>
         ),
-        children: ['/', '/hoje', '/treino', '/checkin', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
+        children: ['/', '/hoje', '/treino', '/checkin', '/checkin/manha', '/checkin/noite', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
       },
     ],
     { initialEntries: [entry] },
@@ -55,8 +55,8 @@ describe('BottomNav', () => {
     expect(within(nav).queryByRole('link', { name: 'Check-in' })).not.toBeInTheDocument()
   })
 
-  it('"Hoje" is highlighted on the check-in it opens', () => {
-    setup('/checkin')
+  it.each(['/checkin', '/checkin/manha', '/checkin/noite'])('"Hoje" is highlighted on the check-in it opens (%s)', (path) => {
+    setup(path)
     expect(screen.getByRole('link', { name: 'Hoje' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Hoje' }).className).toContain('text-accent')
     expect(screen.getByRole('link', { name: 'Resumo' })).not.toHaveAttribute('aria-current')
@@ -94,14 +94,19 @@ describe('BottomNav', () => {
     await user.click(more)
     const dialog = screen.getByRole('dialog', { name: 'Mais' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    const diag = screen.getByRole('link', { name: 'Configurações' })
+    const first = screen.getByRole('link', { name: 'Conquistas' })
+    expect(screen.getByRole('link', { name: 'Check-in de hoje' })).toHaveAttribute('href', '/checkin')
+    expect(screen.getByRole('link', { name: 'Configurações' })).toBeInTheDocument()
     const exit = screen.getByRole('button', { name: 'Sair' })
-    expect(diag).toHaveFocus()
+    expect(first).toHaveAttribute('href', '/conquistas')
+    expect(first).toHaveFocus()
 
+    await user.tab()
+    await user.tab()
     await user.tab()
     expect(exit).toHaveFocus()
     await user.tab()
-    expect(diag).toHaveFocus()
+    expect(first).toHaveFocus()
     await user.tab({ shift: true })
     expect(exit).toHaveFocus()
 

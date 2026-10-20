@@ -7,8 +7,8 @@ export interface SlotRow {
 }
 
 /**
- * The slots Horários shows, in the order of a day: one per meal of the protocol (its label, or "REF n"), then the fixed
- * ones. Intra-treino and Após refeição only when the protocol has items at those moments (they have no suggested time).
+ * The slots Horários shows, in the order of a day: fasting, the morning check-in, one per meal of the protocol (its
+ * label, or "REF n"), then the fixed ones; the evening check-in keeps the slot `checkin`. Intra-treino and Após refeição only when the protocol has items at those moments (they have no suggested time).
  */
 export function scheduleRows(protocol: ProtocolDocument | null): SlotRow[] {
   const timings = new Set((protocol?.items ?? []).map((item) => item.timing))
@@ -22,6 +22,7 @@ export function scheduleRows(protocol: ProtocolDocument | null): SlotRow[] {
   }
   const rows: (SlotRow | false)[] = [
     { slot: 'fasting', label: 'Em jejum' },
+    { slot: 'checkin_morning', label: 'Check-in da manhã' },
     ...meals,
     { slot: 'cardio', label: 'Cardio' },
     { slot: 'pre_workout', label: 'Pré-treino' },
@@ -30,7 +31,7 @@ export function scheduleRows(protocol: ProtocolDocument | null): SlotRow[] {
     { slot: 'post_workout', label: 'Pós-treino' },
     timings.has('after_meal') && { slot: 'after_meal', label: 'Após refeição' },
     { slot: 'before_bed', label: 'Antes de dormir' },
-    { slot: 'checkin', label: 'Check-in' },
+    { slot: 'checkin', label: 'Check-in da noite' },
   ]
   return rows.filter((row): row is SlotRow => row !== false)
 }

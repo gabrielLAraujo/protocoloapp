@@ -1,6 +1,6 @@
 import { loadActiveProtocol } from '../../data/activeProtocol'
 import { adherenceRepo, type AdherenceLogLocal, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
-import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { checkinParts, dailyCheckinRepo, type CheckinParts } from '../../data/dailyCheckinRepo'
 import type { LocalDb } from '../../data/localDb'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
@@ -8,6 +8,8 @@ import { workoutRepo } from '../../data/workoutRepo'
 import { weekdayOf, type Weekday } from '../../domain/calendarDate'
 import { buildDay, type DayKind, type DayTarget, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
+import { dayScore, type DayScore } from '../../domain/progress'
+import { resolveTargetStatus, targetId } from '../../domain/targetStatus'
 import { localDate } from '../checkin/localDate'
 import { loadWorkoutPlans, type WorkoutPlanEntry } from '../workout/workoutPlans'
 
@@ -26,7 +28,7 @@ export const REASON_LABELS: Record<AdherenceReason, string> = {
 export interface TodayRow {
   target: DayTarget
   label: string
-  /** The stored mark, or the derived one for workout/check-in (finished session / saved check-in). */
+  /** The stored mark, or the derived one for workout/check-in (finished session / check-in part saved). */
   status: AdherenceStatus | null
   reason: AdherenceReason | null
   note: string | null
@@ -40,6 +42,8 @@ export interface TodayView {
   /** Day name for the header ("A" for "Treino A"), only on training days. */
   workoutName: string | null
   rows: TodayRow[]
+  /** The protocol asks for N cardio sessions a week (not daily): an unmarked cardio does not count in the day's score. */
+  cardioOptional: boolean
 }
 
 export interface TodaySources {
@@ -51,8 +55,12 @@ export interface TodaySources {
   logs: AdherenceLogLocal[]
   /** A session of the day was finished with at least one working set. */
   workoutDone: boolean
-  /** The day's check-in exists. */
-  checkinSaved: boolean
+  /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
+  checkinParts: CheckinParts
+  /** The check-in says cardio was done (an unmarked cardio row then shows done). */
+  cardioDone: boolean
+  /** Minutes of the day's cardio as saved on the check-in (only when cardio is done there). */
+  cardioMinutes: number | null
 }
 
 /** Reads everything the Hoje screen needs for `date` from the device. */
@@ -78,7 +86,9 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     slots,
     logs,
     workoutDone: sets.some((list) => list.some((s) => s.kind !== 'warmup')),
-    checkinSaved: checkin !== null,
+    checkinParts: checkin ? checkinParts(checkin) : { morning: false, evening: false },
+    cardioDone: checkin?.cardioDone === true,
+    cardioMinutes: checkin?.cardioDone === true ? checkin.cardioMinutes : null,
   }
 }
 
@@ -118,7 +128,8 @@ function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): string
 /** Pure: the Hoje screen of `date`, rows in buildDay order. */
 export function buildTodayView(date: string, src: TodaySources): TodayView {
   const plan = buildDay(date, src.protocol, toDayPlans(src.plans), src.overrides, src.slots, { protocolActivatedOn: src.protocolActivatedOn })
-  const logOf = (t: DayTarget) => src.logs.find((l) => l.targetType === t.type && l.targetKey === t.key) ?? null
+  const find = (type: DayTarget['type'], key: string) => src.logs.find((l) => l.targetType === type && l.targetKey === key) ?? null
+  const derived = { workoutDone: src.workoutDone, checkinParts: src.checkinParts, cardioDone: src.cardioDone }
 
   // The version active on the day names the workout ("Treino A"); buildDay only knows its key.
   const activeVersion = [...src.plans].reverse().find((p) => p.at.activatedOn <= date)
@@ -126,18 +137,18 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
   const workoutTitle = workoutDay?.name.trim() || (plan.workoutDayKey === null ? null : `Treino ${plan.workoutDayKey.toUpperCase()}`)
 
   const rows = plan.targets.map((target): TodayRow => {
-    const log = logOf(target)
-    let status = log?.status ?? null
-    if (target.type === 'workout' && src.workoutDone) status = 'done'
-    if (target.type === 'checkin' && src.checkinSaved) status = 'done'
-    const label = target.type === 'checkin' ? 'Check-in do dia' : target.type === 'workout' && workoutTitle ? workoutTitle : target.label
+    // The legacy `checkin` mark stands for the evening part; a finished session / saved part makes the target done.
+    const { log, status } = resolveTargetStatus(target, find, derived)
+    const label = target.type === 'workout' && workoutTitle ? workoutTitle : target.label
+    const details = detailsOf(target, src.protocol)
+    if (target.type === 'cardio' && status === 'done' && src.cardioMinutes != null) details.push(`Feito: ${src.cardioMinutes} min`)
     return {
       target,
       label,
       status,
       reason: status === log?.status ? (log?.reason ?? null) : null,
       note: status === log?.status ? (log?.note ?? null) : null,
-      details: detailsOf(target, src.protocol),
+      details,
     }
   })
 
@@ -146,7 +157,24 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     dayType: plan.dayType,
     workoutName: workoutTitle === null ? null : workoutTitle.replace(/^treino\s+/i, '') || workoutTitle,
     rows,
+    cardioOptional: src.protocol?.cardio != null && src.protocol.cardio.daily !== true,
   }
+}
+
+const planOf = (view: TodayView) => ({ dayType: view.dayType, workoutDayKey: null, targets: view.rows.map((r) => r.target) })
+const statusesOf = (view: TodayView) => new Map(view.rows.map((r) => [targetId(r.target), r.status]))
+
+/** Today's score as the streak reads it: only what is marked or already due at `now` (same rule as loadProgress). */
+export function dueScore(view: TodayView, now: Date): DayScore {
+  return dayScore(planOf(view), statusesOf(view), { isToday: true, now, cardioOptional: view.cardioOptional })
+}
+
+/**
+ * The day's score over everything planned for the whole day (the ring of Hoje): the same rows and rules as the
+ * gamification's `dayScore`, counted as a closed day, so 100 % means every target of the day is done.
+ */
+export function wholeDayScore(view: TodayView): DayScore {
+  return dayScore(planOf(view), statusesOf(view), { isToday: false, cardioOptional: view.cardioOptional })
 }
 
 /** Not marked and more than LATE_AFTER_MIN minutes past its time (today only). */

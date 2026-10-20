@@ -16,7 +16,11 @@ public enum PushResult
     /// <summary>The push service says the subscription no longer exists (404/410): remove it.</summary>
     Gone,
 
+    /// <summary>A permanent failure (4xx other than 404/410/429, bad stored keys): counts toward removing the subscription.</summary>
     Failed,
+
+    /// <summary>Worth trying again later (429, 5xx, timeout, network): does not count against the subscription.</summary>
+    Transient,
 }
 
 public interface IPushSender
@@ -68,8 +72,9 @@ public sealed class VapidProvider(IServiceScopeFactory scopes, IOptions<PushOpti
 }
 
 /// <summary>
-/// Sends Web Push requests: payload encrypted as <c>aes128gcm</c> (RFC 8291), identified with VAPID (RFC 8292). Any failure
-/// that is not a cancellation is a <see cref="PushResult.Failed"/>; payloads and endpoints are never logged.
+/// Sends Web Push requests: payload encrypted as <c>aes128gcm</c> (RFC 8291), identified with VAPID (RFC 8292). 429, 5xx,
+/// timeouts and network errors are <see cref="PushResult.Transient"/>; any other failure that is not a cancellation is
+/// <see cref="PushResult.Failed"/>. Payloads and endpoints are never logged.
 /// </summary>
 public sealed class WebPushSender(HttpClient http, IVapidProvider vapid, TimeProvider clock, ILogger<WebPushSender> logger) : IPushSender
 {
@@ -103,16 +108,24 @@ public sealed class WebPushSender(HttpClient http, IVapidProvider vapid, TimePro
             if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
                 return PushResult.Gone;
 
-            logger.LogWarning("Push to a subscription failed: status {Status}.", (int)response.StatusCode);
-            return PushResult.Failed;
+            var status = (int)response.StatusCode;
+            var transient = status is 429 or >= 500;
+            logger.LogWarning("Push to a subscription failed: status {Status} ({Kind}).", status, transient ? "transient" : "permanent");
+            return transient ? PushResult.Transient : PushResult.Failed;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException)
+        {
+            // Network error or HttpClient timeout (a cancellation the caller did not ask for): try again on a later tick.
+            logger.LogWarning("Push to a subscription failed: {Error} (transient).", ex.GetType().Name);
+            return PushResult.Transient;
+        }
         catch (Exception ex)
         {
-            // Bad stored keys, a network error, a timeout...: the subscription failed, the others go on. Type only.
+            // Bad stored keys, a point off the curve...: the subscription failed, the others go on. Type only.
             logger.LogWarning("Push to a subscription failed: {Error}.", ex.GetType().Name);
             return PushResult.Failed;
         }

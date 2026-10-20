@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Plans.Extraction;
@@ -83,6 +84,54 @@ public sealed class PlanImportTests(ApiFactory factory)
         Assert.Equal(error, protocol.ExtractionError);
         Assert.Equal(0, protocol.Document.GetProperty("meals").GetArrayLength());
         Assert.Empty(workout.NewExercises);
+    }
+
+    private sealed class CreditBalanceHandler : HttpMessageHandler
+    {
+        private int _calls;
+
+        public int Calls => _calls;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            const string body = """{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}""";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Import_with_a_credit_balance_reply_creates_a_draft_with_no_credits()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var fileId = await api.CreateFileAsync();
+        var anthropic = new CreditBalanceHandler();
+
+        // The real extractor and client, only the Anthropic HTTP endpoint is faked.
+        await using var real = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.Replace(ServiceDescriptor.Transient<IPlanExtractor, PlanExtractor>());
+            services.Configure<AnthropicOptions>(o =>
+            {
+                o.ApiKey = "test-key";
+                o.BaseUrl = "https://anthropic.test";
+                o.RetryDelay = TimeSpan.Zero;
+            });
+            services.AddHttpClient<AnthropicClient>().ConfigurePrimaryHttpMessageHandler(() => anthropic);
+        }));
+        using var client = real.CreateClient();
+        client.DefaultRequestHeaders.Authorization = api.Client.DefaultRequestHeaders.Authorization;
+
+        var response = await client.PostAsJsonAsync(new Uri("/api/plans/import", UriKind.Relative), new ImportPlanRequest(fileId, PlanKind.Workout), PlanApi.Json);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var plan = (await response.Content.ReadFromJsonAsync<PlanVersionResponse>(PlanApi.Json))!;
+        Assert.Equal(PlanExtractionResult.NoCredits, plan.ExtractionError);
+        Assert.Equal(PlanStatus.Draft, plan.Status);
+        Assert.Equal(1, anthropic.Calls);
     }
 
     [Fact]

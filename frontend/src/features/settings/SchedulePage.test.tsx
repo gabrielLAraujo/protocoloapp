@@ -52,7 +52,8 @@ describe('SchedulePage', () => {
     expect(time('REF 2 (dia de treino)')).toHaveValue('10:00')
     expect(time('Em jejum (descanso)')).toHaveValue('06:30')
     expect(time('Treino (descanso)')).toHaveValue('18:00')
-    expect(time('Check-in (dia de treino)')).toHaveValue('21:30')
+    expect(time('Check-in da noite (dia de treino)')).toHaveValue('21:30')
+    expect(time('Check-in da manhã (descanso)')).toHaveValue('07:00')
     expect(reminder('Antes de dormir (descanso)')).toBeChecked()
     // Only because the protocol has an intra-workout item; no suggested time, so no reminder yet.
     expect(time('Intra-treino (dia de treino)')).toHaveValue('')
@@ -60,6 +61,7 @@ describe('SchedulePage', () => {
     expect(screen.queryByLabelText(/Após refeição/)).not.toBeInTheDocument()
     expect(section('Dia de treino').getAllByRole('listitem').map((li) => li.firstChild?.textContent)).toEqual([
       'Em jejum',
+      'Check-in da manhã',
       'Café da manhã',
       'REF 2',
       'Cardio',
@@ -68,7 +70,7 @@ describe('SchedulePage', () => {
       'Treino',
       'Pós-treino',
       'Antes de dormir',
-      'Check-in',
+      'Check-in da noite',
     ])
     // The defaults were created on the device and sent.
     await waitFor(() => expect(runOnce).toHaveBeenCalled())
@@ -141,14 +143,14 @@ describe('SchedulePage', () => {
     const { db } = await open()
     enterTime('Café da manhã (dia de treino)', '06:45')
     await screen.findByText('Salvo.')
-    await userEvent.click(reminder('Check-in (dia de treino)'))
-    await waitFor(() => expect(reminder('Check-in (dia de treino)')).not.toBeChecked())
+    await userEvent.click(reminder('Check-in da noite (dia de treino)'))
+    await waitFor(() => expect(reminder('Check-in da noite (dia de treino)')).not.toBeChecked())
 
     await userEvent.click(screen.getByRole('button', { name: 'Copiar do dia de treino' }))
 
     expect(await screen.findByText('Horários do dia de treino copiados para o descanso.')).toBeInTheDocument()
     expect(time('Café da manhã (descanso)')).toHaveValue('06:45')
-    expect(reminder('Check-in (descanso)')).not.toBeChecked()
+    expect(reminder('Check-in da noite (descanso)')).not.toBeChecked()
     const slots = await scheduleRepo.all(db)
     for (const training of slots.filter((s) => s.dayType === 'training')) {
       expect(slots.find((s) => s.slot === training.slot && s.dayType === 'off')).toMatchObject({
@@ -166,6 +168,6 @@ describe('SchedulePage', () => {
 
     expect(await screen.findByLabelText('Horário de Cardio (dia de treino)')).toHaveValue('07:30')
     expect(screen.queryByLabelText(/REF/)).not.toBeInTheDocument()
-    expect(await scheduleRepo.all(app.db)).toHaveLength(14)
+    expect(await scheduleRepo.all(app.db)).toHaveLength(16)
   })
 })

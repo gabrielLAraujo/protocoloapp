@@ -68,7 +68,10 @@ public sealed class ReminderScheduler(
         }
     }
 
-    /// <summary>One pass at <paramref name="now"/>; returns how many slot reminders were claimed (sent to the user's devices).</summary>
+    /// <summary>
+    /// One pass at <paramref name="now"/>; returns how many slot reminders were claimed and kept (reached a device or removed
+    /// one). A slot whose push reached no device, removed none and failed transiently is released for the next tick.
+    /// </summary>
     public async Task<int> RunOnceAsync(DateTimeOffset now, CancellationToken ct)
     {
         var zone = zones.Zone;
@@ -115,6 +118,7 @@ public sealed class ReminderScheduler(
                 .ToListAsync(ct))
             .Select(a => (a.TargetType, a.TargetKey))
             .ToHashSet();
+        await AddCheckinPartsDoneAsync(db, userId, date, logged, ct);
 
         var due = plan.Targets
             .Where(t => t is { ReminderEnabled: true, SlotKey: not null, Time: not null })
@@ -130,8 +134,9 @@ public sealed class ReminderScheduler(
         foreach (var slot in due)
         {
             // Claim first: the unique (user, date, slot) row means "somebody already took this one".
+            var claimId = Guid.NewGuid();
             var inserted = await db.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO reminder_sends (id, user_id, date, slot, sent_at) VALUES ({Guid.NewGuid()}, {userId}, {date}, {slot.Key}, {now.ToUniversalTime()}) ON CONFLICT (user_id, date, slot) DO NOTHING",
+                $"INSERT INTO reminder_sends (id, user_id, date, slot, sent_at) VALUES ({claimId}, {userId}, {date}, {slot.Key}, {now.ToUniversalTime()}) ON CONFLICT (user_id, date, slot) DO NOTHING",
                 ct);
             if (inserted == 0)
                 continue;
@@ -139,11 +144,50 @@ public sealed class ReminderScheduler(
             // The meal's own label, even when the meal itself is logged and only its items are left.
             var mealLabel = plan.Targets.FirstOrDefault(t => t.SlotKey == slot.Key && t.Type == AdherenceTargetType.Meal)?.Label;
             var time = slot.First().Time!.Value;
-            await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), logger, ct);
+            var result = await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.For(slot.Key, time, mealLabel), logger, ct);
+            if (result is { Sent: 0, Removed: 0, Transient: > 0 })
+            {
+                // No device got it, none was dropped and some failure was transient: release this claim (only ours, by id)
+                // so the next tick retries. Permanent failures are not retried (they were counted once). The retry stops by
+                // itself once the slot is more than LateTolerance minutes late.
+                // A timeout counted as transient may hide a push that was in fact delivered, so a retry can show it twice;
+                // the notification tag replaces the earlier one on the device, and that is accepted.
+                await db.ReminderSends.Where(r => r.Id == claimId).ExecuteDeleteAsync(ct);
+                logger.LogWarning("Reminder for a slot reached no device; released for a retry within the tolerance window.");
+                continue;
+            }
+
             claimed++;
         }
 
         return claimed;
+    }
+
+    /// <summary>
+    /// A check-in target is done when it is logged, or when its part is already saved in the day's check-in (the app saves
+    /// the part, its adherence log may not have reached the server yet). The legacy <c>checkin</c> log counts as the evening
+    /// part; a full check-in row (saved before the split) counts as both parts.
+    /// </summary>
+    private static async Task AddCheckinPartsDoneAsync(
+        AppDbContext db, Guid userId, DateOnly date, HashSet<(AdherenceTargetType, string)> logged, CancellationToken ct)
+    {
+        if (logged.Contains((AdherenceTargetType.Checkin, DayPlanner.LegacyCheckinKey)))
+            logged.Add((AdherenceTargetType.Checkin, DayPlanner.CheckinEveningKey));
+
+        var checkin = await db.DailyCheckins.AsNoTracking()
+            .Where(c => c.UserId == userId && c.Date == date && c.DeletedAt == null)
+            .Select(c => new
+            {
+                Morning = c.SleepQuality != null && c.EnergyWake != null && c.Bowel != null,
+                Evening = c.EnergyDay != null && c.Anxiety != null && c.WaterL != null,
+            })
+            .FirstOrDefaultAsync(ct);
+        if (checkin is null)
+            return;
+        if (checkin.Morning)
+            logged.Add((AdherenceTargetType.Checkin, DayPlanner.CheckinMorningKey));
+        if (checkin.Evening)
+            logged.Add((AdherenceTargetType.Checkin, DayPlanner.CheckinEveningKey));
     }
 
     private static async Task<DayPlan> BuildDayAsync(AppDbContext db, Guid userId, DateOnly date, TimeZoneInfo zone, CancellationToken ct)

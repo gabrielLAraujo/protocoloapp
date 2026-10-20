@@ -11,7 +11,15 @@ import { json, mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
+import { seedGamificationHistory } from '../achievements/testSeed'
+import { loadProgress } from '../progress/progressData'
 import { SummaryPage } from './SummaryPage'
+
+// Real loadProgress unless a test makes it fail.
+vi.mock('../progress/progressData', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../progress/progressData')>()
+  return { ...actual, loadProgress: vi.fn(actual.loadProgress) }
+})
 
 // Tuesday 2026-10-27; the protocol was activated on the 20th.
 beforeEach(() => {
@@ -100,11 +108,10 @@ describe('SummaryPage', () => {
     })
     await seedPastSession(app.db, '2026-10-21', BENCH, [[60, 10]])
     await seedPastSession(app.db, '2026-10-25', BENCH, [[70, 10]])
-    await dailyCheckinRepo.upsert(
-      app.db, USER_A, '2026-10-26',
-      { sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 4, anxiety: 2, waterL: 2.5, weightKg: 82.4, note: null, cardioDone: true, cardioMinutes: 30 },
-      new Date(2026, 9, 26, 8),
-    )
+    const at = new Date(2026, 9, 26, 8)
+    await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-26', { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: 82.4 }, at)
+    await dailyCheckinRepo.saveEvening(app.db, USER_A, '2026-10-26', { energyDay: 4, anxiety: 2, waterL: 2.5, note: null }, at)
+    await dailyCheckinRepo.setCardio(app.db, USER_A, '2026-10-26', { done: true, minutes: 30 }, at)
     app.view(<SummaryPage />)
 
     expect(await screen.findByText('Faltam 39 dias para a atualização')).toBeInTheDocument()
@@ -126,6 +133,42 @@ describe('SummaryPage', () => {
     const strength = screen.getByRole('region', { name: 'Força por grupo' })
     expect(within(strength).getByText('Peito')).toBeInTheDocument()
     expect(within(strength).getByText('Supino reto')).toBeInTheDocument()
+  })
+
+  it('shows the "Sequência" (current and records) and "Semanas na meta" cards', async () => {
+    const app = await setupApp()
+    await seedGamificationHistory(app.db) // same today (10-27): streak 12, one perfect week of two closed
+    app.view(<SummaryPage />)
+
+    const card = within(await screen.findByRole('region', { name: 'Constância' }))
+    expect(card.getByText('Sequência').nextSibling).toHaveTextContent('12 dias')
+    expect(card.getByText('recorde: 12 dias no ciclo, 12 dias no geral')).toBeInTheDocument()
+    expect(card.getByText('Semanas na meta').nextSibling).toHaveTextContent('1 de 2')
+    expect(card.getByRole('link', { name: 'Ver conquistas' })).toHaveAttribute('href', '/conquistas')
+  })
+
+  it('a failure computing the progress only hides the "Constância" cards', async () => {
+    vi.mocked(loadProgress).mockRejectedValueOnce(new Error('boom'))
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
+    app.view(<SummaryPage />)
+
+    expect(await screen.findByRole('region', { name: 'Números do ciclo' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Constância' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    vi.mocked(console.error).mockRestore()
+  })
+
+  it('"Semanas na meta" says so when no week has closed yet', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
+    app.view(<SummaryPage />)
+
+    const card = within(await screen.findByRole('region', { name: 'Constância' }))
+    expect(card.getByText('Sequência').nextSibling).toHaveTextContent('0 dias')
+    expect(card.getByText('Semanas na meta').nextSibling).toHaveTextContent('—')
+    expect(card.getByText('nenhuma semana fechada ainda')).toBeInTheDocument()
   })
 
   it('says how late the update is once past the update date', async () => {
@@ -179,10 +222,12 @@ describe('SummaryPage', () => {
   it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {
     const app = await setupApp()
     await seedProtocol(app.db, { updateDate: '2026-12-05', cardio: { daily: true } })
-    const checkin = (date: string, cardioDone: boolean) =>
-      dailyCheckinRepo.upsert(app.db, USER_A, date, {
-        sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 3, anxiety: 2, waterL: 3, weightKg: null, note: null, cardioDone, cardioMinutes: null,
-      }, new Date(2026, 9, 27, 12))
+    const checkin = async (date: string, cardioDone: boolean) => {
+      const at = new Date(2026, 9, 27, 12)
+      await dailyCheckinRepo.saveMorning(app.db, USER_A, date, { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }, at)
+      await dailyCheckinRepo.saveEvening(app.db, USER_A, date, { energyDay: 3, anxiety: 2, waterL: 3, note: null }, at)
+      await dailyCheckinRepo.setCardio(app.db, USER_A, date, { done: cardioDone, minutes: null }, at)
+    }
     const cardio = (date: string, status: 'done' | 'missed') =>
       adherenceRepo.mark(app.db, USER_A, { date, targetType: 'cardio', targetKey: 'cardio', status }, new Date(2026, 9, 27, 12))
     await checkin('2026-10-21', true)

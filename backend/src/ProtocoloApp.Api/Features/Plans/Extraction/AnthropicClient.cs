@@ -12,9 +12,24 @@ public enum AnthropicCallStatus
     Unavailable,
 }
 
+/// <summary>What the client learned from <c>error.message</c> of a non-2xx reply; the message itself never leaves the client.</summary>
+public enum AnthropicErrorHint
+{
+    None,
+
+    /// <summary>The account has no credits left ("Your credit balance is too low...").</summary>
+    CreditBalance,
+}
+
 /// <summary><c>ToolInput</c> is the input of the first <c>tool_use</c> block (null when the reply has none or is malformed).</summary>
-/// <remarks><c>StatusCode</c>/<c>ErrorType</c> are set on a non-2xx reply (<c>error.type</c> of the body, nothing else of it); <c>StopReason</c> on a 2xx one.</remarks>
-public sealed record AnthropicToolCall(AnthropicCallStatus Status, JsonDocument? ToolInput, int? StatusCode = null, string? ErrorType = null, string? StopReason = null);
+/// <remarks><c>StatusCode</c>/<c>ErrorType</c> are set on a non-2xx reply (<c>error.type</c> of the body and <c>ErrorHint</c>, a classification of <c>error.message</c>, nothing else of it); <c>StopReason</c> on a 2xx one.</remarks>
+public sealed record AnthropicToolCall(
+    AnthropicCallStatus Status,
+    JsonDocument? ToolInput,
+    int? StatusCode = null,
+    string? ErrorType = null,
+    string? StopReason = null,
+    AnthropicErrorHint ErrorHint = AnthropicErrorHint.None);
 
 /// <summary>Minimal Anthropic Messages API client: one message with a PDF and a forced tool.</summary>
 public sealed class AnthropicClient(HttpClient http, IOptions<AnthropicOptions> options)
@@ -63,7 +78,11 @@ public sealed class AnthropicClient(HttpClient http, IOptions<AnthropicOptions> 
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
             var reply = await response.Content.ReadAsStringAsync(timeout.Token);
             if (!response.IsSuccessStatusCode)
-                return new AnthropicToolCall(AnthropicCallStatus.Unavailable, null, (int)response.StatusCode, ReadString(reply, "error", "type"));
+            {
+                return new AnthropicToolCall(
+                    AnthropicCallStatus.Unavailable, null, (int)response.StatusCode, ReadString(reply, "error", "type"),
+                    ErrorHint: Classify(ReadString(reply, "error", "message")));
+            }
 
             return new AnthropicToolCall(AnthropicCallStatus.Ok, FirstToolInput(reply), StopReason: ReadString(reply, "stop_reason"));
         }
@@ -76,6 +95,12 @@ public sealed class AnthropicClient(HttpClient http, IOptions<AnthropicOptions> 
             return new AnthropicToolCall(AnthropicCallStatus.Unavailable, null);
         }
     }
+
+    /// <summary>Reduces an error message to a hint; the text is dropped right here.</summary>
+    internal static AnthropicErrorHint Classify(string? message) =>
+        message is not null && message.Contains("credit balance", StringComparison.OrdinalIgnoreCase)
+            ? AnthropicErrorHint.CreditBalance
+            : AnthropicErrorHint.None;
 
     private static string? ReadString(string json, params string[] path)
     {

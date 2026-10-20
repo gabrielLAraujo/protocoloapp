@@ -1,6 +1,6 @@
 import type { SyncRecord } from './apiClient'
 import type { LocalDb } from './localDb'
-import { outbox } from './outbox'
+import { outbox, type OutboxEntry } from './outbox'
 
 /**
  * What the sync engine needs from an entity. A new entity adds its table (migration), a repository that writes the row
@@ -13,6 +13,11 @@ export interface SyncEntityAdapter {
   readonly table: string
   /** Applies a pulled record (called inside the pull transaction). Must not overwrite a newer local pending change. */
   applyRemote(db: LocalDb, record: SyncRecord): Promise<void>
+  /**
+   * Optional: called (inside the push transaction, before the entry is acked) when the server answered `stale` for a
+   * change of this entity. Entities that merge pulled records with pending changes use it to fetch the server's state again.
+   */
+  onStale?(db: LocalDb, entry: OutboxEntry): Promise<void>
 }
 
 /**

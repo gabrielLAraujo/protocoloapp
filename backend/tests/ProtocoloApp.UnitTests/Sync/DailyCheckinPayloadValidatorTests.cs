@@ -61,14 +61,60 @@ public sealed class DailyCheckinPayloadValidatorTests
         Assert.Equal(new[] { field }, Errors(WithScore(field, 6)));
     }
 
+    private static readonly DateOnly Date = new(2026, 2, 3);
+
     [Fact]
-    public void Required_fields_must_be_present()
+    public void Date_is_required_and_a_date_only_payload_needs_parts()
     {
         var empty = new DailyCheckinPayload();
 
-        Assert.Equal(
-            new[] { "anxiety", "bowel", "date", "energy_day", "energy_wake", "sleep_quality", "water_l" },
-            Errors(empty).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "date", "parts" }, Errors(empty).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "parts" }, Errors(empty with { Date = Date }));
+        // A parts list with every field null clears those parts.
+        Assert.Empty(Errors(empty with { Date = Date, Parts = ["morning", "evening", "cardio"] }));
+    }
+
+    [Fact]
+    public void A_single_part_is_valid()
+    {
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["morning"], SleepQuality = 4, EnergyWake = 3, Bowel = "loose" }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], EnergyDay = 4, Anxiety = 2, WaterL = 3m, Note = "Exemplo." }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["cardio"], CardioDone = true, CardioMinutes = 30 }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["cardio"] }));
+    }
+
+    [Theory]
+    [InlineData("night")]
+    [InlineData("Morning")]
+    [InlineData("")]
+    public void Unknown_part_is_rejected(string part)
+    {
+        Assert.Equal(new[] { "parts" }, Errors(Valid with { Parts = ["morning", part] }));
+    }
+
+    [Fact]
+    public void Empty_parts_list_is_rejected()
+    {
+        Assert.Equal(new[] { "parts" }, Errors(Valid with { Parts = [] }));
+    }
+
+    [Fact]
+    public void A_written_part_with_some_data_must_be_complete()
+    {
+        var weightOnly = new DailyCheckinPayload { Date = Date, Parts = ["morning"], WeightKg = 80m };
+        var noteOnly = new DailyCheckinPayload { Date = Date, Parts = ["evening"], Note = "Exemplo.", Anxiety = 2 };
+        // Without parts every part is written: a lone sleep_quality is an incomplete morning.
+        var legacy = new DailyCheckinPayload { Date = Date, SleepQuality = 4 };
+
+        Assert.Equal(new[] { "bowel", "energy_wake", "sleep_quality" }, Errors(weightOnly).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "energy_day", "water_l" }, Errors(noteOnly).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "bowel", "energy_wake" }, Errors(legacy).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Fields_of_parts_not_written_are_not_required()
+    {
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], SleepQuality = 4, EnergyDay = 4, Anxiety = 2, WaterL = 3m }));
     }
 
     [Theory]
@@ -156,6 +202,8 @@ public sealed class DailyCheckinPayloadValidatorTests
     [InlineData("""{"date":"2026-02-03","sleep_quality":"good"}""", "invalid_payload:sleep_quality")]
     [InlineData("""{"date":"03/02/2026"}""", "invalid_payload:date")]
     [InlineData("""{"date":"2026-02-03","sleep_quality":4.5}""", "invalid_payload:sleep_quality")]
+    [InlineData("""{"date":"2026-02-03","parts":"morning"}""", "invalid_payload:parts")]
+    [InlineData("""{"date":"2026-02-03","parts":["morning",1]}""", "invalid_payload:parts")]
     [InlineData("[1, 2]", "invalid_payload")]
     [InlineData("\"text\"", "invalid_payload")]
     public void Read_maps_malformed_json_to_error_codes(string text, string expected)
@@ -189,5 +237,6 @@ public sealed class DailyCheckinPayloadValidatorTests
         Assert.Equal(2.5m, json.GetProperty("water_l").GetDecimal());
         Assert.Equal(80m, json.GetProperty("weight_kg").GetDecimal());
         Assert.Equal("normal", json.GetProperty("bowel").GetString());
+        Assert.False(json.TryGetProperty("parts", out _));
     }
 }

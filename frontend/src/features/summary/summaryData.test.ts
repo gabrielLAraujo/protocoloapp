@@ -117,6 +117,31 @@ describe('buildSummary', () => {
     expect(s.weight).toEqual([{ date: '2026-10-20', kg: 82.8 }, { date: '2026-10-21', kg: 82.4 }])
   })
 
+  it('averages ignore the fields of parts not saved; only days with both parts count as check-ins', () => {
+    const morningOnly = { energyDay: null, anxiety: null, waterL: null, note: null }
+    const eveningOnly = { sleepQuality: null, energyWake: null, bowel: null, weightKg: null }
+    const cardioOnly = { ...morningOnly, ...eveningOnly, cardioDone: true, cardioMinutes: 30 }
+    const s = buildSummary(
+      input({
+        checkins: [
+          checkin('2026-10-20', { sleepQuality: 5, energyWake: 2, ...morningOnly }),
+          checkin('2026-10-21', { energyDay: 2, anxiety: 4, waterL: 2, ...eveningOnly }),
+          checkin('2026-10-22', { sleepQuality: 3, energyWake: 4, energyDay: 4, anxiety: 2, waterL: 3 }),
+          checkin('2026-10-23', cardioOnly),
+        ],
+      }),
+      TODAY,
+    )
+    expect(s.sleep).toBe(4)
+    expect(s.energyWake).toBe(3)
+    expect(s.energyDay).toBe(3)
+    expect(s.anxiety).toBe(3)
+    expect(s.water).toBe(2.5)
+    expect(s.checkinCount).toBe(1)
+    // Cardio still counts from the check-in (cardio-only row) as before.
+    expect(s.calendar.find((d) => d.date === '2026-10-23')?.cardio).toBe(true)
+  })
+
   it('has no averages without check-ins', () => {
     const s = buildSummary(input(), TODAY)
     expect([s.sleep, s.energyWake, s.energyDay, s.anxiety, s.water]).toEqual([null, null, null, null, null])
