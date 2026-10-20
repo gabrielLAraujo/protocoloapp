@@ -12,7 +12,7 @@ import { SetRow } from './SetRow'
 import { SwapExerciseDialog } from './SwapExerciseDialog'
 import { MAX_SET_INDEX } from './setInput'
 import { restDurations } from './restDurations'
-import { plannedSubSets, splitSets, subSetSlots, type SubSetKind, type SubSetSlot } from './subSets'
+import { isDismissed, plannedSubSets, splitSets, subSetSlots, type SubSetKind, type SubSetSlot } from './subSets'
 import { TechniqueChips } from './TechniqueChips'
 
 /** "80 kg × 10 · 80 × 9" */
@@ -79,6 +79,7 @@ export function ExerciseCard(props: Props) {
   const { main, childrenOf } = splitSets(sets)
   const loggedAt = new Map(main.map((s) => [s.setIndex, s]))
   const maxLogged = main.reduce((m, s) => Math.max(m, s.setIndex), -1)
+  // "Última vez" and its hints: the main sets (the drops/rest-pauses belong to them).
   const hints = lastTime?.filter((s) => s.parentSetId === null)
   // Sets logged beyond the planned rows keep their rows; "Adicionar série" always adds one on top of the rows shown
   // (also after a reload, when `extra` is back to 0 but extra sets are already logged).
@@ -98,7 +99,7 @@ export function ExerciseCard(props: Props) {
   }
 
   return (
-    <section aria-label={name} className={cardClasses({ className: `grid gap-3${props.biset?.next ? ' ring-2 ring-accent' : ''}` })}>
+    <section aria-label={props.biset ? `Exercício ${props.biset.letter}: ${name}` : name} className={cardClasses({ className: `grid gap-3${props.biset?.next ? ' ring-2 ring-accent' : ''}` })}>
       <header className="grid gap-1">
         <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
           {props.biset && (
@@ -106,6 +107,7 @@ export function ExerciseCard(props: Props) {
               {props.biset.letter}
             </span>
           )}
+          {props.biset && <span className="sr-only">Exercício {props.biset.letter}: </span>}
           {name}
         </h2>
         {change?.action === 'swapped' && exercise && exercise.id !== props.plannedExerciseId && <p className="text-xs text-muted">Trocado de “{planned.name}”</p>}
@@ -113,10 +115,10 @@ export function ExerciseCard(props: Props) {
         {props.pairEndedWith && <p className="text-sm text-muted">Bi-set com {props.pairEndedWith} desfeito: siga este exercício sozinho.</p>}
         <TechniqueChips techniques={planned.techniques ?? []} />
         {rest && <p className="text-sm text-muted">{rest}</p>}
-        {lastTime && lastTime.length > 0 && (
+        {hints && hints.length > 0 && (
           <p className="text-sm text-muted">
             <Icon name="history" size={16} className="mr-1 inline-block align-[-3px]" />
-            <span className="tabular-nums">Última vez: {lastTimeText(lastTime)}</span>
+            <span className="tabular-nums">Última vez: {lastTimeText(hints)}</span>
           </p>
         )}
         <ExerciseMedia catalogId={exercise?.catalogId} name={name} size="thumb" />
@@ -152,7 +154,7 @@ export function ExerciseCard(props: Props) {
         <ul className="grid gap-2">
           {Array.from({ length: rows }, (_, i) => {
             const parent = loggedAt.get(i)
-            const slots = parent ? subSetSlots(planned, parent, childrenOf.get(parent.id) ?? []).filter((slot) => !props.dismissed.has(slot.key)) : []
+            const slots = parent ? subSetSlots(planned, parent, childrenOf.get(parent.id) ?? []).filter((slot) => !isDismissed(props.dismissed, slot)) : []
             return [
               <SetRow
                 // The exercise in the key resets the typed values when it is swapped.

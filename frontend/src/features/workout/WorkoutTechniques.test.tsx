@@ -32,7 +32,9 @@ async function render(tweak: Tweak) {
 }
 
 const bench = () => within(screen.getByRole('region', { name: 'Supino reto' }))
-const fly = () => within(screen.getByRole('region', { name: 'Crucifixo' }))
+// Inside a bi-set block the letter is part of the card's name.
+const benchA = () => within(screen.getByRole('region', { name: 'Exercício A: Supino reto' }))
+const flyB = () => within(screen.getByRole('region', { name: 'Exercício B: Crucifixo' }))
 
 async function confirm(user: ReturnType<typeof userEvent.setup>, card: typeof bench, of: string, name: string, weight: string | null, reps: string) {
   if (weight !== null) {
@@ -151,16 +153,16 @@ describe('techniques in the workout', () => {
       patch(doc, 1, { sets: [{ repsMin: 12, repsMax: 15 }, { repsMin: 12, repsMax: 15 }], restSeconds: 75 })
     })
     const block = screen.getByRole('region', { name: 'Bi-set: Supino reto + Crucifixo' })
-    expect(within(block).getByRole('region', { name: 'Supino reto' })).toBeInTheDocument()
-    expect(within(block).getByRole('region', { name: 'Crucifixo' })).toBeInTheDocument()
+    expect(within(block).getByRole('region', { name: 'Exercício A: Supino reto' })).toBeInTheDocument()
+    expect(within(block).getByRole('region', { name: 'Exercício B: Crucifixo' })).toBeInTheDocument()
     expect(within(block).getByRole('status')).toHaveTextContent('Próximo: A · Supino reto — série 1')
 
-    await confirm(user, bench, 'da série 1', 'série 1', '40', '10')
+    await confirm(user, benchA, 'da série 1', 'série 1', '40', '10')
     expect(screen.queryByText(/^Descanso \d/)).not.toBeInTheDocument()
     expect(within(block).getByRole('status')).toHaveTextContent('Próximo: B · Crucifixo — série 1')
 
-    await user.type(fly().getByLabelText('Carga da série 1 (kg)'), '12')
-    await confirm(user, fly, 'da série 1', 'série 1', null, '12')
+    await user.type(flyB().getByLabelText('Carga da série 1 (kg)'), '12')
+    await confirm(user, flyB, 'da série 1', 'série 1', null, '12')
     expect(await screen.findByText('Descanso 01:15')).toBeInTheDocument()
     expect(screen.getByText('Bi-set: Crucifixo + Supino reto')).toBeInTheDocument()
     expect(within(block).getByRole('status')).toHaveTextContent('Próximo: A · Supino reto — série 2')
@@ -170,8 +172,8 @@ describe('techniques in the workout', () => {
     const { user } = await render((doc) => patch(doc, 1, { supersetWith: 'e1', restSeconds: 30 }))
     expect(screen.getByRole('region', { name: 'Bi-set: Supino reto + Crucifixo' })).toBeInTheDocument()
 
-    await user.click(fly().getByRole('button', { name: 'Pular exercício' }))
-    await user.click(fly().getByRole('button', { name: 'Confirmar pulo' }))
+    await user.click(flyB().getByRole('button', { name: 'Pular exercício' }))
+    await user.click(flyB().getByRole('button', { name: 'Confirmar pulo' }))
 
     await waitFor(() => expect(screen.queryByRole('region', { name: /^Bi-set:/ })).not.toBeInTheDocument())
     expect(bench().getByText('Bi-set com Crucifixo desfeito: siga este exercício sozinho.')).toBeInTheDocument()
@@ -179,12 +181,40 @@ describe('techniques in the workout', () => {
     expect(await screen.findByText('Descanso 01:30')).toBeInTheDocument()
   })
 
-  it('SST: the rest after each set follows its intervals', async () => {
+  it('SST: the intervals run between the sets, the exercise rest after the last one', async () => {
     const { user } = await render((doc) => patch(doc, 0, { techniques: [{ type: 'sst', rests: [10, 20] }], restSeconds: 90 }))
     await confirm(user, bench, 'da série 1', 'série 1', '40', '10')
     expect(await screen.findByText('Descanso 00:10')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Pular' }))
     await confirm(user, bench, 'da série 2', 'série 2', '40', '8')
-    expect(await screen.findByText('Descanso 00:20')).toBeInTheDocument()
+    expect(await screen.findByText('Descanso 01:30')).toBeInTheDocument()
+  })
+
+  it('"Remover" on drop 1 ends the drops of that set: drop 2 goes too and nothing can be stored twice', async () => {
+    const { db, ui, view, user } = await render((doc) => patch(doc, 0, { techniques: [{ type: 'drop', count: 2, sets: 'last' }] }))
+    await confirm(user, bench, 'da série 2', 'série 2', '60', '8')
+    expect(bench().getByLabelText('Carga do drop 2 da série 2 (kg)')).toBeInTheDocument()
+
+    await user.click(bench().getByRole('button', { name: 'Remover drop 1 da série 2' }))
+    expect(bench().queryByLabelText(/drop \d da série 2/)).not.toBeInTheDocument()
+    expect(await screen.findByText('Descanso 01:30')).toBeInTheDocument()
+
+    // The removal survives a reload (kept on the device for the session).
+    ui.unmount()
+    view(<WorkoutTodayPage />)
+    await screen.findByText('Treino em andamento')
+    await bench().findByRole('button', { name: 'Editar série 2' })
+    expect(bench().queryByLabelText(/drop \d da série 2/)).not.toBeInTheDocument()
+    expect((await sessionSets(db)).filter((s) => s.parentSetId !== null)).toHaveLength(0)
+  })
+
+  it('"Remover" on drop 2 after drop 1 is done keeps drop 1 on screen', async () => {
+    const { db, user } = await render((doc) => patch(doc, 0, { techniques: [{ type: 'drop', count: 2, sets: 'last' }] }))
+    await confirm(user, bench, 'da série 2', 'série 2', '60', '8')
+    await confirm(user, bench, 'do drop 1 da série 2', 'drop 1 da série 2', null, '6')
+    await user.click(bench().getByRole('button', { name: 'Remover drop 2 da série 2' }))
+    expect(bench().getByRole('button', { name: 'Editar drop 1 da série 2' })).toBeInTheDocument()
+    expect(bench().queryByLabelText('Carga do drop 2 da série 2 (kg)')).not.toBeInTheDocument()
+    expect((await sessionSets(db)).filter((s) => s.kind === 'drop')).toHaveLength(1)
   })
 })

@@ -104,12 +104,25 @@ export function splitSets(sets: SetLocal[]): { main: SetLocal[]; childrenOf: Map
   return { main, childrenOf }
 }
 
+/**
+ * Whether a slot is removed from the screen: "Remover" on a slot ends the technique from there on, so it hides that slot
+ * and every later one of the same kind under the same parent. A slot with a stored sub-set is never hidden.
+ */
+export function isDismissed(dismissed: ReadonlySet<string>, slot: Pick<SubSetSlot, 'key' | 'ordinal' | 'logged'>): boolean {
+  if (slot.logged) return false
+  const prefix = slot.key.slice(0, slot.key.lastIndexOf(':') + 1)
+  for (const key of dismissed) {
+    if (key.startsWith(prefix) && Number(key.slice(prefix.length)) <= slot.ordinal) return true
+  }
+  return false
+}
+
 /** The planned sub-set slots still to do under the done sets (the ones the user removed from the screen do not count). */
 export function openSlots(planned: PlannedExercise, sets: SetLocal[], dismissed: ReadonlySet<string>): { parent: SetLocal; slot: SubSetSlot }[] {
   const { main, childrenOf } = splitSets(sets)
   return main.flatMap((parent) =>
     subSetSlots(planned, parent, childrenOf.get(parent.id) ?? [])
-      .filter((slot) => slot.planned && !slot.logged && !dismissed.has(slot.key))
+      .filter((slot) => slot.planned && !slot.logged && !isDismissed(dismissed, slot))
       .map((slot) => ({ parent, slot })),
   )
 }
@@ -118,7 +131,7 @@ export function openSlots(planned: PlannedExercise, sets: SetLocal[], dismissed:
 export function finishedRounds(planned: PlannedExercise, sets: SetLocal[], dismissed: ReadonlySet<string>): number {
   const { main, childrenOf } = splitSets(sets)
   return main.filter((parent) =>
-    subSetSlots(planned, parent, childrenOf.get(parent.id) ?? []).every((slot) => !slot.planned || slot.logged || dismissed.has(slot.key)),
+    subSetSlots(planned, parent, childrenOf.get(parent.id) ?? []).every((slot) => !slot.planned || slot.logged || isDismissed(dismissed, slot)),
   ).length
 }
 

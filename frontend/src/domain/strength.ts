@@ -9,11 +9,14 @@ export const e1rm = (weightKg: number, reps: number): number => (reps <= 0 ? 0 :
 
 const setE1rm = (s: SetLog) => e1rm(s.weightKg, s.reps)
 
-/** Set with the highest e1RM, ignoring warm-ups; null when none counts. */
+/** Drops and rest-pauses (sub-sets under a set) count for volume but never for records or e1RM. */
+const isSubSet = (s: SetLog) => s.parentSetId !== null
+
+/** Set with the highest e1RM, ignoring warm-ups and sub-sets; null when none counts. */
 export function bestSet(sets: SetLog[]): SetLog | null {
   let best: SetLog | null = null
   for (const s of sets) {
-    if (s.kind === 'warmup') continue
+    if (s.kind === 'warmup' || isSubSet(s)) continue
     if (!best || setE1rm(s) > setE1rm(best)) best = s
   }
   return best
@@ -30,7 +33,7 @@ export interface PR {
 function byExercise(sets: SetLog[]): Map<string, SetLog[]> {
   const map = new Map<string, SetLog[]>()
   for (const s of sets) {
-    if (s.kind === 'warmup') continue
+    if (s.kind === 'warmup' || isSubSet(s)) continue
     const list = map.get(s.exerciseId) ?? []
     list.push(s)
     map.set(s.exerciseId, list)

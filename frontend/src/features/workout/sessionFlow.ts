@@ -29,7 +29,12 @@ export type DayBlock =
  * The cards of the day in order: a bi-set becomes one block at the place of its first exercise. Skipping or swapping
  * either exercise ends the pairing: both go back to their own cards (the sets done stay).
  */
-export function dayBlocks(day: WorkoutDay, changes: Map<string, ExerciseChangeLocal>): DayBlock[] {
+export function dayBlocks(
+  day: WorkoutDay,
+  changes: Map<string, ExerciseChangeLocal>,
+  /** Whether the exercise can be done (it is in the device's catalog); one that cannot ends the pairing like a skip. */
+  available: (planned: PlannedExercise) => boolean = () => true,
+): DayBlock[] {
   const partners = bisetPartners(day)
   const byKey = new Map(day.exercises.map((e) => [e.key, e]))
   const placed = new Set<string>()
@@ -43,7 +48,7 @@ export function dayBlocks(day: WorkoutDay, changes: Map<string, ExerciseChangeLo
       blocks.push({ type: 'single', planned, endedWith: null })
       continue
     }
-    if (changes.has(planned.key) || changes.has(partner.key)) {
+    if (changes.has(planned.key) || changes.has(partner.key) || !available(planned) || !available(partner)) {
       blocks.push({ type: 'single', planned, endedWith: partner.name })
       continue
     }
@@ -97,7 +102,8 @@ export function restAfterSet(input: {
   const { main } = splitSets(exercise.sets)
   const position = Math.max(0, main.findIndex((s) => s.id === parentId))
 
-  if (partner) {
+  // In a bi-set whose other exercise has no set at this position (fewer sets), the exercise rests as on its own.
+  if (partner && position < partner.planned.sets.length) {
     const mine = finishedRounds(exercise.planned, exercise.sets, dismissed)
     const theirs = finishedRounds(partner.planned, partner.sets, dismissed)
     if (theirs < mine && theirs < partner.planned.sets.length) return { kind: 'skip' }

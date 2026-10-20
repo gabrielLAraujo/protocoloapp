@@ -362,5 +362,26 @@ describe('workoutRepo.workedOutDates', () => {
         [parent, 'delete'],
       ])
     })
+
+    it('a set deleted on another device (pulled tombstone) takes the local sub-sets along', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      const d1 = await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(6))
+      await outbox.ack(db, (await outbox.due(db, at(7), 500)).map((e) => e.seq))
+
+      await setLogSync.applyRemote(db, { entity: 'set_log', id: parent, version: 9, payload: null, deletedAt: '2026-10-18T13:00:00+00:00', clientUpdatedAt: '2026-10-18T13:00:00+00:00' })
+
+      expect(await workoutRepo.setsForSession(db, sessionId)).toEqual([])
+      expect((await outbox.due(db, at(10), 500)).map((e) => [e.id, e.op])).toEqual([[d1, 'delete']])
+    })
+
+    it('the session list counts main sets only', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(6))
+      expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]).toMatchObject({ setCount: 1, volume: 80 * 8 + 64 * 6 })
+    })
   })
 })

@@ -58,6 +58,15 @@ describe('bisetPartners / dayBlocks', () => {
     expect(blocks.map((b) => (b.type === 'biset' ? `${b.a.key}+${b.b.key}` : b.planned.key))).toEqual(['a1+a3', 'a2+a4'])
   })
 
+  it('a partner that cannot be done (not in the catalog) ends the pairing like a skip', () => {
+    const d = day([ex('a1', { techniques: [{ type: 'biset', with: 'a2' }] }), ex('a2')])
+    const blocks = dayBlocks(d, new Map(), (p) => p.key !== 'a2')
+    expect(blocks.map((b) => (b.type === 'single' ? [b.planned.key, b.endedWith] : 'biset'))).toEqual([
+      ['a1', 'Exercicio a2'],
+      ['a2', 'Exercicio a1'],
+    ])
+  })
+
   it('ignores a partner that is not in the day or the exercise itself', () => {
     const d = day([ex('a1', { supersetWith: 'zz' }), ex('a2', { techniques: [{ type: 'biset', with: 'a2' }] })])
     expect(bisetPartners(d).size).toBe(0)
@@ -113,14 +122,17 @@ describe('restAfterSet', () => {
     })
   })
 
-  it('bi-set: the exercise with more sets rests normally once the other has no sets left', () => {
+  it('bi-set: the exercise with more sets rests on its own rest once the other has no sets left', () => {
     const a = ex('a1', { restSeconds: 60, sets: [{ repsMin: 8, repsMax: 10 }, { repsMin: 8, repsMax: 10 }, { repsMin: 8, repsMax: 10 }] })
-    const b = ex('a2', { restSeconds: 45 })
+    // The partner's rest is the longer one: it must not apply to a round the partner is not in.
+    const b = ex('a2', { restSeconds: 120 })
     const aSets = [set('a1'), set('a1', { setIndex: 1 }), set('a1', { setIndex: 2 })]
     const bSets = [set('a2'), set('a2', { setIndex: 1 })]
     expect(restAfterSet({ exercise: flow(a, aSets), partner: flow(b, bSets), parentId: aSets[2]!.id, dismissed: new Set() })).toMatchObject({
       kind: 'rest',
       durations: [60],
+      index: 2,
+      label: 'Exercicio a1',
     })
   })
 })
@@ -146,7 +158,10 @@ describe('bisetNext', () => {
 
 describe('restDurations', () => {
   it('uses the SST intervals when there is no rest sequence', () => {
-    expect(restDurations(ex('a1', { restSeconds: 90, techniques: [{ type: 'sst', rests: [10, 20] }] }))).toEqual([10, 20])
+    // Intervals between the sets, the exercise's own rest after the last one.
+    expect(restDurations(ex('a1', { restSeconds: 90, techniques: [{ type: 'sst', rests: [10, 20] }] }))).toEqual([10, 90])
+    const three = { repsMin: 8, repsMax: 10 }
+    expect(restDurations(ex('a1', { restSeconds: null, sets: [three, three, three], techniques: [{ type: 'sst', rests: [15] }] }))).toEqual([15, 15, 0])
     expect(restDurations(ex('a1', { restSequence: [30, 40], techniques: [{ type: 'sst', rests: [10] }] }))).toEqual([30, 40])
   })
 })

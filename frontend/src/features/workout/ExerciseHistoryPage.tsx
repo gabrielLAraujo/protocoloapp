@@ -105,7 +105,7 @@ export function ExerciseHistoryPage() {
               {[...rows].reverse().map((r) => (
                 <tr key={r.sessionId} className="border-t border-line align-top">
                   <td className="py-1.5 pr-3 whitespace-nowrap">{formatDate(r.date)}</td>
-                  <td className="py-1.5 pr-3">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}`).join(' · ')}</td>
+                  <td className="py-1.5 pr-3">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}${s.parentSetId === null ? '' : s.kind === 'rest_pause' ? ' (rest-pause)' : ` (${s.kind === 'drop' ? 'drop' : s.kind})`}`).join(' · ')}</td>
                   <td className="py-1.5 whitespace-nowrap tabular-nums">{r.best === null ? '—' : `${formatKg(Math.round(r.best * 10) / 10)} kg`}</td>
                 </tr>
               ))}

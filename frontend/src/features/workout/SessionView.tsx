@@ -15,6 +15,27 @@ import { bisetNext, dayBlocks, restAfterSet, type FlowExercise, type RestDecisio
 import { Icon } from '../../ui/Icon'
 import { findExercise } from './workoutPlans'
 
+const DISMISSED_KEY = 'protocolo.dismissedSubSets'
+
+/** localStorage may be missing or throw (private mode): the removed rows then just come back after a reload. */
+function loadDismissed(sessionId: string): ReadonlySet<string> {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? 'null') as { sessionId?: unknown; keys?: unknown } | null
+    if (stored?.sessionId !== sessionId || !Array.isArray(stored.keys)) return new Set()
+    return new Set(stored.keys.filter((k): k is string => typeof k === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveDismissed(sessionId: string, keys: ReadonlySet<string>) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify({ sessionId, keys: [...keys] }))
+  } catch {
+    // Best effort.
+  }
+}
+
 /** The workout in progress: planned exercises with their set rows, the rest timer bar and "Finalizar treino". */
 export function SessionView({
   data,
@@ -36,8 +57,8 @@ export function SessionView({
   const [confirming, setConfirming] = useState(false)
   const [finishing, setFinishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Sub-set rows the user removed ("Remover"): kept for this screen only; a reload shows them again, empty.
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
+  // Sub-set rows the user removed ("Remover"), kept on the device for this session (like the rest timer).
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => loadDismissed(session.id))
 
   const effective = (planned: PlannedExercise, active: ReturnType<typeof useActiveSession>) => {
     const change = active.changes.get(planned.key)
@@ -109,6 +130,7 @@ export function SessionView({
         onDismissSlot={(key) => {
           const hidden = new Set(dismissed).add(key)
           setDismissed(hidden)
+          saveDismissed(session.id, hidden)
           // Not doing the last sub-set ends the set: its rest starts.
           const decision = restAfter(active.sets, key.split(':')[0]!, hidden)
           if (decision.kind === 'rest') applyRest(decision)
@@ -164,7 +186,7 @@ export function SessionView({
         </p>
       </div>
 
-      {dayBlocks(day, active.changes).map((block) => {
+      {dayBlocks(day, active.changes, (p) => effective(p, active).exercise !== null).map((block) => {
         if (block.type === 'single') return card(block.planned, { pairEndedWith: block.endedWith })
         const a = flowOf(block.a, active.sets)
         const b = flowOf(block.b, active.sets)

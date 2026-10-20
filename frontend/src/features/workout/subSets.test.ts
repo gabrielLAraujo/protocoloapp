@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SetLocal } from '../../data/workoutRepo'
 import type { PlannedExercise } from '../../domain/planDocuments'
-import { dropLoad, finishedRounds, openSlots, plannedSubSets, splitSets, subSetSlots } from './subSets'
+import { dropLoad, finishedRounds, isDismissed, openSlots, plannedSubSets, splitSets, subSetSlots } from './subSets'
 import { volumeOf } from './volume'
 
 const exercise = (over: Partial<PlannedExercise> = {}): PlannedExercise => ({
@@ -109,6 +109,31 @@ describe('subSetSlots', () => {
     const slots = subSetSlots(exercise(), parent, [extra])
     expect(slots).toHaveLength(1)
     expect(slots[0]).toMatchObject({ kind: 'drop', ordinal: 1, planned: false, logged: extra })
+  })
+})
+
+describe('isDismissed', () => {
+  const planned = exercise({ techniques: [{ type: 'drop', count: 3, sets: 'last' }] })
+
+  it('"Remover" on a slot hides it and the later slots of the same kind, never one with a stored sub-set', () => {
+    const parent = set({ setIndex: 2, weightKg: 100 })
+    const dismissed = new Set([`${parent.id}:drop:2`])
+    const empty = subSetSlots(planned, parent, [])
+    expect(empty.map((s) => isDismissed(dismissed, s))).toEqual([false, true, true])
+
+    // Remover drop 1, yet a drop gets stored (another device, an old screen): it fills slot 1 and stays visible.
+    const stored = set({ setIndex: 2, kind: 'drop', parentSetId: parent.id, weightKg: 80 })
+    const slots = subSetSlots(planned, parent, [stored])
+    const all = new Set([`${parent.id}:drop:1`])
+    expect(slots.map((s) => isDismissed(all, s))).toEqual([false, true, true])
+    expect(openSlots(planned, [parent, stored], all)).toEqual([])
+    expect(finishedRounds(planned, [parent, stored], all)).toBe(1)
+  })
+
+  it('does not mix parents or kinds', () => {
+    const parent = set({ setIndex: 2 })
+    const slots = subSetSlots(planned, parent, [])
+    expect(isDismissed(new Set(['other:drop:1', `${parent.id}:rest_pause:1`]), slots[0]!)).toBe(false)
   })
 })
 
