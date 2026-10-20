@@ -46,7 +46,8 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
     });
 
     private static string WorkoutWith(string exerciseName, Guid exerciseId) => $$"""
-        {"days":[{"key":"a","name":"Treino A","exercises":[
+        {"rotation":{"type":"sequence","items":["a","off"]},
+         "days":[{"key":"a","name":"Treino A","exercises":[
           {"key":"x","name":"{{exerciseName}}","exerciseId":"{{exerciseId}}","sets":[{"repsMin":8,"repsMax":10}]}]}]}
         """;
 
