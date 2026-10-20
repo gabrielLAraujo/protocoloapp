@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
+using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Shared.Data;
 
@@ -137,8 +138,26 @@ public static class PlanActivation
         }
 
         var groups = new Dictionary<string, MuscleGroup>(StringComparer.Ordinal);
+        var catalogLinks = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var suggestion in suggestions)
-            groups.TryAdd(ExerciseNames.Normalize(suggestion.Name), suggestion.Group);
+        {
+            var key = ExerciseNames.Normalize(suggestion.Name);
+            groups.TryAdd(key, suggestion.Group);
+            if (suggestion.CatalogId is { } link)
+                catalogLinks.TryAdd(key, link);
+        }
+
+        // The catalog is refreshed from outside: a link that disappeared since the draft was saved is simply dropped.
+        if (catalogLinks.Count > 0)
+        {
+            var wanted = catalogLinks.Values.Distinct(StringComparer.Ordinal).ToList();
+            var existing = await db.CatalogExercises.Where(c => wanted.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
+            var existingSet = existing.ToHashSet(StringComparer.Ordinal);
+            foreach (var key in catalogLinks.Where(kv => !existingSet.Contains(kv.Value)).Select(kv => kv.Key).ToList())
+                catalogLinks.Remove(key);
+        }
+
+        var liveById = live.ToDictionary(e => e.Id);
 
         var errors = new Dictionary<string, string[]>();
         var days = new List<WorkoutDayDto>();
@@ -153,6 +172,8 @@ public static class PlanActivation
                 {
                     if (!liveIds.Contains(given))
                         errors[$"{path}.exerciseId"] = ["Exercício não encontrado no catálogo."];
+                    else
+                        await LearnAliasAsync(db, clock, userId, liveById[given], planned.Name, byName, byAlias, ct);
                     exercises.Add(planned);
                     continue;
                 }
@@ -175,6 +196,7 @@ public static class PlanActivation
                         Name = name.Length > Exercise.MaxNameLength ? name[..Exercise.MaxNameLength] : name,
                         NormalizedName = normalized,
                         PrimaryMuscleGroup = groups.GetValueOrDefault(normalized, MuscleGroup.Other),
+                        CatalogId = catalogLinks.GetValueOrDefault(normalized),
                     };
                     byName[normalized] = match;
                     await SyncWrites.StampAsync(db, match, userId, clock, ct);
@@ -194,6 +216,32 @@ public static class PlanActivation
         }
 
         return errors.Count > 0 ? new Linked(null, errors) : new Linked(workout with { Days = days }, errors);
+    }
+
+    /// <summary>Most aliases an exercise keeps (same cap as the exercise endpoint).</summary>
+    private const int MaxAliases = 20;
+
+    /// <summary>
+    /// The plan names an existing exercise differently from its name and aliases (the user picked it in the review): the plan's
+    /// name becomes an alias, so the next PDF links by itself. Idempotent; skipped when the name already belongs to another
+    /// exercise or the exercise is at the alias cap.
+    /// </summary>
+    private static async Task LearnAliasAsync(
+        AppDbContext db, TimeProvider clock, Guid userId, Exercise exercise, string plannedName,
+        Dictionary<string, Exercise> byName, Dictionary<string, Exercise> byAlias, CancellationToken ct)
+    {
+        var normalized = ExerciseNames.Normalize(plannedName);
+        if (!ExerciseNames.IsUsable(normalized) || byName.ContainsKey(normalized) || byAlias.ContainsKey(normalized))
+            return;
+        if (exercise.Aliases.Length >= MaxAliases)
+            return;
+
+        var alias = plannedName.Trim();
+        if (alias.Length > Exercise.MaxNameLength)
+            alias = alias[..Exercise.MaxNameLength];
+        exercise.Aliases = [.. exercise.Aliases, alias];
+        byAlias[normalized] = exercise;
+        await SyncWrites.StampAsync(db, exercise, userId, clock, ct);
     }
 
     private static Dictionary<string, string[]> Group(IEnumerable<ValidationFailure> failures) => failures

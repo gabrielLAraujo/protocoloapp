@@ -89,9 +89,12 @@ internal static class PlanMapping
                 continue;
             }
 
+            string? catalogId = element.TryGetProperty("catalogId", out var catalog) && catalog.ValueKind == JsonValueKind.String
+                ? catalog.GetString()
+                : null;
             try
             {
-                list.Add(new NewExerciseSuggestion(name.GetString()!, EnumText.Parse<MuscleGroup>(group.GetString()!)));
+                list.Add(new NewExerciseSuggestion(name.GetString()!, EnumText.Parse<MuscleGroup>(group.GetString()!), catalogId));
             }
             catch (FormatException)
             {
@@ -101,13 +104,13 @@ internal static class PlanMapping
         return list;
     }
 
-    /// <summary>Stored as <c>[{"name","group"}]</c> with the group in snake_case; empty list is stored as null. Names are deduped by normalized name.</summary>
+    /// <summary>Stored as <c>[{"name","group","catalogId"}]</c> (catalogId may be null) with the group in snake_case; empty list is stored as null. Names are deduped by normalized name.</summary>
     public static JsonDocument? WriteNewExercises(IEnumerable<NewExerciseSuggestion> suggestions)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var rows = suggestions
             .Where(s => seen.Add(ExerciseNames.Normalize(s.Name)))
-            .Select(s => new { name = s.Name.Trim(), group = EnumText.ToText(s.Group) })
+            .Select(s => new { name = s.Name.Trim(), group = EnumText.ToText(s.Group), catalogId = s.CatalogId })
             .ToList();
         return rows.Count == 0 ? null : JsonSerializer.SerializeToDocument(rows);
     }
