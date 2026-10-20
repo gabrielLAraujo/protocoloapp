@@ -161,14 +161,20 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
   }
 }
 
+const planOf = (view: TodayView) => ({ dayType: view.dayType, workoutDayKey: null, targets: view.rows.map((r) => r.target) })
+const statusesOf = (view: TodayView) => new Map(view.rows.map((r) => [targetId(r.target), r.status]))
+
+/** Today's score as the streak reads it: only what is marked or already due at `now` (same rule as loadProgress). */
+export function dueScore(view: TodayView, now: Date): DayScore {
+  return dayScore(planOf(view), statusesOf(view), { isToday: true, now, cardioOptional: view.cardioOptional })
+}
+
 /**
  * The day's score over everything planned for the whole day (the ring of Hoje): the same rows and rules as the
  * gamification's `dayScore`, counted as a closed day, so 100 % means every target of the day is done.
  */
 export function wholeDayScore(view: TodayView): DayScore {
-  const plan = { dayType: view.dayType, workoutDayKey: null, targets: view.rows.map((r) => r.target) }
-  const statuses = new Map(view.rows.map((r) => [targetId(r.target), r.status]))
-  return dayScore(plan, statuses, { isToday: false, cardioOptional: view.cardioOptional })
+  return dayScore(planOf(view), statusesOf(view), { isToday: false, cardioOptional: view.cardioOptional })
 }
 
 /** Not marked and more than LATE_AFTER_MIN minutes past its time (today only). */

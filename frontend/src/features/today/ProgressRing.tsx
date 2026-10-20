@@ -9,6 +9,8 @@ const C = 2 * Math.PI * R
 /** Whole percent, rounded down: the ring reads 100 % only when the day is really complete. */
 const percentOf = (score: DayScore): number | null => (score.ratio === null ? null : Math.floor(score.ratio * 100 + 1e-9))
 
+const partialText = (n: number) => (n === 0 ? '' : ` · ${n} ${n === 1 ? 'parcial' : 'parciais'}`)
+
 /**
  * The day's ring: the share of the whole day done (partial counts half). The arc grows with a transition (none with
  * reduced motion). `children` sits on top of it (the celebration).
@@ -24,7 +26,7 @@ export function ProgressRing({ score, children }: { score: DayScore; children?: 
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent ?? 0}
-      aria-valuetext={percent === null ? 'Nada previsto' : `${percent}% — ${score.done} de ${score.planned}`}
+      aria-valuetext={percent === null ? 'Nada previsto' : `${percent}% — ${score.done} de ${score.planned}${partialText(score.partial)}`}
       className="relative grid shrink-0 place-items-center"
       style={{ width: SIZE, height: SIZE }}
     >

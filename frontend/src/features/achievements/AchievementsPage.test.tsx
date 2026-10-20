@@ -29,9 +29,9 @@ describe('AchievementsPage', () => {
 
     const locked = within(screen.getByRole('region', { name: 'A conquistar' }))
     const s14 = within(locked.getByRole('listitem', { name: 'Sequência de 14 dias' }))
-    expect(s14.getByText('12 de 14')).toBeInTheDocument()
+    expect(s14.getByText('12 de 14 dias')).toBeInTheDocument()
     expect(locked.getByRole('listitem', { name: 'Sequência de 14 dias' }).querySelector<HTMLElement>('[data-bar-fill]')!.style.width).toBe('85.7%')
-    expect(within(locked.getByRole('listitem', { name: 'Sequência de 30 dias' })).getByText('12 de 30')).toBeInTheDocument()
+    expect(within(locked.getByRole('listitem', { name: 'Sequência de 30 dias' })).getByText('12 de 30 dias')).toBeInTheDocument()
     // No workout plan: nothing to count yet.
     expect(within(locked.getByRole('listitem', { name: 'Todos os treinos do ciclo' })).getByText('—')).toBeInTheDocument()
     expect(screen.getByText(`3 de 6 medalhas`)).toBeInTheDocument()

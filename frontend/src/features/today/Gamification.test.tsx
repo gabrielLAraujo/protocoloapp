@@ -1,4 +1,4 @@
-import { act, render as rtlRender, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SyncRecord } from '../../data/apiClient'
@@ -10,6 +10,7 @@ import type { WeekGoal } from '../../domain/progress'
 import { mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
+import { GoalToast } from './Celebration'
 import { resetOnceADayForTests } from './onceADay'
 import { TodayPage } from './TodayPage'
 import { WeekCard } from './WeekCard'
@@ -97,7 +98,7 @@ describe('Hoje ring', () => {
 
     // 1 done + ½ partial of 5 = 30 %.
     expect(ring()).toHaveAttribute('aria-valuenow', '30')
-    expect(ring()).toHaveAttribute('aria-valuetext', '30% — 1 de 5')
+    expect(ring()).toHaveAttribute('aria-valuetext', '30% — 1 de 5 · 1 parcial')
     expect(screen.getByRole('status')).toHaveTextContent('1 de 5 feitos · 1 parcial')
     expect(screen.getByText('Meta do dia: 90%')).toBeInTheDocument()
   })
@@ -206,6 +207,9 @@ describe('Hoje celebration', () => {
   })
 })
 
+/** The toast's live text (the header line "Meta do dia batida" is not a status). */
+const toastStatus = () => screen.queryAllByRole('status').find((el) => el.textContent?.includes('Meta do dia batida'))
+
 describe('Hoje 90 % toast', () => {
   it('shows "Meta do dia batida" the first time the day reaches 90 %, once per day', async () => {
     const { mount, user } = await setup(async (db) => {
@@ -215,23 +219,24 @@ describe('Hoje 90 % toast', () => {
     })
     const first = mount()
     await screen.findByRole('list', { name: 'Itens de hoje' })
-    expect(screen.queryByRole('button', { name: /Meta do dia batida/ })).not.toBeInTheDocument()
+    expect(toastStatus()).toBeUndefined()
 
     // 4 done + ½ of 5 = 90 %: on target, not complete.
     await markDone(user, 'REF 3')
-    const toast = await screen.findByRole('button', { name: /Meta do dia batida/ })
+    await waitFor(() => expect(toastStatus()).toBeDefined())
+    expect(toastStatus()).toHaveTextContent('90% do dia feito')
     expect(ring()).toHaveAttribute('aria-valuenow', '90')
     expect(screen.queryByTestId('celebration')).not.toBeInTheDocument()
 
-    await user.click(toast)
-    expect(screen.queryByRole('button', { name: /Meta do dia batida/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Fechar aviso' }))
+    expect(toastStatus()).toBeUndefined()
 
     // Dropping below and crossing again the same day: no second toast.
     await user.click(row('REF 3').getByRole('button', { name: 'Feito' }))
     await waitFor(() => expect(ring()).toHaveAttribute('aria-valuenow', '70'))
     await markDone(user, 'REF 3')
     await act(() => Promise.resolve())
-    expect(screen.queryByRole('button', { name: /Meta do dia batida/ })).not.toBeInTheDocument()
+    expect(toastStatus()).toBeUndefined()
 
     // Nor after a reload.
     first.unmount()
@@ -239,7 +244,73 @@ describe('Hoje 90 % toast', () => {
     mount()
     await screen.findByRole('list', { name: 'Itens de hoje' })
     await act(() => Promise.resolve())
-    expect(screen.queryByRole('button', { name: /Meta do dia batida/ })).not.toBeInTheDocument()
+    expect(toastStatus()).toBeUndefined()
+  })
+})
+
+describe('GoalToast', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('hides itself after a few seconds, paused while hovered or focused', () => {
+    vi.useFakeTimers()
+    const onClose = vi.fn()
+    rtlRender(<GoalToast onClose={onClose} />)
+    const close = screen.getByRole('button', { name: 'Fechar aviso' })
+    const box = close.parentElement!
+
+    fireEvent.pointerEnter(box)
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.pointerLeave(box)
+
+    act(() => close.focus())
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => close.blur())
+
+    act(() => vi.advanceTimersByTime(4_400))
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(200))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Hoje without a plan', () => {
+  it('shows no ring: nothing counts toward the day, the counter counts the rows', async () => {
+    const app = await setupApp() // no protocol, no workout plan: only the check-in rows
+    await seedCheckin(app.db, 'morning')
+    app.view(<TodayPage />)
+    await screen.findByRole('list', { name: 'Itens de hoje' })
+    expect(screen.getByRole('status')).toHaveTextContent('1 de 2 feitos')
+    expect(screen.queryByRole('progressbar', { name: 'Progresso do dia' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Meta do dia: 90%')).not.toBeInTheDocument()
+  })
+})
+
+describe('Hoje streak follows the clock', () => {
+  it("today joins the streak once its due targets are on target, and leaves it when more become due", async () => {
+    // Yesterday fully done; today REF 1 (07:00) and the morning check-in (07:00) are done, REF 2 (10:00) not yet.
+    vi.setSystemTime(new Date(2026, 9, 20, 9, 59, 30))
+    const { mount } = await setup(async (db) => {
+      const y = '2026-10-19'
+      const at = new Date(2026, 9, 19, 22)
+      for (const key of ['1', '2', '3'])
+        await adherenceRepo.mark(db, USER_A, { date: y, targetType: 'meal', targetKey: key, status: 'done', reason: null, note: null }, at)
+      await dailyCheckinRepo.saveMorning(db, USER_A, y, { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }, at)
+      await dailyCheckinRepo.saveEvening(db, USER_A, y, { energyDay: 3, anxiety: 2, waterL: 3, note: null }, at)
+      await seedCheckin(db, 'morning')
+      await mark(db, '1', 'done')
+    })
+    mount()
+    // 09:59: everything due is done → today counts: yesterday + today.
+    expect(await screen.findByRole('link', { name: /^Sequência: 2 dias/ })).toBeInTheDocument()
+
+    // 10:00 (next clock tick): REF 2 is due and unmarked → 2 of 3 → today is out again, the run so far stays.
+    vi.setSystemTime(new Date(2026, 9, 20, 10, 0, 5))
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    expect(await screen.findByRole('link', { name: /^Sequência: 1 dia na meta/ })).toBeInTheDocument()
   })
 })
 
@@ -261,15 +332,15 @@ describe('Semana card', () => {
     ]
     rtlRender(<WeekCard goals={goals} />)
     const goal = (name: string) => screen.getByRole('listitem', { name })
-    const fill = (name: string) => goal(name).querySelector<HTMLElement>('[data-bar-fill]')!.style.width
+    const fill = (name: string) => goal(name).querySelector<HTMLElement>('[data-bar-fill]')!.style.transform
 
     expect(screen.getByText('1 de 3 metas')).toBeInTheDocument()
     expect(within(goal('Dieta ≥ 90%')).getByText('84%')).toBeInTheDocument()
-    expect(fill('Dieta ≥ 90%')).toBe('84%')
-    expect(fill('Cardio previsto')).toBe('100%')
+    expect(fill('Dieta ≥ 90%')).toBe('scaleX(0.84)')
+    expect(fill('Cardio previsto')).toBe('scaleX(1)')
     expect(within(goal('Cardio previsto')).getByRole('img', { name: 'Meta batida' })).toBeInTheDocument()
     expect(within(goal('Check-ins completos')).queryByRole('img', { name: 'Meta batida' })).not.toBeInTheDocument()
-    expect(fill('Check-ins completos')).toBe('28.6%')
+    expect(fill('Check-ins completos')).toBe('scaleX(0.286)')
   })
 
   it('renders nothing without goals', () => {

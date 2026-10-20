@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useData } from '../../data/dataContext'
-import type { Medal } from '../../domain/progress'
+import type { Medal, MedalKey } from '../../domain/progress'
 import { Card } from '../../ui/Card'
 import { Icon } from '../../ui/Icon'
 import { localDate } from '../checkin/localDate'
@@ -38,6 +38,16 @@ function EarnedMedal({ medal }: { medal: Medal }) {
   )
 }
 
+/** What a medal's progress counts: goals of this week, workouts of the cycle, days in a row. */
+const PROGRESS_UNIT: Record<MedalKey, string> = {
+  perfect_week: 'metas',
+  all_workouts_cycle: 'treinos',
+  diet_100_7: 'dias',
+  streak_7: 'dias',
+  streak_14: 'dias',
+  streak_30: 'dias',
+}
+
 function LockedMedal({ medal }: { medal: Medal }) {
   const { value, target } = medal.progress
   const fill = target > 0 ? Math.min(1, value / target) : 0
@@ -47,7 +57,7 @@ function LockedMedal({ medal }: { medal: Medal }) {
       <div className="grid min-w-0 flex-1 gap-1.5">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-base font-semibold">{medal.label}</p>
-          <span className="shrink-0 text-sm text-muted tabular-nums">{target > 0 ? `${value} de ${target}` : '—'}</span>
+          <span className="shrink-0 text-sm text-muted tabular-nums">{target > 0 ? `${value} de ${target} ${PROGRESS_UNIT[medal.key]}` : '—'}</span>
         </div>
         <div aria-hidden="true" className="h-1.5 rounded-full bg-line">
           <div data-bar-fill className="h-full rounded-full bg-accent" style={{ width: `${Math.round(fill * 1000) / 10}%` }} />

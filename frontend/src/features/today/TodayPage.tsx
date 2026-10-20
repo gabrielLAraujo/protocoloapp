@@ -1,10 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { ensureScheduleDefaults } from '../../data/activeProtocol'
 import { setCardio } from '../../data/adherenceLinks'
 import { adherenceRepo, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
 import { useData } from '../../data/dataContext'
-import { isOnTarget, type DayScore } from '../../domain/progress'
+import { isOnTarget, streak, type DayScore } from '../../domain/progress'
+import { clockOf } from '../../domain/targetStatus'
 import { Icon } from '../../ui/Icon'
 import { localDate } from '../checkin/localDate'
 import { loadProgress, type ProgressData } from '../progress/progressData'
@@ -17,7 +18,7 @@ import { claimOnceADay, prefersReducedMotion } from './onceADay'
 import { ProgressRing } from './ProgressRing'
 import { ReasonSheet } from './ReasonSheet'
 import { StreakLink } from './StreakLink'
-import { buildTodayView, headerText, isLate, loadTodaySources, wholeDayScore, type TodayRow, type TodayView } from './todayData'
+import { buildTodayView, dueScore, headerText, isLate, loadTodaySources, wholeDayScore, type TodayRow, type TodayView } from './todayData'
 import { WeekCard } from './WeekCard'
 
 const CLOCK_MS = 30_000
@@ -38,7 +39,6 @@ function useClock(): Date {
 }
 
 const CELEBRATION_MS = 1600
-const TOAST_MS = 4500
 
 /**
  * The day's two moments, each at most once per day (kept in localStorage): the celebration when every target of the
@@ -68,12 +68,6 @@ function useDayMoments(date: string | null, score: DayScore | null) {
     const timer = setTimeout(() => setCelebrating(false), CELEBRATION_MS)
     return () => clearTimeout(timer)
   }, [celebrating])
-
-  useEffect(() => {
-    if (!toast) return
-    const timer = setTimeout(() => setToast(false), TOAST_MS)
-    return () => clearTimeout(timer)
-  }, [toast])
 
   return { celebrating, toast, closeToast: () => setToast(false), complete, onTarget }
 }
@@ -192,6 +186,17 @@ export function TodayPage() {
   const ready = view !== null && view.date === today
   const score = ready ? wholeDayScore(view) : null
   const moments = useDayMoments(ready ? today : null, score)
+  // The streak follows today live: the history comes from loadProgress, today's score is recomputed from the rows on
+  // screen at the current minute (items become due as the day goes), without reading the database again.
+  const minute = clockOf(now)
+  const liveStreak = useMemo(() => {
+    if (!progress || progress.today !== today || !ready) return null
+    // The start of the current minute on today's date: all dayScore reads from `now` is its HH:mm.
+    const [y, m, d] = today.split('-').map(Number)
+    const [hh, mm] = minute.split(':').map(Number)
+    const todayScore = dueScore(view, new Date(y!, m! - 1, d!, hh!, mm!))
+    return streak(progress.history.map((day) => (day.date === today ? { ...day, score: todayScore } : day)), today)
+  }, [progress, view, today, ready, minute])
 
   if (failed) return <Message>Não foi possível abrir os dados do aparelho.</Message>
   if (!data) return <Message>Preparando os dados do aparelho…</Message>
@@ -248,11 +253,12 @@ export function TodayPage() {
             <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
             <p className="text-sm text-muted">{headerText(view)}</p>
           </div>
-          {progress?.today === today && <StreakLink current={progress.streak.current} />}
+          {liveStreak && <StreakLink current={liveStreak.current} />}
         </div>
         {view.rows.length > 0 && (
           <div className="flex items-center gap-4">
-            <ProgressRing score={score}>{moments.celebrating && <Celebration />}</ProgressRing>
+            {/* Without a plan nothing counts toward the day's goal: no ring, just the rows done. */}
+            {counted && <ProgressRing score={score}>{moments.celebrating && <Celebration />}</ProgressRing>}
             <div className="grid min-w-0 flex-1 gap-2">
               <p role="status" className="text-base font-semibold tabular-nums">
                 {done} de {total} feitos
@@ -281,7 +287,7 @@ export function TodayPage() {
 
       <WeekCard goals={weekGoals} />
 
-      <div aria-live="polite">{moments.toast && <GoalToast onClose={moments.closeToast} />}</div>
+      {moments.toast && <GoalToast onClose={moments.closeToast} />}
 
       {sheet && (
         <ReasonSheet

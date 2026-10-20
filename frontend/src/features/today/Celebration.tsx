@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Icon } from '../../ui/Icon'
 
 /** Chalk strokes around the ring: angle (deg), delay (ms), color token. Fixed, so every celebration is the same. */
@@ -39,21 +40,45 @@ export function Celebration() {
   )
 }
 
-/** "Meta do dia batida": a short note above the bottom navigation, once per day, gone after a few seconds or a tap. */
+const TOAST_MS = 4500
+
+/**
+ * "Meta do dia batida": a short note above the bottom navigation, once per day. It hides itself after a few seconds,
+ * paused while the pointer is over it or the focus is inside it; "Fechar aviso" closes it at once.
+ */
 export function GoalToast({ onClose }: { onClose(): void }) {
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    if (paused) return
+    const timer = setTimeout(onClose, TOAST_MS)
+    return () => clearTimeout(timer)
+  }, [paused, onClose])
+
   return (
-    <button
-      type="button"
-      onClick={onClose}
-      className="gami-rise fixed inset-x-4 bottom-[calc(var(--bottom-nav-height,0px)+12px)] z-20 mx-auto flex max-w-sm items-center gap-3 rounded-card border border-ok/40 bg-surface px-4 py-3 text-left shadow-raised focus-visible:outline-2 focus-visible:outline-accent"
+    <div
+      onPointerEnter={() => setPaused(true)}
+      onPointerLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPaused(false)
+      }}
+      className="gami-rise fixed inset-x-4 bottom-[calc(var(--bottom-nav-height,0px)+12px)] z-20 mx-auto flex max-w-sm items-center gap-3 rounded-card border border-ok/40 bg-surface py-2 pr-1 pl-4 shadow-raised"
     >
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-ok/15 text-ok">
         <Icon name="check" size={18} strokeWidth={2.4} />
       </span>
-      <span className="grid">
+      <span role="status" className="grid flex-1">
         <span className="text-sm font-semibold">Meta do dia batida</span>
-        <span className="text-xs text-muted">90% do dia feito — o dia já conta na sequência</span>
+        <span className="text-xs text-muted">90% do dia feito — hoje já conta na sequência</span>
       </span>
-    </button>
+      <button
+        type="button"
+        aria-label="Fechar aviso"
+        onClick={onClose}
+        className="grid size-11 shrink-0 place-items-center rounded-control text-muted hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <Icon name="cross" size={18} />
+      </button>
+    </div>
   )
 }

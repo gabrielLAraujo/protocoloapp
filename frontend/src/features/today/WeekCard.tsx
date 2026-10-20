@@ -24,8 +24,8 @@ function GoalRow({ goal }: { goal: WeekGoal }) {
       <div aria-hidden="true" className="relative h-1.5 rounded-full bg-line">
         <div
           data-bar-fill
-          className={`h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none ${goal.done ? 'bg-ok' : 'bg-accent'}`}
-          style={{ width: `${Math.round(fill * 1000) / 10}%` }}
+          className={`h-full w-full origin-left rounded-full transition-transform duration-500 ease-out motion-reduce:transition-none ${goal.done ? 'bg-ok' : 'bg-accent'}`}
+          style={{ transform: `scaleX(${Math.round(fill * 1000) / 1000})` }}
         />
         {goal.unit === 'percent' && (
           <span className="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-ink/60" style={{ left: `${goal.target}%` }} />

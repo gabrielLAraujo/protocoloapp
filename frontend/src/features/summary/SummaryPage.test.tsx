@@ -12,7 +12,14 @@ import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
 import { seedGamificationHistory } from '../achievements/testSeed'
+import { loadProgress } from '../progress/progressData'
 import { SummaryPage } from './SummaryPage'
+
+// Real loadProgress unless a test makes it fail.
+vi.mock('../progress/progressData', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../progress/progressData')>()
+  return { ...actual, loadProgress: vi.fn(actual.loadProgress) }
+})
 
 // Tuesday 2026-10-27; the protocol was activated on the 20th.
 beforeEach(() => {
@@ -138,6 +145,19 @@ describe('SummaryPage', () => {
     expect(card.getByText('recorde: 12 dias no ciclo, 12 dias no geral')).toBeInTheDocument()
     expect(card.getByText('Semanas na meta').nextSibling).toHaveTextContent('1 de 2')
     expect(card.getByRole('link', { name: 'Ver conquistas' })).toHaveAttribute('href', '/conquistas')
+  })
+
+  it('a failure computing the progress only hides the "Constância" cards', async () => {
+    vi.mocked(loadProgress).mockRejectedValueOnce(new Error('boom'))
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    app.view(<SummaryPage />)
+
+    expect(await screen.findByRole('region', { name: 'Números do ciclo' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Constância' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    vi.mocked(console.error).mockRestore()
   })
 
   it('"Semanas na meta" says so when no week has closed yet', async () => {

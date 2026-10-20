@@ -33,8 +33,8 @@ interface Loaded {
   /** The active protocol version (target of the dates form), when there is one. */
   protocolId: string | null
   billingDate: string | null
-  /** Streak and closed weeks (the "Sequência" and "Semanas na meta" cards). */
-  progress: ProgressData
+  /** Streak and closed weeks (the "Sequência" and "Semanas na meta" cards); null when they could not be computed. */
+  progress: ProgressData | null
 }
 
 const daysText = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`
@@ -53,7 +53,11 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
     planRepo.getActive(db, 'protocol'),
     loadWorkoutPlans(db),
     exerciseRepo.all(db),
-    loadProgress(db, localDate(now), now),
+    // A failure here only hides the "Constância" cards; the rest of the summary still shows.
+    loadProgress(db, localDate(now), now).catch((e: unknown) => {
+      console.error('could not compute the progress', e)
+      return null
+    }),
   ])
 
   let protocol: SummaryInput['protocol'] = null
@@ -137,7 +141,7 @@ export function SummaryPage() {
   }
 
   const { workouts, cardio } = summary
-  const perfectWeeks = progress.weeks.filter((w) => w.perfect).length
+  const perfectWeeks = progress?.weeks.filter((w) => w.perfect).length ?? 0
   return (
     <div className="grid gap-6">
       <h1 className="text-xl font-bold tracking-tight">Resumo</h1>
@@ -151,6 +155,7 @@ export function SummaryPage() {
       />
       <CycleCalendar days={summary.calendar} />
 
+      {progress && (
       <section aria-labelledby="streak-title" className="grid gap-3">
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="streak-title" className="text-base font-semibold">Constância</h2>
@@ -174,6 +179,7 @@ export function SummaryPage() {
           />
         </dl>
       </section>
+      )}
 
       <section aria-labelledby="stats-title" className="grid gap-3">
         <h2 id="stats-title" className="text-base font-semibold">Números do ciclo</h2>
