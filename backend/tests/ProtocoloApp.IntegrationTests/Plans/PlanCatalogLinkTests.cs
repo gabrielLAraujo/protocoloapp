@@ -26,6 +26,8 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
     private static Task<Guid> AddExerciseAsync(PlanApi api, string name, params string[] aliases) => api.WithDbAsync(async db =>
     {
         var id = Guid.NewGuid();
+        // (user, version) is unique: one version per exercise the user already has.
+        var version = await db.Exercises.CountAsync(e => e.UserId == api.UserId) + 1;
         db.Exercises.Add(new Exercise
         {
             Id = id,
@@ -34,7 +36,7 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
             NormalizedName = ExerciseNames.Normalize(name),
             Aliases = aliases,
             PrimaryMuscleGroup = MuscleGroup.Chest,
-            Version = 1,
+            Version = version,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             ClientUpdatedAt = DateTimeOffset.UtcNow,
