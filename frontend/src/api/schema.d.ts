@@ -860,6 +860,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/exercises/{id}/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["SetExerciseCatalogRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExerciseResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/app/latest-release": {
         parameters: {
             query?: never;
@@ -1263,6 +1320,9 @@ export interface components {
         RefreshRequest: {
             refreshToken: string;
         };
+        SetExerciseCatalogRequest: {
+            catalogId: null | string;
+        };
         SubscribeRequest: {
             endpoint: string;
             keys: components["schemas"]["SubscriptionKeys"];
@@ -1327,7 +1387,6 @@ export interface components {
         UpdateExerciseRequest: {
             group: components["schemas"]["MuscleGroup"];
             aliases: string[];
-            catalogId?: null | string;
         };
         UpdatePlanRequest: {
             document: components["schemas"]["JsonElement"];
