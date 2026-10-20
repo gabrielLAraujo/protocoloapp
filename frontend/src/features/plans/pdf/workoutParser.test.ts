@@ -110,7 +110,7 @@ describe('parseWorkout: an exercise split over two lines of the PDF (Review Focu
   it('joins a line when the previous one left the rest parenthesis open', () => {
     const { document } = parse('(grupo dois) 4x 6 a 10', '- Movimento alfa c 4 seg de isometria (intervalo', '40 seg)', '- Movimento beta')
     const [alfa, beta] = document.days[0].exercises
-    expect(alfa).toMatchObject({ name: 'Movimento alfa', restSeconds: 40, technique: 'c 4 seg de isometria' })
+    expect(alfa).toMatchObject({ name: 'Movimento alfa', restSeconds: 40, technique: null, techniques: [{ type: 'isometric', seconds: 4 }] })
     expect(beta.name).toBe('Movimento beta')
     expect(document.days[0].exercises).toHaveLength(2)
   })
@@ -237,9 +237,9 @@ describe('parseWorkout: rest', () => {
     expect(lowConfidence).toEqual([])
   })
 
-  it('reads "(intervalo alongado 40 seg)" as 40 s and keeps "intervalo alongado" in the technique', () => {
+  it('reads "(intervalo alongado 40 seg)" as 40 s plus the stretch_interval technique', () => {
     const { exercise } = firstExercise('- Movimento alfa c 4 seg de isometria (2x9 a 11) (intervalo alongado 40 seg)')
-    expect(exercise).toMatchObject({ name: 'Movimento alfa', restSeconds: 40, technique: 'c 4 seg de isometria; intervalo alongado' })
+    expect(exercise).toMatchObject({ name: 'Movimento alfa', restSeconds: 40, technique: null, techniques: [{ type: 'isometric', seconds: 4 }, { type: 'stretch_interval' }] })
     expect(reps(exercise.sets)).toEqual(['9-11', '9-11'])
   })
 
@@ -258,16 +258,16 @@ describe('parseWorkout: rest', () => {
 
   it('reads "SST (intervalo 40, 20, 10 ,20, 40)" as a rest sequence', () => {
     const { exercise } = firstExercise('- Movimento teta SST (intervalo 40, 20, 10 ,20, 40)')
-    expect(exercise).toMatchObject({ name: 'Movimento teta', restSeconds: null, restSequence: [40, 20, 10, 20, 40], technique: 'SST' })
+    expect(exercise).toMatchObject({ name: 'Movimento teta', restSeconds: null, restSequence: [40, 20, 10, 20, 40], technique: null, techniques: [{ type: 'sst', rests: [40, 20, 10, 20, 40] }] })
   })
 })
 
 describe('parseWorkout: name and technique', () => {
   it.each([
-    ['- movimento beta 5x 9 a 11 c 4 seg de isometria (intervalo 3 min)', 'Movimento beta', 'c 4 seg de isometria'],
-    ['- movimento gama (5x 6 a 8) com faixa + 6repts parciais (intervalo 75 seg)', 'Movimento gama', 'com faixa + 6repts parciais'],
+    ['- movimento beta 5x 9 a 11 c 4 seg de isometria (intervalo 3 min)', 'Movimento beta', null],
+    ['- movimento gama (5x 6 a 8) com faixa + 6repts parciais (intervalo 75 seg)', 'Movimento gama', 'com faixa'],
     ['- Movimento delta c apoio (2x9 a 11) (intervalo 40 seg)', 'Movimento delta c apoio', null],
-    ['- Movimento épsilon com pico de 2 seg (intervalo 40 seg)', 'Movimento épsilon', 'com pico de 2 seg'],
+    ['- Movimento épsilon com pico de 2 seg (intervalo 40 seg)', 'Movimento épsilon', null],
   ])('%s', (line, name, technique) => {
     const { exercise } = firstExercise(line)
     expect(exercise.name).toBe(name)
@@ -281,13 +281,116 @@ describe('parseWorkout: name and technique', () => {
       '- Movimento kapa (2x 7 a 9)',
     )
     const [iota, kapa] = document.days[0].exercises
-    expect(iota).toMatchObject({ name: 'Movimento iota', supersetWith: 'A2', technique: 'combinado com movimento kapa' })
+    expect(iota).toMatchObject({ name: 'Movimento iota', supersetWith: 'A2', technique: null, techniques: [{ type: 'biset', with: 'A2' }] })
     expect(kapa.supersetWith).toBeNull()
   })
 
   it('keeps "combinado com X" as technique text when X is not an exercise of the day', () => {
     const { exercise } = firstExercise('- movimento iota combinado com 2 minutos de sustentação')
     expect(exercise).toMatchObject({ name: 'Movimento iota', supersetWith: null, technique: 'combinado com 2 minutos de sustentação' })
+  })
+})
+
+describe('parseWorkout: structured techniques', () => {
+  const techniquesOf = (line: string) => firstExercise(line).exercise
+
+  it('reads "+ drop" in a set group as drops: 1 on those sets and a drop technique', () => {
+    const exercise = techniquesOf('- Movimento alfa (1x12 a 18) (2x5 a 7 + drop) (intervalo 90 seg)')
+    expect(exercise.sets.map((s) => s.drops ?? 0)).toEqual([0, 1, 1])
+    expect(exercise.techniques).toEqual([{ type: 'drop', count: 1, sets: [1, 2] }])
+  })
+
+  it('reads "+ 2 drop" as two drops on the last set', () => {
+    const exercise = techniquesOf('- Movimento alfa (1x12 a 18) (1x5 a 7 + 2 drop)')
+    expect(exercise.sets.map((s) => s.drops ?? 0)).toEqual([0, 2])
+    expect(exercise.techniques).toEqual([{ type: 'drop', count: 2, sets: 'last' }])
+  })
+
+  it('reads "drop na última" and "drop em todas"', () => {
+    const last = techniquesOf('- Movimento alfa 4x6 a 8 + drop na ultima')
+    expect(last.sets.map((s) => s.drops ?? 0)).toEqual([0, 0, 0, 1])
+    expect(last.techniques).toEqual([{ type: 'drop', count: 1, sets: 'last' }])
+    const all = techniquesOf('- 2 series 9 a 11 Movimento alfa na estação ou drop em todas')
+    expect(all.sets.map((s) => s.drops)).toEqual([1, 1])
+    expect(all.techniques).toEqual([{ type: 'drop', count: 1, sets: 'all' }])
+    expect(all.technique).toBeNull()
+  })
+
+  it('reads rest-pause in a set group and away from the sets', () => {
+    const grouped = techniquesOf('- Movimento alfa (2x8 a 10) (1x5 a 7 + rest-pause)')
+    expect(grouped.sets.map((s) => s.restPause ?? 0)).toEqual([0, 0, 1])
+    expect(grouped.techniques).toEqual([{ type: 'rest_pause', count: 1 }])
+    const loose = techniquesOf('- Movimento alfa 3x 8 a 10 com rest pause (intervalo 60 seg)')
+    expect(loose.sets.map((s) => s.restPause ?? 0)).toEqual([0, 0, 1])
+    expect(loose.techniques).toEqual([{ type: 'rest_pause', count: 1 }])
+    expect(loose.technique).toBeNull()
+  })
+
+  it('combines drop and rest-pause on the same last set', () => {
+    const exercise = techniquesOf('- Movimento alfa (2x8 a 10) (1x5 a 7 + 2 drop + rest-pause)')
+    expect(exercise.sets[2]).toMatchObject({ drops: 2, restPause: 1 })
+    expect(exercise.techniques).toEqual([
+      { type: 'drop', count: 2, sets: 'last' },
+      { type: 'rest_pause', count: 1 },
+    ])
+  })
+
+  it.each([
+    ['com pico de contração 3 seg', [{ type: 'peak', seconds: 3 }]],
+    ['6 seg de pico', [{ type: 'peak', seconds: 6 }]],
+    ['isometria 15 seg', [{ type: 'isometric', seconds: 15 }]],
+    ['c 8 seg de isometria', [{ type: 'isometric', seconds: 8 }]],
+    ['5 repts parciais', [{ type: 'partials', reps: 5 }]],
+    ['parciais após a falha', [{ type: 'partials' }]],
+    ['2 seg de ponto zero', [{ type: 'zero_point', seconds: 2 }]],
+    ['aumento progressivo das cargas', [{ type: 'progressive_load' }]],
+  ] as const)('reads "%s" and removes it from the text', (fragment, expected) => {
+    const exercise = techniquesOf(`- Movimento alfa (3x 8 a 10) ${fragment} (intervalo 60 seg)`)
+    expect(exercise.techniques).toEqual(expected)
+    expect(exercise.technique).toBeNull()
+    expect(exercise.name).toBe('Movimento alfa')
+  })
+
+  it('reads "intervalo alongado" as stretch_interval', () => {
+    const exercise = techniquesOf('- Movimento alfa (3x 8 a 10) (intervalo alongado 45 seg)')
+    expect(exercise).toMatchObject({ restSeconds: 45, technique: null, techniques: [{ type: 'stretch_interval' }] })
+  })
+
+  it('keeps the unrecognized text next to the structured techniques', () => {
+    const exercise = techniquesOf('- Movimento alfa (3x 8 a 10) com faixa + 5 seg de isometria (intervalo 60 seg)')
+    expect(exercise.technique).toBe('com faixa')
+    expect(exercise.techniques).toEqual([{ type: 'isometric', seconds: 5 }])
+  })
+
+  it('leaves a value outside the allowed range as text', () => {
+    const exercise = techniquesOf('- Movimento alfa (3x 8 a 10) com pico de 30 seg (intervalo 60 seg)')
+    expect(exercise.techniques).toBeUndefined()
+    expect(exercise.technique).toBe('com pico de 30 seg')
+  })
+
+  it('makes a bi-set only with an exercise of the same day (Review Focus 2)', () => {
+    const { document } = parse(
+      '(grupo um) 4x 6 a 10',
+      '- Movimento iota combinado com movimento kapa (2x 7 a 9) (intervalo 40 seg)',
+      '- Movimento kapa (2x 7 a 9)',
+      '(grupo dois) 4x 6 a 10',
+      '- Movimento lambda combinado com movimento kapa (2x 7 a 9)',
+      '- Movimento mu (2x 7 a 9)',
+    )
+    expect(document.days[0].exercises[0]).toMatchObject({ supersetWith: 'A2', techniques: [{ type: 'biset', with: 'A2' }] })
+    const lambda = document.days[1].exercises[0]
+    expect(lambda.supersetWith).toBeNull()
+    expect(lambda.techniques).toBeUndefined()
+    expect(lambda.technique).toBe('combinado com movimento kapa')
+  })
+
+  it('produces documents that the schema accepts', () => {
+    const { document } = parse(
+      '(grupo um) 4x 6 a 10',
+      '- Movimento alfa (1x12 a 18) (2x5 a 7 + 2 drop + rest-pause) c 3 seg de isometria SST (intervalo 40, 20, 10)',
+      '- Movimento beta combinado com movimento alfa 2x9 a 11',
+    )
+    expect(parseWorkoutDocument(JSON.parse(JSON.stringify(document))).ok).toBe(true)
   })
 })
 

@@ -208,6 +208,7 @@ public sealed class ProtocolDocumentValidator : AbstractValidator<ProtocolDocume
 public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument>
 {
     private const int MaxReps = 200;
+    private const int MaxSubSets = 5;
 
     public WorkoutDocumentValidator()
     {
@@ -302,7 +303,15 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
 
                 if (set.RepsMin < 0 || set.RepsMax > MaxReps || set.RepsMin > set.RepsMax)
                     fail($"{exercisePath}.sets[{k}]", "Repetições inválidas (mín. ≤ máx., 0–200).");
+                if (set.Drops is < 0 or > MaxSubSets)
+                    fail($"{exercisePath}.sets[{k}].drops", "Drops fora da faixa (0–5).");
+                if (set.RestPause is < 0 or > MaxSubSets)
+                    fail($"{exercisePath}.sets[{k}].restPause", "Rest-pause fora da faixa (0–5).");
             }
+
+            var techniques = exercise.Techniques ?? [];
+            for (var t = 0; t < techniques.Count; t++)
+                ValidateTechnique(techniques[t], $"{exercisePath}.techniques[{t}]", exercise, exercises, fail);
 
             if (exercise.RestSeconds is < 0 or > PlanDocumentRules.MaxRestSeconds)
                 fail($"{exercisePath}.restSeconds", "Descanso fora da faixa (0–900 s).");
@@ -312,5 +321,74 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
                 fail($"{exercisePath}.restSequence", "Descanso fora da faixa (0–900 s).");
             }
         }
+    }
+
+    private static void ValidateTechnique(TechniqueDto? technique, string path, PlannedExerciseDto exercise, IReadOnlyList<PlannedExerciseDto> day, Action<string, string> fail)
+    {
+        if (technique is null)
+        {
+            fail(path, "Obrigatório.");
+            return;
+        }
+
+        bool Between(int? value, int min, int max) => value is { } v && v >= min && v <= max;
+
+        switch (technique.Type)
+        {
+            case TechniqueTypes.Drop:
+                if (!Between(technique.Count, 1, 5))
+                    fail($"{path}.count", "Quantidade de drops fora da faixa (1–5).");
+                if (!ValidDropSets(technique.Sets, (exercise.Sets ?? []).Count))
+                    fail($"{path}.sets", "Informe \"last\", \"all\" ou os índices das séries.");
+                break;
+            case TechniqueTypes.RestPause:
+                if (!Between(technique.Count, 1, 5))
+                    fail($"{path}.count", "Quantidade de rest-pause fora da faixa (1–5).");
+                break;
+            case TechniqueTypes.Biset:
+                if (string.IsNullOrWhiteSpace(technique.With)
+                    || technique.With == exercise.Key
+                    || !day.Any(e => e is not null && e.Key == technique.With))
+                {
+                    fail($"{path}.with", "O bi-set precisa de outro exercício do mesmo dia.");
+                }
+
+                break;
+            case TechniqueTypes.Sst:
+                if (technique.Rests is not { Count: > 0 } || technique.Rests.Any(v => v is < 0 or > PlanDocumentRules.MaxRestSeconds))
+                    fail($"{path}.rests", "Descanso fora da faixa (0–900 s).");
+                break;
+            case TechniqueTypes.Peak:
+            case TechniqueTypes.ZeroPoint:
+                if (!Between(technique.Seconds, 1, 10))
+                    fail($"{path}.seconds", "Segundos fora da faixa (1–10).");
+                break;
+            case TechniqueTypes.Isometric:
+                if (!Between(technique.Seconds, 1, 120))
+                    fail($"{path}.seconds", "Segundos fora da faixa (1–120).");
+                break;
+            case TechniqueTypes.Partials:
+                if (technique.Reps is { } reps && !Between(reps, 1, 30))
+                    fail($"{path}.reps", "Repetições fora da faixa (1–30).");
+                break;
+            case TechniqueTypes.ProgressiveLoad:
+            case TechniqueTypes.StretchInterval:
+                break;
+            default:
+                fail($"{path}.type", "Técnica desconhecida.");
+                break;
+        }
+    }
+
+    private static bool ValidDropSets(System.Text.Json.JsonElement? sets, int setCount)
+    {
+        if (sets is not { } element)
+            return false;
+        return element.ValueKind switch
+        {
+            System.Text.Json.JsonValueKind.String => element.GetString() is "last" or "all",
+            System.Text.Json.JsonValueKind.Array => element.EnumerateArray().All(e => e.ValueKind == System.Text.Json.JsonValueKind.Number && e.TryGetInt32(out var index) && index >= 0 && index < setCount),
+            _ => false,
+        };
     }
 }

@@ -146,11 +146,14 @@ internal static class ExtractionSchemas
                                     ["repsMin"] = new JsonObject { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = 200 },
                                     ["repsMax"] = new JsonObject { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = 200 },
                                     ["technique"] = NullableStr("For example \"drop\"."),
+                                    ["drops"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = 5 }, "Drop sub-sets after this set."),
+                                    ["restPause"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = 5 }, "Rest-pause sub-sets after this set."),
                                 },
                                 "repsMin", "repsMax")),
                             ["restSeconds"] = Nullable("integer"),
                             ["restSequence"] = Nullable(new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "integer" } }, "Rest list for SST-style intervals, in seconds."),
-                            ["technique"] = NullableStr(),
+                            ["technique"] = NullableStr("Free text of what is not in techniques."),
+                            ["techniques"] = Nullable(Array(Technique()), "Structured techniques; null when there are none."),
                             ["supersetWith"] = NullableStr("Key of the exercise combined in a bi-set."),
                         },
                         "key", "name", "sets")),
@@ -166,6 +169,26 @@ internal static class ExtractionSchemas
             result[key] = value;
         return result;
     }
+
+    private static JsonObject Technique() => Obj(
+        new JsonObject
+        {
+            ["type"] = Enum(TechniqueTypes.All),
+            ["count"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 5 }, "drop and rest_pause: how many."),
+            ["sets"] = new JsonObject
+            {
+                ["description"] = "drop only: \"last\", \"all\" or the 0-based indexes of the sets that get the drops.",
+                ["anyOf"] = new JsonArray(
+                    Enum(["last", "all"]),
+                    Array(new JsonObject { ["type"] = "integer", ["minimum"] = 0 }),
+                    new JsonObject { ["type"] = "null" }),
+            },
+            ["with"] = NullableStr("biset only: key of the other exercise of the same day."),
+            ["rests"] = Nullable(new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "integer" } }, "sst only: rests in seconds."),
+            ["seconds"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 120 }, "peak (1-10), isometric (1-120) and zero_point (1-10): seconds."),
+            ["reps"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 30 }, "partials only: optional repetitions."),
+        },
+        "type");
 
     private static JsonObject Obj(JsonObject properties, params string[] required) => new()
     {

@@ -85,7 +85,31 @@ const plannedSetSchema = z.object({
   repsMin: z.number().int().default(0),
   repsMax: z.number().int().default(0),
   technique: optional(z.string()),
+  /** Drop sub-sets to do after this set (0–5). */
+  drops: optional(z.number().int().min(0).max(5)),
+  /** Rest-pause sub-sets to do after this set (0–5). */
+  restPause: optional(z.number().int().min(0).max(5)),
 })
+
+/** Structured technique of an exercise, discriminated by `type`. An unknown `type` makes the document invalid. */
+export const techniqueSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('drop'),
+    count: z.number().int().min(1).max(5),
+    /** `last`, `all` or the 0-based indexes of the sets that get the drops. */
+    sets: z.union([z.enum(['last', 'all']), z.array(z.number().int().min(0))]),
+  }),
+  z.object({ type: z.literal('rest_pause'), count: z.number().int().min(1).max(5) }),
+  /** `with`: key of another exercise of the same day. */
+  z.object({ type: z.literal('biset'), with: z.string().min(1) }),
+  z.object({ type: z.literal('sst'), rests: z.array(z.number().int().min(0)) }),
+  z.object({ type: z.literal('peak'), seconds: z.number().int().min(1).max(10) }),
+  z.object({ type: z.literal('isometric'), seconds: z.number().int().min(1).max(120) }),
+  z.object({ type: z.literal('partials'), reps: optional(z.number().int().min(1).max(30)) }),
+  z.object({ type: z.literal('zero_point'), seconds: z.number().int().min(1).max(10) }),
+  z.object({ type: z.literal('progressive_load') }),
+  z.object({ type: z.literal('stretch_interval') }),
+])
 
 const plannedExerciseSchema = z.object({
   key: text,
@@ -95,6 +119,8 @@ const plannedExerciseSchema = z.object({
   restSeconds: optional(z.number().int()),
   restSequence: optional(z.array(z.number().int())),
   technique: optional(z.string()),
+  /** Structured techniques; the free text left over stays in `technique`. */
+  techniques: optional(z.array(techniqueSchema)),
   /** Key of the exercise this one is combined with (bi-set). */
   supersetWith: optional(z.string()),
 })
@@ -122,6 +148,8 @@ export type WorkoutDocument = z.infer<typeof workoutDocumentSchema>
 export type Rotation = z.infer<typeof rotationSchema>
 export type WorkoutDay = z.infer<typeof workoutDaySchema>
 export type PlannedExercise = z.infer<typeof plannedExerciseSchema>
+export type Technique = z.infer<typeof techniqueSchema>
+export type TechniqueType = Technique['type']
 export type PlannedSet = z.infer<typeof plannedSetSchema>
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; errors: string[] }

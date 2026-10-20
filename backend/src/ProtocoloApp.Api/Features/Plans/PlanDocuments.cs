@@ -187,8 +187,53 @@ public sealed record PlannedExerciseDto
 
     public string? Technique { get; init; }
 
+    /// <summary>Structured techniques (null in documents that predate them); free text that is left stays in <see cref="Technique"/>.</summary>
+    public IReadOnlyList<TechniqueDto>? Techniques { get; init; }
+
     /// <summary>Key of the exercise this one is combined with (bi-set).</summary>
     public string? SupersetWith { get; init; }
+}
+
+/// <summary>
+/// A structured technique of an exercise, discriminated by <c>Type</c> (see <see cref="TechniqueTypes"/>); only the fields of
+/// that type are used: drop (<c>Count</c> 1–5, <c>Sets</c>: "last" | "all" | array of 0-based set indexes), rest_pause
+/// (<c>Count</c> 1–5), biset (<c>With</c>: key of another exercise of the same day), sst (<c>Rests</c> in seconds), peak
+/// (<c>Seconds</c> 1–10), isometric (<c>Seconds</c> 1–120), partials (optional <c>Reps</c> 1–30), zero_point
+/// (<c>Seconds</c> 1–10), progressive_load, stretch_interval. A flat record keeps reading tolerant: an unknown <c>Type</c> is
+/// reported by <see cref="WorkoutDocumentValidator"/> under <c>...techniques[i].type</c> instead of failing the whole read.
+/// </summary>
+public sealed record TechniqueDto
+{
+    public string Type { get; init; } = "";
+
+    public int? Count { get; init; }
+
+    public JsonElement? Sets { get; init; }
+
+    public string? With { get; init; }
+
+    public IReadOnlyList<int>? Rests { get; init; }
+
+    public int? Seconds { get; init; }
+
+    public int? Reps { get; init; }
+}
+
+/// <summary>The <see cref="TechniqueDto.Type"/> values.</summary>
+public static class TechniqueTypes
+{
+    public const string Drop = "drop";
+    public const string RestPause = "rest_pause";
+    public const string Biset = "biset";
+    public const string Sst = "sst";
+    public const string Peak = "peak";
+    public const string Isometric = "isometric";
+    public const string Partials = "partials";
+    public const string ZeroPoint = "zero_point";
+    public const string ProgressiveLoad = "progressive_load";
+    public const string StretchInterval = "stretch_interval";
+
+    public static readonly string[] All = [Drop, RestPause, Biset, Sst, Peak, Isometric, Partials, ZeroPoint, ProgressiveLoad, StretchInterval];
 }
 
 public sealed record PlannedSetDto
@@ -198,4 +243,10 @@ public sealed record PlannedSetDto
     public int RepsMax { get; init; }
 
     public string? Technique { get; init; }
+
+    /// <summary>Drop sub-sets after this set (0–5).</summary>
+    public int? Drops { get; init; }
+
+    /// <summary>Rest-pause sub-sets after this set (0–5).</summary>
+    public int? RestPause { get; init; }
 }

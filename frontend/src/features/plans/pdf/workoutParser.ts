@@ -1,4 +1,4 @@
-import { OFF, type PlannedExercise, type PlannedSet, type WorkoutDay, type WorkoutDocument } from '../../../domain/planDocuments'
+import { OFF, type PlannedExercise, type PlannedSet, type Technique, type WorkoutDay, type WorkoutDocument } from '../../../domain/planDocuments'
 import type { PdfLine } from './pdfText'
 
 /**
@@ -186,7 +186,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
     return out
   }
 
-  const techniques: string[] = []
+  const texts: string[] = []
   let stretchedRest = false
 
   // Rest: an SST sequence first ("intervalo 40, 20, 10"), then a single value.
@@ -221,7 +221,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
   // Sets: "(1x12 a 18)" groups, then a bare "5x 7 a 9" / "2 series 9 a 11" / "2x RM".
   const sets: PlannedSet[] = []
   let lowSets = false
-  const addSets = (m: RegExpExecArray, drop: string | undefined) => {
+  const addSets = (m: RegExpExecArray, drop: string | undefined, dropCount: string | undefined, rp: string | undefined, rpCount: string | undefined) => {
     const count = Math.min(Number(m[1]), 20)
     const rm = m[4] !== undefined
     if (rm) lowSets = true
@@ -230,16 +230,19 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
     const technique = rm ? 'RM' : null
     const added = Array.from({ length: count }, () => ({ repsMin, repsMax, technique }) as PlannedSet)
     if (drop) {
+      const drops = clampCount(dropCount)
       if (/[uú]ltima/i.test(drop)) {
-        if (added.length > 0) added[added.length - 1] = { ...added[added.length - 1], technique: 'drop' }
-      } else added.forEach((set, i) => (added[i] = { ...set, technique: 'drop' }))
+        if (added.length > 0) added[added.length - 1] = { ...added[added.length - 1], technique: 'drop', drops }
+      } else added.forEach((set, i) => (added[i] = { ...set, technique: 'drop', drops }))
     }
+    if (rp && added.length > 0) added[added.length - 1] = { ...added[added.length - 1], restPause: clampCount(rpCount) }
     sets.push(...added)
   }
-  const DROP = String.raw`(\s*\+\s*(?:\d+\s*)?drops?(?:\s+na\s+[uú]ltima|\s+em\s+todas)?)?`
-  take(new RegExp(String.raw`\(\s*${SETS}${DROP}\s*\)`, 'i'), masked(), (m) => addSets(m, m[5]))
+  // Groups 5–7: "+ [N] drop [na última|em todas]"; 8–9: "+ [N] rest-pause".
+  const DROP = String.raw`(\s*\+\s*(?:(\d+)\s*)?drops?(\s+na\s+[uú]ltima|\s+em\s+todas)?)?(\s*\+\s*(?:(\d+)\s*)?rest[\s-]?pause)?`
+  take(new RegExp(String.raw`\(\s*${SETS}${DROP}\s*\)`, 'i'), masked(), (m) => addSets(m, m[5], m[6], m[8], m[9]))
   if (sets.length === 0) {
-    take(new RegExp(String.raw`(?<![\w])${SETS}${DROP}`, 'i'), masked(), (m) => addSets(m, m[5]))
+    take(new RegExp(String.raw`(?<![\w])${SETS}${DROP}`, 'i'), masked(), (m) => addSets(m, m[5], m[6], m[8], m[9]))
   }
 
   // Name and technique from what is left.
@@ -253,14 +256,6 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
   const name = clean(rest.slice(nameStart, nameEnd)).replace(TRAILING_CONNECTOR, '').replace(/[\s,.;:\-–]+$/, '')
 
   const leftover = tidy((rest.slice(0, nameStart) + ' ' + rest.slice(nameEnd)).replace(/\uE000+/g, ' '))
-  if (leftover) techniques.push(leftover)
-  if (stretchedRest) techniques.push('intervalo alongado')
-
-  // "… ou drop em todas" / "drop na última" away from the sets.
-  if (sets.length > 0 && /\bdrops?\s+em\s+todas\b/i.test(leftover)) sets.forEach((set, i) => (sets[i] = { ...set, technique: 'drop' }))
-  else if (sets.length > 0 && /\bdrops?\s+na\s+[uú]ltima\b/i.test(leftover)) {
-    sets[sets.length - 1] = { ...sets[sets.length - 1], technique: 'drop' }
-  }
 
   if (sets.length === 0) {
     lowSets = true
@@ -269,6 +264,31 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
     }
   }
 
+  // Structured techniques out of the leftover text; whatever is not recognized stays as text.
+  const structured: Technique[] = []
+  let remaining = leftover
+  const dropMatch = DROP_TEXT.exec(remaining)
+  if (dropMatch && sets.length > 0) {
+    remaining = remaining.replace(DROP_TEXT, ' ')
+    const drops = clampCount(dropMatch[1])
+    const everySet = /todas/i.test(dropMatch[2] ?? '')
+    const targets = everySet ? sets.map((_, i) => i) : [sets.length - 1]
+    for (const i of targets) sets[i] = { ...sets[i], technique: 'drop', drops: Math.max(sets[i].drops ?? 0, drops) }
+  }
+  const rpMatch = REST_PAUSE_TEXT.exec(remaining)
+  if (rpMatch && sets.length > 0) {
+    remaining = remaining.replace(REST_PAUSE_TEXT, ' ')
+    const last = sets.length - 1
+    sets[last] = { ...sets[last], restPause: Math.max(sets[last].restPause ?? 0, clampCount(rpMatch[1])) }
+  }
+  if (remaining !== leftover) remaining = dropDangling(remaining)
+  const found = extractTechniques(remaining, restSequence)
+  remaining = found.rest
+  structured.push(...dropAndRestPause(sets), ...found.techniques)
+  if (stretchedRest) structured.push({ type: 'stretch_interval' })
+  if (remaining) texts.push(remaining)
+
+  const techniques = texts
   return {
     exercise: {
       exerciseId: null,
@@ -277,11 +297,79 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
       restSeconds,
       restSequence,
       technique: techniques.length > 0 ? techniques.join('; ') : null,
+      ...(structured.length > 0 ? { techniques: structured } : {}),
       supersetWith: null,
     },
     lowSets,
     lowRest,
   }
+}
+
+const clampCount = (value: string | undefined): number => Math.min(Math.max(value ? Number(value) : 1, 1), 5)
+
+/** "drop", "+ 2 drop", "drop na última", "drop em todas" written away from the sets. */
+const DROP_TEXT = /(?:\+\s*)?(?:\b(\d+)\s*)?\bdrops?\b(?:\s+(na\s+[uú]ltima|em\s+todas))?/i
+const REST_PAUSE_TEXT = /(?:\+\s*)?(?:\b\d+\s*)?\brest[\s-]?pause\b/i
+
+/** The `drop` / `rest_pause` techniques that describe the `drops` / `restPause` already set on the sets. */
+function dropAndRestPause(sets: readonly PlannedSet[]): Technique[] {
+  const out: Technique[] = []
+  const dropIndexes = sets.flatMap((set, i) => ((set.drops ?? 0) > 0 ? [i] : []))
+  if (dropIndexes.length > 0) {
+    const count = Math.max(...dropIndexes.map((i) => sets[i].drops ?? 0))
+    const all = dropIndexes.length === sets.length
+    const onlyLast = dropIndexes.length === 1 && dropIndexes[0] === sets.length - 1
+    out.push({ type: 'drop', count, sets: all ? 'all' : onlyLast ? 'last' : dropIndexes })
+  }
+  const restPause = Math.max(0, ...sets.map((set) => set.restPause ?? 0))
+  if (restPause > 0) out.push({ type: 'rest_pause', count: restPause })
+  return out
+}
+
+const SEC = String.raw`(\d+)\s*(?:seg(?:undos?)?|s)\b`
+const WITH = String.raw`(?:(?:com|c)\s+)?`
+const inRange = (value: number, min: number, max: number) => value >= min && value <= max
+
+/** Fragments of the technique text that map to a structured technique (null: out of range, leave the text alone). */
+const TEXT_TECHNIQUES: { re: RegExp; make: (m: RegExpExecArray, restSequence: number[] | null) => Technique | null }[] = [
+  { re: /\bSST\b/i, make: (_, rests) => (rests && rests.length > 0 ? { type: 'sst', rests } : null) },
+  ...[new RegExp(`${WITH}pico(?:\\s+de\\s+contra[cç][aã]o)?\\s+(?:de\\s+)?${SEC}`, 'i'), new RegExp(`${WITH}${SEC}\\s+de\\s+pico(?:\\s+de\\s+contra[cç][aã]o)?`, 'i')].map(
+    (re) => ({ re, make: (m: RegExpExecArray) => (inRange(Number(m[1]), 1, 10) ? ({ type: 'peak', seconds: Number(m[1]) } as Technique) : null) }),
+  ),
+  ...[new RegExp(`${WITH}isometria\\s+(?:de\\s+)?${SEC}`, 'i'), new RegExp(`${WITH}${SEC}\\s+de\\s+isometria`, 'i')].map((re) => ({
+    re,
+    make: (m: RegExpExecArray) => (inRange(Number(m[1]), 1, 120) ? ({ type: 'isometric', seconds: Number(m[1]) } as Technique) : null),
+  })),
+  ...[new RegExp(`${WITH}${SEC}\\s+de\\s+ponto\\s+zero`, 'i'), new RegExp(`${WITH}ponto\\s+zero\\s+(?:de\\s+)?${SEC}`, 'i')].map((re) => ({
+    re,
+    make: (m: RegExpExecArray) => (inRange(Number(m[1]), 1, 10) ? ({ type: 'zero_point', seconds: Number(m[1]) } as Technique) : null),
+  })),
+  {
+    re: /(?:\b(\d+)\s*rep(?:t|et)?s?\.?\s+)?\bparciais\b(?:\s+ap[óo]s\s+a\s+falha)?/i,
+    make: (m) => (m[1] !== undefined && inRange(Number(m[1]), 1, 30) ? { type: 'partials', reps: Number(m[1]) } : { type: 'partials' }),
+  },
+  { re: /\baumento\s+progressivo\s+d[ao]s?\s+cargas?\b/i, make: () => ({ type: 'progressive_load' }) },
+]
+
+/** Takes the recognized fragments out of the technique text. */
+function extractTechniques(text: string, restSequence: number[] | null): { rest: string; techniques: Technique[] } {
+  let rest = text
+  const techniques: Technique[] = []
+  for (const { re, make } of TEXT_TECHNIQUES) {
+    const m = re.exec(rest)
+    if (!m) continue
+    const technique = make(m, restSequence)
+    if (!technique) continue
+    techniques.push(technique)
+    rest = `${rest.slice(0, m.index)} ${rest.slice(m.index + m[0].length)}`
+  }
+  return { rest: techniques.length === 0 ? text : dropDangling(rest), techniques }
+}
+
+/** Tidies the text after fragments were cut out of it, dropping a connector left dangling ("… e", "com"). */
+function dropDangling(text: string): string {
+  const cleaned = tidy(text).replace(/^(?:com|c|e|ou)$/i, '').replace(/\s+(?:com|c|e|ou|de)$/i, '')
+  return tidy(cleaned)
 }
 
 /** Drops empty or unmatched parentheses and stray punctuation left where the sets and the rest were cut out. */
@@ -319,15 +407,19 @@ const normalize = (text: string) =>
 /** "A combinado com B" is a bi-set when B is another exercise of the same day; otherwise it stays in the technique text. */
 function linkSupersets(exercises: PlannedExercise[]) {
   for (const exercise of exercises) {
-    const match = /combinado\s+com\s+(.+?)(?:;|$)/i.exec(exercise.technique ?? '')
-    if (!match) continue
-    const partner = normalize(match[1])
+    const fragment = /combinado\s+com\s+(.+?)(?=;|$)/i.exec(exercise.technique ?? '')
+    if (!fragment) continue
+    const partner = normalize(fragment[1])
     if (partner === '') continue
     const other = exercises.find((o) => {
       if (o === exercise) return false
       const name = normalize(o.name)
       return name !== '' && (partner === name || partner.startsWith(`${name} `) || name.startsWith(`${partner} `))
     })
-    if (other) exercise.supersetWith = other.key
+    if (!other) continue
+    exercise.supersetWith = other.key
+    exercise.techniques = [...(exercise.techniques ?? []), { type: 'biset', with: other.key }]
+    const left = tidy((exercise.technique ?? '').replace(fragment[0], ' ').replace(/;\s*;/g, ';').replace(/^[\s;]+|[\s;]+$/g, ''))
+    exercise.technique = left === '' ? null : left
   }
 }
