@@ -33,7 +33,7 @@
 - [ ] Testes: paginação com `after`, parada em página sem id novo, limite de páginas (100), upsert idempotente, gifUrl só `https://static.exercisedb.dev/`; endpoint 200/304; `catalogId` inválido → 400. `[migration:ExerciseCatalog]`, CI verde.
 
 ### Task 3: Dicionário pt-BR e casamento de nomes
-**Files:** `fixtures/exercise-dictionary.json`, `frontend/src/domain/exerciseMatch.ts` (+ teste), `frontend/src/domain/exerciseDictionary.ts` (carrega a fixture via import JSON com caminho que funcione no build Docker, como `schedule-cases.json`).
+**Files:** `frontend/src/domain/exercise-dictionary.json` (fica em `frontend/` porque o build Docker do front só copia essa pasta), `frontend/src/domain/exerciseMatch.ts` (+ teste), `frontend/src/domain/exerciseDictionary.ts` (import JSON estático validado com zod), `frontend/scripts/verify-exercise-dictionary.mjs` (confere `catalogId` contra a lista do ExerciseDB).
 **Interfaces:** entrada `{ key, name, aliases: string[], group: MuscleGroup, equipment, catalogId: string|null, catalogName: string|null }`; `normalizeExerciseName(s)`; `matchExercise(name, { userExercises, dictionary }): { kind: 'user'|'dictionary'|'none', exerciseId?, entry?, confidence: 'high'|'low' }`.
 - [ ] ~150 entradas cobrindo os exercícios mais comuns de musculação (peito, costas, ombros, braços, pernas, glúteos, panturrilha, abdômen, lombar), com sinônimos e grafias comuns no Brasil; `catalogId` escolhido da lista do ExerciseDB (o controlador indica onde obtê-la); conferir que cada `catalogId` existe na lista.
 - [ ] Testes com nomes fictícios/grafias com erro (Review Focus 1), prioridade do usuário sobre o dicionário, ambíguo → low.

@@ -5,10 +5,17 @@ import type { DictionaryEntry, Equipment } from './exerciseDictionary'
  * Deterministic: the same name, exercises and dictionary always give the same answer.
  *
  * Order: user exercises (normalized name or alias, exact) → dictionary (normalized name or alias, exact) → dictionary
- * fuzzy (word by word, edit distance ≤ 2 on words of 5+ letters, equipment words the sheet left out are ignored).
- * A fuzzy match is `high` only when every word on both sides is accounted for and no other entry scores the same; among
- * equally close candidates, the one that needs fewer equipment words the sheet did not write wins (as with exact
- * matches, the spelling without equipment names the default variant).
+ * fuzzy (word by word, equipment words the sheet left out are ignored).
+ *
+ * Words are compared after folding gender and number (`sentada` = `sentado`, `pernas` = `perna`). Edit distance (≤ 2,
+ * words of 5+ letters) is only allowed for a word that is not itself a known word: a real typo such as `puley` or
+ * `extenssora`. A known word must match exactly, so `biceps`/`triceps`, `inclinado`/`declinado`, `sentado`/`deitado`,
+ * `abducao`/`aducao` or `interna`/`externa` never stand in for each other.
+ *
+ * A candidate is rejected when a contrasting word of the sheet (`deitado`, `biceps`, `frontal`...) is left over.
+ * A fuzzy match is `high` only when every word on both sides is accounted for, the sheet names no other equipment and
+ * no other entry scores the same. Ranking: words left over → total edit distance → conflicting equipment → equipment the
+ * sheet did not write (as with exact matches, the spelling without equipment names the default variant).
  */
 
 /** Words that describe how a set is performed, not which exercise it is, plus filler words. */
@@ -42,6 +49,39 @@ export function normalizeExerciseName(name: string): string {
     .join(' ')
 }
 
+/**
+ * Gym words that are not typos even when the dictionary does not use them, mostly the opposites of words it does use.
+ * Together with the dictionary's own words they form the vocabulary that is never fuzzed.
+ */
+const KNOWN_WORDS = [
+  'biceps', 'triceps', 'inclinado', 'declinado', 'reto', 'sentado', 'deitado', 'interna', 'externa', 'abducao',
+  'aducao', 'abdutora', 'adutora', 'abdutor', 'adutor', 'flexora', 'extensora', 'flexor', 'extensor', 'frontal',
+  'lateral', 'posterior', 'anterior', 'pulldown', 'pullover', 'supinada', 'pronada', 'neutra', 'aberta', 'fechada',
+  'alta', 'baixa', 'media', 'unilateral', 'bilateral', 'alternada', 'simultanea', 'frente', 'tras', 'costas',
+  'superior', 'inferior', 'supra', 'infra', 'obliquo', 'concentrada', 'martelo', 'invertida', 'inversa', 'curvada',
+  'apoiada', 'peito', 'ombro', 'perna', 'gluteo', 'quadril', 'punho', 'panturrilha', 'lombar',
+]
+
+/**
+ * Words that tell apart exercises otherwise written the same way. When one of them is left over in the sheet name, the
+ * candidate is a different exercise, not a close one (`biceps testa` is not `triceps testa` with an extra word).
+ */
+const CONTRASTING_WORDS = [
+  'biceps', 'triceps', 'inclinado', 'declinado', 'reto', 'sentado', 'deitado', 'interna', 'externa', 'abducao',
+  'aducao', 'abdutora', 'adutora', 'abdutor', 'adutor', 'flexora', 'extensora', 'flexor', 'extensor', 'frontal',
+  'lateral', 'posterior', 'pulldown', 'pullover', 'supinada', 'pronada', 'neutra', 'aberta', 'fechada', 'alta',
+  'baixa', 'frente', 'tras', 'supra', 'infra', 'martelo',
+]
+
+/** Folds gender and number so `sentada`, `sentados` and `sentado` compare equal (`flexoes` → `flexao`). */
+export function foldWord(word: string): string {
+  let w = word
+  if (w.length > 4 && w.endsWith('oes')) w = `${w.slice(0, -3)}ao`
+  if (w.length > 3 && w.endsWith('s')) w = w.slice(0, -1)
+  if (w.length > 3 && (w.endsWith('a') || w.endsWith('o'))) w = `${w.slice(0, -1)}o`
+  return w
+}
+
 /** Equipment words, by their canonical token. */
 const EQUIPMENT_WORDS: Record<string, string> = {
   barra: 'barra', barras: 'barra', livre: 'barra',
@@ -71,7 +111,7 @@ function words(name: string): Words {
   for (const word of normalizeExerciseName(name).split(' ')) {
     if (word === '') continue
     const eq = EQUIPMENT_WORDS[word]
-    if (eq === undefined) core.push(word)
+    if (eq === undefined) core.push(foldWord(word))
     else if (!equipment.includes(eq)) equipment.push(eq)
   }
   return { core, equipment }
@@ -96,6 +136,8 @@ export type MatchResult =
   | { kind: 'dictionary'; entry: DictionaryEntry; confidence: 'high' | 'low' }
   | { kind: 'none'; confidence: 'low' }
 
+const CONTRASTING = new Set(CONTRASTING_WORDS.map(foldWord))
+
 const MAX_DISTANCE = 2
 const MIN_FUZZY_LENGTH = 5
 
@@ -118,8 +160,13 @@ export function editDistance(a: string, b: string, limit = MAX_DISTANCE): number
   return previous[b.length]
 }
 
-function wordDistance(a: string, b: string): number | null {
+/**
+ * Distance between a sheet word and a candidate word (both folded), or null when they do not match. A sheet word that
+ * is in the vocabulary is a real word, not a typo, and only matches itself.
+ */
+function wordDistance(a: string, b: string, vocabulary: ReadonlySet<string>): number | null {
   if (a === b) return 0
+  if (vocabulary.has(a)) return null
   if (a.length < MIN_FUZZY_LENGTH || b.length < MIN_FUZZY_LENGTH) return null
   const d = editDistance(a, b)
   return d <= MAX_DISTANCE ? d : null
@@ -140,7 +187,12 @@ interface Score {
  * How well the sheet name fits one candidate (an entry's name or alias). Null when some core word of the candidate is
  * missing from the sheet name: a candidate is never matched on part of its own words.
  */
-function score(input: Words, candidate: Words, entryEquipment: string | undefined): Score | null {
+function score(
+  input: Words,
+  candidate: Words,
+  entryEquipment: string | undefined,
+  vocabulary: ReadonlySet<string>,
+): Score | null {
   const used = new Set<number>()
   let distance = 0
   for (const word of candidate.core) {
@@ -148,7 +200,7 @@ function score(input: Words, candidate: Words, entryEquipment: string | undefine
     let bestDistance = Infinity
     for (let index = 0; index < input.core.length; index++) {
       if (used.has(index)) continue
-      const d = wordDistance(input.core[index], word)
+      const d = wordDistance(input.core[index], word, vocabulary)
       if (d !== null && d < bestDistance) {
         bestIndex = index
         bestDistance = d
@@ -159,6 +211,7 @@ function score(input: Words, candidate: Words, entryEquipment: string | undefine
     distance += bestDistance
   }
   if (used.size === 0) return null
+  if (input.core.some((word, index) => !used.has(index) && CONTRASTING.has(word))) return null
   const equipmentMismatch = input.equipment.filter((eq) => !candidate.equipment.includes(eq) && eq !== entryEquipment).length
   const equipmentMissing = candidate.equipment.filter((eq) => !input.equipment.includes(eq)).length
   return { distance, unmatched: input.core.length - used.size, equipmentMismatch, equipmentMissing }
@@ -166,8 +219,8 @@ function score(input: Words, candidate: Words, entryEquipment: string | undefine
 
 const compare = (a: Score, b: Score) =>
   a.unmatched - b.unmatched ||
-  a.equipmentMismatch - b.equipmentMismatch ||
   a.distance - b.distance ||
+  a.equipmentMismatch - b.equipmentMismatch ||
   a.equipmentMissing - b.equipmentMissing
 
 interface IndexedEntry {
@@ -176,21 +229,29 @@ interface IndexedEntry {
   equipment: string | undefined
 }
 
-const indexCache = new WeakMap<readonly DictionaryEntry[], { exact: Map<string, DictionaryEntry>; entries: IndexedEntry[] }>()
+interface DictionaryIndex {
+  exact: Map<string, DictionaryEntry>
+  entries: IndexedEntry[]
+  vocabulary: Set<string>
+}
 
-function indexOf(dictionary: readonly DictionaryEntry[]) {
+const indexCache = new WeakMap<readonly DictionaryEntry[], DictionaryIndex>()
+
+function indexOf(dictionary: readonly DictionaryEntry[]): DictionaryIndex {
   const cached = indexCache.get(dictionary)
   if (cached) return cached
   const exact = new Map<string, DictionaryEntry>()
+  const vocabulary = new Set(KNOWN_WORDS.map(foldWord))
   const entries = dictionary.map((entry) => {
     const candidates = [entry.name, ...entry.aliases].map(words)
     for (const candidate of candidates) {
       const key = exactKey(candidate)
       if (key !== '' && !exact.has(key)) exact.set(key, entry)
+      for (const word of candidate.core) vocabulary.add(word)
     }
     return { entry, candidates, equipment: EQUIPMENT_TOKEN[entry.equipment] }
   })
-  const index = { exact, entries }
+  const index = { exact, entries, vocabulary }
   indexCache.set(dictionary, index)
   return index
 }
@@ -215,7 +276,7 @@ export function matchExercise(name: string, { userExercises, dictionary }: Match
   for (const { entry, candidates, equipment } of index.entries) {
     let best: Score | null = null
     for (const candidate of candidates) {
-      const s = score(input, candidate, equipment)
+      const s = score(input, candidate, equipment, index.vocabulary)
       if (s !== null && (best === null || compare(s, best) < 0)) best = s
     }
     if (best !== null) ranked.push({ entry, score: best })

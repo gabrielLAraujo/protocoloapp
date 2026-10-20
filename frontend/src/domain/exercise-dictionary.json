@@ -191,6 +191,18 @@
       "catalogName": "dumbbell incline fly"
     },
     {
+      "key": "dumbbell_decline_fly",
+      "name": "Crucifixo declinado com halteres",
+      "aliases": [
+        "crucifixo declinado",
+        "crucifixo declinado halteres"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "xXm4nYq",
+      "catalogName": "dumbbell decline fly"
+    },
+    {
       "key": "cable_crossover",
       "name": "Crossover",
       "aliases": [
@@ -285,7 +297,7 @@
         "puxada aberta",
         "puxada pela frente",
         "pulley frente",
-        "puley frente",
+        "pulley frente aberta",
         "pulley alto",
         "puxador frente",
         "puxada na polia",
@@ -1017,7 +1029,9 @@
         "rosca martelo corda",
         "martelo corda",
         "rosca corda",
-        "rosca martelo polia"
+        "rosca martelo polia",
+        "bíceps corda",
+        "bíceps na corda"
       ],
       "group": "biceps",
       "equipment": "cable",
@@ -1089,7 +1103,10 @@
         "rosca direta polia",
         "rosca cabo",
         "rosca direta cabo",
-        "rosca bíceps polia"
+        "rosca bíceps polia",
+        "bíceps polia",
+        "bíceps na polia",
+        "bíceps polia baixa"
       ],
       "group": "biceps",
       "equipment": "cable",
@@ -1166,7 +1183,6 @@
         "tríceps pulley barra",
         "tríceps barra",
         "tríceps polia alta",
-        "tríceps puley",
         "tríceps no pulley",
         "puxador tríceps",
         "tríceps barra reta"
@@ -1425,13 +1441,38 @@
       "aliases": [
         "agachamento sumo",
         "sumô",
-        "agachamento sumô halter",
-        "agachamento sumô kettlebell"
+        "agachamento sumô barra"
       ],
       "group": "glutes",
       "equipment": "barbell",
       "catalogId": "s7HX1BY",
       "catalogName": "barbell wide squat"
+    },
+    {
+      "key": "dumbbell_sumo_squat",
+      "name": "Agachamento sumô com halter",
+      "aliases": [
+        "agachamento sumô halter",
+        "agachamento sumô kettlebell",
+        "sumô halter",
+        "sumô kettlebell"
+      ],
+      "group": "glutes",
+      "equipment": "dumbbell",
+      "catalogId": null,
+      "catalogName": null
+    },
+    {
+      "key": "smith_sumo_squat",
+      "name": "Agachamento sumô no Smith",
+      "aliases": [
+        "agachamento sumô smith",
+        "sumô smith"
+      ],
+      "group": "glutes",
+      "equipment": "smith",
+      "catalogId": "dzz6BiV",
+      "catalogName": "smith sumo squat"
     },
     {
       "key": "goblet_squat",
@@ -1781,6 +1822,37 @@
       "catalogName": "Machine Seated Hip Adduction"
     },
     {
+      "key": "cable_hip_abduction",
+      "name": "Abdução na polia",
+      "aliases": [
+        "abdução polia",
+        "abdução cabo",
+        "abdução em pé polia",
+        "abdutora polia"
+      ],
+      "group": "glutes",
+      "equipment": "cable",
+      "catalogId": "7WaDzyL",
+      "catalogName": "side hip abduction"
+    },
+    {
+      "key": "glute_kickback_quadruped",
+      "name": "Glúteo 4 apoios",
+      "aliases": [
+        "glúteo quatro apoios",
+        "glúteo caneleira",
+        "coice caneleira",
+        "quatro apoios",
+        "4 apoios caneleira",
+        "glúteo 4 apoios caneleira",
+        "coice 4 apoios"
+      ],
+      "group": "glutes",
+      "equipment": "other",
+      "catalogId": null,
+      "catalogName": null
+    },
+    {
       "key": "cable_hip_adduction",
       "name": "Adução na polia",
       "aliases": [
@@ -1967,8 +2039,8 @@
       ],
       "group": "abs",
       "equipment": "bodyweight",
-      "catalogId": null,
-      "catalogName": null
+      "catalogId": "VBAWRPG",
+      "catalogName": "weighted front plank"
     },
     {
       "key": "side_plank",

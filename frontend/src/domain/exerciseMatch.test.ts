@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DictionaryEntry } from './exerciseDictionary'
 import { EXERCISE_DICTIONARY } from './exerciseDictionary'
-import { editDistance, matchExercise, normalizeExerciseName, type MatchResult, type UserExercise } from './exerciseMatch'
+import { editDistance, foldWord, matchExercise, normalizeExerciseName, type MatchResult, type UserExercise } from './exerciseMatch'
 
 const dictionary = EXERCISE_DICTIONARY
 const keyOf = (result: MatchResult) => (result.kind === 'dictionary' ? result.entry.key : result.kind)
@@ -121,6 +121,65 @@ describe('matchExercise (dictionary)', () => {
   it('returns none for unknown or empty names', () => {
     expect(match('Exercício inventado qualquer')).toEqual({ kind: 'none', confidence: 'low' })
     expect(match('(aquecimento) 3x15')).toEqual({ kind: 'none', confidence: 'low' })
+  })
+})
+
+describe('matchExercise (opposite words never fuzz into each other)', () => {
+  it.each([
+    ['biceps corda', 'rope_hammer_curl', 'rope_pushdown'],
+    ['bíceps na polia', 'cable_curl', 'triceps_pushdown'],
+    ['abdução polia', 'cable_hip_abduction', 'cable_hip_adduction'],
+    ['adução polia', 'cable_hip_adduction', 'cable_hip_abduction'],
+    ['abdutora polia', 'cable_hip_abduction', 'cable_hip_adduction'],
+    ['crucifixo declinado', 'dumbbell_decline_fly', 'dumbbell_incline_fly'],
+    ['crucifixo inclinado', 'dumbbell_incline_fly', 'dumbbell_decline_fly'],
+    ['crucifixo reto', 'dumbbell_fly', 'dumbbell_incline_fly'],
+    ['supino declinado articulado', 'machine_decline_press', 'machine_incline_press'],
+    ['supino inclinado maquina', 'machine_incline_press', 'machine_decline_press'],
+    ['cadeira flexora', 'seated_leg_curl', 'leg_extension'],
+    ['cadeira extensora', 'leg_extension', 'seated_leg_curl'],
+    ['flexora sentado', 'seated_leg_curl', 'lying_leg_curl'],
+    ['elevação frontal polia', 'cable_front_raise', 'cable_lateral_raise'],
+    ['elevação lateral polia', 'cable_lateral_raise', 'cable_front_raise'],
+    ['pulldown maquina', 'machine_pulldown', 'machine_pullover'],
+    ['pullover maquina', 'machine_pullover', 'machine_pulldown'],
+    ['puley frente aberto', 'lat_pulldown', 'close_grip_pulldown'],
+  ])('"%s" → %s (high), never %s', (name, key, wrong) => {
+    const result = match(name)
+    expect(keyOf(result)).toBe(key)
+    expect(keyOf(result)).not.toBe(wrong)
+    expect(result.confidence).toBe('high')
+  })
+
+  it.each([
+    ['supino declinado smith', 'smith_incline_press'],
+    ['remada deitada', 'cable_seated_row'],
+    ['remada deitada', 'machine_row'],
+    ['panturrilha deitado', 'seated_calf_raise'],
+    ['rotação interna', 'cable_external_rotation'],
+    ['rotação interna polia', 'cable_external_rotation'],
+    ['biceps testa', 'skull_crusher'],
+    ['tríceps martelo', 'hammer_curl'],
+    ['mesa extensora', 'lying_leg_curl'],
+    ['adutora polia', 'cable_hip_abduction'],
+    ['abdutora sentada', 'hip_adduction_machine'],
+    ['elevação lateral anilha', 'plate_front_raise'],
+    ['supino reto inclinado', 'barbell_incline_press'],
+  ])('"%s" is never %s', (name, wrong) => {
+    expect(keyOf(match(name))).not.toBe(wrong)
+  })
+
+  it('a sheet with another equipment keeps the right movement (low)', () => {
+    const result = match('supino declinado smith')
+    expect(keyOf(result)).toBe('barbell_decline_press')
+    expect(result.confidence).toBe('low')
+  })
+
+  it('folds gender and number', () => {
+    expect(foldWord('sentada')).toBe(foldWord('sentado'))
+    expect(foldWord('pernas')).toBe(foldWord('perna'))
+    expect(foldWord('flexoes')).toBe(foldWord('flexao'))
+    expect(foldWord('flexor')).not.toBe(foldWord('flexora'))
   })
 })
 
