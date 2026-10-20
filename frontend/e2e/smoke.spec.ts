@@ -1,6 +1,9 @@
 import { expect, test, type Page, type Response } from '@playwright/test'
 import { login as signIn } from './support/auth.ts'
 
+// Runs in the `today` project, after `chromium` (playwright.config.ts): offline.spec.ts saved only today's evening part
+// and workout.spec.ts activated the fictitious protocol today. Assumes the fresh database CI starts per run.
+
 /** Remembers what the page asked of the API, so a failed wait can say what happened (CI cannot download traces). */
 function watch(page: Page) {
   const seen: string[] = []
@@ -46,6 +49,7 @@ async function expectSynced(page: Page, seen: string[]) {
 }
 
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
+const ring = (page: Page) => page.getByRole('progressbar', { name: 'Progresso do dia' })
 const hojeRow = (page: Page, name: string) => page.getByRole('listitem', { name })
 
 /** Signs in and opens Hoje ("/" is the summary). */
@@ -67,6 +71,22 @@ async function choose(page: Page, group: string, option: string) {
   await page.getByRole('radiogroup', { name: group }).getByText(option, { exact: true }).click()
 }
 
+/** Resumo's "Check-ins" card: days of the cycle with both parts saved. */
+async function expectCheckinCount(page: Page, count: string) {
+  await nav(page, 'Resumo').click()
+  await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
+  const card = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Check-ins$/ }) }).locator('dd')
+  await expect(card).toHaveText(count)
+  await nav(page, 'Hoje').click()
+  await expect(page).toHaveURL(/\/hoje$/)
+}
+
+/** The day ring's value (0–100). */
+async function ringValue(page: Page): Promise<number> {
+  await expect(ring(page)).toHaveAttribute('aria-valuenow', /^\d+$/)
+  return Number(await ring(page).getAttribute('aria-valuenow'))
+}
+
 function option(page: Page, group: string, name: string) {
   return page.getByRole('radiogroup', { name: group }).getByRole('radio', { name, exact: true })
 }
@@ -82,8 +102,11 @@ test('offline checkin, morning then evening, syncs to a second browser', async (
   // Opening Hoje may create the default reminder times and sync them: let that finish before the network goes.
   await expectSynced(a, seenByA)
 
-  // offline.spec.ts (same user, runs before) saved today's evening part; nothing has saved the morning yet.
+  // offline.spec.ts (same user, runs before) saved today's evening part; nothing has saved the morning yet. The protocol
+  // workout.spec.ts activated today starts the cycle, so Resumo counts no complete check-in yet.
   await expect(hojeRow(a, 'Check-in da manhã').getByText('Feito', { exact: true })).toHaveCount(0)
+  const ringBefore = await ringValue(a)
+  await expectCheckinCount(a, '0')
 
   await contextA.setOffline(true)
   await openPart(a, 'Check-in da manhã', /\/checkin\/manha$/)
@@ -118,6 +141,10 @@ test('offline checkin, morning then evening, syncs to a second browser', async (
   await a.getByRole('button', { name: 'Sincronizar agora' }).click()
   expect((await pushed).status()).toBe(200)
   await expectSynced(a, seenByA)
+
+  // Both parts are done: the day ring went up (above 0) and Resumo counts one complete check-in.
+  await expect.poll(async () => Number(await ring(a).getAttribute('aria-valuenow'))).toBeGreaterThan(Math.max(ringBefore, 0))
+  await expectCheckinCount(a, '1')
 
   // Device B: another browser profile signs in and receives the same check-in. Its first pull brings the record and the
   // open Hoje refreshes itself (no navigation needed).

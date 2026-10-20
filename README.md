@@ -19,7 +19,22 @@ offline-first (SQLite no aparelho, sincronização com a API quando há rede).
 - **Hoje:** o dia em ordem de horário (refeições, itens do protocolo, cardio, treino e check-in), marcação Feito / Parcial /
   Não fiz com motivo, atrasados em destaque. O Resumo mostra a adesão do ciclo (Dieta e Itens do protocolo).
 - **Lembretes** por notificação (Web Push) nos horários de cada item, configuráveis em Configurações → Horários.
-- **Check-in diário**, com cardio; tudo funciona offline e sincroniza quando há rede.
+- **Check-in em partes:** **Manhã** (sono, disposição ao acordar, intestino, peso opcional) e **Noite** (disposição no dia,
+  ansiedade, água, observações), cada uma salva sozinha a partir da sua linha em Hoje (ou de Mais → Check-in de hoje). O
+  cardio fica só no item Cardio de Hoje, com os minutos feitos. O Resumo conta um check-in quando as duas partes do dia
+  foram salvas. Tudo funciona offline e sincroniza quando há rede.
+- **Gamificação:** em Hoje, o **anel do dia** (o % do que estava previsto para o dia inteiro; Parcial vale meio) com
+  "Meta do dia batida" a partir de 90% e uma comemoração curta ao chegar a 100%; a **sequência** de dias na meta (≥ 90% do
+  previsto); o card **Semana** com as metas da semana (dieta e itens do protocolo ≥ 90%, todos os treinos, cardio previsto, água, check-ins completos). Em Mais →
+  **Conquistas**, a sequência atual e o recorde e as medalhas conquistadas e a conquistar. O Resumo ganha a seção
+  "Constância".
+
+### Atualizar todos os aparelhos antes do check-in em partes
+
+Antes de salvar o primeiro check-in em partes (só Manhã ou só Noite) em qualquer aparelho, **atualize todos**: no web/PWA,
+toque em **Atualizar** quando o aviso de nova versão aparecer (ou feche e abra o app); no Android, instale o APK novo
+("Baixar atualização"). Uma versão antiga guarda o check-in com todos os campos obrigatórios: ao receber uma linha só com a
+manhã, a sincronização dela fica parada (nada se perde) até o aparelho ser atualizado.
 
 ## Lembretes no iPhone
 
@@ -57,6 +72,7 @@ lê o mesmo arquivo pelo servidor e abre um novo rascunho.
 | Spec (decisões e escopo) | [docs/superpowers/specs/2026-10-18-protocoloapp-design.md](docs/superpowers/specs/2026-10-18-protocoloapp-design.md) |
 | Spec de Planejamento, Treino e Resumo | [docs/superpowers/specs/2026-10-18-planejamento-treino-resumo-design.md](docs/superpowers/specs/2026-10-18-planejamento-treino-resumo-design.md) |
 | Spec de Hoje e lembretes | [docs/superpowers/specs/2026-10-19-hoje-lembretes-design.md](docs/superpowers/specs/2026-10-19-hoje-lembretes-design.md) |
+| Spec de Check-in em partes e gamificação | [docs/superpowers/specs/2026-10-19-checkin-gamificacao-design.md](docs/superpowers/specs/2026-10-19-checkin-gamificacao-design.md) |
 | Plano da Fundação | [docs/superpowers/plans/2026-10-18-fundacao.md](docs/superpowers/plans/2026-10-18-fundacao.md) |
 | Deploy no Coolify (passo a passo) | [docs/runbooks/deploy-coolify.md](docs/runbooks/deploy-coolify.md) |
 | CI, APK e release | [docs/ci/README.md](docs/ci/README.md) |
@@ -112,10 +128,11 @@ Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inc
 - **Backend:** build, testes (Testcontainers), checagem das migrations e do `openapi.json`.
 - **Frontend:** lint, testes e build.
 - **Docker image:** o mesmo build que o Coolify faz.
-- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores: check-in offline que sincroniza e, em
-  outro teste, importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`,
+- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores: importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`,
   lidos no navegador pelo leitor local), treino registrado offline e Resumo; um PDF sem texto e o botão "Ler com IA"; depois, uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do
-  Resumo. Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Dois stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs` e `storage-stub.mjs`)
+  Resumo; em seguida (projeto `today`, com o protocolo já ativo), o check-in em partes salvo offline (Manhã, depois Noite) que
+  sincroniza com um segundo navegador, sobe o anel do dia e conta 1 check-in completo no Resumo. Esse teste pressupõe o
+  banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje. Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Dois stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs` e `storage-stub.mjs`)
   fazem o papel da API da Anthropic e do bucket R2 (`Anthropic__BaseUrl`, `R2__ServiceUrl`); nada de rede externa.
 - **Android APK:** APK de debug como artifact; na `main`, o job **Android release** publica o APK assinado numa GitHub Release.
 

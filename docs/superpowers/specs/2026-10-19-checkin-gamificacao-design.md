@@ -1,7 +1,7 @@
 # Subprojeto 3b — Check-in em partes, gamificação e erro "IA sem créditos"
 
 - **Data:** 2026-10-19
-- **Status:** escolhas do Gabriel em conversa (check-in Manhã + Noite; gamificação: anel do dia, sequência, metas da semana/medalhas); detalhes decididos pelo Claude.
+- **Status:** implementado (branch `feat/checkin-gamificacao`). Escolhas do Gabriel em conversa (check-in Manhã + Noite; gamificação: anel do dia, sequência, metas da semana/medalhas); detalhes decididos pelo Claude.
 - **Base:** `2026-10-19-hoje-lembretes-design.md` (tela Hoje, `buildDay`, `adherence_log`).
 
 ## 1. Objetivo
