@@ -12,6 +12,7 @@
     "test": "vitest run",
     "gen:api": "node scripts/gen-api.mjs",
     "lint": "tsc -b && oxlint",
+    "privacy": "node ../scripts/privacy-guard.mjs",
     "cap:sync": "npm run build && cap sync android",
     "gen:icons": "node scripts/gen-icons.mjs"
   },

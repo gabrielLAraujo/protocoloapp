@@ -127,6 +127,7 @@ Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inc
 
 `.github/workflows/ci.yml`, em PRs e em pushes para `main` e `feat/**`:
 
+- **Privacy:** `scripts/privacy-guard.mjs` (Node, sem dependências) varre os arquivos versionados e falha se alguma linha contém um termo da lista `privacy/denylist.sha256`, que guarda só hashes sha256 (de 1 a 3 palavras, normalizadas: minúsculas, sem acento). A saída mostra apenas `arquivo:linha`. Rode local com `npm run privacy` em `frontend/`. Para incluir um termo, gere o hash no seu computador, sem commitar o termo: `node -e "import('./scripts/privacy-guard.mjs').then(m=>console.log(m.hashTerm(process.argv[1])))" "termo aqui"` e acrescente a saída em uma linha nova do `privacy/denylist.sha256`.
 - **Backend:** build, testes (Testcontainers), checagem das migrations e do `openapi.json`.
 - **Frontend:** lint, testes e build.
 - **Docker image:** o mesmo build que o Coolify faz.
