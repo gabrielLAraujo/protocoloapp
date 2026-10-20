@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Auth;
+using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Plans;
@@ -57,6 +58,12 @@ public static class ExerciseEndpoints
             var aliases = request.Aliases ?? [];
             if (aliases.Length > MaxAliases || aliases.Any(a => !ExerciseNames.IsUsable(ExerciseNames.Normalize(a ?? ""))))
                 errors["aliases"] = [$"Até {MaxAliases} apelidos, cada um com um nome válido."];
+            if (request.CatalogId is not null
+                && (request.CatalogId.Length > CatalogExercise.MaxIdLength
+                    || !await db.CatalogExercises.AnyAsync(c => c.Id == request.CatalogId, ct)))
+            {
+                errors["catalogId"] = ["Exercício do catálogo não encontrado."];
+            }
         }
 
         if (errors.Count > 0)
@@ -70,6 +77,7 @@ public static class ExerciseEndpoints
 
         exercise.PrimaryMuscleGroup = request!.Group;
         exercise.Aliases = (request.Aliases ?? []).Select(a => a.Trim()).Distinct(StringComparer.Ordinal).ToArray();
+        exercise.CatalogId = request.CatalogId;
         await SyncWrites.StampAsync(db, exercise, userId, clock, ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

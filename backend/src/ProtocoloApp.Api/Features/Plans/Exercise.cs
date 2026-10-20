@@ -29,4 +29,7 @@ public sealed class Exercise : ISyncEntity
     public MuscleGroup PrimaryMuscleGroup { get; set; } = MuscleGroup.Other;
 
     public string[] Aliases { get; set; } = [];
+
+    /// <summary>Id of the matching <c>catalog_exercises</c> row (media); no foreign key, since the catalog is refreshed from outside. Checked on write.</summary>
+    public string? CatalogId { get; set; }
 }

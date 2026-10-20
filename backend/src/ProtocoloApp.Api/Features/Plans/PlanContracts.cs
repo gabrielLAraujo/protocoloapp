@@ -49,9 +49,10 @@ public sealed record PlanVersionSummary(
     Guid SourceFileId,
     string? ExtractionError);
 
-public sealed record ExerciseResponse(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string> Aliases);
+public sealed record ExerciseResponse(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string> Aliases, string? CatalogId = null);
 
-public sealed record UpdateExerciseRequest(MuscleGroup Group, string[] Aliases);
+/// <summary><c>CatalogId</c> null clears the link; otherwise it must exist in the exercise catalog.</summary>
+public sealed record UpdateExerciseRequest(MuscleGroup Group, string[] Aliases, string? CatalogId = null);
 
 /// <summary>Mapping between rows and contracts, including the draft's pending new exercises.</summary>
 internal static class PlanMapping
@@ -69,7 +70,7 @@ internal static class PlanMapping
         plan.SourceFileId);
 
     public static ExerciseResponse ToResponse(Exercise exercise) =>
-        new(exercise.Id, exercise.Name, exercise.PrimaryMuscleGroup, exercise.Aliases);
+        new(exercise.Id, exercise.Name, exercise.PrimaryMuscleGroup, exercise.Aliases, exercise.CatalogId);
 
     public static IReadOnlyList<NewExerciseSuggestion> ReadNewExercises(JsonDocument? stored)
     {

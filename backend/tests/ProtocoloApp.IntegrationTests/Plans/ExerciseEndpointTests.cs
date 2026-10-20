@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Plans;
+using ProtocoloApp.IntegrationTests.ExerciseCatalog;
 using ProtocoloApp.IntegrationTests.Infra;
 using ProtocoloApp.IntegrationTests.Sync;
 
@@ -82,5 +83,60 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, badGroup.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, outOfRange.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_links_an_existing_catalog_exercise_returns_it_and_pulls_it()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_ok");
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+
+        var response = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], "cat_ok"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("cat_ok", (await response.Content.ReadFromJsonAsync<ExerciseResponse>(PlanApi.Json))!.CatalogId);
+        Assert.Equal("cat_ok", (await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).CatalogId);
+        var pulled = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Entity == "exercise" && r.Id == exercise.Id);
+        Assert.Equal("cat_ok", pulled.Payload!.Value.GetProperty("catalog_id").GetString());
+    }
+
+    [Fact]
+    public async Task Put_with_null_catalog_id_clears_the_link()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_clear");
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+        await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], "cat_clear"));
+
+        var response = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], null));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null((await response.Content.ReadFromJsonAsync<ExerciseResponse>(PlanApi.Json))!.CatalogId);
+        var pulled = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Entity == "exercise" && r.Id == exercise.Id);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, pulled.Payload!.Value.GetProperty("catalog_id").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("does_not_exist")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Put_with_an_unknown_catalog_id_is_a_400_problem_and_changes_nothing(string catalogId)
+    {
+        await CatalogData.ResetAsync(factory);
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+
+        var response = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], catalogId));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("catalogId", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(MuscleGroup.Other, (await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).Group);
     }
 }

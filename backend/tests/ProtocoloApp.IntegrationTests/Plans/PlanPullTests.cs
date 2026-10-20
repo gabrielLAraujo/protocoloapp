@@ -137,6 +137,7 @@ public sealed class PlanPullTests(ApiFactory factory)
                 NormalizedName = ExerciseNames.Normalize("Rosca alternada c/ halteres"),
                 PrimaryMuscleGroup = MuscleGroup.Chest,
                 Aliases = ["supino inc"],
+                CatalogId = "cat_pull",
             };
             await using var transaction = await db.Database.BeginTransactionAsync();
             await SyncWrites.StampAsync(db, exercise, userId, TimeProvider.System);
@@ -153,6 +154,7 @@ public sealed class PlanPullTests(ApiFactory factory)
         Assert.Equal("chest", payload.GetProperty("primary_muscle_group").GetString());
         Assert.Equal("rosca alternada halteres", payload.GetProperty("normalized_name").GetString());
         Assert.Equal("supino inc", payload.GetProperty("aliases")[0].GetString());
+        Assert.Equal("cat_pull", payload.GetProperty("catalog_id").GetString());
     }
 
     [Fact]

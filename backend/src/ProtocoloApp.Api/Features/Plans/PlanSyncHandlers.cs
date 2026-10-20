@@ -67,7 +67,7 @@ public sealed class PlanVersionSyncHandler(AppDbContext db) : ReadOnlySyncHandle
     }
 }
 
-/// <summary>The <c>exercise</c> pull payload: <c>{name, normalized_name, primary_muscle_group, aliases}</c>.</summary>
+/// <summary>The <c>exercise</c> pull payload: <c>{name, normalized_name, primary_muscle_group, aliases, catalog_id}</c>.</summary>
 public sealed record ExercisePayload
 {
     public string Name { get; init; } = "";
@@ -77,6 +77,8 @@ public sealed record ExercisePayload
     public string PrimaryMuscleGroup { get; init; } = "";
 
     public IReadOnlyList<string> Aliases { get; init; } = [];
+
+    public string? CatalogId { get; init; }
 }
 
 /// <summary>Syncs <see cref="Exercise"/> as <c>exercise</c>, pull only.</summary>
@@ -96,6 +98,7 @@ public sealed class ExerciseSyncHandler(AppDbContext db) : ReadOnlySyncHandler<E
             NormalizedName = entity.NormalizedName,
             PrimaryMuscleGroup = EnumText.ToText(entity.PrimaryMuscleGroup),
             Aliases = entity.Aliases,
+            CatalogId = entity.CatalogId,
         };
     }
 }

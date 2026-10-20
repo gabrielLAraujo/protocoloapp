@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.App;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Plans.Extraction;
@@ -78,6 +79,7 @@ builder.Services.AddFiles(builder.Configuration);
 builder.Services.AddPlanExtraction(builder.Configuration);
 builder.Services.AddAppUpdates(builder.Configuration);
 builder.Services.AddPush(builder.Configuration);
+builder.Services.AddExerciseCatalog(builder.Configuration);
 
 builder.Services.AddOpenApi();
 // Tags: /health (liveness) runs the "live" checks, /health/ready runs the "ready" ones (Postgres and the storage bucket).
@@ -133,6 +135,7 @@ api.MapFiles();
 api.MapPlans();
 api.MapApp();
 api.MapPush();
+api.MapExerciseCatalog();
 
 app.MapSpaFallback();
 
