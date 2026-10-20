@@ -16,9 +16,12 @@ public static class ExerciseCatalogSetup
             {
                 client.BaseAddress = ExerciseDbClient.BaseAddress;
                 client.Timeout = TimeSpan.FromSeconds(20);
+                client.MaxResponseContentBufferSize = ExerciseDbClient.MaxResponseBytes;
             })
             // Only that host, and never follow a redirect somewhere else.
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        // The catalog is a few thousand names: gzip/brotli for this route only (see Program.cs).
+        services.AddResponseCompression(options => options.EnableForHttps = true);
         services.AddHostedService<ExerciseCatalogSync>();
         return services;
     }

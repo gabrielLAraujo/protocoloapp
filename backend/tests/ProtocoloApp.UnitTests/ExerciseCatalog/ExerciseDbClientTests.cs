@@ -123,6 +123,37 @@ public sealed class ExerciseDbClientTests
     }
 
     [Fact]
+    public async Task Entries_without_any_readable_item_are_a_format_failure_not_an_empty_page()
+    {
+        var (client, _) = Create(_ => Json("""{"data":[{"id":"x","title":"new format"},{"id":"y"}]}"""));
+
+        Assert.Null(await client.GetPageAsync(null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task An_empty_data_array_is_an_empty_page()
+    {
+        var (client, _) = Create(_ => Json("""{"data":[],"meta":{"hasNextPage":false}}"""));
+
+        var page = await client.GetPageAsync(null, CancellationToken.None);
+
+        Assert.NotNull(page);
+        Assert.Empty(page.Items);
+    }
+
+    [Fact]
+    public async Task Counts_skipped_entries_and_reads_at_most_four_pages_worth()
+    {
+        var entries = string.Join(',', Enumerable.Range(0, 150).Select(i => $$"""{"exerciseId":"id{{i}}","name":"n{{i}}"}"""));
+        var (client, _) = Create(_ => Json($$"""{"data":[{"name":"no id"},{{entries}}]}"""));
+
+        var page = await client.GetPageAsync(null, CancellationToken.None);
+
+        Assert.Equal(ExerciseDbClient.MaxItemsPerPage - 1, page!.Items.Count);
+        Assert.Equal(1 + (151 - ExerciseDbClient.MaxItemsPerPage), page.Skipped);
+    }
+
+    [Fact]
     public async Task Missing_meta_means_no_next_page()
     {
         var (client, _) = Create(_ => Json("""{"data":[{"exerciseId":"a","name":"A"}]}"""));

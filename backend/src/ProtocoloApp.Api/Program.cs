@@ -110,6 +110,9 @@ app.UseRequestLogging();
 app.UseSpaStaticFiles();
 // CORS for /api only, before authentication so that a preflight (no credentials by definition) is answered, not rejected.
 app.UseWhen(context => context.Request.Path.StartsWithSegments("/api"), branch => branch.UseCors(AppCorsPolicy));
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/api/exercise-catalog"),
+    branch => branch.UseResponseCompression());
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

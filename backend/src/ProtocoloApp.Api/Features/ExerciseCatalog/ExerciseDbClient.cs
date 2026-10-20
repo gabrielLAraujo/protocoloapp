@@ -12,7 +12,8 @@ public sealed record ExerciseDbItem(
     string[] SecondaryMuscles,
     string[] Equipments);
 
-public sealed record ExerciseDbPage(IReadOnlyList<ExerciseDbItem> Items, bool HasNextPage, string? NextCursor);
+/// <summary><c>Skipped</c>: entries of <c>data</c> that could not be read (no id or name, too long, not an object).</summary>
+public sealed record ExerciseDbPage(IReadOnlyList<ExerciseDbItem> Items, bool HasNextPage, string? NextCursor, int Skipped = 0);
 
 public interface IExerciseDbClient
 {
@@ -29,6 +30,11 @@ public sealed class ExerciseDbClient(HttpClient http, ILogger<ExerciseDbClient> 
     public const string Host = "oss.exercisedb.dev";
     public const string GifPrefix = "https://static.exercisedb.dev/";
     public const int PageSize = 25;
+
+    /// <summary>Entries read per page: the API sends 25, anything beyond a few times that is ignored.</summary>
+    public const int MaxItemsPerPage = PageSize * 4;
+
+    public const long MaxResponseBytes = 1024 * 1024;
 
     public static readonly Uri BaseAddress = new($"https://{Host}/");
 
@@ -52,6 +58,8 @@ public sealed class ExerciseDbClient(HttpClient http, ILogger<ExerciseDbClient> 
             var page = Parse(document.RootElement);
             if (page is null)
                 logger.LogWarning("ExerciseDB page had an unexpected format.");
+            else if (page.Skipped > 0)
+                logger.LogWarning("ExerciseDB page: {Skipped} entries skipped, {Kept} kept.", page.Skipped, page.Items.Count);
             return page;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -75,16 +83,28 @@ public sealed class ExerciseDbClient(HttpClient http, ILogger<ExerciseDbClient> 
         }
 
         var items = new List<ExerciseDbItem>();
+        var skipped = 0;
+        var seen = 0;
         foreach (var element in data.EnumerateArray())
         {
-            if (element.ValueKind != JsonValueKind.Object)
+            if (++seen > MaxItemsPerPage)
+            {
+                skipped++;
                 continue;
+            }
+
+            if (element.ValueKind != JsonValueKind.Object)
+            {
+                skipped++;
+                continue;
+            }
 
             var id = ReadString(element, "exerciseId");
             var name = ReadString(element, "name");
             if (string.IsNullOrWhiteSpace(id) || id.Length > CatalogExercise.MaxIdLength
                 || string.IsNullOrWhiteSpace(name) || name.Length > CatalogExercise.MaxNameLength)
             {
+                skipped++;
                 continue;
             }
 
@@ -98,6 +118,10 @@ public sealed class ExerciseDbClient(HttpClient http, ILogger<ExerciseDbClient> 
                 ReadTags(element, "equipments")));
         }
 
+        // Entries but none readable: the format changed. Not an empty page, so it must not look like a finished sync.
+        if (items.Count == 0 && skipped > 0)
+            return null;
+
         var hasNext = false;
         string? cursor = null;
         if (root.TryGetProperty("meta", out var meta) && meta.ValueKind == JsonValueKind.Object)
@@ -106,7 +130,7 @@ public sealed class ExerciseDbClient(HttpClient http, ILogger<ExerciseDbClient> 
             cursor = ReadString(meta, "nextCursor");
         }
 
-        return new ExerciseDbPage(items, hasNext, cursor);
+        return new ExerciseDbPage(items, hasNext, cursor, skipped);
     }
 
     /// <summary>The URL when it is on the static media host (https), otherwise null.</summary>

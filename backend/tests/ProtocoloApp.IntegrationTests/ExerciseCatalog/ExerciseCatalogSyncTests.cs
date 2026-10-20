@@ -164,6 +164,67 @@ public sealed class ExerciseCatalogSyncTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_page_that_cannot_be_read_on_an_empty_catalog_is_not_a_completed_sync()
+    {
+        await CatalogData.ResetAsync(factory);
+        var client = new FakeClient(_ => null);
+        var sync = CreateSync(client);
+
+        var result = await sync.SyncAsync(CancellationToken.None);
+
+        Assert.False(result.Complete);
+        Assert.Null(await MarkerAsync());
+        Assert.True(await sync.IsDueAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task An_empty_answer_on_an_empty_catalog_is_not_a_completed_sync_but_is_on_a_filled_one()
+    {
+        await CatalogData.ResetAsync(factory);
+        var empty = new FakeClient(_ => new ExerciseDbPage([], false, null));
+
+        var first = await CreateSync(empty).SyncAsync(CancellationToken.None);
+
+        Assert.False(first.Complete);
+        Assert.Null(await MarkerAsync());
+
+        await CatalogData.SeedAsync(factory, Now.AddDays(-60), "kept");
+        var second = await CreateSync(empty).SyncAsync(CancellationToken.None);
+
+        Assert.True(second.Complete);
+        Assert.NotNull(await MarkerAsync());
+    }
+
+    [Fact]
+    public async Task A_run_does_nothing_while_another_holds_the_advisory_lock()
+    {
+        await CatalogData.ResetAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var other = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await other.Database.OpenConnectionAsync();
+        await using (var command = other.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = $"select pg_advisory_lock({ExerciseCatalogSync.AdvisoryLockKey})";
+            await command.ExecuteScalarAsync();
+        }
+
+        var client = new FakeClient(_ => Page(["l1"], null));
+        var result = await CreateSync(client).SyncAsync(CancellationToken.None);
+
+        Assert.Empty(client.Cursors);
+        Assert.Equal(new CatalogSyncResult(0, 0, false), result);
+
+        await using (var command = other.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = $"select pg_advisory_unlock({ExerciseCatalogSync.AdvisoryLockKey})";
+            await command.ExecuteScalarAsync();
+        }
+
+        await CreateSync(client).SyncAsync(CancellationToken.None);
+        Assert.Single(await RowsAsync());
+    }
+
+    [Fact]
     public async Task Disabled_option_does_nothing()
     {
         await CatalogData.ResetAsync(factory);

@@ -51,8 +51,10 @@ public sealed record PlanVersionSummary(
 
 public sealed record ExerciseResponse(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string> Aliases, string? CatalogId = null);
 
+public sealed record UpdateExerciseRequest(MuscleGroup Group, string[] Aliases);
+
 /// <summary><c>CatalogId</c> null clears the link; otherwise it must exist in the exercise catalog.</summary>
-public sealed record UpdateExerciseRequest(MuscleGroup Group, string[] Aliases, string? CatalogId = null);
+public sealed record SetExerciseCatalogRequest(string? CatalogId);
 
 /// <summary>Mapping between rows and contracts, including the draft's pending new exercises.</summary>
 internal static class PlanMapping

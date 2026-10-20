@@ -18,6 +18,9 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
     private static Task<HttpResponseMessage> PutAsync(HttpClient client, Guid id, UpdateExerciseRequest request) =>
         client.PutAsJsonAsync(new Uri($"/api/exercises/{id}", UriKind.Relative), request, PlanApi.Json);
 
+    private static Task<HttpResponseMessage> PutCatalogAsync(HttpClient client, Guid id, SetExerciseCatalogRequest request) =>
+        client.PutAsJsonAsync(new Uri($"/api/exercises/{id}/catalog", UriKind.Relative), request, PlanApi.Json);
+
     [Fact]
     public async Task List_returns_only_the_users_live_exercises_sorted_by_name()
     {
@@ -86,7 +89,41 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Put_links_an_existing_catalog_exercise_returns_it_and_pulls_it()
+    public async Task Put_of_group_and_aliases_keeps_the_catalog_link_and_catalog_put_keeps_group_and_aliases()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_keep");
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+        await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest("cat_keep"));
+
+        var updated = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Chest, ["apelido"]));
+        var linked = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest("cat_keep"));
+
+        var afterGroup = (await updated.Content.ReadFromJsonAsync<ExerciseResponse>(PlanApi.Json))!;
+        Assert.Equal("cat_keep", afterGroup.CatalogId);
+        var afterCatalog = (await linked.Content.ReadFromJsonAsync<ExerciseResponse>(PlanApi.Json))!;
+        Assert.Equal(MuscleGroup.Chest, afterCatalog.Group);
+        Assert.Equal(["apelido"], afterCatalog.Aliases);
+    }
+
+    [Fact]
+    public async Task Put_catalog_of_another_users_or_missing_exercise_returns_404()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_404");
+        using var owner = await PlanApi.CreateAsync(factory);
+        using var other = await PlanApi.CreateAsync(factory);
+        await owner.ActivateAsync((await owner.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(owner.Client))[0];
+
+        Assert.Equal(HttpStatusCode.NotFound, (await PutCatalogAsync(other.Client, exercise.Id, new SetExerciseCatalogRequest("cat_404"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await PutCatalogAsync(owner.Client, Guid.NewGuid(), new SetExerciseCatalogRequest("cat_404"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_catalog_links_an_existing_catalog_exercise_returns_it_and_pulls_it()
     {
         await CatalogData.ResetAsync(factory);
         await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_ok");
@@ -94,7 +131,7 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
         await api.ActivateAsync((await api.ImportDraftAsync()).Id);
         var exercise = (await ListAsync(api.Client))[0];
 
-        var response = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], "cat_ok"));
+        var response = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest("cat_ok"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("cat_ok", (await response.Content.ReadFromJsonAsync<ExerciseResponse>(PlanApi.Json))!.CatalogId);
@@ -104,16 +141,16 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Put_with_null_catalog_id_clears_the_link()
+    public async Task Put_catalog_with_null_catalog_id_clears_the_link()
     {
         await CatalogData.ResetAsync(factory);
         await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_clear");
         using var api = await PlanApi.CreateAsync(factory);
         await api.ActivateAsync((await api.ImportDraftAsync()).Id);
         var exercise = (await ListAsync(api.Client))[0];
-        await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], "cat_clear"));
+        await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest("cat_clear"));
 
-        var response = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], null));
+        var response = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest(null));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Null((await response.Content.ReadFromJsonAsync<ExerciseResponse>(PlanApi.Json))!.CatalogId);
@@ -125,18 +162,18 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
     [InlineData("does_not_exist")]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task Put_with_an_unknown_catalog_id_is_a_400_problem_and_changes_nothing(string catalogId)
+    public async Task Put_catalog_with_an_unknown_catalog_id_is_a_400_problem_and_changes_nothing(string catalogId)
     {
         await CatalogData.ResetAsync(factory);
         using var api = await PlanApi.CreateAsync(factory);
         await api.ActivateAsync((await api.ImportDraftAsync()).Id);
         var exercise = (await ListAsync(api.Client))[0];
 
-        var response = await PutAsync(api.Client, exercise.Id, new UpdateExerciseRequest(MuscleGroup.Back, [], catalogId));
+        var response = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest(catalogId));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("catalogId", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Equal(MuscleGroup.Other, (await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).Group);
+        Assert.Null((await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).CatalogId);
     }
 }

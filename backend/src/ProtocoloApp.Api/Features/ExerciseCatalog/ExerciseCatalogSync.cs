@@ -24,6 +24,9 @@ public sealed class ExerciseCatalogSync(
 {
     public const int MaxPages = 100;
 
+    /// <summary>Key of the Postgres advisory lock that keeps two instances from downloading at the same time.</summary>
+    public const long AdvisoryLockKey = 7_261_020_001;
+
     /// <summary>Name in <c>app_secrets</c> of the moment the last complete sync ended (ISO 8601; not a secret).</summary>
     public const string SyncedAtKey = "exercise_catalog_synced_at";
 
@@ -34,7 +37,7 @@ public sealed class ExerciseCatalogSync(
 
         try
         {
-            // Let the host finish starting (and the migrations bundle have run) before the first query.
+            // Hand control back at once: nothing here may delay the host's start (StartAsync runs this up to its first await).
             await Task.Yield();
             if (!await IsDueAsync(stoppingToken))
                 return;
@@ -69,8 +72,48 @@ public sealed class ExerciseCatalogSync(
         return clock.GetUtcNow() - last > TimeSpan.FromDays(options.Value.RefreshAfterDays);
     }
 
-    /// <summary>Downloads and upserts the whole catalog. Idempotent: running it twice leaves the same rows.</summary>
+    /// <summary>
+    /// Downloads and upserts the whole catalog. Idempotent: running it twice leaves the same rows. A session advisory lock
+    /// keeps two instances (or a restart overlapping a slow run) from downloading at once; the one that loses does nothing.
+    /// </summary>
     public async Task<CatalogSyncResult> SyncAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            if (!await ExecuteLockAsync(db, "pg_try_advisory_lock", ct))
+            {
+                logger.LogInformation("Exercise catalog sync skipped: another run holds the lock.");
+                return new CatalogSyncResult(0, 0, false);
+            }
+
+            try
+            {
+                return await DownloadAsync(ct);
+            }
+            finally
+            {
+                await ExecuteLockAsync(db, "pg_advisory_unlock", CancellationToken.None);
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task<bool> ExecuteLockAsync(AppDbContext db, string function, CancellationToken ct)
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+#pragma warning disable CA2100 // function is one of two constants above, the key a constant.
+        command.CommandText = $"select {function}({AdvisoryLockKey})";
+#pragma warning restore CA2100
+        return (bool)(await command.ExecuteScalarAsync(ct))!;
+    }
+
+    private async Task<CatalogSyncResult> DownloadAsync(CancellationToken ct)
     {
         var delay = TimeSpan.FromMilliseconds(Math.Max(0, options.Value.PageDelayMilliseconds));
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -109,9 +152,18 @@ public sealed class ExerciseCatalogSync(
 
         // Hitting the page cap also counts as done: the catalog is far smaller than 100 pages, the cap only stops a loop.
         complete |= pages >= MaxPages;
+        // A run that stored nothing (empty answer, changed format) is not a sync, unless there is already a catalog to keep.
+        if (complete && upserted == 0 && !await HasRowsAsync(ct))
+            complete = false;
         if (complete)
             await MarkSyncedAsync(ct);
         return new CatalogSyncResult(pages, upserted, complete);
+    }
+
+    private async Task<bool> HasRowsAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().CatalogExercises.AnyAsync(ct);
     }
 
     private async Task<int> UpsertAsync(List<ExerciseDbItem> items, CancellationToken ct)

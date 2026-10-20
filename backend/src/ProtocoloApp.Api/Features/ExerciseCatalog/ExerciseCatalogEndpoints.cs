@@ -30,11 +30,13 @@ public static class ExerciseCatalogEndpoints
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(db);
 
-        var count = await db.CatalogExercises.CountAsync(ct);
-        var latest = await db.CatalogExercises.Select(e => (DateTimeOffset?)e.SyncedAt).MaxAsync(ct);
-        var version = latest is null
+        var stats = await db.CatalogExercises.AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(g => new { Count = g.Count(), Latest = g.Max(e => e.SyncedAt) })
+            .FirstOrDefaultAsync(ct);
+        var version = stats is null
             ? "0-0"
-            : string.Create(CultureInfo.InvariantCulture, $"{latest.Value.UtcTicks}-{count}");
+            : string.Create(CultureInfo.InvariantCulture, $"{stats.Latest.UtcTicks}-{stats.Count}");
         var etag = $"\"{version}\"";
 
         context.Response.Headers.ETag = etag;

@@ -78,6 +78,21 @@ public sealed class ExerciseCatalogEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_response_is_compressed_when_the_client_accepts_gzip()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, At, "gz1", "gz2");
+        using var client = await factory.CreateAuthenticatedClientAsync();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, Route);
+        request.Headers.TryAddWithoutValidation("Accept-Encoding", "gzip");
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("gzip", response.Content.Headers.ContentEncoding);
+    }
+
+    [Fact]
     public async Task An_empty_catalog_returns_an_empty_list()
     {
         await CatalogData.ResetAsync(factory);
