@@ -1317,6 +1317,12 @@
           },
           "group": {
             "$ref": "#/components/schemas/MuscleGroup"
+          },
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
