@@ -194,6 +194,25 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'CREATE INDEX ix_daily_checkins_date ON daily_checkins (date)',
     ],
   },
+  {
+    // Exercise media: a copy of the server's ExerciseDB catalog (replaced whole on refresh), a small key/value store (the catalog
+    // version/ETag) and the link of each exercise to its catalog item. Additive only.
+    version: 6,
+    statements: [
+      // body_parts, target_muscles and equipments are JSON arrays of text.
+      `CREATE TABLE catalog_exercises (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        body_parts TEXT NOT NULL DEFAULT '[]',
+        target_muscles TEXT NOT NULL DEFAULT '[]',
+        equipments TEXT NOT NULL DEFAULT '[]',
+        gif_url TEXT
+      )`,
+      'CREATE INDEX ix_catalog_exercises_name ON catalog_exercises (name)',
+      'CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+      'ALTER TABLE exercises ADD COLUMN catalog_id TEXT',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

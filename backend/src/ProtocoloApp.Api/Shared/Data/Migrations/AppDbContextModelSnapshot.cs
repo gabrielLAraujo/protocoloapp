@@ -309,6 +309,51 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProtocoloApp.Api.Features.ExerciseCatalog.CatalogExercise", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.PrimitiveCollection<string[]>("BodyParts")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("body_parts");
+
+                    b.PrimitiveCollection<string[]>("Equipments")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("equipments");
+
+                    b.Property<string>("GifUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("gif_url");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.PrimitiveCollection<string[]>("SecondaryMuscles")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("secondary_muscles");
+
+                    b.Property<DateTimeOffset>("SyncedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("synced_at");
+
+                    b.PrimitiveCollection<string[]>("TargetMuscles")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("target_muscles");
+
+                    b.HasKey("Id")
+                        .HasName("pk_catalog_exercises");
+
+                    b.ToTable("catalog_exercises", (string)null);
+                });
+
             modelBuilder.Entity("ProtocoloApp.Api.Features.Files.FileRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -377,6 +422,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("aliases");
+
+                    b.Property<string>("CatalogId")
+                        .HasColumnType("text")
+                        .HasColumnName("catalog_id");
 
                     b.Property<DateTimeOffset>("ClientUpdatedAt")
                         .HasColumnType("timestamp with time zone")

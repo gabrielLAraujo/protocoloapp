@@ -749,6 +749,65 @@
         }
       }
     },
+    "/api/exercises/{id}/catalog": {
+      "put": {
+        "tags": [
+          "Exercises"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetExerciseCatalogRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/app/latest-release": {
       "get": {
         "tags": [
@@ -901,6 +960,25 @@
           }
         }
       }
+    },
+    "/api/exercise-catalog": {
+      "get": {
+        "tags": [
+          "ExerciseCatalog"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -917,6 +995,67 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "CatalogItemResponse": {
+        "required": [
+          "id",
+          "name",
+          "bodyParts",
+          "targetMuscles",
+          "equipments",
+          "gifUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "bodyParts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "targetMuscles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "equipments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gifUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CatalogResponse": {
+        "required": [
+          "version",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemResponse"
+            }
           }
         }
       },
@@ -1036,6 +1175,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1172,6 +1317,12 @@
           },
           "group": {
             "$ref": "#/components/schemas/MuscleGroup"
+          },
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1429,6 +1580,20 @@
         "properties": {
           "refreshToken": {
             "type": "string"
+          }
+        }
+      },
+      "SetExerciseCatalogRequest": {
+        "required": [
+          "catalogId"
+        ],
+        "type": "object",
+        "properties": {
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1771,6 +1936,9 @@
     },
     {
       "name": "Push"
+    },
+    {
+      "name": "ExerciseCatalog"
     }
   ]
 }

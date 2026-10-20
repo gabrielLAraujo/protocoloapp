@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Push;
@@ -41,6 +42,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
+
+    public DbSet<CatalogExercise> CatalogExercises => Set<CatalogExercise>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

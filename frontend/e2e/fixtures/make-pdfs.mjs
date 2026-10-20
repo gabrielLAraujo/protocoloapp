@@ -56,7 +56,9 @@ const column = (x, top, gap, texts) => texts.map((text, i) => ({ x, y: top - i *
 
 /**
  * Workout sheet: a title, day headers `(name) default sets`, dash lines for the exercises (one wrapped onto the next
- * line, one without sets of its own), DESCANSO between blocks. Rotation A, B, off.
+ * line, one without sets of its own), DESCANSO between blocks. Rotation A, B, off. Also: "Supino reto", a name the
+ * exercise dictionary knows (group Peito, ExerciseDB pair) with a "+ drop" on its last two sets, and an SST line with
+ * its intervals (the technique tags the review and the workout show).
  */
 export function workoutPdf() {
   return buildPdf([
@@ -66,8 +68,10 @@ export function workoutPdf() {
       '- Exercicio Ficticio Alfa (3x 8 a 12) (intervalo 90 seg)',
       '- Exercicio Ficticio Gama (2x 10 a 12)',
       '(intervalo 1 min)',
+      '- Supino reto (1x 12 a 15) (2x 6 a 8 + drop) (intervalo 90 seg)',
       '(Treino B - Exemplo) 3x 8 a 12',
       '- Exercicio Ficticio Beta (intervalo 2 min)',
+      '- Exercicio Ficticio Delta SST (intervalo 40, 20, 10 ,20, 40)',
       'DESCANSO',
     ]),
   ])

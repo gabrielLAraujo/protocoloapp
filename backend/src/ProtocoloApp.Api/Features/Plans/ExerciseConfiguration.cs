@@ -21,6 +21,7 @@ public sealed class ExerciseConfiguration : IEntityTypeConfiguration<Exercise>
         builder.Property(e => e.NormalizedName).HasMaxLength(Exercise.MaxNameLength);
         builder.Property(e => e.PrimaryMuscleGroup).HasConversion(EnumText.Converter<MuscleGroup>()).HasMaxLength(16);
         builder.Property(e => e.Aliases).HasColumnType("text[]");
+        builder.Property(e => e.CatalogId).HasColumnType("text");
 
         builder.HasIndex(e => new { e.UserId, e.NormalizedName }).IsUnique();
         // Pull: WHERE user_id = @user AND version > @since ORDER BY version.

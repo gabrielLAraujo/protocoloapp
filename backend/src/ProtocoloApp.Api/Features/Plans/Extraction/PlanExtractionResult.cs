@@ -5,7 +5,8 @@ namespace ProtocoloApp.Api.Features.Plans.Extraction;
 /// <summary>An exercise of the user's catalog, as the extraction and the draft linking see it.</summary>
 public sealed record ExerciseHint(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string>? Aliases = null);
 
-public sealed record NewExerciseSuggestion(string Name, MuscleGroup Group);
+/// <summary>A planned exercise the user does not have yet; <c>CatalogId</c> (optional) links the media at activation.</summary>
+public sealed record NewExerciseSuggestion(string Name, MuscleGroup Group, string? CatalogId = null);
 
 /// <summary>
 /// Outcome of an extraction. On success <c>Document</c> is the validated plan document (normalized), <c>Raw</c> the model's

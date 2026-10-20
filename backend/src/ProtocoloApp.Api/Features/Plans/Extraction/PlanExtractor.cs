@@ -140,7 +140,7 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             if (!PlanDocuments.TryRead<WorkoutDocument>(documentElement, out var workout, out _))
                 return null;
 
-            workout = ExerciseLinking.LinkExercises(workout!, known, lowConfidence);
+            workout = ExerciseLinking.LinkExercises(TechniqueSanitizer.Sanitize(workout!), known, lowConfidence);
             if (!new WorkoutDocumentValidator().Validate(workout).IsValid)
                 return null;
 

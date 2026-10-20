@@ -182,7 +182,7 @@ describe('buildSummary', () => {
   })
 
   it('computes strength by group inside the cycle', () => {
-    const ex: ExerciseLocal = { id: 'e1', name: 'Supino', normalizedName: 'supino', primaryMuscleGroup: 'chest', aliases: [] }
+    const ex: ExerciseLocal = { id: 'e1', name: 'Supino', normalizedName: 'supino', primaryMuscleGroup: 'chest', aliases: [], catalogId: null }
     const set = (sessionId: string, weightKg: number): SetLocal => ({
       id: `${sessionId}-1`, sessionId, exerciseId: 'e1', plannedExerciseKey: 'e1', setIndex: 0, weightKg, reps: 10, kind: 'normal',
       parentSetId: null, completedAt: '2026-10-20T12:30:00.000Z', clientUpdatedAt: '2026-10-20T12:30:00.000Z',

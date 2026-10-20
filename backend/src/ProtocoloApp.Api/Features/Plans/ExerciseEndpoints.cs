@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Auth;
+using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Plans;
@@ -18,6 +19,7 @@ public static class ExerciseEndpoints
         var group = api.MapGroup("/exercises").WithTags("Exercises");
         group.MapGet("/", ListAsync);
         group.MapPut("/{id:guid}", UpdateAsync);
+        group.MapPut("/{id:guid}/catalog", SetCatalogAsync);
     }
 
     private static async Task<Ok<IReadOnlyList<ExerciseResponse>>> ListAsync(ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
@@ -70,6 +72,43 @@ public static class ExerciseEndpoints
 
         exercise.PrimaryMuscleGroup = request!.Group;
         exercise.Aliases = (request.Aliases ?? []).Select(a => a.Trim()).Distinct(StringComparer.Ordinal).ToArray();
+        await SyncWrites.StampAsync(db, exercise, userId, clock, ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        return TypedResults.Ok(PlanMapping.ToResponse(exercise));
+    }
+
+    /// <summary>Links the exercise to a catalog entry (media), or clears the link with null. Group and aliases are untouched.</summary>
+    private static async Task<Results<Ok<ExerciseResponse>, NotFound, ValidationProblem>> SetCatalogAsync(
+        Guid id,
+        SetExerciseCatalogRequest? request,
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        if (request is null)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["body"] = ["Corpo da requisição inválido."] });
+
+        var catalogId = request.CatalogId;
+        if (catalogId is not null
+            && (catalogId.Length > CatalogExercise.MaxIdLength || !await db.CatalogExercises.AnyAsync(c => c.Id == catalogId, ct)))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["catalogId"] = ["Exercício do catálogo não encontrado."] });
+        }
+
+        var userId = principal.GetUserId();
+        await using var transaction = await SyncWrites.BeginAsync(db, userId, ct);
+        var exercise = await db.Exercises.SingleOrDefaultAsync(e => e.Id == id && e.UserId == userId && e.DeletedAt == null, ct);
+        if (exercise is null)
+            return TypedResults.NotFound();
+
+        exercise.CatalogId = catalogId;
         await SyncWrites.StampAsync(db, exercise, userId, clock, ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

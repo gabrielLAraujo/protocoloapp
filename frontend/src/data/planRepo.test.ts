@@ -74,7 +74,7 @@ describe('planRepo', () => {
       entity: 'exercise',
       id: EX_ID,
       version: 1,
-      payload: { name: 'Stiff', normalized_name: 'stiff', primary_muscle_group: 'lower_back', aliases: ['good morning'] },
+      payload: { name: 'Stiff', normalized_name: 'stiff', primary_muscle_group: 'lower_back', aliases: ['good morning'], catalog_id: 'cat-stiff' },
       deletedAt: null,
       clientUpdatedAt: '2026-10-10T12:00:00+00:00',
     })
@@ -85,8 +85,30 @@ describe('planRepo', () => {
       normalizedName: 'stiff',
       primaryMuscleGroup: 'lowerBack',
       aliases: ['good morning'],
+      catalogId: 'cat-stiff',
     })
     expect(await exerciseRepo.all(db)).toHaveLength(1)
+  })
+
+  it('an exercise pulled without catalog_id (an older server) has no catalog link, and a later pull clears it', async () => {
+    const db = await newLocalDb()
+    const record = (payload: Record<string, unknown>, version: number) => ({
+      entity: 'exercise',
+      id: EX_ID,
+      version,
+      payload: { name: 'Stiff', normalized_name: 'stiff', primary_muscle_group: 'hamstrings', aliases: [], ...payload },
+      deletedAt: null,
+      clientUpdatedAt: '2026-10-10T12:00:00+00:00',
+    })
+
+    await exerciseSync.applyRemote(db, record({}, 1))
+    expect((await exerciseRepo.byId(db, EX_ID))?.catalogId).toBeNull()
+
+    await exerciseSync.applyRemote(db, record({ catalog_id: 'cat-1' }, 2))
+    expect((await exerciseRepo.byId(db, EX_ID))?.catalogId).toBe('cat-1')
+
+    await exerciseSync.applyRemote(db, record({ catalog_id: null }, 3))
+    expect((await exerciseRepo.byId(db, EX_ID))?.catalogId).toBeNull()
   })
 
   it('records of the new entities kept as unknown by an older app are applied by the engine', async () => {

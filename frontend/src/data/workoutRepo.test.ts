@@ -302,4 +302,86 @@ describe('workoutRepo.workedOutDates', () => {
     expect(await workoutRepo.workedOutDates(db, '2026-10-01', '2026-10-31')).toEqual(['2026-10-15', '2026-10-19'])
     expect(await workoutRepo.workedOutDates(db, '2026-10-16', '2026-10-18')).toEqual([])
   })
+
+  describe('sub-sets', () => {
+    it('logSubSet copies the parent fields, links it and is idempotent per parent + kind + ordinal', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 1), at(5))
+
+      const d1 = await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(6))
+      // A double tap (or a reopened session) on the same slot writes nothing.
+      expect(await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(6))).toBe(d1)
+      const rp = await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'rest_pause', ordinal: 1, weightKg: 80, reps: 3 }, at(7))
+      const d2 = await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 2, weightKg: 51, reps: 5 }, at(8))
+
+      const sets = await workoutRepo.setsForSession(db, sessionId)
+      expect(sets.map((s) => [s.id, s.kind, s.parentSetId, s.setIndex, s.plannedExerciseKey])).toEqual([
+        [parent, 'normal', null, 1, 'supino'],
+        [d1, 'drop', parent, 1, 'supino'],
+        [rp, 'rest_pause', parent, 1, 'supino'],
+        [d2, 'drop', parent, 1, 'supino'],
+      ])
+      const entries = await outbox.due(db, at(10), 500)
+      expect(entries.filter((e) => e.entity === 'set_log')).toHaveLength(4)
+      expect(JSON.parse(entries.find((e) => e.id === d1)!.payload!)).toMatchObject({ parent_set_id: parent, kind: 'drop', weight_kg: 64, exercise_id: EX })
+    })
+
+    it('logSubSet refuses a parent that is gone', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      await workoutRepo.deleteSet(db, USER_A, parent, at(6))
+      await expect(workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 60, reps: 6 }, at(7))).rejects.toThrow()
+    })
+
+    it('a sub-set is never stored before its parent, even if the clock went back', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 60, reps: 6 }, at(1))
+      const [p, d] = await workoutRepo.setsForSession(db, sessionId)
+      expect(p!.id).toBe(parent)
+      expect(Date.parse(d!.completedAt)).toBeGreaterThan(Date.parse(p!.completedAt))
+    })
+
+    it('deleting a set deletes its sub-sets too, queued before the parent', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      const other = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 1), at(6))
+      const d1 = await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(7))
+      await outbox.ack(db, (await outbox.due(db, at(8), 500)).map((e) => e.seq))
+
+      await workoutRepo.deleteSet(db, USER_A, parent, at(9))
+
+      expect((await workoutRepo.setsForSession(db, sessionId)).map((s) => s.id)).toEqual([other])
+      const entries = await outbox.due(db, at(10), 500)
+      expect(entries.map((e) => [e.id, e.op])).toEqual([
+        [d1, 'delete'],
+        [parent, 'delete'],
+      ])
+    })
+
+    it('a set deleted on another device (pulled tombstone) takes the local sub-sets along', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      const d1 = await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(6))
+      await outbox.ack(db, (await outbox.due(db, at(7), 500)).map((e) => e.seq))
+
+      await setLogSync.applyRemote(db, { entity: 'set_log', id: parent, version: 9, payload: null, deletedAt: '2026-10-18T13:00:00+00:00', clientUpdatedAt: '2026-10-18T13:00:00+00:00' })
+
+      expect(await workoutRepo.setsForSession(db, sessionId)).toEqual([])
+      expect((await outbox.due(db, at(10), 500)).map((e) => [e.id, e.op])).toEqual([[d1, 'delete']])
+    })
+
+    it('the session list counts main sets only', async () => {
+      const db = await newLocalDb()
+      const sessionId = await start(db)
+      const parent = await workoutRepo.logSet(db, USER_A, setInput(sessionId, 0), at(5))
+      await workoutRepo.logSubSet(db, USER_A, { parentSetId: parent, kind: 'drop', ordinal: 1, weightKg: 64, reps: 6 }, at(6))
+      expect((await workoutRepo.sessionSummaries(db, 1, 0))[0]).toMatchObject({ setCount: 1, volume: 80 * 8 + 64 * 6 })
+    })
+  })
 })

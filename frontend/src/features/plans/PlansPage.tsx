@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { api } from '../../api/client'
+import { catalogRepo } from '../../data/catalogRepo'
 import { useData } from '../../data/dataContext'
+import { exerciseRepo } from '../../data/exerciseRepo'
 import { planRepo, type PlanKind, type PlanVersionLocal } from '../../data/planRepo'
 import { parseProtocolDocument, parseWorkoutDocument } from '../../domain/planDocuments'
 import { useSync } from '../sync/syncContext'
@@ -87,7 +90,11 @@ export function PlansPage() {
       const fileId = await uploadPdf(kind, file, (stage) => setBusy({ kind, stage }))
       // Read on the device: the same file the storage now keeps, so the review can still offer the AI on it.
       setBusy({ kind, stage: 'reading' })
-      const reading = await readOnDevice(kind, await fileBytes(file), localDate())
+      // The exercise catalog is refreshed alongside (the review searches it and shows the GIFs); it never rejects.
+      const refreshing = data ? catalogRepo.refresh(data.db, api) : undefined
+      const known = data ? await exerciseRepo.all(data.db).catch(() => []) : []
+      const reading = await readOnDevice(kind, await fileBytes(file), localDate(), known)
+      await refreshing
       const { id, notice } = await createDeviceDraft(kind, fileId, reading)
       if (mounted.current) void navigate(`/planejamento/revisao/${id}`, { state: notice ? { notice } : null })
     } catch (e) {
