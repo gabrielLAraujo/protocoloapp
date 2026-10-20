@@ -67,6 +67,29 @@ herdadas) aparece com "Confira". Um PDF sem texto selecionável (escaneado) ou f
 preencher à mão. Nada é enviado a uma IA; se a API tiver `Anthropic__ApiKey`, a revisão mostra também "Ler com IA", que
 lê o mesmo arquivo pelo servidor e abre um novo rascunho.
 
+## Treino inteligente
+
+A ficha de treino é lida com mais estrutura e a revisão e o treino do dia aproveitam isso.
+
+- **Importação estruturada:** cada exercício da ficha ganha **grupamento muscular** e **par no catálogo** (o exercício
+  equivalente do ExerciseDB, com demonstração) a partir de um dicionário pt-BR de exercícios
+  (`frontend/src/domain/exercise-dictionary.json`), e as **técnicas** escritas na ficha viram campos: drop (`+ drop`,
+  `+ 2 drop`, "drop na última"), rest-pause, bi-set, SST (com os intervalos) e outras. Acerto incerto aparece com "Confira".
+  Tudo roda no aparelho, sem IA.
+- **Revisão por etapas:** Rotação, um passo por dia (linhas compactas com miniatura, grupo, séries e etiquetas de técnica que
+  explicam ao toque), Exercícios novos (grupo e par de demonstração) e Ativar. "Confirmar dia" salva o rascunho; só ativa com
+  todos os dias confirmados. Escolher outro exercício para uma linha "Confira" ensina o apelido ao exercício.
+- **GIFs do ExerciseDB:** o servidor copia só o **catálogo** (nome, músculos, equipamento e o endereço do GIF) de
+  `oss.exercisedb.dev` em segundo plano, no primeiro start e depois a cada 30 dias. Os GIFs **não** são copiados nem ficam no
+  repositório: o app carrega cada um do site do ExerciseDB (`static.exercisedb.dev`) e guarda um cache local limitado
+  (até 60 GIFs, 90 dias). Uso pessoal; confira os termos do ExerciseDB antes de qualquer outro uso. No app nativo
+  (Android e iOS) não há service worker, então **não há GIF offline** lá: sem internet aparece só o link "Ver no YouTube".
+  Sem catálogo (sincronização desligada ou ainda não concluída) o app funciona igual, sem os GIFs.
+- **Técnicas no treino:** a série com drop ganha, depois de concluída, as linhas "Drop 1", "Drop 2" com a carga sugerida
+  (cerca de 20% menos que a anterior); rest-pause gera linhas com a mesma carga e descanso curto. Elas contam no volume mas
+  não em recordes. Bi-set agrupa os dois exercícios num bloco que alterna as séries e só descansa depois do par. SST usa os
+  intervalos curtos da ficha como descanso entre as séries.
+
 ## Documentação
 
 | O quê | Onde |
@@ -75,6 +98,7 @@ lê o mesmo arquivo pelo servidor e abre um novo rascunho.
 | Spec de Planejamento, Treino e Resumo | [docs/superpowers/specs/2026-10-18-planejamento-treino-resumo-design.md](docs/superpowers/specs/2026-10-18-planejamento-treino-resumo-design.md) |
 | Spec de Hoje e lembretes | [docs/superpowers/specs/2026-10-19-hoje-lembretes-design.md](docs/superpowers/specs/2026-10-19-hoje-lembretes-design.md) |
 | Spec de Check-in em partes e gamificação | [docs/superpowers/specs/2026-10-19-checkin-gamificacao-design.md](docs/superpowers/specs/2026-10-19-checkin-gamificacao-design.md) |
+| Spec do Treino inteligente | [docs/superpowers/specs/2026-10-20-treino-inteligente-design.md](docs/superpowers/specs/2026-10-20-treino-inteligente-design.md) |
 | Plano da Fundação | [docs/superpowers/plans/2026-10-18-fundacao.md](docs/superpowers/plans/2026-10-18-fundacao.md) |
 | Deploy no Coolify (passo a passo) | [docs/runbooks/deploy-coolify.md](docs/runbooks/deploy-coolify.md) |
 | CI, APK e release | [docs/ci/README.md](docs/ci/README.md) |

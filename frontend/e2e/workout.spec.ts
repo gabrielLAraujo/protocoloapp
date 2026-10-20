@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { expect, test, type Page, type Response } from '@playwright/test'
+import { expect, test, type BrowserContext, type Page, type Response } from '@playwright/test'
 // @ts-expect-error plain JS fixture builder, no types
 import { protocolPdf, scannedPdf, workoutPdf } from './fixtures/make-pdfs.mjs'
 import { login } from './support/auth.ts'
@@ -13,6 +13,27 @@ interface StubRequest {
   pdfBytes: number
   pdfIsPdf: boolean
   pdfSha256: string | null
+}
+
+// The e2e backend runs with ExerciseCatalog disabled (no call to ExerciseDB): the catalog the app asks for is a single
+// fictitious item, the pair of the dictionary's "Supino reto" (its id), and its GIF is a 1x1 image served by the test.
+const CATALOG_ID = 'EIeI8Vf'
+const GIF_URL = 'https://static.exercisedb.dev/media/test.gif'
+const TINY_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
+
+async function stubCatalog(context: BrowserContext) {
+  await context.route('**/api/exercise-catalog', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { etag: '"e2e-1"' },
+      body: JSON.stringify({
+        version: 'e2e-1',
+        items: [{ id: CATALOG_ID, name: 'barbell bench press', bodyParts: ['chest'], targetMuscles: ['pectorals'], equipments: ['barbell'], gifUrl: GIF_URL }],
+      }),
+    }),
+  )
+  await context.route(GIF_URL, (route) => route.fulfill({ status: 200, contentType: 'image/gif', body: TINY_GIF }))
 }
 
 const pdfFile = (name: string, buffer: Buffer) => ({ name, mimeType: 'application/pdf', buffer })
@@ -64,6 +85,7 @@ async function activate(page: Page, title: 'Protocolo' | 'Treino') {
 // timezone (America/Sao_Paulo, playwright.config.ts) matches the stub's "today" (UTC-3), so midnight cannot split them.
 test('imports a workout plan, logs a session offline and sees it in the summary', async ({ browser }) => {
   const context = await browser.newContext()
+  await stubCatalog(context)
   const page = await context.newPage()
   const before = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
 
@@ -86,9 +108,19 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   await expect(page.getByLabel('Nome do dia')).toHaveValue('Treino A - Exemplo')
   // The wrapped line is one exercise with its rest; the exercise without sets inherits the day's, marked for review.
   await expect(page.getByRole('button', { name: 'Editar Exercicio Ficticio Gama' }).locator('..')).toContainText('descanso 60 s')
+  // The dictionary knows "Supino reto": its group and the "+ drop" of the sheet show on the row as tags.
+  const supinoRow = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Editar Supino reto' }) })
+  await expect(supinoRow.getByText('Peito', { exact: true })).toBeVisible()
+  await supinoRow.getByRole('button', { name: 'Drop', exact: true }).click()
+  await expect(supinoRow.getByRole('note')).toContainText('reduza a carga')
   await page.getByRole('button', { name: 'Confirmar dia' }).click()
   await expect(page.getByLabel('Nome do dia')).toHaveValue('Treino B - Exemplo')
   await expect(page.getByText('Confira').first()).toBeVisible()
+  const sstRow = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Editar Exercicio Ficticio Delta' }) })
+  await expect(sstRow.getByRole('button', { name: 'SST', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Confirmar dia' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: 'Exercícios novos' })).toBeVisible()
+  await expect(page.getByText('Supino reto').first()).toBeVisible()
   await stepToActivate(page)
   await activate(page, 'Treino')
 
@@ -102,12 +134,34 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   const planned = page.getByRole('list', { name: 'Exercícios do dia' })
   await expect(planned.getByText('Exercicio Ficticio Alfa')).toBeVisible()
   await expect(planned.getByText('Exercicio Ficticio Gama')).toBeVisible()
+  await expect(planned.getByText('Supino reto')).toBeVisible()
   // The activation sync brought the new exercises to the device before the session starts.
   await expectSynced(page)
   await page.getByRole('button', { name: 'Começar treino' }).click()
 
   const card = page.getByRole('region', { name: 'Exercicio Ficticio Alfa' })
   await expect(card.getByLabel('Carga da série 1 (kg)')).toBeVisible()
+
+  // The catalog pair shows as a demonstration box in the card (the GIF comes from ExerciseDB's site; here, the stub).
+  const supino = page.getByRole('region', { name: 'Supino reto' })
+  await expect(supino.getByRole('button', { name: 'Ampliar demonstração de Supino reto' })).toBeVisible()
+  await expect(supino.locator(`img[src="${GIF_URL}"]`)).toHaveCount(1)
+  await expect(supino.getByRole('button', { name: 'Drop', exact: true })).toBeVisible()
+
+  // A set with a drop: ticking the main set opens the "Drop 1" row with the suggested load (-20 %), ticking it saves it.
+  await supino.getByLabel('Carga da série 1 (kg)').fill('50')
+  await supino.getByLabel('Repetições da série 1').fill('12')
+  await supino.getByRole('button', { name: 'Concluir série 1' }).click()
+  await expect(supino.getByRole('button', { name: 'Editar série 1' })).toBeVisible()
+  await expect(supino.getByLabel('Carga do drop 1 da série 1 (kg)')).toHaveCount(0)
+  await supino.getByLabel('Carga da série 2 (kg)').fill('60')
+  await supino.getByLabel('Repetições da série 2').fill('8')
+  await supino.getByRole('button', { name: 'Concluir série 2' }).click()
+  await expect(supino.getByRole('button', { name: 'Editar série 2' })).toBeVisible()
+  await expect(supino.getByLabel('Carga do drop 1 da série 2 (kg)')).toHaveValue('48')
+  await supino.getByLabel('Repetições do drop 1 da série 2').fill('10')
+  await supino.getByRole('button', { name: 'Concluir drop 1 da série 2' }).click()
+  await expect(supino.getByRole('button', { name: 'Editar drop 1 da série 2' })).toBeVisible()
 
   // Offline: two sets are saved on the device only.
   await context.setOffline(true)

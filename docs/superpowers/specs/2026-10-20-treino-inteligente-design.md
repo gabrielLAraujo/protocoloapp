@@ -1,7 +1,7 @@
 # Subprojeto 6 — Treino inteligente: importação estruturada, mídia dos exercícios e revisão por dia
 
 - **Data:** 2026-10-20
-- **Status:** desenho aprovado pelo Gabriel em conversa (fonte de mídia: GIFs do ExerciseDB; grupamento: dicionário próprio; técnicas: etiqueta + explicação, sub-séries automáticas, bi-set agrupado; abordagem A). Detalhes decididos pelo Claude com delegação ("prossiga tomando as decisões").
+- **Status:** implementado (branch `feat/treino-inteligente`, aguardando OK do Gabriel para o merge). Desenho aprovado pelo Gabriel em conversa (fonte de mídia: GIFs do ExerciseDB; grupamento: dicionário próprio; técnicas: etiqueta + explicação, sub-séries automáticas, bi-set agrupado; abordagem A). Detalhes decididos pelo Claude com delegação ("prossiga tomando as decisões").
 - **Base:** `2026-10-19-leitor-pdf-design.md` (leitor local), `2026-10-18-planejamento-treino-resumo-design.md` (documento da ficha, sessão de treino).
 
 ## 1. Objetivo
