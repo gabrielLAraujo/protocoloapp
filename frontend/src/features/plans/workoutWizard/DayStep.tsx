@@ -43,7 +43,7 @@ export function DayStep(props: Props) {
                 key={exercise.key || j}
                 exercise={exercise}
                 base={`${base}.exercises[${j}]`}
-                catalogId={linked?.catalogId ?? entry?.catalogId ?? known?.catalogId ?? null}
+                catalogId={linked?.catalogId ?? exercise.catalogId ?? entry?.catalogId ?? known?.catalogId ?? null}
                 group={linked?.primaryMuscleGroup ?? entry?.group ?? known?.primaryMuscleGroup ?? null}
                 linked={linked}
                 onEdit={() => setEditing(j)}

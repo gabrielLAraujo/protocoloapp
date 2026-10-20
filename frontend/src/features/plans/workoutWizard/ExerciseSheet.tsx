@@ -61,19 +61,24 @@ export function ExerciseSheet(props: Props) {
     setMode('edit')
   }
   const pickCatalog = (item: CatalogExercise) => {
-    const target = linked.entry?.id ?? ownId
-    onChange(setIn(doc, `${base}.exerciseId`, undefined))
-    onCatalogChange(target, item.id)
+    if (linked.kind === 'user') {
+      // A user's exercise keeps its link; the planned exercise carries the pair for activation to give it (when it has none).
+      set('catalogId', item.id)
+    } else {
+      const target = linked.entry?.id ?? ownId
+      onCatalogChange(target, item.id)
+    }
     setMode('edit')
   }
 
   /** A new name drops the old demonstration; the dictionary may know a pair for the new one. */
   const rename = (value: string) => {
-    set('name', value)
-    if (linked.kind === 'new' && linked.catalogId) {
-      const match = matchExercise(value, { userExercises, dictionary: EXERCISE_DICTIONARY })
-      onCatalogChange(ownId, match.kind === 'dictionary' && match.confidence === 'high' ? match.entry.catalogId : null)
-    }
+    const hit = matchExercise(value, { userExercises: [], dictionary: EXERCISE_DICTIONARY })
+    const recomputed = hit.kind === 'dictionary' && hit.confidence === 'high' ? hit.entry.catalogId : null
+    let next = setIn(doc, `${base}.name`, value)
+    if (exercise.catalogId) next = setIn(next, `${base}.catalogId`, recomputed ?? undefined)
+    onChange(next)
+    if (linked.kind === 'new' && linked.catalogId) onCatalogChange(linked.entry?.id ?? ownId, recomputed)
   }
   /** Closing the sheet on a flagged ("Confira") exercise that points to one of the user's is the user accepting that link. */
   const close = () => {
@@ -125,12 +130,12 @@ export function ExerciseSheet(props: Props) {
             {linked.kind === 'user' || linked.catalogId ? 'Trocar' : 'Escolher par'}
           </button>
           {linked.kind === 'user' && (
-            <button type="button" className={buttonClass} onClick={() => set('exerciseId', undefined)}>
+            <button type="button" className={buttonClass} onClick={() => onChange(setIn(setIn(doc, `${base}.exerciseId`, undefined), `${base}.aliasConfirmed`, undefined))}>
               Desvincular
             </button>
           )}
-          {linked.kind === 'new' && linked.catalogId && (
-            <button type="button" className={buttonClass} onClick={() => onCatalogChange(linked.entry?.id ?? ownId, null)}>
+          {((linked.kind === 'new' && linked.catalogId) || (linked.kind === 'user' && exercise.catalogId)) && (
+            <button type="button" className={buttonClass} onClick={() => (linked.kind === 'user' ? set('catalogId', undefined) : onCatalogChange(linked.entry?.id ?? ownId, null))}>
               Remover par
             </button>
           )}
@@ -174,7 +179,7 @@ function linkedOf(exercise: PlannedExercise | undefined, userExercises: readonly
   const normalized = normalizeExerciseName(exercise.name)
   if (exercise.exerciseId) {
     const user = userExercises.find((e) => e.id === exercise.exerciseId)
-    return { kind: 'user', entry: null, catalogId: user?.catalogId ?? null, displayName: user?.name ?? null }
+    return { kind: 'user', entry: null, catalogId: user?.catalogId ?? exercise.catalogId ?? null, displayName: user?.name ?? null }
   }
   const entry = newExercises.find((n) => normalizeExerciseName(n.name) === normalized) ?? null
   if (entry) return { kind: 'new', entry, catalogId: entry.catalogId ?? null, displayName: entry.name }
