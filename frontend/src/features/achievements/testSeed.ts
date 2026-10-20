@@ -23,7 +23,7 @@ export async function seedGamificationHistory(db: LocalDb) {
     payload: {
       kind: 'protocol',
       status: 'active',
-      document: { phaseName: 'Fase teste', updateDate: '2026-11-15', meals: [{ key: '1', label: 'REF 1', items: [{ food: 'Ovos', grams: 100 }] }], items: [], cardio: null, guidelines: [] },
+      document: { phaseName: 'Fase teste', updateDate: '2026-12-05', meals: [{ key: '1', label: 'REF 1', items: [{ food: 'Ovos', grams: 100 }] }], items: [], cardio: null, guidelines: [] },
       activated_at: new Date(2026, 9, 12, 8).toISOString(),
       low_confidence: [],
     },

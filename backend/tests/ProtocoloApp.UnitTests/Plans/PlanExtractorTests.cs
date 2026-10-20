@@ -55,7 +55,7 @@ public sealed class PlanExtractorTests
     [Fact]
     public async Task Valid_workout_reply_returns_document_low_confidence_and_new_exercises()
     {
-        var known = new ExerciseHint(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Supino inclinado halteres", MuscleGroup.Chest);
+        var known = new ExerciseHint(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Rosca alternada halteres", MuscleGroup.Chest);
         var handler = new FakeHandler((_, _) => Json(Fixture("anthropic-workout-response.json")));
 
         var result = await Extract(Create(handler), PlanKind.Workout, known);
@@ -77,6 +77,21 @@ public sealed class PlanExtractorTests
             new[] { new NewExerciseSuggestion("Exercicio Ficticio Alfa", MuscleGroup.Chest), new NewExerciseSuggestion("Exercicio Ficticio Beta", MuscleGroup.Other) },
             result.NewExercises);
         Assert.NotNull(result.Raw);
+    }
+
+    [Fact]
+    public async Task Exercise_named_like_an_alias_is_linked_and_not_suggested_again()
+    {
+        var known = new ExerciseHint(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Exercicio Ficticio Gama", MuscleGroup.Chest, ["Exercício fictício alfa"]);
+        var handler = new FakeHandler((_, _) => Json(Fixture("anthropic-workout-response.json")));
+
+        var result = await Extract(Create(handler), PlanKind.Workout, known);
+
+        Assert.True(result.IsSuccess);
+        var workout = PlanDocuments.Deserialize<WorkoutDocument>(result.Document!.RootElement)!;
+        Assert.Equal(known.Id, workout.Days[0].Exercises[1].ExerciseId);
+        Assert.Null(workout.Days[0].Exercises[0].ExerciseId);
+        Assert.Equal(new[] { new NewExerciseSuggestion("Exercicio Ficticio Beta", MuscleGroup.Other) }, result.NewExercises);
     }
 
     [Fact]
@@ -318,7 +333,7 @@ public sealed class PlanExtractorTests
     [Fact]
     public async Task Request_forces_the_tool_and_carries_headers_pdf_schema_and_prompt()
     {
-        var known = new ExerciseHint(Guid.Parse("22222222-2222-2222-2222-222222222222"), "Leg 45", MuscleGroup.Quads);
+        var known = new ExerciseHint(Guid.Parse("22222222-2222-2222-2222-222222222222"), "Leg press", MuscleGroup.Quads);
         var handler = new FakeHandler((_, _) => Json(Fixture("anthropic-workout-response.json")));
 
         await Extract(Create(handler), PlanKind.Workout, known);
@@ -347,7 +362,7 @@ public sealed class PlanExtractorTests
         Assert.Equal(Convert.ToBase64String(PdfBytes), document.GetProperty("source").GetProperty("data").GetString());
         var prompt = content[1].GetProperty("text").GetString()!;
         Assert.Contains("2026-10-18", prompt);
-        Assert.Contains("22222222-2222-2222-2222-222222222222 | Leg 45 | quads", prompt);
+        Assert.Contains("22222222-2222-2222-2222-222222222222 | Leg press | quads", prompt);
         Assert.Contains("DESCANSO", prompt);
     }
 }

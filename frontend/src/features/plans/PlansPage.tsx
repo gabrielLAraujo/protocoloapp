@@ -6,6 +6,8 @@ import { parseProtocolDocument, parseWorkoutDocument } from '../../domain/planDo
 import { useSync } from '../sync/syncContext'
 import { CycleDatesForm } from './CycleDatesForm'
 import { formatDayMonth, formatInstantDayMonth } from './labels'
+import { localDate } from '../checkin/localDate'
+import { createDeviceDraft, fileBytes, readOnDevice } from './importPlan'
 import { ImportError, OFFLINE_IMPORT_MESSAGE, uploadPdf, type UploadStage } from './uploadPdf'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { Icon, type IconName } from '../../ui/Icon'
@@ -47,9 +49,6 @@ export function PlansPage() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState<{ kind: PlanKind; stage: UploadStage } | null>(null)
-  // When the server started reading (Date.now()) and the clock that ticks while it does.
-  const [readingSince, setReadingSince] = useState<number | null>(null)
-  const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<{ kind: PlanKind; message: string } | null>(null)
   const [editingDates, setEditingDates] = useState(false)
   // Synchronous guard: two quick picks must not start two imports (state updates are not visible yet).
@@ -79,32 +78,22 @@ export function PlansPage() {
     }
   }, [data, dataVersion])
 
-  useEffect(() => {
-    if (readingSince === null) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [readingSince])
-  const elapsed = readingSince === null ? 0 : Math.max(0, Math.floor((now - readingSince) / 1000))
-
   const send = async (kind: PlanKind, file: File | undefined) => {
     if (!file || importing.current) return
     importing.current = true
     setError(null)
     setBusy({ kind, stage: 'uploading' })
     try {
-      const id = await uploadPdf(kind, file, (stage) => {
-        if (stage === 'reading') {
-          setReadingSince(Date.now())
-          setNow(Date.now())
-        }
-        setBusy({ kind, stage })
-      })
-      if (mounted.current) void navigate(`/planejamento/revisao/${id}`)
+      const fileId = await uploadPdf(kind, file, (stage) => setBusy({ kind, stage }))
+      // Read on the device: the same file the storage now keeps, so the review can still offer the AI on it.
+      setBusy({ kind, stage: 'reading' })
+      const reading = await readOnDevice(kind, await fileBytes(file), localDate())
+      const { id, notice } = await createDeviceDraft(kind, fileId, reading)
+      if (mounted.current) void navigate(`/planejamento/revisao/${id}`, { state: notice ? { notice } : null })
     } catch (e) {
       setError({ kind, message: e instanceof ImportError ? e.message : 'Não foi possível importar o PDF. Tente novamente.' })
     } finally {
       importing.current = false
-      setReadingSince(null)
       setBusy(null)
     }
   }
@@ -145,14 +134,7 @@ export function PlansPage() {
 
             {mine && (
               <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium tabular-nums">
-                {mine.stage === 'uploading' ? (
-                  'Enviando o PDF…'
-                ) : (
-                  <>
-                    Lendo o PDF… {elapsed} s
-                    <span className="block text-muted">Pode demorar até 90 segundos. Não feche esta tela.</span>
-                  </>
-                )}
+                {mine.stage === 'uploading' ? 'Enviando o PDF…' : 'Lendo o PDF…'}
               </p>
             )}
             {error?.kind === kind && (

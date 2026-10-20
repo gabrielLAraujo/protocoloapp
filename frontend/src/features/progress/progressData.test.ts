@@ -30,7 +30,7 @@ const record = (id: string, kind: string, document: unknown, activatedAt: string
 })
 
 const protocol: ProtocolDocument = {
-  updateDate: '2026-11-15',
+  updateDate: '2026-12-05',
   meals: [{ key: '1', label: 'Café', items: [] }],
   items: [],
   guidelines: [{ kind: 'water_min_l', value: 2 }],
@@ -76,7 +76,7 @@ describe('loadProgress', () => {
     // Wednesday below 90 % reset it; today is on target, so it joins.
     expect(p.streak).toEqual({ current: 1, best: 2 })
     expect(p.cycleBest).toBe(2)
-    expect(p.cycle).toMatchObject({ activatedOn: '2026-10-19', end: '2026-11-15' })
+    expect(p.cycle).toMatchObject({ activatedOn: '2026-10-19', end: '2026-12-05' })
 
     expect(p.week.map((d) => [d.date, d.when])).toEqual([
       ['2026-10-19', 'past'], ['2026-10-20', 'past'], ['2026-10-21', 'past'], [TODAY, 'today'],
@@ -92,8 +92,8 @@ describe('loadProgress', () => {
     const medal = (key: string) => p.medals.find((m) => m.key === key)
     expect(medal('streak_7')).toMatchObject({ earnedOn: null, progress: { value: 1, target: 7 } })
     expect(medal('diet_100_7')).toMatchObject({ earnedOn: null, progress: { value: 4, target: 7 } })
-    // The cycle runs to 11-15: Mon/Wed/Fri from 10-19 = 12 planned, 1 done.
-    expect(medal('all_workouts_cycle')).toMatchObject({ earnedOn: null, progress: { value: 1, target: 12 } })
+    // The cycle runs to 12-05: Mon/Wed/Fri from 10-19 = 21 planned, 1 done.
+    expect(medal('all_workouts_cycle')).toMatchObject({ earnedOn: null, progress: { value: 1, target: 21 } })
   })
 
   it('today counts only what is due or marked, by the given clock', async () => {

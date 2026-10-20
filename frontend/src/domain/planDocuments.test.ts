@@ -37,7 +37,7 @@ const workout = {
           name: 'Supino exemplo',
           sets: [{ repsMin: 8, repsMax: 10 }, { repsMin: 6, repsMax: 8, technique: 'drop' }],
           restSeconds: 90,
-          restSequence: [45, 30, 15],
+          restSequence: [40, 25, 10],
           technique: 'SST',
           supersetWith: 'a2',
         },
@@ -89,7 +89,7 @@ describe('parseWorkoutDocument', () => {
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.value.rotation?.items).toEqual(['A', 'B', 'off'])
-      expect(r.value.days[0].exercises[0].restSequence).toEqual([45, 30, 15])
+      expect(r.value.days[0].exercises[0].restSequence).toEqual([40, 25, 10])
       expect(r.value.days[0].exercises[0].supersetWith).toBe('a2')
     }
   })

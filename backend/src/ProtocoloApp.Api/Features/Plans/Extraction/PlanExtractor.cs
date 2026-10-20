@@ -140,7 +140,7 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             if (!PlanDocuments.TryRead<WorkoutDocument>(documentElement, out var workout, out _))
                 return null;
 
-            workout = LinkExercises(workout!, known, lowConfidence);
+            workout = ExerciseLinking.LinkExercises(workout!, known, lowConfidence);
             if (!new WorkoutDocumentValidator().Validate(workout).IsValid)
                 return null;
 
@@ -151,93 +151,17 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
         return new PlanExtractionResult(
             JsonDocument.Parse(normalized.GetRawText()),
             JsonDocument.Parse(input.GetRawText()),
-            lowConfidence.Select(StripPrefix).Distinct(StringComparer.Ordinal).Where(path => Resolves(normalized, path)).ToList(),
+            ExerciseLinking.CleanLowConfidence(lowConfidence, normalized),
             newExercises,
             null);
-    }
-
-    private static string StripPrefix(string path)
-    {
-        path = path.Trim();
-        foreach (var prefix in new[] { "$.", "document." })
-        {
-            if (path.StartsWith(prefix, StringComparison.Ordinal))
-                return path[prefix.Length..];
-        }
-
-        return path;
-    }
-
-    /// <summary>Whether a path such as <c>days[0].exercises[1].sets</c> exists in the document (a property with a null value exists).</summary>
-    internal static bool Resolves(JsonElement root, string path)
-    {
-        var node = root;
-        foreach (var segment in path.Split('.'))
-        {
-            var bracket = segment.IndexOf('[', StringComparison.Ordinal);
-            var name = bracket < 0 ? segment : segment[..bracket];
-            if (name.Length > 0 && (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(name, out node)))
-                return false;
-
-            var rest = bracket < 0 ? "" : segment[bracket..];
-            while (rest.Length > 0)
-            {
-                var close = rest.IndexOf(']', StringComparison.Ordinal);
-                if (rest[0] != '[' || close < 2 || !int.TryParse(rest[1..close], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index)
-                    || node.ValueKind != JsonValueKind.Array || index >= node.GetArrayLength())
-                {
-                    return false;
-                }
-
-                node = node[index];
-                rest = rest[(close + 1)..];
-            }
-        }
-
-        return path.Length > 0;
-    }
-
-    /// <summary>
-    /// Keeps only exercise ids the user's catalog has (a made-up id becomes null and low confidence) and fills the id of
-    /// an exercise whose normalized name matches a known one.
-    /// </summary>
-    private static WorkoutDocument LinkExercises(WorkoutDocument workout, IReadOnlyList<ExerciseHint> known, List<string> lowConfidence)
-    {
-        var byId = known.Select(k => k.Id).ToHashSet();
-        var byName = new Dictionary<string, Guid>(StringComparer.Ordinal);
-        foreach (var hint in known)
-            byName.TryAdd(ExerciseNames.Normalize(hint.Name), hint.Id);
-
-        var days = (workout.Days ?? []).Select((day, i) => day is null ? day! : day with
-        {
-            Exercises = (day.Exercises ?? []).Select((exercise, j) =>
-            {
-                if (exercise is null)
-                    return exercise!; // kept as is: the validator reports the null element
-
-                var id = exercise.ExerciseId;
-                if (id is { } given && !byId.Contains(given))
-                {
-                    id = null;
-                    lowConfidence.Add($"days[{i}].exercises[{j}].exerciseId");
-                }
-
-                if (id is null && !string.IsNullOrWhiteSpace(exercise.Name) && byName.TryGetValue(ExerciseNames.Normalize(exercise.Name), out var match))
-                    id = match;
-
-                return exercise with { ExerciseId = id };
-            }).ToList(),
-        }).ToList();
-
-        return workout with { Days = days };
     }
 
     private static IEnumerable<NewExerciseSuggestion> ReadNewExercises(JsonElement input, IReadOnlyList<ExerciseHint> known)
     {
         if (!input.TryGetProperty("newExercises", out var list) || list.ValueKind != JsonValueKind.Array)
-            yield break;
+            return [];
 
-        var skip = known.Select(k => ExerciseNames.Normalize(k.Name)).ToHashSet(StringComparer.Ordinal);
+        var parsed = new List<NewExerciseSuggestion>();
         foreach (var element in list.EnumerateArray())
         {
             if (element.ValueKind != JsonValueKind.Object
@@ -245,11 +169,6 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
             {
                 continue;
             }
-
-            var name = nameElement.GetString()!.Trim();
-            var normalized = ExerciseNames.Normalize(name);
-            if (!ExerciseNames.IsUsable(normalized) || !skip.Add(normalized))
-                continue;
 
             var group = MuscleGroup.Other;
             if (element.TryGetProperty("group", out var groupElement) && groupElement.ValueKind == JsonValueKind.String)
@@ -263,7 +182,9 @@ public sealed class PlanExtractor(AnthropicClient client, IOptions<AnthropicOpti
                 }
             }
 
-            yield return new NewExerciseSuggestion(name, group);
+            parsed.Add(new NewExerciseSuggestion(nameElement.GetString()!, group));
         }
+
+        return ExerciseLinking.WithoutKnown(parsed, known);
     }
 }

@@ -10,7 +10,7 @@ import { adherenceRates, buildSummary, formatRate, type SummaryInput } from './s
 
 const TODAY = '2026-10-27'
 const protocolDoc = (extra: Partial<ProtocolDocument> = {}): ProtocolDocument => ({
-  updateDate: '2026-11-15',
+  updateDate: '2026-12-05',
   billingDate: '2026-11-05',
   meals: [],
   items: [],
@@ -56,7 +56,7 @@ describe('buildSummary', () => {
   it('counts workouts done and planned up to today and marks missed days', () => {
     const s = buildSummary(input(withSets('2026-10-20', '2026-10-22', '2026-10-23', '2026-10-26')), TODAY)
     expect(s.workouts).toEqual({ done: 4, planned: 6 })
-    expect(s.cycle?.daysLeft).toBe(19)
+    expect(s.cycle?.daysLeft).toBe(39)
     const state = (d: string) => s.calendar.find((c) => c.date === d)?.state
     expect(state('2026-10-20')).toBe('done')
     expect(state('2026-10-24')).toBe('missed')
@@ -64,7 +64,7 @@ describe('buildSummary', () => {
     expect(state('2026-10-27')).toBe('today')
     expect(state('2026-10-28')).toBe('future')
     expect(s.calendar[0].date).toBe('2026-10-20')
-    expect(s.calendar.at(-1)?.date).toBe('2026-11-15')
+    expect(s.calendar.at(-1)?.date).toBe('2026-12-05')
   })
 
   it('a session without working sets (empty or warm-up only) is not a workout done', () => {
@@ -157,7 +157,7 @@ describe('buildSummary', () => {
   })
 
   it('marks an overdue cycle and stops the stats at the update date', () => {
-    const s = buildSummary(input(withSets('2026-10-20', '2026-12-01')), '2026-11-20')
+    const s = buildSummary(input(withSets('2026-10-20', '2026-12-08')), '2026-12-10')
     expect(s.cycle?.overdueDays).toBe(5)
     expect(s.cycle?.daysLeft).toBe(0)
     expect(s.workouts.done).toBe(1)

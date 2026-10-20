@@ -62,7 +62,7 @@ describe('SummaryPage', () => {
               entity: 'plan_version',
               id,
               version: 2,
-              payload: { kind: 'protocol', status: 'active', document: { phaseName: 'Fase 1', updateDate: '2026-11-15', billingDate: '2026-11-05' }, activated_at: new Date(2026, 9, 20, 12).toISOString(), low_confidence: [] },
+              payload: { kind: 'protocol', status: 'active', document: { phaseName: 'Fase 1', updateDate: '2026-12-05', billingDate: '2026-11-05' }, activated_at: new Date(2026, 9, 20, 12).toISOString(), low_confidence: [] },
               deletedAt: null,
               clientUpdatedAt: '2026-10-27T12:00:00.000000+00:00',
             },
@@ -77,13 +77,13 @@ describe('SummaryPage', () => {
     const save = screen.getByRole('button', { name: 'Salvar' })
     expect(save).toBeDisabled() // the update date is required here
 
-    await user.type(screen.getByLabelText('Próxima atualização'), '2026-11-15')
+    await user.type(screen.getByLabelText('Próxima atualização'), '2026-12-05')
     await user.type(screen.getByLabelText('Mensalidade'), '2026-11-05')
     await user.click(save)
 
-    expect(await screen.findByText('Faltam 19 dias para a atualização')).toBeInTheDocument()
+    expect(await screen.findByText('Faltam 39 dias para a atualização')).toBeInTheDocument()
     const patch = calls.find((c) => c.method === 'PATCH')!
-    expect(JSON.parse(patch.body)).toEqual({ updateDate: '2026-11-15', billingDate: '2026-11-05' })
+    expect(JSON.parse(patch.body)).toEqual({ updateDate: '2026-12-05', billingDate: '2026-11-05' })
   })
 
   it('offline, the form says to connect and cannot save', async () => {
@@ -101,7 +101,7 @@ describe('SummaryPage', () => {
     await seedExercises(app.db)
     await seedPlan(app.db, ['a', 'b']) // sequence from 2026-10-18: a, b, a, b...
     await seedProtocol(app.db, {
-      updateDate: '2026-11-15',
+      updateDate: '2026-12-05',
       billingDate: '2026-11-05',
       cardio: { daily: true },
       guidelines: [{ kind: 'water_min_l', value: 3 }],
@@ -114,7 +114,7 @@ describe('SummaryPage', () => {
     await dailyCheckinRepo.setCardio(app.db, USER_A, '2026-10-26', { done: true, minutes: 30 }, at)
     app.view(<SummaryPage />)
 
-    expect(await screen.findByText('Faltam 19 dias para a atualização')).toBeInTheDocument()
+    expect(await screen.findByText('Faltam 39 dias para a atualização')).toBeInTheDocument()
     expect(screen.getByText('05/11')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'Andamento do ciclo' })).toBeInTheDocument()
 
@@ -151,7 +151,7 @@ describe('SummaryPage', () => {
     vi.mocked(loadProgress).mockRejectedValueOnce(new Error('boom'))
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const app = await setupApp()
-    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
     app.view(<SummaryPage />)
 
     expect(await screen.findByRole('region', { name: 'Números do ciclo' })).toBeInTheDocument()
@@ -162,7 +162,7 @@ describe('SummaryPage', () => {
 
   it('"Semanas na meta" says so when no week has closed yet', async () => {
     const app = await setupApp()
-    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
     app.view(<SummaryPage />)
 
     const card = within(await screen.findByRole('region', { name: 'Constância' }))
@@ -183,7 +183,7 @@ describe('SummaryPage', () => {
     const app = await setupApp()
     await seedExercises(app.db)
     await seedPlan(app.db, ['a', 'off']) // anchored on 2026-10-18 (a), so 2026-10-28 would be a workout day
-    await seedProtocol(app.db, { updateDate: '2026-11-15' }) // cycle starts on the 20th
+    await seedProtocol(app.db, { updateDate: '2026-12-05' }) // cycle starts on the 20th
     // Before the cycle start but after the workout version was activated (10-10): postpones the rotation by one day.
     await rotationOverrideRepo.set(app.db, USER_A, '2026-10-12', 'off', new Date(2026, 9, 12, 8))
     app.view(<SummaryPage />)
@@ -196,7 +196,7 @@ describe('SummaryPage', () => {
     vi.setSystemTime(new Date(2026, 9, 23, 12, 0)) // cycle 20..23: four days
     const app = await setupApp()
     await seedProtocol(app.db, {
-      updateDate: '2026-11-15',
+      updateDate: '2026-12-05',
       meals: [{ key: '1', label: 'REF 1', items: [] }],
       items: [{ key: 'creatina', category: 'supplement', name: 'Creatina', timing: 'any', schedule: { type: 'daily' } }],
     })
@@ -221,7 +221,7 @@ describe('SummaryPage', () => {
 
   it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {
     const app = await setupApp()
-    await seedProtocol(app.db, { updateDate: '2026-11-15', cardio: { daily: true } })
+    await seedProtocol(app.db, { updateDate: '2026-12-05', cardio: { daily: true } })
     const checkin = async (date: string, cardioDone: boolean) => {
       const at = new Date(2026, 9, 27, 12)
       await dailyCheckinRepo.saveMorning(app.db, USER_A, date, { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: null }, at)
@@ -243,7 +243,7 @@ describe('SummaryPage', () => {
 
   it('Dieta shows "—" when the protocol has no meals', async () => {
     const app = await setupApp()
-    await seedProtocol(app.db, { updateDate: '2026-11-15' })
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
     app.view(<SummaryPage />)
     const diet = (await screen.findByText('Dieta')).parentElement!
     expect(within(diet).getByText('—')).toBeInTheDocument()

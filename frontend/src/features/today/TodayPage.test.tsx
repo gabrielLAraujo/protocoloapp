@@ -27,7 +27,7 @@ beforeEach(() => {
 /** A fictitious protocol: two meals, an item with REF 1, an untimed item and daily cardio. */
 const protocolDocument = {
   phaseName: 'Fase teste',
-  updateDate: '2026-11-15',
+  updateDate: '2026-12-05',
   meals: [
     { key: '1', label: 'REF 1', items: [{ food: 'Ovos', grams: 100, alternatives: ['Claras'] }] },
     { key: '2', label: 'REF 2', items: [{ food: 'Arroz', grams: 150 }] },
