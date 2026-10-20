@@ -192,6 +192,12 @@ public sealed record PlannedExerciseDto
 
     /// <summary>Key of the exercise this one is combined with (bi-set).</summary>
     public string? SupersetWith { get; init; }
+
+    /// <summary>Item of the exercise catalog (media) the device matched for this exercise; activation links it to an exercise that has none. Dropped when it is not in the catalog.</summary>
+    public string? CatalogId { get; init; }
+
+    /// <summary>True when the user picked this exercise in the review: activation then keeps the PDF name as an alias of it. Never set by an automatic match.</summary>
+    public bool? AliasConfirmed { get; init; }
 }
 
 /// <summary>

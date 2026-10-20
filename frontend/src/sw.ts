@@ -13,8 +13,14 @@ precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: NAVIGATE_FALLBACK_DENYLIST }))
 
-// Exercise demonstrations (GIFs of the catalog) are cached as they are seen, so they also show offline. Cross-origin images
-// come back as opaque responses (status 0); they are kept too. The cache is capped by count and age.
+// Exercise demonstrations (GIFs of the catalog) are cached as they are seen, so the web app shows them offline (the native
+// app has no service worker, so no offline GIF cache there).
+// static.exercisedb.dev sends no Access-Control-Allow-Origin, so the <img> responses are opaque (status 0). Trade-offs:
+// - an opaque response cannot be inspected, so a failed fetch that still came back as an opaque response (e.g. a 404) is
+//   cached too; the worker cannot know the image later failed to decode. It is only a stale miss: the page shows the
+//   placeholder and the entry ages out;
+// - browsers pad each opaque entry to several MB in the storage quota, hence the low entry cap (60) and
+//   purgeOnQuotaError, which drops this cache first when the quota is hit. The page also asks for persistent storage.
 const EXERCISE_GIF_URL = /^https:\/\/static\.exercisedb\.dev\/media\/.+\.gif$/
 registerRoute(
   ({ request, url }) => request.destination === 'image' && EXERCISE_GIF_URL.test(url.href),
@@ -22,7 +28,7 @@ registerRoute(
     cacheName: 'exercise-gifs',
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 400, maxAgeSeconds: 90 * 24 * 60 * 60 }),
+      new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 90 * 24 * 60 * 60, purgeOnQuotaError: true }),
     ],
   }),
 )

@@ -45,11 +45,16 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
         return id;
     });
 
-    private static string WorkoutWith(string exerciseName, Guid exerciseId) => $$"""
-        {"rotation":{"type":"sequence","items":["a","off"]},
-         "days":[{"key":"a","name":"Treino A","exercises":[
-          {"key":"x","name":"{{exerciseName}}","exerciseId":"{{exerciseId}}","sets":[{"repsMin":8,"repsMax":10}]}]}]}
-        """;
+    private static string WorkoutWith(string exerciseName, Guid exerciseId, bool aliasConfirmed = true, string? catalogId = null)
+    {
+        var confirmed = aliasConfirmed ? "true" : "false";
+        var catalog = catalogId is null ? "null" : "\"" + catalogId + "\"";
+        return $$"""
+            {"rotation":{"type":"sequence","items":["a","off"]},
+             "days":[{"key":"a","name":"Treino A","exercises":[
+              {"key":"x","name":"{{exerciseName}}","exerciseId":"{{exerciseId}}","aliasConfirmed":{{confirmed}},"catalogId":{{catalog}},"sets":[{"repsMin":8,"repsMax":10}]}]}]}
+            """;
+    }
 
     private static Task<Exercise> ExerciseAsync(PlanApi api, Guid id) =>
         api.WithDbAsync(db => db.Exercises.AsNoTracking().SingleAsync(e => e.Id == id));
@@ -91,38 +96,91 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
     [Theory]
     [InlineData("missing-id")]
     [InlineData("")]
-    public async Task Draft_rejects_a_catalog_id_that_is_not_in_the_catalog(string catalogId)
+    public async Task Draft_drops_a_catalog_id_that_is_not_in_the_catalog(string catalogId)
     {
         await CatalogData.ResetAsync(factory);
         await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat-known");
         using var api = await PlanApi.CreateAsync(factory);
         var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
 
-        var response = await api.CreateDraftAsync(
+        var id = await CreatedIdAsync(await api.CreateDraftAsync(
             fileId, PlanKind.Workout, PlanSamples.Workout,
-            newExercises: [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "cat-known"), new NewExerciseSuggestion("Rosca X", MuscleGroup.Biceps, catalogId)]);
+            newExercises: [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "cat-known"), new NewExerciseSuggestion("Rosca X", MuscleGroup.Biceps, catalogId)]));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var errors = await ErrorsAsync(response);
-        Assert.True(errors.TryGetProperty("newExercises[1].catalogId", out _));
-        Assert.False(errors.TryGetProperty("newExercises[0].catalogId", out _));
+        var suggestions = (await api.GetAsync(id)).NewExercises;
+        Assert.Equal("cat-known", suggestions.Single(s => s.Name == "Remada Curvada").CatalogId);
+        Assert.Null(suggestions.Single(s => s.Name == "Rosca X").CatalogId);
     }
 
     [Fact]
-    public async Task Put_validates_the_catalog_id_of_the_new_exercises()
+    public async Task Put_drops_unknown_catalog_ids_of_the_new_exercises_and_of_the_planned_exercises()
     {
         await CatalogData.ResetAsync(factory);
         await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat-known");
         using var api = await PlanApi.CreateAsync(factory);
+        var exercise = await AddExerciseAsync(api, "Remada Baixa");
         var draft = await api.ImportDraftAsync();
 
-        var bad = await api.PutAsync(draft.Id, PlanSamples.Workout, [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "nope")]);
-        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
-        Assert.True((await ErrorsAsync(bad)).TryGetProperty("newExercises[0].catalogId", out _));
+        var bad = await api.PutAsync(draft.Id, WorkoutWith("Remada Baixa", exercise, catalogId: "nope"), [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "nope")]);
+        Assert.Equal(HttpStatusCode.OK, bad.StatusCode);
+        var saved = await api.GetAsync(draft.Id);
+        Assert.Null(Assert.Single(saved.NewExercises).CatalogId);
+        Assert.True(PlannedCatalogId(saved).ValueKind is JsonValueKind.Null or JsonValueKind.Undefined);
 
-        var good = await api.PutAsync(draft.Id, PlanSamples.Workout, [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "cat-known")]);
+        var good = await api.PutAsync(draft.Id, WorkoutWith("Remada Baixa", exercise, catalogId: "cat-known"), [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "cat-known")]);
         Assert.Equal(HttpStatusCode.OK, good.StatusCode);
-        Assert.Equal("cat-known", Assert.Single((await api.GetAsync(draft.Id)).NewExercises).CatalogId);
+        saved = await api.GetAsync(draft.Id);
+        Assert.Equal("cat-known", Assert.Single(saved.NewExercises).CatalogId);
+        Assert.Equal("cat-known", PlannedCatalogId(saved).GetString());
+    }
+
+    private static JsonElement PlannedCatalogId(PlanVersionResponse plan) =>
+        plan.Document.GetProperty("days")[0].GetProperty("exercises")[0].TryGetProperty("catalogId", out var value) ? value : default;
+
+    [Fact]
+    public async Task Activation_links_the_catalog_to_a_matched_exercise_that_has_none_and_never_overrides()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat-new", "cat-other");
+        using var api = await PlanApi.CreateAsync(factory);
+        var bare = await AddExerciseAsync(api, "Remada Baixa");
+        var linked = await AddExerciseAsync(api, "Remada Alta");
+        await api.WithDbAsync(async db =>
+        {
+            var row = await db.Exercises.SingleAsync(e => e.Id == linked);
+            row.CatalogId = "cat-other";
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        foreach (var (name, id) in new[] { ("Remada Baixa", bare), ("Remada Alta", linked) })
+        {
+            var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+            var draft = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, WorkoutWith(name, id, aliasConfirmed: false, catalogId: "cat-new")));
+            Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(draft)).StatusCode);
+        }
+
+        Assert.Equal("cat-new", (await ExerciseAsync(api, bare)).CatalogId);
+        Assert.Equal("cat-other", (await ExerciseAsync(api, linked)).CatalogId);
+    }
+
+    [Fact]
+    public async Task Activation_links_the_catalog_by_name_match_too()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat-new");
+        using var api = await PlanApi.CreateAsync(factory);
+        var bare = await AddExerciseAsync(api, "Remada Curvada");
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+        var doc = """
+            {"rotation":{"type":"sequence","items":["a","off"]},
+             "days":[{"key":"a","name":"Treino A","exercises":[{"key":"x","name":"remada curvada","catalogId":"cat-new","sets":[{"repsMin":8,"repsMax":10}]}]}]}
+            """;
+        var draft = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, doc));
+
+        Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(draft)).StatusCode);
+
+        Assert.Equal("cat-new", (await ExerciseAsync(api, bare)).CatalogId);
     }
 
     [Fact]
@@ -176,5 +234,18 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
         }
 
         Assert.Equal(["Remada Sentada"], (await ExerciseAsync(api, exercise)).Aliases);
+    }
+
+    [Fact]
+    public async Task Activation_does_not_learn_an_alias_without_the_users_confirmation()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var exercise = await AddExerciseAsync(api, "Remada Baixa");
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+        var id = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, WorkoutWith("Pulley Remada Ficticia", exercise, aliasConfirmed: false)));
+
+        Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(id)).StatusCode);
+
+        Assert.Empty((await ExerciseAsync(api, exercise)).Aliases);
     }
 }

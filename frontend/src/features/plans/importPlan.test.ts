@@ -117,6 +117,34 @@ describe('applyExerciseMatches', () => {
     expect(out.newExercises).toEqual([])
   })
 
+  it('a user exercise that the dictionary also knows, and has no media yet, carries the catalog link; one with media does not', () => {
+    const users = [
+      { id: 'ex-1', name: 'Remada baixa', aliases: [], catalogId: null },
+      { id: 'ex-2', name: 'Remada sentada', aliases: [], catalogId: 'cat-already' },
+    ]
+    const first = exercisesOf(applyExerciseMatches(sheetOf('Remada baixa'), users, DICTIONARY))[0]!
+    expect(first).toMatchObject({ exerciseId: 'ex-1', catalogId: 'cat-remada-baixa' })
+    expect(first.aliasConfirmed).toBeUndefined()
+    const second = exercisesOf(applyExerciseMatches(sheetOf('Remada sentada'), [users[1]!], DICTIONARY))[0]!
+    expect(second.exerciseId).toBe('ex-2')
+    expect(second.catalogId).toBeUndefined()
+  })
+
+  it('a dictionary hit that the user already has under another name links that exercise (low confidence) instead of duplicating it', () => {
+    // Same catalog item as the entry.
+    const byCatalog = applyExerciseMatches(sheetOf('Remada sentada'), [{ id: 'ex-3', name: 'Meu remo especial', aliases: [], catalogId: 'cat-remada-baixa' }], DICTIONARY)
+    expect(exercisesOf(byCatalog)[0]).toMatchObject({ exerciseId: 'ex-3' })
+    expect(exercisesOf(byCatalog)[0]!.catalogId).toBeUndefined()
+    expect(byCatalog.newExercises).toEqual([])
+    expect(byCatalog.lowConfidence).toContain('days[0].exercises[0].name')
+
+    // The user's name resolves to the same dictionary entry; it has no media, so the link is sent.
+    const byName = applyExerciseMatches(sheetOf('Remada sentada'), [{ id: 'ex-4', name: 'Remada baixa', aliases: [], catalogId: null }], DICTIONARY)
+    expect(exercisesOf(byName)[0]).toMatchObject({ exerciseId: 'ex-4', catalogId: 'cat-remada-baixa' })
+    expect(byName.newExercises).toEqual([])
+    expect(byName.lowConfidence).toContain('days[0].exercises[0].name')
+  })
+
   it('suggests a repeated name once and leaves exercises that already have an id alone', () => {
     const reading = sheetOf('Remada baixa', 'remada  BAIXA', 'Crucifixo máquina')
     ;(reading.document as WorkoutDocument).days[0]!.exercises[2]!.exerciseId = '7d1f2a10-0000-5000-8000-0000000000e1'
@@ -144,40 +172,19 @@ describe('readOnDevice matching', () => {
 })
 
 describe('createDeviceDraft', () => {
-  it('sends the suggested new exercises with their catalog item', async () => {
-    const calls = mockFetch({ 'POST /api/plans/drafts': () => json({ planVersionId: PLAN_ID }, 201) })
-    const read: DeviceReading = { document: { days: [] }, lowConfidence: [], notice: null, newExercises: [{ name: 'Remada', group: 'back', catalogId: 'cat-1' }] }
-    await createDeviceDraft('workout', FILE_ID, read)
-    expect(JSON.parse(calls[0]!.body).newExercises).toEqual([{ name: 'Remada', group: 'back', catalogId: 'cat-1' }])
-  })
-
-  it('when the server does not know a catalog item, retries the same reading without the links', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const calls = mockFetch({
-      'POST /api/plans/drafts': (call) =>
-        call.body.includes('"catalogId":"cat-1"') ? problem(400, { errors: { 'newExercises[0].catalogId': ['x'] } }) : json({ planVersionId: PLAN_ID }, 201),
-    })
-    const read: DeviceReading = {
-      document: { days: [{ key: 'A', name: 'X', exercises: [] }] },
-      lowConfidence: ['days[0].name'],
-      notice: null,
-      newExercises: [{ name: 'Remada', group: 'back', catalogId: 'cat-1' }],
-    }
-    expect(await createDeviceDraft('workout', FILE_ID, read)).toEqual({ id: PLAN_ID, notice: null })
-    expect(calls).toHaveLength(2)
-    expect(JSON.parse(calls[1]!.body)).toMatchObject({
-      document: { days: [{ key: 'A' }] },
-      lowConfidence: ['days[0].name'],
-      newExercises: [{ name: 'Remada', group: 'back', catalogId: null }],
-    })
-  })
-
   const reading = (): DeviceReading => ({ document: { days: [] }, lowConfidence: ['days[0].name'], notice: null })
 
   it('posts the document, low-confidence paths and no new exercises, and gives the draft id', async () => {
     const calls = mockFetch({ 'POST /api/plans/drafts': () => json({ planVersionId: PLAN_ID }, 201) })
     expect(await createDeviceDraft('workout', FILE_ID, reading())).toEqual({ id: PLAN_ID, notice: null })
     expect(JSON.parse(calls[0]!.body)).toEqual({ fileId: FILE_ID, kind: 'workout', document: { days: [] }, lowConfidence: ['days[0].name'], newExercises: [] })
+  })
+
+  it('sends the suggested new exercises with their catalog item', async () => {
+    const calls = mockFetch({ 'POST /api/plans/drafts': () => json({ planVersionId: PLAN_ID }, 201) })
+    const read: DeviceReading = { document: { days: [] }, lowConfidence: [], notice: null, newExercises: [{ name: 'Remada', group: 'back', catalogId: 'cat-1' }] }
+    await createDeviceDraft('workout', FILE_ID, read)
+    expect(JSON.parse(calls[0]!.body).newExercises).toEqual([{ name: 'Remada', group: 'back', catalogId: 'cat-1' }])
   })
 
   it('a document the server refuses becomes an empty draft with the "could not read" notice', async () => {

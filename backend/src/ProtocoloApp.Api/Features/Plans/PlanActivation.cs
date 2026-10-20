@@ -1,7 +1,6 @@
 using System.Text.Json;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
-using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Shared.Data;
 
@@ -148,14 +147,17 @@ public static class PlanActivation
         }
 
         // The catalog is refreshed from outside: a link that disappeared since the draft was saved is simply dropped.
-        if (catalogLinks.Count > 0)
-        {
-            var wanted = catalogLinks.Values.Distinct(StringComparer.Ordinal).ToList();
-            var existing = await db.CatalogExercises.Where(c => wanted.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
-            var existingSet = existing.ToHashSet(StringComparer.Ordinal);
-            foreach (var key in catalogLinks.Where(kv => !existingSet.Contains(kv.Value)).Select(kv => kv.Key).ToList())
-                catalogLinks.Remove(key);
-        }
+        var found = await CatalogLinks.ExistingAsync(
+            db,
+            catalogLinks.Values.Concat(workout.Days.SelectMany(d => d.Exercises).Select(e => e.CatalogId)),
+            ct);
+        foreach (var key in catalogLinks.Where(kv => !found.Contains(kv.Value)).Select(kv => kv.Key).ToList())
+            catalogLinks.Remove(key);
+
+        // Exercises changed here but not created or restored (those are stamped where it happens): stamped once, at the end.
+        var touched = new Dictionary<Guid, Exercise>();
+        var stamped = new HashSet<Guid>();
+        string? Link(string? id) => id is not null && found.Contains(id) ? id : null;
 
         var liveById = live.ToDictionary(e => e.Id);
 
@@ -173,8 +175,17 @@ public static class PlanActivation
                     if (!liveIds.Contains(given))
                         errors[$"{path}.exerciseId"] = ["Exercício não encontrado no catálogo."];
                     else
-                        await LearnAliasAsync(db, clock, userId, liveById[given], planned.Name, byName, byAlias, ct);
-                    exercises.Add(planned);
+                    {
+                        var chosen = liveById[given];
+                        var changed = LinkCatalog(chosen, Link(planned.CatalogId));
+                        // Only a pair the user picked in the review teaches an alias: an automatic match must not.
+                        if (planned.AliasConfirmed == true)
+                            changed |= LearnAlias(chosen, planned.Name, byName, byAlias);
+                        if (changed)
+                            touched[chosen.Id] = chosen;
+                    }
+
+                    exercises.Add(planned with { CatalogId = null, AliasConfirmed = null });
                     continue;
                 }
 
@@ -196,24 +207,34 @@ public static class PlanActivation
                         Name = name.Length > Exercise.MaxNameLength ? name[..Exercise.MaxNameLength] : name,
                         NormalizedName = normalized,
                         PrimaryMuscleGroup = groups.GetValueOrDefault(normalized, MuscleGroup.Other),
-                        CatalogId = catalogLinks.GetValueOrDefault(normalized),
+                        CatalogId = catalogLinks.GetValueOrDefault(normalized) ?? Link(planned.CatalogId),
                     };
                     byName[normalized] = match;
                     await SyncWrites.StampAsync(db, match, userId, clock, ct);
+                    stamped.Add(match.Id);
                     db.Exercises.Add(match);
                 }
                 else if (match.DeletedAt is not null)
                 {
                     // A removed exercise with the same name comes back (the name is unique per user, deleted or not).
                     match.DeletedAt = null;
+                    LinkCatalog(match, catalogLinks.GetValueOrDefault(normalized) ?? Link(planned.CatalogId));
                     await SyncWrites.StampAsync(db, match, userId, clock, ct);
+                    stamped.Add(match.Id);
+                }
+                else if (LinkCatalog(match, catalogLinks.GetValueOrDefault(normalized) ?? Link(planned.CatalogId)) && !stamped.Contains(match.Id))
+                {
+                    touched[match.Id] = match;
                 }
 
-                exercises.Add(planned with { ExerciseId = match.Id });
+                exercises.Add(planned with { ExerciseId = match.Id, CatalogId = null, AliasConfirmed = null });
             }
 
             days.Add(workout.Days[i] with { Exercises = exercises });
         }
+
+        foreach (var exercise in touched.Values.Where(e => !stamped.Contains(e.Id)))
+            await SyncWrites.StampAsync(db, exercise, userId, clock, ct);
 
         return errors.Count > 0 ? new Linked(null, errors) : new Linked(workout with { Days = days }, errors);
     }
@@ -221,27 +242,34 @@ public static class PlanActivation
     /// <summary>Most aliases an exercise keeps (same cap as the exercise endpoint).</summary>
     private const int MaxAliases = 20;
 
+    /// <summary>Sets the catalog link of an exercise that has none; true when it changed.</summary>
+    private static bool LinkCatalog(Exercise exercise, string? catalogId)
+    {
+        if (catalogId is null || exercise.CatalogId is not null)
+            return false;
+        exercise.CatalogId = catalogId;
+        return true;
+    }
+
     /// <summary>
-    /// The plan names an existing exercise differently from its name and aliases (the user picked it in the review): the plan's
-    /// name becomes an alias, so the next PDF links by itself. Idempotent; skipped when the name already belongs to another
-    /// exercise or the exercise is at the alias cap.
+    /// The user picked an existing exercise for a plan name that differs from its name and aliases: the plan's name becomes an
+    /// alias, so the next PDF links by itself. Idempotent; skipped when the name already belongs to another exercise or the
+    /// exercise is at the alias cap. True when the aliases changed.
     /// </summary>
-    private static async Task LearnAliasAsync(
-        AppDbContext db, TimeProvider clock, Guid userId, Exercise exercise, string plannedName,
-        Dictionary<string, Exercise> byName, Dictionary<string, Exercise> byAlias, CancellationToken ct)
+    private static bool LearnAlias(Exercise exercise, string plannedName, Dictionary<string, Exercise> byName, Dictionary<string, Exercise> byAlias)
     {
         var normalized = ExerciseNames.Normalize(plannedName);
         if (!ExerciseNames.IsUsable(normalized) || byName.ContainsKey(normalized) || byAlias.ContainsKey(normalized))
-            return;
+            return false;
         if (exercise.Aliases.Length >= MaxAliases)
-            return;
+            return false;
 
         var alias = plannedName.Trim();
         if (alias.Length > Exercise.MaxNameLength)
             alias = alias[..Exercise.MaxNameLength];
         exercise.Aliases = [.. exercise.Aliases, alias];
         byAlias[normalized] = exercise;
-        await SyncWrites.StampAsync(db, exercise, userId, clock, ct);
+        return true;
     }
 
     private static Dictionary<string, string[]> Group(IEnumerable<ValidationFailure> failures) => failures

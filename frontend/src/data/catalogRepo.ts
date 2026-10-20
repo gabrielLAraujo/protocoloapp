@@ -20,6 +20,7 @@ type Row = {
   gif_url: string | null
 }
 
+const INSERT_ROWS = 150
 const VERSION_KEY = 'catalog_version'
 
 const parseTags = (text: string): string[] => {
@@ -69,10 +70,12 @@ export const catalogRepo = {
       if (stored?.value === data.version && n === data.items.length) return 'unchanged'
       await db.transaction(async (tx) => {
         await tx.execute('DELETE FROM catalog_exercises')
-        for (const item of data.items) {
+        // Several rows per statement (6 values each, under SQLite's 999-variable cap).
+        for (let start = 0; start < data.items.length; start += INSERT_ROWS) {
+          const chunk = data.items.slice(start, start + INSERT_ROWS)
           await tx.execute(
-            'INSERT OR REPLACE INTO catalog_exercises (id, name, body_parts, target_muscles, equipments, gif_url) VALUES (?, ?, ?, ?, ?, ?)',
-            [item.id, item.name, JSON.stringify(item.bodyParts), JSON.stringify(item.targetMuscles), JSON.stringify(item.equipments), item.gifUrl ?? null],
+            `INSERT OR REPLACE INTO catalog_exercises (id, name, body_parts, target_muscles, equipments, gif_url) VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`,
+            chunk.flatMap((item) => [item.id, item.name, JSON.stringify(item.bodyParts), JSON.stringify(item.targetMuscles), JSON.stringify(item.equipments), item.gifUrl ?? null]),
           )
         }
         await tx.execute('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)', [VERSION_KEY, data.version])

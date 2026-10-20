@@ -53,19 +53,23 @@ export function ExerciseMedia({ catalogId, name, size }: Props) {
     }
   }, [db, catalogId])
 
+  const box = size === 'thumb' ? 'size-16' : 'aspect-[4/3] w-full max-w-xs'
+  const settled = catalogId ? loaded?.id === catalogId : true
+  // The item is still being read: keep the box it will fill, so nothing moves when the GIF appears.
+  if (catalogId && db && !settled) return <div aria-hidden="true" data-testid="media-loading" className={`${box} rounded-control border border-line bg-raised`} />
   const item = catalogId && loaded?.id === catalogId ? loaded.item : null
   if (!item) return <YoutubeLink name={name} />
 
   const gif = item.gifUrl
   const broken = gif === null || failedUrl === gif
-  const box = size === 'thumb' ? 'size-16' : 'aspect-[4/3] w-full max-w-xs'
-  const image = (className: string) =>
+  // Inside the labelled button the name comes from the button; in the enlarged view the image is the content.
+  const image = (className: string, alt = '') =>
     broken ? (
       <span className={`grid place-items-center text-muted ${className}`} data-testid="media-placeholder">
         <Icon name="dumbbell" size={size === 'thumb' ? 24 : 40} />
       </span>
     ) : (
-      <img src={gif} alt={`Demonstração: ${name}`} loading="lazy" decoding="async" onError={() => setFailedUrl(gif)} className={`object-contain ${className}`} />
+      <img src={gif} alt={alt} loading="lazy" decoding="async" onError={() => setFailedUrl(gif)} className={`object-contain ${className}`} />
     )
 
   const body = unique(item.bodyParts, bodyPartLabel)
@@ -85,7 +89,7 @@ export function ExerciseMedia({ catalogId, name, size }: Props) {
       {open && (
         <Sheet title={name} onCancel={() => setOpen(false)}>
           <div className="grid justify-items-center">
-            <div className="aspect-[4/3] w-full max-w-sm overflow-hidden rounded-control border border-line bg-raised">{image('size-full')}</div>
+            <div className="aspect-[4/3] w-full max-w-sm overflow-hidden rounded-control border border-line bg-raised">{image('size-full', `Demonstração: ${name}`)}</div>
           </div>
           {(body || muscles) && (
             <dl className="grid gap-1 text-sm">

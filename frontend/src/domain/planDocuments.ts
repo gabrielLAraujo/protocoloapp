@@ -149,6 +149,10 @@ const plannedExerciseSchema = z.object({
   techniques: optional(z.preprocess(dropUnknownTechniques, z.array(techniqueSchema))),
   /** Key of the exercise this one is combined with (bi-set). */
   supersetWith: optional(z.string()),
+  /** Draft only: the exercise catalog item (media) the device matched; activation links it to an exercise that has none. */
+  catalogId: optional(z.string()),
+  /** Draft only: true when the user picked this exercise in the review, so activation keeps the PDF name as its alias. */
+  aliasConfirmed: optional(z.boolean()),
 })
 
 const workoutDaySchema = z.object({

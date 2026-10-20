@@ -93,7 +93,7 @@ describe('service worker', () => {
     expect(cacheable).toBeInstanceOf(workbox.CacheableResponsePlugin)
     expect(cacheable.options).toEqual({ statuses: [0, 200] })
     expect(expiration).toBeInstanceOf(workbox.ExpirationPlugin)
-    expect(expiration.options).toEqual({ maxEntries: 400, maxAgeSeconds: 90 * 24 * 60 * 60 })
+    expect(expiration.options).toEqual({ maxEntries: 60, maxAgeSeconds: 90 * 24 * 60 * 60, purgeOnQuotaError: true })
 
     const gif = (href: string, destination = 'image') => route({ request: { destination }, url: new URL(href) })
     expect(gif('https://static.exercisedb.dev/media/abc123.gif')).toBe(true)

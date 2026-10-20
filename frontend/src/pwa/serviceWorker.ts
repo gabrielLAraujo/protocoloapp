@@ -28,12 +28,25 @@ export function watchForUpdates(registration: { update: () => Promise<unknown> }
 let stopWatching: (() => void) | undefined
 
 /**
+ * Asks the browser to keep this origin's storage (the exercise GIF cache is large because opaque responses are padded) out of
+ * eviction. Best effort: a refusal or a missing API changes nothing.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    return (await navigator.storage?.persist?.()) === true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Registers the service worker that makes the web app installable and available offline. Never in the native app: there the
  * files are inside the APK and a worker would only add a second cache.
  */
 export function registerServiceWorker(): void {
   if (Capacitor.isNativePlatform()) return
 
+  void requestPersistentStorage()
   applyUpdate = registerSW({
     onRegisteredSW(_url, registration) {
       stopWatching?.()

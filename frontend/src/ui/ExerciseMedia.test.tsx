@@ -51,16 +51,19 @@ describe('ExerciseMedia', () => {
     const user = userEvent.setup()
     renderWith(await seededDb(), <ExerciseMedia catalogId="abc123" name="Rosca fictícia" size="thumb" />)
 
-    const image = await screen.findByRole('img', { name: 'Demonstração: Rosca fictícia' })
-    expect(image).toHaveAttribute('src', GIF)
-    expect(image).toHaveAttribute('loading', 'lazy')
+    // Decorative inside the labelled button (the button's own name says what it is).
+    await screen.findByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' })
+    const thumb = document.querySelector('img')!
+    expect(thumb).toHaveAttribute('alt', '')
+    expect(thumb).toHaveAttribute('src', GIF)
+    expect(thumb).toHaveAttribute('loading', 'lazy')
 
     await user.click(screen.getByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' }))
     const dialog = await screen.findByRole('dialog', { name: 'Rosca fictícia' })
     expect(dialog).toHaveTextContent('Músculos:Bíceps, Deltoides')
     // Unknown tags show as they came.
     expect(dialog).toHaveTextContent('Região:Braços, mystery part')
-    expect(await screen.findAllByRole('img', { name: 'Demonstração: Rosca fictícia' })).toHaveLength(2)
+    expect(await screen.findByRole('img', { name: 'Demonstração: Rosca fictícia' })).toHaveAttribute('src', GIF)
     expect(screen.getByRole('link', { name: 'Ver no YouTube' })).toHaveAttribute('href', YOUTUBE)
 
     await user.click(screen.getByRole('button', { name: 'Fechar' }))
@@ -70,12 +73,22 @@ describe('ExerciseMedia', () => {
   it('a GIF that fails to load becomes a placeholder, still opening the details', async () => {
     renderWith(await seededDb(), <ExerciseMedia catalogId="abc123" name="Rosca fictícia" size="card" />)
 
-    fireEvent.error(await screen.findByRole('img', { name: 'Demonstração: Rosca fictícia' }))
+    await screen.findByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' })
+    fireEvent.error(document.querySelector('img')!)
 
-    await waitFor(() => expect(screen.queryByRole('img')).not.toBeInTheDocument())
+    await waitFor(() => expect(document.querySelector('img')).toBeNull())
     expect(screen.getByTestId('media-placeholder')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver no YouTube' })).toBeInTheDocument()
+  })
+
+  it('keeps a fixed box while the catalog item is being read', async () => {
+    const db = await seededDb()
+    renderWith(db, <ExerciseMedia catalogId="abc123" name="Rosca fictícia" size="card" />)
+
+    expect(screen.getByTestId('media-loading')).toHaveClass('aspect-[4/3]')
+    await screen.findByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' })
+    expect(screen.queryByTestId('media-loading')).not.toBeInTheDocument()
   })
 
   it('an item without a GIF url is a placeholder too', async () => {

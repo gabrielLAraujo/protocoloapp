@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProtocoloApp.Api.Features.Auth;
-using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Shared.Data;
@@ -162,7 +161,7 @@ public static class PlanEndpoints
                 return Problem(StatusCodes.Status409Conflict, "Conflito", NotConfirmedMessage);
         }
 
-        var errors = await ValidateSuggestionsAsync(db, request.NewExercises ?? [], ct);
+        var errors = ValidateSuggestions(request.NewExercises ?? []);
         if (request.LowConfidence is { Count: > MaxLowConfidence })
             errors["lowConfidence"] = [$"No máximo {MaxLowConfidence} campos incertos."];
         if (errors.Count > 0)
@@ -180,8 +179,9 @@ public static class PlanEndpoints
             // Normalized above, so it reads.
             PlanDocuments.TryRead<WorkoutDocument>(document, out var workout, out _);
             var known = await ExerciseLinking.LoadHintsAsync(db, userId, ct);
-            document = PlanDocuments.Serialize(ExerciseLinking.LinkExercises(workout!, known, lowConfidence));
-            newExercises = [.. ExerciseLinking.WithoutKnown(request.NewExercises ?? [], known)];
+            var linked = await CatalogLinks.CleanAsync(db, ExerciseLinking.LinkExercises(workout!, known, lowConfidence), ct);
+            document = PlanDocuments.Serialize(linked);
+            newExercises = [.. await CatalogLinks.CleanAsync(db, [.. ExerciseLinking.WithoutKnown(request.NewExercises ?? [], known)], ct)];
         }
 
         var plan = new PlanVersion
@@ -318,13 +318,17 @@ public static class PlanEndpoints
         JsonDocument? newExercises = plan.NewExercises;
         if (request.NewExercises is { } suggestions)
         {
-            var problems = await ValidateSuggestionsAsync(db, suggestions, ct);
+            var problems = ValidateSuggestions(suggestions);
             if (problems.Count > 0)
                 return TypedResults.ValidationProblem(problems);
-            newExercises = PlanMapping.WriteNewExercises(suggestions);
+            newExercises = PlanMapping.WriteNewExercises(await CatalogLinks.CleanAsync(db, [.. suggestions], ct));
         }
 
-        plan.Document = JsonDocument.Parse(normalized.Value.GetRawText());
+        var document = normalized.Value;
+        if (plan.Kind == PlanKind.Workout && PlanDocuments.TryRead<WorkoutDocument>(document, out var workout, out _))
+            document = PlanDocuments.Serialize(await CatalogLinks.CleanAsync(db, workout!, ct));
+
+        plan.Document = JsonDocument.Parse(document.GetRawText());
         db.Entry(plan).Property(p => p.Document).IsModified = true;
         plan.NewExercises = newExercises;
         db.Entry(plan).Property(p => p.NewExercises).IsModified = true;
@@ -448,9 +452,8 @@ public static class PlanEndpoints
         return file.Status != FileStatus.Confirmed ? (file, SourceFileCheck.NotConfirmed) : (file, SourceFileCheck.Ok);
     }
 
-    /// <summary>Suggested new exercises: a usable name and a known muscle group each; keys are <c>newExercises[i].name|group</c>.</summary>
-    private static async Task<Dictionary<string, string[]>> ValidateSuggestionsAsync(
-        AppDbContext db, IReadOnlyList<NewExerciseSuggestion?> suggestions, CancellationToken ct)
+    /// <summary>Suggested new exercises: a usable name and a known muscle group each (catalog links that are gone are dropped, not rejected); keys are <c>newExercises[i].name|group</c>.</summary>
+    private static Dictionary<string, string[]> ValidateSuggestions(IReadOnlyList<NewExerciseSuggestion?> suggestions)
     {
         var problems = new Dictionary<string, string[]>();
         if (suggestions.Count > MaxNewExercises)
@@ -466,18 +469,6 @@ public static class PlanEndpoints
                 problems[$"newExercises[{i}].name"] = ["Nome de exercício inválido."];
             else if (!Enum.IsDefined(suggestion.Group))
                 problems[$"newExercises[{i}].group"] = ["Grupo muscular inválido."];
-        }
-
-        // A catalog link must point at a catalog exercise (or be absent).
-        var ids = suggestions.Where(s => s?.CatalogId is not null).Select(s => s!.CatalogId!).Distinct(StringComparer.Ordinal)
-            .Where(id => id.Length <= CatalogExercise.MaxIdLength).ToList();
-        var found = new HashSet<string>(StringComparer.Ordinal);
-        if (ids.Count > 0)
-            found.UnionWith(await db.CatalogExercises.Where(c => ids.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct));
-        for (var i = 0; i < suggestions.Count; i++)
-        {
-            if (suggestions[i]?.CatalogId is { } catalogId && !found.Contains(catalogId))
-                problems[$"newExercises[{i}].catalogId"] = ["Exercício do catálogo não encontrado."];
         }
 
         return problems;
