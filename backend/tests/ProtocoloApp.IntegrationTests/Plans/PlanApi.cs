@@ -19,7 +19,7 @@ public static class PlanSamples
         {"rotation":{"type":"sequence","items":["a","b","off"]},
          "days":[
            {"key":"a","name":"Treino A","exercises":[
-             {"key":"bench","name":"Supino Inclinado C/ Halteres","sets":[{"repsMin":8,"repsMax":10},{"repsMin":8,"repsMax":10}],"restSeconds":90}]},
+             {"key":"bench","name":"Rosca Alternada C/ Halteres","sets":[{"repsMin":8,"repsMax":10},{"repsMin":8,"repsMax":10}],"restSeconds":90}]},
            {"key":"b","name":"Treino B","exercises":[
              {"key":"row","name":"Remada Curvada","sets":[{"repsMin":8,"repsMax":12}]}]}]}
         """;
@@ -91,6 +91,21 @@ internal sealed class PlanApi(ApiFactory factory) : IDisposable
         var response = await ImportAsync(fileId, kind);
         Assert.Equal(System.Net.HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<PlanVersionResponse>(Json))!;
+    }
+
+    /// <summary>A draft read on the device: <c>POST /api/plans/drafts</c>.</summary>
+    public Task<HttpResponseMessage> CreateDraftAsync(
+        Guid fileId,
+        PlanKind kind,
+        string documentJson,
+        IReadOnlyList<string>? lowConfidence = null,
+        IReadOnlyList<ProtocoloApp.Api.Features.Plans.Extraction.NewExerciseSuggestion>? newExercises = null)
+    {
+        using var document = JsonDocument.Parse(documentJson);
+        return Client.PostAsJsonAsync(
+            new Uri("/api/plans/drafts", UriKind.Relative),
+            new CreateDraftRequest(fileId, kind, document.RootElement.Clone(), lowConfidence, newExercises),
+            Json);
     }
 
     public Task<HttpResponseMessage> ActivateAsync(Guid id, DateOnly? cycleStart = null) =>

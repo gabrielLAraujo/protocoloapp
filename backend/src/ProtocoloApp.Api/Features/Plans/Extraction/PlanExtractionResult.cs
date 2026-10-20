@@ -2,7 +2,8 @@ using System.Text.Json;
 
 namespace ProtocoloApp.Api.Features.Plans.Extraction;
 
-public sealed record ExerciseHint(Guid Id, string Name, MuscleGroup Group);
+/// <summary>An exercise of the user's catalog, as the extraction and the draft linking see it.</summary>
+public sealed record ExerciseHint(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string>? Aliases = null);
 
 public sealed record NewExerciseSuggestion(string Name, MuscleGroup Group);
 

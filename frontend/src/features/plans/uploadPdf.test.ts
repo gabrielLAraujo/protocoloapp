@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { json, mockFetch, problem } from '../../test/fetch-mock'
 import { FILE_ID, PLAN_ID } from './fixtures'
-import { ImportError, uploadPdf } from './uploadPdf'
+import { ImportError, readWithAi, uploadPdf } from './uploadPdf'
 
 const pdf = () => new File(['%PDF-1.4 fake'], 'ficha.pdf', { type: 'application/pdf' })
 const STORAGE = 'http://storage.test/upload/abc'
@@ -10,28 +10,25 @@ const happyRoutes = () => ({
   'POST /api/files/upload-url': () => json({ fileId: FILE_ID, uploadUrl: STORAGE, expiresAt: '2026-10-18T12:00:00Z' }),
   'PUT /upload/abc': () => new Response(null, { status: 200 }),
   [`POST /api/files/${FILE_ID}/confirm`]: () => new Response(null, { status: 204 }),
-  'POST /api/plans/import': () => json({ id: PLAN_ID }, 201),
 })
 
 describe('uploadPdf', () => {
-  it('calls upload-url, PUT with the content type, confirm and import, in that order', async () => {
+  it('calls upload-url, PUT with the content type and confirm, in that order, and gives the file id', async () => {
     const calls = mockFetch(happyRoutes())
     const stages: string[] = []
 
     const id = await uploadPdf('workout', pdf(), (s) => stages.push(s))
 
-    expect(id).toBe(PLAN_ID)
+    expect(id).toBe(FILE_ID)
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       'POST /api/files/upload-url',
       'PUT /upload/abc',
       `POST /api/files/${FILE_ID}/confirm`,
-      'POST /api/plans/import',
     ])
     expect(JSON.parse(calls[0]!.body)).toEqual({ kind: 'workoutPdf', contentType: 'application/pdf', sizeBytes: 13 })
     expect(calls[1]!.headers.get('content-type')).toBe('application/pdf')
     expect(calls[1]!.headers.get('authorization')).toBeNull()
-    expect(JSON.parse(calls[3]!.body)).toEqual({ fileId: FILE_ID, kind: 'workout' })
-    expect(stages).toEqual(['uploading', 'reading'])
+    expect(stages).toEqual(['uploading'])
   })
 
   it('a protocol is sent as protocolPdf', async () => {
@@ -43,9 +40,20 @@ describe('uploadPdf', () => {
   it.each([
     [503, 'Importação indisponível no momento.'],
     [413, 'PDF grande demais (máx. 20 MB).'],
-  ])('import answering %i says "%s"', async (status, message) => {
-    mockFetch({ ...happyRoutes(), 'POST /api/plans/import': () => problem(status, { title: 'x' }) })
-    await expect(uploadPdf('workout', pdf())).rejects.toThrow(new ImportError(message))
+  ])('the AI import answering %i says "%s"', async (status, message) => {
+    mockFetch({ 'POST /api/plans/import': () => problem(status, { title: 'x' }) })
+    await expect(readWithAi('workout', FILE_ID)).rejects.toThrow(new ImportError(message))
+  })
+
+  it('readWithAi sends the file id and kind and gives the draft id', async () => {
+    const calls = mockFetch({ 'POST /api/plans/import': () => json({ id: PLAN_ID }, 201) })
+    await expect(readWithAi('protocol', FILE_ID)).resolves.toBe(PLAN_ID)
+    expect(JSON.parse(calls[0]!.body)).toEqual({ fileId: FILE_ID, kind: 'protocol' })
+  })
+
+  it('a 413 on the upload url says the PDF is too big', async () => {
+    mockFetch({ ...happyRoutes(), 'POST /api/files/upload-url': () => problem(413, { title: 'x' }) })
+    await expect(uploadPdf('workout', pdf())).rejects.toThrow(new ImportError('PDF grande demais (máx. 20 MB).'))
   })
 
   it('refuses a file over 20 MiB or that is not a PDF before asking for an upload url', async () => {
@@ -57,7 +65,7 @@ describe('uploadPdf', () => {
     expect(calls).toHaveLength(0)
     // Exactly 20 MiB still goes through.
     const exact = new File([new Uint8Array(20 * 1024 * 1024)], 'ficha.pdf', { type: 'application/pdf' })
-    await expect(uploadPdf('workout', exact)).resolves.toBe(PLAN_ID)
+    await expect(uploadPdf('workout', exact)).resolves.toBe(FILE_ID)
   })
 
   it('no connection says to connect to the internet', async () => {

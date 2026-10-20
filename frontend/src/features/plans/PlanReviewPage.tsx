@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useBlocker, useNavigate, useParams } from 'react-router'
+import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router'
 import { api } from '../../api/client'
 import type { components } from '../../api/schema'
 import { toProblem } from '../../api/problem'
@@ -26,6 +26,7 @@ import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
 import { initialGroups, newExerciseEntries } from './newExercises'
 import { WorkoutPlanEditor } from './WorkoutPlanEditor'
+import { ImportError, readWithAi } from './uploadPdf'
 
 type PlanVersion = components['schemas']['PlanVersionResponse']
 type Doc = WorkoutDocument | ProtocolDocument
@@ -44,6 +45,12 @@ function toEditable(plan: PlanVersion): Doc {
 }
 
 /** Messages of a failed call: the validation errors by field when the server sent them, else its title. */
+/** The notice the import left in the navigation state (the device could not read the PDF). */
+function routeNotice(state: unknown): string | null {
+  const notice = (state as { notice?: unknown } | null)?.notice
+  return typeof notice === 'string' ? notice : null
+}
+
 function problemMessages(error: unknown): string[] {
   const errors = (error as { errors?: Record<string, string[]> } | null)?.errors
   if (errors && typeof errors === 'object') {
@@ -59,6 +66,14 @@ export function PlanReviewPage() {
   const { online, syncNow, dataVersion } = useSync()
   const data = useData()
   const navigate = useNavigate()
+  const location = useLocation()
+  const notice = routeNotice(location.state)
+  // Shown until the draft is saved once (the user has filled it in).
+  const [noticeDone, setNoticeDone] = useState(false)
+  // Whether the server can read PDFs with the AI too: then the review offers it on the same file.
+  const [aiAvailable, setAiAvailable] = useState(false)
+  const [aiReading, setAiReading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
   const [plan, setPlan] = useState<PlanVersion | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
@@ -108,6 +123,19 @@ export function PlanReviewPage() {
   const issuesId = useId()
 
   useEffect(() => {
+    let cancelled = false
+    api
+      .GET('/api/plans/extraction')
+      .then(({ data }) => {
+        if (!cancelled) setAiAvailable(data?.ai === true)
+      })
+      .catch(() => undefined) // offline: no AI button, the review itself says to connect
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!id) return
     let cancelled = false
     api
@@ -123,6 +151,10 @@ export function PlanReviewPage() {
         setDoc(editable)
         setGroups(data.kind === 'workout' ? initialGroups(editable as WorkoutDocument, data.newExercises) : {})
         setDiff(data.diff)
+        setNoticeDone(false)
+        setSaved(false)
+        setActionErrors([])
+        setAiError(null)
         dirty.current = false
       })
       .catch(() => {
@@ -196,6 +228,7 @@ export function PlanReviewPage() {
     }
     // The server keeps the extraction error on the draft; once the user has filled it in, the banner is done.
     setPlan({ ...data, extractionError: null })
+    setNoticeDone(true)
     // The PUT answers without a diff: keep the one on screen.
     setDiff((previous) => data.diff ?? previous)
     dirty.current = false
@@ -246,6 +279,22 @@ export function PlanReviewPage() {
   const catalogReady = plan.kind !== 'workout' || catalogState === 'ready'
   const blocked = issues.length > 0 || !online || !catalogReady
   const title = plan.kind === 'workout' ? 'Revisar treino' : 'Revisar protocolo'
+  const banner = plan.extractionError ? EXTRACTION_BANNER : noticeDone ? null : notice
+
+  /** Reads the same PDF again with the AI: a new draft, opened in place of this one. */
+  const readAgainWithAi = async () => {
+    if (aiReading) return
+    setAiReading(true)
+    setAiError(null)
+    try {
+      const newId = await readWithAi(plan.kind, plan.sourceFileId)
+      void navigate(`/planejamento/revisao/${newId}`)
+    } catch (e) {
+      setAiError(e instanceof ImportError ? e.message : 'Não foi possível ler com IA. Tente novamente.')
+    } finally {
+      setAiReading(false)
+    }
+  }
 
   return (
     <LowConfidenceContext value={plan.lowConfidence}>
@@ -264,11 +313,29 @@ export function PlanReviewPage() {
             </div>
           </div>
         )}
-        <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+          {aiAvailable && (
+            <button type="button" className={buttonClasses({ variant: 'secondary' })} disabled={!online || aiReading || working !== null} onClick={() => void readAgainWithAi()}>
+              {aiReading ? 'Lendo com IA…' : 'Ler com IA'}
+            </button>
+          )}
+        </div>
+        {aiReading && (
+          <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium">
+            Lendo o PDF com IA…
+            <span className="block text-muted">Pode demorar até 90 segundos. Não feche esta tela.</span>
+          </p>
+        )}
+        {aiError && (
+          <p role="alert" className="text-sm text-danger">
+            {aiError}
+          </p>
+        )}
 
-        {plan.extractionError && (
+        {banner && (
           <p role="alert" className="rounded-card border border-warn/40 bg-warn/10 px-4 py-3 text-sm font-medium">
-            {EXTRACTION_BANNER}
+            {banner}
           </p>
         )}
         {plan.lowConfidence.length > 0 && (

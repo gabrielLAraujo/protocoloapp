@@ -112,7 +112,7 @@ public sealed class PlanPullTests(ApiFactory factory)
     {
         var (client, _) = await NewUserAsync();
         using var c = client;
-        var payload = JsonSerializer.SerializeToElement(new { name = "Leg 45" });
+        var payload = JsonSerializer.SerializeToElement(new { name = "Leg press" });
 
         var result = await SyncApi.PushOneAsync(client, new SyncChange("exercise", Guid.NewGuid(), SyncOp.Upsert, payload, SyncApi.Past()));
 
@@ -133,8 +133,8 @@ public sealed class PlanPullTests(ApiFactory factory)
             {
                 Id = id,
                 UserId = userId,
-                Name = "Supino inclinado c/ halteres",
-                NormalizedName = ExerciseNames.Normalize("Supino inclinado c/ halteres"),
+                Name = "Rosca alternada c/ halteres",
+                NormalizedName = ExerciseNames.Normalize("Rosca alternada c/ halteres"),
                 PrimaryMuscleGroup = MuscleGroup.Chest,
                 Aliases = ["supino inc"],
             };
@@ -149,9 +149,9 @@ public sealed class PlanPullTests(ApiFactory factory)
 
         Assert.Equal(id, record.Id);
         var payload = record.Payload!.Value;
-        Assert.Equal("Supino inclinado c/ halteres", payload.GetProperty("name").GetString());
+        Assert.Equal("Rosca alternada c/ halteres", payload.GetProperty("name").GetString());
         Assert.Equal("chest", payload.GetProperty("primary_muscle_group").GetString());
-        Assert.Equal("supino inclinado halteres", payload.GetProperty("normalized_name").GetString());
+        Assert.Equal("rosca alternada halteres", payload.GetProperty("normalized_name").GetString());
         Assert.Equal("supino inc", payload.GetProperty("aliases")[0].GetString());
     }
 

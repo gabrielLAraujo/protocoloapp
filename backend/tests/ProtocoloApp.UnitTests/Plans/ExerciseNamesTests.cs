@@ -8,13 +8,13 @@ public sealed class ExerciseNamesTests
     public void Abbreviated_and_plain_names_match()
     {
         Assert.Equal(
-            ExerciseNames.Normalize("Supino inclinado c/ halteres"),
-            ExerciseNames.Normalize("supino inclinado halteres"));
-        Assert.Equal("supino inclinado halteres", ExerciseNames.Normalize("Supino inclinado c/ halteres"));
+            ExerciseNames.Normalize("Rosca alternada c/ halteres"),
+            ExerciseNames.Normalize("rosca alternada halteres"));
+        Assert.Equal("rosca alternada halteres", ExerciseNames.Normalize("Rosca alternada c/ halteres"));
     }
 
     [Theory]
-    [InlineData("Supino inclinado com halteres", "supino inclinado halteres")]
+    [InlineData("Rosca alternada com halteres", "rosca alternada halteres")]
     [InlineData("Elevação lateral", "elevacao lateral")]
     [InlineData("  Agachamento   no   Smith!! ", "agachamento smith")]
     [InlineData("Puxada (pegada aberta) - Polia", "puxada pegada aberta polia")]
@@ -33,7 +33,7 @@ public sealed class ExerciseNamesTests
 
     [Fact]
     public void Different_exercises_stay_different() =>
-        Assert.NotEqual(ExerciseNames.Normalize("Supino reto"), ExerciseNames.Normalize("Supino inclinado"));
+        Assert.NotEqual(ExerciseNames.Normalize("Supino reto"), ExerciseNames.Normalize("Rosca alternada"));
 
     [Theory]
     [InlineData("supino reto", true)]

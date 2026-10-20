@@ -15,7 +15,7 @@ export class ImportError extends Error {
   override name = 'ImportError'
 }
 
-const statusMessage = (status: number): string =>
+export const statusMessage = (status: number): string =>
   status === 503 ? UNAVAILABLE : status === 413 ? TOO_BIG : GENERIC
 
 /** A rejected fetch means no connection (a body that is not JSON is the only other thing that throws here). */
@@ -25,15 +25,10 @@ function asImportError(error: unknown): ImportError {
 }
 
 /**
- * Sends the PDF and asks the server to read it: upload-url, PUT to the storage, confirm, import. Resolves with the id
- * of the draft plan version (it may carry an `extractionError`: the review screen then offers a manual fill-in).
- * Rejects with an ImportError whose message is ready for the screen.
+ * Sends the PDF to the storage: upload-url, PUT to the storage, confirm. Resolves with the id of the confirmed file (the
+ * device then reads it itself, or the server reads it with the AI). Rejects with an ImportError ready for the screen.
  */
-export async function uploadPdf(
-  kind: PlanKind,
-  file: File,
-  onStage?: (stage: UploadStage) => void,
-): Promise<string> {
+export async function uploadPdf(kind: PlanKind, file: File, onStage?: (stage: UploadStage) => void): Promise<string> {
   const contentType = 'application/pdf'
   // Checked on the device first: the server would refuse these after a pointless upload.
   // Some pickers give an empty type: then the extension decides.
@@ -53,9 +48,19 @@ export async function uploadPdf(
 
     const confirm = await api.POST('/api/files/{id}/confirm', { params: { path: { id: slot.data.fileId } } })
     if (!confirm.response.ok) throw new ImportError(statusMessage(confirm.response.status))
+    return slot.data.fileId
+  } catch (error) {
+    throw asImportError(error)
+  }
+}
 
-    onStage?.('reading')
-    const imported = await api.POST('/api/plans/import', { body: { fileId: slot.data.fileId, kind } })
+/**
+ * Asks the server to read an uploaded PDF with the AI. Resolves with the id of the new draft (it may carry an
+ * `extractionError`: the review screen then offers a manual fill-in). Can take up to 90 seconds.
+ */
+export async function readWithAi(kind: PlanKind, fileId: string): Promise<string> {
+  try {
+    const imported = await api.POST('/api/plans/import', { body: { fileId, kind } })
     if (!imported.data) throw new ImportError(statusMessage(imported.response.status))
     return imported.data.id
   } catch (error) {

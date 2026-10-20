@@ -149,7 +149,7 @@ public sealed class PlanActivationTests(ApiFactory factory)
             var now = DateTimeOffset.UtcNow;
             db.Exercises.Add(new Exercise
             {
-                Id = existing, UserId = api.UserId, Name = "supino inclinado halteres", NormalizedName = "supino inclinado halteres",
+                Id = existing, UserId = api.UserId, Name = "rosca alternada halteres", NormalizedName = "rosca alternada halteres",
                 PrimaryMuscleGroup = MuscleGroup.Chest, Version = 1, CreatedAt = now, UpdatedAt = now, ClientUpdatedAt = now,
             });
             await db.SaveChangesAsync();
@@ -185,8 +185,8 @@ public sealed class PlanActivationTests(ApiFactory factory)
             var now = DateTimeOffset.UtcNow;
             db.Exercises.Add(new Exercise
             {
-                Id = aliased, UserId = api.UserId, Name = "Supino 30 graus", NormalizedName = "supino 30 graus",
-                Aliases = ["Supino inclinado c/ halteres"], Version = 1, CreatedAt = now, UpdatedAt = now, ClientUpdatedAt = now,
+                Id = aliased, UserId = api.UserId, Name = "Rosca martelo", NormalizedName = "rosca martelo",
+                Aliases = ["Rosca alternada c/ halteres"], Version = 1, CreatedAt = now, UpdatedAt = now, ClientUpdatedAt = now,
             });
             db.Exercises.Add(new Exercise
             {
