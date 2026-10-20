@@ -86,6 +86,19 @@ public sealed class TechniqueDocumentTests
         Assert.Contains(path, Errors(Doc("", techniques)));
     }
 
+    [Fact]
+    public void Biset_pointing_to_an_exercise_of_another_day_is_an_error()
+    {
+        const string json = """
+            { "rotation": { "type": "sequence", "items": ["A", "B"] },
+              "days": [
+                { "key": "A", "name": "Dia um", "exercises": [ { "key": "A1", "name": "Movimento alfa", "sets": [ { "repsMin": 8, "repsMax": 10 } ], "techniques": [ { "type": "biset", "with": "B1" } ] } ] },
+                { "key": "B", "name": "Dia dois", "exercises": [ { "key": "B1", "name": "Movimento beta", "sets": [ { "repsMin": 8, "repsMax": 10 } ] } ] } ] }
+            """;
+
+        Assert.Contains("days[0].exercises[0].techniques[0].with", Errors(json));
+    }
+
     [Theory]
     [InlineData(", \"drops\": 6", "days[0].exercises[0].sets[1].drops")]
     [InlineData(", \"drops\": -1", "days[0].exercises[0].sets[1].drops")]

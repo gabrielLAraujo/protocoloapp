@@ -221,7 +221,7 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
   // Sets: "(1x12 a 18)" groups, then a bare "5x 7 a 9" / "2 series 9 a 11" / "2x RM".
   const sets: PlannedSet[] = []
   let lowSets = false
-  const addSets = (m: RegExpExecArray, drop: string | undefined, dropCount: string | undefined, rp: string | undefined, rpCount: string | undefined) => {
+  const addSets = (m: RegExpExecArray, tail: string | undefined) => {
     const count = Math.min(Number(m[1]), 20)
     const rm = m[4] !== undefined
     if (rm) lowSets = true
@@ -229,20 +229,26 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
     const repsMax = rm ? 0 : Number(m[3] ?? m[2])
     const technique = rm ? 'RM' : null
     const added = Array.from({ length: count }, () => ({ repsMin, repsMax, technique }) as PlannedSet)
-    if (drop) {
-      const drops = clampCount(dropCount)
-      if (/[uú]ltima/i.test(drop)) {
-        if (added.length > 0) added[added.length - 1] = { ...added[added.length - 1], technique: 'drop', drops }
-      } else added.forEach((set, i) => (added[i] = { ...set, technique: 'drop', drops }))
+    // Suffixes in any order: "+ drop", "+ 2 drop na última", "+ drop em todas", "+ rest-pause".
+    for (const suffix of (tail ?? '').matchAll(SET_SUFFIX)) {
+      const amount = clampCount(suffix[1])
+      if (suffix[2]) {
+        // "na última" is the last set of the group; a bare "+ drop" or "em todas" is every set of the group.
+        const onlyLast = /[uú]ltima/i.test(suffix[3] ?? '')
+        const targets = onlyLast ? (added.length > 0 ? [added.length - 1] : []) : added.map((_, i) => i)
+        for (const i of targets) added[i] = { ...added[i], technique: 'drop', drops: Math.max(added[i].drops ?? 0, amount) }
+      } else if (added.length > 0) {
+        const last = added.length - 1
+        added[last] = { ...added[last], restPause: Math.max(added[last].restPause ?? 0, amount) }
+      }
     }
-    if (rp && added.length > 0) added[added.length - 1] = { ...added[added.length - 1], restPause: clampCount(rpCount) }
     sets.push(...added)
   }
-  // Groups 5–7: "+ [N] drop [na última|em todas]"; 8–9: "+ [N] rest-pause".
-  const DROP = String.raw`(\s*\+\s*(?:(\d+)\s*)?drops?(\s+na\s+[uú]ltima|\s+em\s+todas)?)?(\s*\+\s*(?:(\d+)\s*)?rest[\s-]?pause)?`
-  take(new RegExp(String.raw`\(\s*${SETS}${DROP}\s*\)`, 'i'), masked(), (m) => addSets(m, m[5], m[6], m[8], m[9]))
+  // Group 5: any run of "+ [1-5] drop[-set] [na última|em todas]" / "+ [1-5] rest-pause".
+  const DROP = String.raw`((?:\s*\+\s*(?:[1-5]\s*)?(?:drop(?:[\s-]?set)?s?(?:\s+na\s+[uú]ltima|\s+em\s+todas)?|rest[\s-]?pause))*)`
+  take(new RegExp(String.raw`\(\s*${SETS}${DROP}\s*\)`, 'i'), masked(), (m) => addSets(m, m[5]))
   if (sets.length === 0) {
-    take(new RegExp(String.raw`(?<![\w])${SETS}${DROP}`, 'i'), masked(), (m) => addSets(m, m[5], m[6], m[8], m[9]))
+    take(new RegExp(String.raw`(?<![\w])${SETS}${DROP}`, 'i'), masked(), (m) => addSets(m, m[5]))
   }
 
   // Name and technique from what is left.
@@ -305,11 +311,14 @@ function parseExercise(text: string, defaults: DefaultSets | null): ParsedExerci
   }
 }
 
+/** One suffix of a set group: [1] amount, [2] drop (else rest-pause), [3] placement. */
+const SET_SUFFIX = /\+\s*(?:([1-5])\s*)?(?:(drop(?:[\s-]?set)?s?)(\s+na\s+[uú]ltima|\s+em\s+todas)?|rest[\s-]?pause)/gi
+
 const clampCount = (value: string | undefined): number => Math.min(Math.max(value ? Number(value) : 1, 1), 5)
 
 /** "drop", "+ 2 drop", "drop na última", "drop em todas" written away from the sets. */
-const DROP_TEXT = /(?:\+\s*)?(?:\b(\d+)\s*)?\bdrops?\b(?:\s+(na\s+[uú]ltima|em\s+todas))?/i
-const REST_PAUSE_TEXT = /(?:\+\s*)?(?:\b\d+\s*)?\brest[\s-]?pause\b/i
+const DROP_TEXT = /(?:\+\s*)?(?<![\d]\s*)(?:\b([1-5])\s*)?\bdrop(?:[\s-]?set)?s?\b(?:\s+(na\s+[uú]ltima|em\s+todas))?/i
+const REST_PAUSE_TEXT = /(?:\+\s*)?(?<![\d]\s*)(?:\b([1-5])\s*)?\brest[\s-]?pause\b/i
 
 /** The `drop` / `rest_pause` techniques that describe the `drops` / `restPause` already set on the sets. */
 function dropAndRestPause(sets: readonly PlannedSet[]): Technique[] {
@@ -333,7 +342,7 @@ const inRange = (value: number, min: number, max: number) => value >= min && val
 /** Fragments of the technique text that map to a structured technique (null: out of range, leave the text alone). */
 const TEXT_TECHNIQUES: { re: RegExp; make: (m: RegExpExecArray, restSequence: number[] | null) => Technique | null }[] = [
   { re: /\bSST\b/i, make: (_, rests) => (rests && rests.length > 0 ? { type: 'sst', rests } : null) },
-  ...[new RegExp(`${WITH}pico(?:\\s+de\\s+contra[cç][aã]o)?\\s+(?:de\\s+)?${SEC}`, 'i'), new RegExp(`${WITH}${SEC}\\s+de\\s+pico(?:\\s+de\\s+contra[cç][aã]o)?`, 'i')].map(
+  ...[new RegExp(`${WITH}pico(?:\\s+(?:de\\s+)?contra[cç][aã]o)?\\s+(?:de\\s+)?${SEC}`, 'i'), new RegExp(`${WITH}${SEC}\\s+de\\s+pico(?:\\s+(?:de\\s+)?contra[cç][aã]o)?`, 'i')].map(
     (re) => ({ re, make: (m: RegExpExecArray) => (inRange(Number(m[1]), 1, 10) ? ({ type: 'peak', seconds: Number(m[1]) } as Technique) : null) }),
   ),
   ...[new RegExp(`${WITH}isometria\\s+(?:de\\s+)?${SEC}`, 'i'), new RegExp(`${WITH}${SEC}\\s+de\\s+isometria`, 'i')].map((re) => ({
@@ -345,10 +354,10 @@ const TEXT_TECHNIQUES: { re: RegExp; make: (m: RegExpExecArray, restSequence: nu
     make: (m: RegExpExecArray) => (inRange(Number(m[1]), 1, 10) ? ({ type: 'zero_point', seconds: Number(m[1]) } as Technique) : null),
   })),
   {
-    re: /(?:\b(\d+)\s*rep(?:t|et)?s?\.?\s+)?\bparciais\b(?:\s+ap[óo]s\s+a\s+falha)?/i,
+    re: /(?:\b(\d+)\s*(?:repts?|reps?|repeti[cç](?:[õo]es|[ãa]o))\.?\s+)?\bparciais\b(?:\s+ap[óo]s\s+a\s+falha)?/i,
     make: (m) => (m[1] !== undefined && inRange(Number(m[1]), 1, 30) ? { type: 'partials', reps: Number(m[1]) } : { type: 'partials' }),
   },
-  { re: /\baumento\s+progressivo\s+d[ao]s?\s+cargas?\b/i, make: () => ({ type: 'progressive_load' }) },
+  { re: /(?:\bfazer\s+)?\baumento\s+progressivo\s+d[ao]s?\s+cargas?\b/i, make: () => ({ type: 'progressive_load' }) },
 ]
 
 /** Takes the recognized fragments out of the technique text. */

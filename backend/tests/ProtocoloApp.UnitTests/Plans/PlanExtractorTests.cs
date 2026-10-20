@@ -80,6 +80,32 @@ public sealed class PlanExtractorTests
     }
 
     [Fact]
+    public async Task Invalid_techniques_in_a_draft_are_repaired_or_dropped_and_do_not_fail_the_extraction()
+    {
+        var reply = System.Text.Json.Nodes.JsonNode.Parse(Fixture("anthropic-workout-response.json"))!;
+        var exercises = reply["content"]![1]!["input"]!["document"]!["days"]!;
+        exercises[0]!["exercises"]![0]!["techniques"] = System.Text.Json.Nodes.JsonNode.Parse("""
+            [ { "type": "drop" }, { "type": "laser" }, { "type": "peak", "seconds": 40 }, { "type": "isometric", "seconds": 500 },
+              { "type": "sst", "rests": [] }, { "type": "biset", "with": "B1" }, { "type": "biset", "with": "A1" },
+              { "type": "drop", "count": 9, "sets": [1, 7] }, { "type": "sst", "rests": [30, 5000] }, { "type": "biset", "with": "A2" } ]
+            """);
+        var handler = new FakeHandler((_, _) => Json(reply.ToJsonString()));
+
+        var result = await Extract(Create(handler), PlanKind.Workout);
+
+        Assert.True(result.IsSuccess);
+        var techniques = PlanDocuments.Deserialize<WorkoutDocument>(result.Document!.RootElement)!.Days[0].Exercises[0].Techniques!;
+        Assert.Equal(["drop", "peak", "isometric", "drop", "sst", "biset"], techniques.Select(t => t.Type));
+        Assert.Equal((1, "last"), (techniques[0].Count, techniques[0].Sets!.Value.GetString()));
+        Assert.Equal(10, techniques[1].Seconds);
+        Assert.Equal(120, techniques[2].Seconds);
+        Assert.Equal(5, techniques[3].Count);
+        Assert.Equal([1], techniques[3].Sets!.Value.EnumerateArray().Select(e => e.GetInt32()));
+        Assert.Equal([30, 900], techniques[4].Rests);
+        Assert.Equal("A2", techniques[5].With);
+    }
+
+    [Fact]
     public async Task Exercise_named_like_an_alias_is_linked_and_not_suggested_again()
     {
         var known = new ExerciseHint(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Exercicio Ficticio Gama", MuscleGroup.Chest, ["Exercício fictício alfa"]);

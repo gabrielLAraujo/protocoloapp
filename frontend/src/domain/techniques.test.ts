@@ -16,7 +16,9 @@ describe('techniques', () => {
     const peak: Technique = { type: 'peak', seconds: 3 }
     expect(techniqueLabel(peak)).toBe('Pico de contração')
     expect(techniqueExplanation(peak)).toBe('Segure a contração por 3 s no ponto de maior tensão.')
-    expect(techniqueExplanation({ type: 'drop', count: 2, sets: 'last' })).toContain('Repita 2 vezes')
+    expect(techniqueExplanation({ type: 'drop', count: 2, sets: 'last' })).toContain('Faça 2 drops.')
+    expect(techniqueExplanation({ type: 'sst', rests: [40, 20] })).toContain('40, 20 s')
+    expect(techniqueExplanation({ type: 'partials', reps: 6 })).toContain('6 repetições parciais')
     expect(techniqueExplanation({ type: 'stretch_interval' })).toBe('Alongue o músculo trabalhado durante o intervalo.')
   })
 })

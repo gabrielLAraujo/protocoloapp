@@ -326,6 +326,21 @@ describe('parseWorkout: structured techniques', () => {
     expect(loose.technique).toBeNull()
   })
 
+  it('reads set suffixes in any order, drop-set, and counts on rest-pause', () => {
+    const swapped = techniquesOf('- Movimento alfa (2x8 a 10) (1x5 a 7 + rest-pause + 2 drop)')
+    expect(swapped.sets[2]).toMatchObject({ drops: 2, restPause: 1 })
+    const dropSet = techniquesOf('- Movimento alfa (2x8 a 10) (1x5 a 7 + drop-set)')
+    expect(dropSet.sets[2].drops).toBe(1)
+    const loose = techniquesOf('- Movimento alfa 3x 8 a 10 com 2 rest-pause (intervalo 60 seg)')
+    expect(loose.techniques).toEqual([{ type: 'rest_pause', count: 2 }])
+  })
+
+  it('does not recognize a drop count above 5 (stays as text)', () => {
+    const exercise = techniquesOf('- Movimento alfa 3x 8 a 10 6 drop (intervalo 60 seg)')
+    expect(exercise.techniques).toBeUndefined()
+    expect(exercise.technique).toContain('6 drop')
+  })
+
   it('combines drop and rest-pause on the same last set', () => {
     const exercise = techniquesOf('- Movimento alfa (2x8 a 10) (1x5 a 7 + 2 drop + rest-pause)')
     expect(exercise.sets[2]).toMatchObject({ drops: 2, restPause: 1 })
@@ -344,6 +359,9 @@ describe('parseWorkout: structured techniques', () => {
     ['parciais após a falha', [{ type: 'partials' }]],
     ['2 seg de ponto zero', [{ type: 'zero_point', seconds: 2 }]],
     ['aumento progressivo das cargas', [{ type: 'progressive_load' }]],
+    ['fazer aumento progressivo das cargas', [{ type: 'progressive_load' }]],
+    ['com pico contração 2 seg', [{ type: 'peak', seconds: 2 }]],
+    ['7 repetições parciais', [{ type: 'partials', reps: 7 }]],
   ] as const)('reads "%s" and removes it from the text', (fragment, expected) => {
     const exercise = techniquesOf(`- Movimento alfa (3x 8 a 10) ${fragment} (intervalo 60 seg)`)
     expect(exercise.techniques).toEqual(expected)

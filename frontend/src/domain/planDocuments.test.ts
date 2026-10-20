@@ -148,9 +148,8 @@ describe('workout techniques', () => {
   })
 
   it('accepts every technique type and the drops / restPause set fields', () => {
-    const result = parseWorkoutDocument(
-      withExercise({
-        sets: [{ repsMin: 8, repsMax: 10, drops: 2, restPause: 1 }],
+    const base = withExercise({
+        sets: [{ repsMin: 8, repsMax: 10, drops: 2, restPause: 1 }, { repsMin: 8, repsMax: 10 }, { repsMin: 8, repsMax: 10 }],
         techniques: [
           { type: 'drop', count: 2, sets: 'last' },
           { type: 'drop', count: 1, sets: [0, 2] },
@@ -165,8 +164,9 @@ describe('workout techniques', () => {
           { type: 'progressive_load' },
           { type: 'stretch_interval' },
         ],
-      }),
-    )
+    })
+    base.days[0].exercises.push({ key: 'a2', name: 'Outro fictício', sets: [{ repsMin: 8, repsMax: 10 }] } as never)
+    const result = parseWorkoutDocument(base)
     expect(result.ok).toBe(true)
   })
 
@@ -176,7 +176,6 @@ describe('workout techniques', () => {
   })
 
   it.each([
-    [{ type: 'laser' }],
     [{ type: 'drop', count: 6, sets: 'last' }],
     [{ type: 'drop', count: 0, sets: 'last' }],
     [{ type: 'drop', count: 1, sets: 'first' }],
@@ -190,6 +189,24 @@ describe('workout techniques', () => {
     const result = parseWorkoutDocument(withExercise({ techniques: [technique] }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errors[0]).toMatch(/^days\.0\.exercises\.0\.techniques\.0/)
+  })
+
+  it('drops an unknown technique type and keeps the document and the known techniques', () => {
+    const result = parseWorkoutDocument(withExercise({ techniques: [{ type: 'laser', x: 1 }, { type: 'peak', seconds: 3 }] }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.days[0].exercises[0].techniques).toEqual([{ type: 'peak', seconds: 3 }])
+  })
+
+  it.each([
+    [{ techniques: [{ type: 'sst', rests: [] }] }, 'techniques.0'],
+    [{ techniques: [{ type: 'sst', rests: [901] }] }, 'techniques.0'],
+    [{ techniques: [{ type: 'drop', count: 1, sets: [1] }] }, 'techniques.0.sets'],
+    [{ techniques: [{ type: 'biset', with: 'zz' }] }, 'techniques.0.with'],
+    [{ techniques: [{ type: 'biset', with: 'a1' }] }, 'techniques.0.with'],
+  ])('applies the server rules: %j', (exercise, path) => {
+    const result = parseWorkoutDocument(withExercise(exercise))
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors.join('|')).toContain(path)
   })
 
   it('rejects drops / restPause outside 0–5', () => {
