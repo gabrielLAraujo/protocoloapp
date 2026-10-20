@@ -12,7 +12,7 @@ const session = (id: string, date: string): SessionLocal => ({
   id, date, planVersionId: 'v1', dayKey: 'A', startedAt: `${date}T10:00:00Z`, endedAt: null, note: null, exerciseNotes: {}, clientUpdatedAt: `${date}T10:00:00Z`,
 })
 const exercise = (id: string, name: string, primaryMuscleGroup: ExerciseLocal['primaryMuscleGroup']): ExerciseLocal => ({
-  id, name, normalizedName: name.toLowerCase(), primaryMuscleGroup, aliases: [],
+  id, name, normalizedName: name.toLowerCase(), primaryMuscleGroup, aliases: [], catalogId: null,
 })
 
 describe('e1rm', () => {
@@ -34,6 +34,15 @@ describe('bestSet', () => {
 
 describe('sessionPRs', () => {
   const history = [set('h', 'x', 100, 5), set('h', 'x', 80, 10)]
+
+  it('drops and rest-pauses (sub-sets) never make a record or the best set', () => {
+    const parent = set('c', 'x', 90, 5)
+    const sub = { ...set('c', 'x', 120, 12, 'rest_pause'), parentSetId: parent.id }
+    expect(sessionPRs([parent, sub], history)).toEqual([])
+    expect(bestSet([parent, sub])).toBe(parent)
+    // Nor in the history it is compared with.
+    expect(sessionPRs([set('c', 'x', 105, 5)], [...history, { ...set('h', 'x', 150, 5, 'drop'), parentSetId: 'p' }])).toHaveLength(2)
+  })
 
   it('flags max weight and max e1RM', () => {
     const cur = [set('c', 'x', 110, 3)]

@@ -1,0 +1,2288 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "key": "barbell_bench_press",
+      "name": "Supino reto com barra",
+      "aliases": [
+        "supino reto",
+        "supino reto barra",
+        "supino",
+        "supino plano",
+        "supino barra",
+        "supino reto livre",
+        "bench press"
+      ],
+      "group": "chest",
+      "equipment": "barbell",
+      "catalogId": "EIeI8Vf",
+      "catalogName": "barbell bench press"
+    },
+    {
+      "key": "dumbbell_bench_press",
+      "name": "Supino reto com halteres",
+      "aliases": [
+        "supino reto halteres",
+        "supino halteres",
+        "supino com halter",
+        "supino reto hbc",
+        "supino plano halteres"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "SpYC0Kp",
+      "catalogName": "dumbbell bench press"
+    },
+    {
+      "key": "machine_chest_press",
+      "name": "Supino reto na máquina",
+      "aliases": [
+        "supino máquina",
+        "supino reto articulado",
+        "supino articulado",
+        "chest press",
+        "supino sentado máquina"
+      ],
+      "group": "chest",
+      "equipment": "machine",
+      "catalogId": "T0yTjgW",
+      "catalogName": "Machine Chest Press"
+    },
+    {
+      "key": "smith_bench_press",
+      "name": "Supino reto no Smith",
+      "aliases": [
+        "supino smith",
+        "supino reto smith"
+      ],
+      "group": "chest",
+      "equipment": "smith",
+      "catalogId": "trqKQv2",
+      "catalogName": "smith bench press"
+    },
+    {
+      "key": "barbell_incline_press",
+      "name": "Supino inclinado com barra",
+      "aliases": [
+        "supino inclinado",
+        "supino inclinado barra",
+        "supino inclinado livre"
+      ],
+      "group": "chest",
+      "equipment": "barbell",
+      "catalogId": "9Z23cLE",
+      "catalogName": "barbell incline bench press"
+    },
+    {
+      "key": "dumbbell_incline_press",
+      "name": "Supino inclinado com halteres",
+      "aliases": [
+        "supino inclinado halteres",
+        "supino inclinado halter",
+        "supino inclinado hbc"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "B3Rxp6L",
+      "catalogName": "Dumbbell Incline Bench Press"
+    },
+    {
+      "key": "machine_incline_press",
+      "name": "Supino inclinado na máquina",
+      "aliases": [
+        "supino inclinado articulado",
+        "supino inclinado máquina"
+      ],
+      "group": "chest",
+      "equipment": "machine",
+      "catalogId": "jHAnWmT",
+      "catalogName": "Machine Incline Chest Press"
+    },
+    {
+      "key": "smith_incline_press",
+      "name": "Supino inclinado no Smith",
+      "aliases": [
+        "supino inclinado smith"
+      ],
+      "group": "chest",
+      "equipment": "smith",
+      "catalogId": "afv0ZAS",
+      "catalogName": "smith incline bench press"
+    },
+    {
+      "key": "barbell_decline_press",
+      "name": "Supino declinado com barra",
+      "aliases": [
+        "supino declinado",
+        "supino declinado barra"
+      ],
+      "group": "chest",
+      "equipment": "barbell",
+      "catalogId": "GrO65fd",
+      "catalogName": "barbell decline bench press"
+    },
+    {
+      "key": "dumbbell_decline_press",
+      "name": "Supino declinado com halteres",
+      "aliases": [
+        "supino declinado halteres",
+        "supino declinado halter"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "DwhEmmE",
+      "catalogName": "dumbbell decline bench press"
+    },
+    {
+      "key": "machine_decline_press",
+      "name": "Supino declinado na máquina",
+      "aliases": [
+        "supino declinado articulado",
+        "supino declinado máquina"
+      ],
+      "group": "chest",
+      "equipment": "machine",
+      "catalogId": "vsVoPHt",
+      "catalogName": "Machine Decline Chest Press"
+    },
+    {
+      "key": "pec_deck",
+      "name": "Voador",
+      "aliases": [
+        "peck deck",
+        "pec deck",
+        "peckdeck",
+        "voador peitoral",
+        "crucifixo máquina",
+        "fly máquina",
+        "crucifixo no voador",
+        "peck dec"
+      ],
+      "group": "chest",
+      "equipment": "machine",
+      "catalogId": "v3xmPAR",
+      "catalogName": "Machine Seated Fly"
+    },
+    {
+      "key": "dumbbell_fly",
+      "name": "Crucifixo reto com halteres",
+      "aliases": [
+        "crucifixo",
+        "crucifixo reto",
+        "crucifixo halteres",
+        "crucifixo reto halteres",
+        "fly halteres"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "yz9nUhF",
+      "catalogName": "dumbbell fly"
+    },
+    {
+      "key": "dumbbell_incline_fly",
+      "name": "Crucifixo inclinado com halteres",
+      "aliases": [
+        "crucifixo inclinado",
+        "crucifixo inclinado halteres"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "ESOd5Pl",
+      "catalogName": "dumbbell incline fly"
+    },
+    {
+      "key": "dumbbell_decline_fly",
+      "name": "Crucifixo declinado com halteres",
+      "aliases": [
+        "crucifixo declinado",
+        "crucifixo declinado halteres"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "xXm4nYq",
+      "catalogName": "dumbbell decline fly"
+    },
+    {
+      "key": "cable_crossover",
+      "name": "Crossover",
+      "aliases": [
+        "cross over",
+        "crossover polia alta",
+        "cross over polia alta",
+        "cross",
+        "crucifixo na polia",
+        "crucifixo polia alta",
+        "crucifixo no cabo"
+      ],
+      "group": "chest",
+      "equipment": "cable",
+      "catalogId": "0CXGHya",
+      "catalogName": "Cable Crossover"
+    },
+    {
+      "key": "cable_low_fly",
+      "name": "Crossover polia baixa",
+      "aliases": [
+        "cross over polia baixa",
+        "crucifixo polia baixa",
+        "crossover de baixo para cima"
+      ],
+      "group": "chest",
+      "equipment": "cable",
+      "catalogId": "FVmZVhk",
+      "catalogName": "cable low fly"
+    },
+    {
+      "key": "cable_incline_fly",
+      "name": "Crucifixo inclinado na polia",
+      "aliases": [
+        "crucifixo inclinado polia",
+        "crucifixo inclinado cabo"
+      ],
+      "group": "chest",
+      "equipment": "cable",
+      "catalogId": "tBWXbIT",
+      "catalogName": "cable incline fly"
+    },
+    {
+      "key": "chest_dip",
+      "name": "Paralelas",
+      "aliases": [
+        "paralela",
+        "mergulho",
+        "mergulho nas paralelas",
+        "dips",
+        "dip"
+      ],
+      "group": "chest",
+      "equipment": "bodyweight",
+      "catalogId": "9WTm7dq",
+      "catalogName": "chest dip"
+    },
+    {
+      "key": "push_up",
+      "name": "Flexão de braço",
+      "aliases": [
+        "flexão",
+        "flexões",
+        "flexão de braços",
+        "apoio de frente",
+        "push up"
+      ],
+      "group": "chest",
+      "equipment": "bodyweight",
+      "catalogId": "I4hDWkc",
+      "catalogName": "push-up"
+    },
+    {
+      "key": "dumbbell_pullover",
+      "name": "Pullover com halter",
+      "aliases": [
+        "pullover",
+        "pull over",
+        "pullover halter",
+        "pullover no banco"
+      ],
+      "group": "chest",
+      "equipment": "dumbbell",
+      "catalogId": "9XjtHvS",
+      "catalogName": "dumbbell pullover"
+    },
+    {
+      "key": "lat_pulldown",
+      "name": "Puxada frontal",
+      "aliases": [
+        "puxada alta",
+        "puxada frente",
+        "puxada aberta",
+        "puxada pela frente",
+        "pulley frente",
+        "pulley frente aberta",
+        "pulley alto",
+        "puxador frente",
+        "puxada na polia",
+        "puxada alta aberta",
+        "pulley"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "RVwzP10",
+      "catalogName": "cable pulldown"
+    },
+    {
+      "key": "close_grip_pulldown",
+      "name": "Puxada com triângulo",
+      "aliases": [
+        "puxada triângulo",
+        "puxada fechada",
+        "pulley triângulo",
+        "puxada neutra",
+        "puxada alta triângulo",
+        "puxada pegada neutra"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "4c9BhzB",
+      "catalogName": "cable lateral pulldown with v-bar"
+    },
+    {
+      "key": "underhand_pulldown",
+      "name": "Puxada supinada",
+      "aliases": [
+        "puxada pegada supinada",
+        "pulley supinado",
+        "puxada alta supinada",
+        "puxada inversa"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "xBYcQHj",
+      "catalogName": "cable underhand pulldown"
+    },
+    {
+      "key": "behind_neck_pulldown",
+      "name": "Puxada por trás",
+      "aliases": [
+        "puxada nuca",
+        "pulley costas",
+        "pulley nuca",
+        "puxada atrás"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "CmEr4pM",
+      "catalogName": "Cable Wide-Grip Rear Pulldown Behind Neck"
+    },
+    {
+      "key": "machine_pulldown",
+      "name": "Puxada na máquina",
+      "aliases": [
+        "puxada articulada",
+        "pulldown articulado",
+        "puxada alta articulada"
+      ],
+      "group": "back",
+      "equipment": "machine",
+      "catalogId": "7F1DVzn",
+      "catalogName": "Machine Front Pulldown"
+    },
+    {
+      "key": "single_arm_pulldown",
+      "name": "Puxada unilateral",
+      "aliases": [
+        "puxada unilateral polia",
+        "pulley unilateral"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "U5INZY6",
+      "catalogName": "Cable Single-Arm Pulldown"
+    },
+    {
+      "key": "cable_seated_row",
+      "name": "Remada baixa",
+      "aliases": [
+        "remada sentada",
+        "remada baixa triângulo",
+        "remada no cabo",
+        "remada polia baixa",
+        "remada baixa polia",
+        "remada sentada polia"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "fUBheHs",
+      "catalogName": "cable seated row"
+    },
+    {
+      "key": "wide_cable_row",
+      "name": "Remada baixa aberta",
+      "aliases": [
+        "remada sentada aberta",
+        "remada baixa pegada aberta",
+        "remada aberta polia"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "qcY50ZD",
+      "catalogName": "cable seated wide-grip row"
+    },
+    {
+      "key": "machine_row",
+      "name": "Remada sentada na máquina",
+      "aliases": [
+        "remada articulada",
+        "remada máquina",
+        "remada sentada articulada"
+      ],
+      "group": "back",
+      "equipment": "machine",
+      "catalogId": "7I6LNUG",
+      "catalogName": "Machine Seated Row"
+    },
+    {
+      "key": "machine_unilateral_row",
+      "name": "Remada unilateral na máquina",
+      "aliases": [
+        "remada articulada unilateral",
+        "remada unilateral articulada"
+      ],
+      "group": "back",
+      "equipment": "machine",
+      "catalogId": "oROuvrX",
+      "catalogName": "Machine Unilateral Row"
+    },
+    {
+      "key": "barbell_row",
+      "name": "Remada curvada com barra",
+      "aliases": [
+        "remada curvada",
+        "remada curvada pronada",
+        "remada curvada barra"
+      ],
+      "group": "back",
+      "equipment": "barbell",
+      "catalogId": "eZyBC3j",
+      "catalogName": "barbell bent over row"
+    },
+    {
+      "key": "underhand_barbell_row",
+      "name": "Remada curvada supinada",
+      "aliases": [
+        "remada supinada",
+        "remada curvada pegada supinada",
+        "remada yates"
+      ],
+      "group": "back",
+      "equipment": "barbell",
+      "catalogId": "SzX3uzM",
+      "catalogName": "Barbell Reverse-Grip Bent Over Row"
+    },
+    {
+      "key": "dumbbell_row",
+      "name": "Remada curvada com halteres",
+      "aliases": [
+        "remada curvada halteres",
+        "remada halteres"
+      ],
+      "group": "back",
+      "equipment": "dumbbell",
+      "catalogId": "BJ0Hz5L",
+      "catalogName": "dumbbell bent over row"
+    },
+    {
+      "key": "one_arm_dumbbell_row",
+      "name": "Remada unilateral com halter",
+      "aliases": [
+        "serrote",
+        "remada serrote",
+        "remada unilateral",
+        "remada unilateral halter",
+        "remada no banco unilateral"
+      ],
+      "group": "back",
+      "equipment": "dumbbell",
+      "catalogId": "v2DfH14",
+      "catalogName": "Single-Arm Dumbbell Bent-Over Row"
+    },
+    {
+      "key": "smith_row",
+      "name": "Remada curvada no Smith",
+      "aliases": [
+        "remada smith",
+        "remada curvada smith"
+      ],
+      "group": "back",
+      "equipment": "smith",
+      "catalogId": "ZX9UZmj",
+      "catalogName": "smith bent over row"
+    },
+    {
+      "key": "t_bar_row",
+      "name": "Remada cavalinho",
+      "aliases": [
+        "cavalinho",
+        "remada t",
+        "remada barra t",
+        "t bar",
+        "remada cavalo",
+        "tbar"
+      ],
+      "group": "back",
+      "equipment": "machine",
+      "catalogId": "aaXr7ld",
+      "catalogName": "Machine T Bar Row"
+    },
+    {
+      "key": "chest_supported_row",
+      "name": "Remada apoiada no banco inclinado",
+      "aliases": [
+        "remada apoiada",
+        "remada inclinada",
+        "remada no banco inclinado",
+        "remada apoiada halteres"
+      ],
+      "group": "back",
+      "equipment": "dumbbell",
+      "catalogId": "7vG5o25",
+      "catalogName": "dumbbell incline row"
+    },
+    {
+      "key": "pendlay_row",
+      "name": "Remada Pendlay",
+      "aliases": [
+        "pendlay"
+      ],
+      "group": "back",
+      "equipment": "barbell",
+      "catalogId": "r0z6xzQ",
+      "catalogName": "barbell pendlay row"
+    },
+    {
+      "key": "straight_arm_pulldown",
+      "name": "Pulldown",
+      "aliases": [
+        "pull down",
+        "pulldown barra",
+        "puxada braços estendidos",
+        "pullover na polia",
+        "pulldown braço estendido",
+        "pulldown braços estendidos"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "x69MAlq",
+      "catalogName": "cable straight arm pulldown"
+    },
+    {
+      "key": "rope_pulldown",
+      "name": "Pulldown com corda",
+      "aliases": [
+        "pulldown corda",
+        "pull down corda",
+        "pullover corda"
+      ],
+      "group": "back",
+      "equipment": "cable",
+      "catalogId": "DT14T9T",
+      "catalogName": "cable straight arm pulldown (with rope)"
+    },
+    {
+      "key": "machine_pullover",
+      "name": "Pullover na máquina",
+      "aliases": [
+        "pullover articulado",
+        "pullover máquina"
+      ],
+      "group": "back",
+      "equipment": "machine",
+      "catalogId": "4U7iLb5",
+      "catalogName": "Machine Pullover"
+    },
+    {
+      "key": "pull_up",
+      "name": "Barra fixa",
+      "aliases": [
+        "barra",
+        "barra fixa pronada",
+        "pull up",
+        "barra pegada aberta"
+      ],
+      "group": "back",
+      "equipment": "bodyweight",
+      "catalogId": "lBDjFxJ",
+      "catalogName": "pull-up"
+    },
+    {
+      "key": "chin_up",
+      "name": "Barra fixa supinada",
+      "aliases": [
+        "chin up",
+        "barra supinada"
+      ],
+      "group": "back",
+      "equipment": "bodyweight",
+      "catalogId": "IU4QNJ6",
+      "catalogName": "chin-up"
+    },
+    {
+      "key": "assisted_pull_up",
+      "name": "Barra fixa assistida",
+      "aliases": [
+        "graviton",
+        "barra graviton",
+        "barra assistida",
+        "gravitron"
+      ],
+      "group": "back",
+      "equipment": "machine",
+      "catalogId": "5ipN0iE",
+      "catalogName": "assisted pull-up"
+    },
+    {
+      "key": "inverted_row",
+      "name": "Remada invertida",
+      "aliases": [
+        "remada australiana",
+        "barra australiana"
+      ],
+      "group": "back",
+      "equipment": "bodyweight",
+      "catalogId": "bZGHsAZ",
+      "catalogName": "inverted row"
+    },
+    {
+      "key": "barbell_shrug",
+      "name": "Encolhimento com barra",
+      "aliases": [
+        "encolhimento",
+        "encolhimento barra",
+        "encolhimento de ombros"
+      ],
+      "group": "back",
+      "equipment": "barbell",
+      "catalogId": "dG7tG5y",
+      "catalogName": "barbell shrug"
+    },
+    {
+      "key": "dumbbell_shrug",
+      "name": "Encolhimento com halteres",
+      "aliases": [
+        "encolhimento halteres",
+        "encolhimento halter"
+      ],
+      "group": "back",
+      "equipment": "dumbbell",
+      "catalogId": "NJzBsGJ",
+      "catalogName": "dumbbell shrug"
+    },
+    {
+      "key": "smith_shrug",
+      "name": "Encolhimento no Smith",
+      "aliases": [
+        "encolhimento smith"
+      ],
+      "group": "back",
+      "equipment": "smith",
+      "catalogId": "OUQ0ZyW",
+      "catalogName": "smith shrug"
+    },
+    {
+      "key": "dumbbell_shoulder_press",
+      "name": "Desenvolvimento com halteres",
+      "aliases": [
+        "desenvolvimento",
+        "desenvolvimento halteres",
+        "desenvolvimento sentado",
+        "desenvolvimento halter",
+        "desenvolvimento hbc"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "znQUdHY",
+      "catalogName": "dumbbell seated shoulder press"
+    },
+    {
+      "key": "barbell_shoulder_press",
+      "name": "Desenvolvimento com barra",
+      "aliases": [
+        "desenvolvimento militar",
+        "desenvolvimento pela frente",
+        "militar",
+        "desenvolvimento barra",
+        "desenvolvimento frente"
+      ],
+      "group": "shoulders",
+      "equipment": "barbell",
+      "catalogId": "kTbSH9h",
+      "catalogName": "barbell seated overhead press"
+    },
+    {
+      "key": "behind_neck_press",
+      "name": "Desenvolvimento por trás",
+      "aliases": [
+        "desenvolvimento nuca",
+        "desenvolvimento atrás",
+        "desenvolvimento por trás da nuca"
+      ],
+      "group": "shoulders",
+      "equipment": "barbell",
+      "catalogId": "ngPpyRS",
+      "catalogName": "barbell seated behind head military press"
+    },
+    {
+      "key": "machine_shoulder_press",
+      "name": "Desenvolvimento na máquina",
+      "aliases": [
+        "desenvolvimento articulado",
+        "desenvolvimento máquina"
+      ],
+      "group": "shoulders",
+      "equipment": "machine",
+      "catalogId": "dNFYIU1",
+      "catalogName": "Machine Shoulder Press"
+    },
+    {
+      "key": "smith_shoulder_press",
+      "name": "Desenvolvimento no Smith",
+      "aliases": [
+        "desenvolvimento smith"
+      ],
+      "group": "shoulders",
+      "equipment": "smith",
+      "catalogId": "MRaFiZP",
+      "catalogName": "smith seated shoulder press"
+    },
+    {
+      "key": "arnold_press",
+      "name": "Desenvolvimento Arnold",
+      "aliases": [
+        "arnold",
+        "arnold press",
+        "desenvolvimento arnold halteres"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "Xy4jlWA",
+      "catalogName": "dumbbell arnold press"
+    },
+    {
+      "key": "lateral_raise",
+      "name": "Elevação lateral",
+      "aliases": [
+        "elevação lateral halteres",
+        "lateral",
+        "elevação lateral em pé",
+        "abdução de ombros"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "DsgkuIt",
+      "catalogName": "dumbbell lateral raise"
+    },
+    {
+      "key": "seated_lateral_raise",
+      "name": "Elevação lateral sentado",
+      "aliases": [
+        "elevação lateral sentada"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "hxyTtWj",
+      "catalogName": "dumbbell seated lateral raise"
+    },
+    {
+      "key": "cable_lateral_raise",
+      "name": "Elevação lateral na polia",
+      "aliases": [
+        "elevação lateral polia",
+        "elevação lateral cabo",
+        "lateral polia",
+        "elevação lateral unilateral polia"
+      ],
+      "group": "shoulders",
+      "equipment": "cable",
+      "catalogId": "myJeTAe",
+      "catalogName": "Cable Single-Arm Lateral Raise"
+    },
+    {
+      "key": "machine_lateral_raise",
+      "name": "Elevação lateral na máquina",
+      "aliases": [
+        "elevação lateral máquina",
+        "elevação lateral articulada"
+      ],
+      "group": "shoulders",
+      "equipment": "machine",
+      "catalogId": "dRTfGZT",
+      "catalogName": "Machine Lateral Raise"
+    },
+    {
+      "key": "front_raise",
+      "name": "Elevação frontal",
+      "aliases": [
+        "elevação frontal halteres",
+        "frontal",
+        "elevação frontal alternada"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "Rr7S3yg",
+      "catalogName": "dumbbell front raise"
+    },
+    {
+      "key": "barbell_front_raise",
+      "name": "Elevação frontal com barra",
+      "aliases": [
+        "elevação frontal barra"
+      ],
+      "group": "shoulders",
+      "equipment": "barbell",
+      "catalogId": "b2Uoz54",
+      "catalogName": "barbell front raise"
+    },
+    {
+      "key": "cable_front_raise",
+      "name": "Elevação frontal na polia",
+      "aliases": [
+        "elevação frontal polia",
+        "elevação frontal cabo",
+        "frontal polia"
+      ],
+      "group": "shoulders",
+      "equipment": "cable",
+      "catalogId": "u2X71Np",
+      "catalogName": "cable front raise"
+    },
+    {
+      "key": "plate_front_raise",
+      "name": "Elevação frontal com anilha",
+      "aliases": [
+        "elevação frontal anilha",
+        "frontal anilha"
+      ],
+      "group": "shoulders",
+      "equipment": "other",
+      "catalogId": "e4aFmFY",
+      "catalogName": "weighted front raise"
+    },
+    {
+      "key": "reverse_pec_deck",
+      "name": "Crucifixo inverso na máquina",
+      "aliases": [
+        "voador invertido",
+        "voador inverso",
+        "peck deck invertido",
+        "peck deck inverso",
+        "crucifixo inverso máquina",
+        "crucifixo invertido máquina"
+      ],
+      "group": "shoulders",
+      "equipment": "machine",
+      "catalogId": "myfUsKf",
+      "catalogName": "Machine Seated Reverse Fly"
+    },
+    {
+      "key": "dumbbell_reverse_fly",
+      "name": "Crucifixo inverso com halteres",
+      "aliases": [
+        "crucifixo inverso",
+        "crucifixo invertido",
+        "posterior de ombro",
+        "elevação posterior",
+        "crucifixo inverso halteres",
+        "deltoide posterior"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "v1qBec9",
+      "catalogName": "dumbbell rear lateral raise"
+    },
+    {
+      "key": "cable_reverse_fly",
+      "name": "Crucifixo inverso na polia",
+      "aliases": [
+        "crossover inverso",
+        "cross over inverso",
+        "crucifixo inverso polia"
+      ],
+      "group": "shoulders",
+      "equipment": "cable",
+      "catalogId": "aqvSOQE",
+      "catalogName": "Cable Crossover Reverse Fly"
+    },
+    {
+      "key": "face_pull",
+      "name": "Face pull",
+      "aliases": [
+        "face pull corda",
+        "facepull",
+        "puxada para o rosto"
+      ],
+      "group": "shoulders",
+      "equipment": "cable",
+      "catalogId": "wqNPGCg",
+      "catalogName": "cable rear delt row (with rope)"
+    },
+    {
+      "key": "barbell_upright_row",
+      "name": "Remada alta",
+      "aliases": [
+        "remada alta barra",
+        "remada alta com barra"
+      ],
+      "group": "shoulders",
+      "equipment": "barbell",
+      "catalogId": "83HoW9X",
+      "catalogName": "barbell upright row"
+    },
+    {
+      "key": "cable_upright_row",
+      "name": "Remada alta na polia",
+      "aliases": [
+        "remada alta polia",
+        "remada alta cabo"
+      ],
+      "group": "shoulders",
+      "equipment": "cable",
+      "catalogId": "cALKspW",
+      "catalogName": "cable upright row"
+    },
+    {
+      "key": "dumbbell_upright_row",
+      "name": "Remada alta com halteres",
+      "aliases": [
+        "remada alta halteres"
+      ],
+      "group": "shoulders",
+      "equipment": "dumbbell",
+      "catalogId": "ainizkb",
+      "catalogName": "dumbbell upright row"
+    },
+    {
+      "key": "cable_external_rotation",
+      "name": "Rotação externa na polia",
+      "aliases": [
+        "rotação externa",
+        "rotação externa de ombro",
+        "manguito rotador"
+      ],
+      "group": "shoulders",
+      "equipment": "cable",
+      "catalogId": "FWdVhcW",
+      "catalogName": "cable standing shoulder external rotation"
+    },
+    {
+      "key": "barbell_curl",
+      "name": "Rosca direta",
+      "aliases": [
+        "rosca direta barra",
+        "rosca barra reta",
+        "rosca em pé",
+        "rosca direta barra reta",
+        "rosca bíceps barra"
+      ],
+      "group": "biceps",
+      "equipment": "barbell",
+      "catalogId": "25GPyDY",
+      "catalogName": "barbell curl"
+    },
+    {
+      "key": "ez_bar_curl",
+      "name": "Rosca direta com barra W",
+      "aliases": [
+        "rosca w",
+        "rosca barra w",
+        "rosca direta w",
+        "rosca direta barra w"
+      ],
+      "group": "biceps",
+      "equipment": "barbell",
+      "catalogId": "6TG6x2w",
+      "catalogName": "EZ-Bar Curl"
+    },
+    {
+      "key": "alternating_dumbbell_curl",
+      "name": "Rosca alternada",
+      "aliases": [
+        "rosca alternada halteres",
+        "rosca bíceps alternada",
+        "rosca alternada em pé"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "BU15nH4",
+      "catalogName": "dumbbell alternate biceps curl"
+    },
+    {
+      "key": "dumbbell_curl",
+      "name": "Rosca simultânea com halteres",
+      "aliases": [
+        "rosca simultânea",
+        "rosca halteres",
+        "rosca direta halteres",
+        "rosca bíceps halteres"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "NbVPDMW",
+      "catalogName": "dumbbell biceps curl"
+    },
+    {
+      "key": "hammer_curl",
+      "name": "Rosca martelo",
+      "aliases": [
+        "martelo",
+        "rosca martelo halteres",
+        "rosca martelo alternada",
+        "hammer curl"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "slDvUAU",
+      "catalogName": "dumbbell hammer curl"
+    },
+    {
+      "key": "rope_hammer_curl",
+      "name": "Rosca martelo na corda",
+      "aliases": [
+        "rosca martelo corda",
+        "martelo corda",
+        "rosca corda",
+        "rosca martelo polia",
+        "bíceps corda",
+        "bíceps na corda"
+      ],
+      "group": "biceps",
+      "equipment": "cable",
+      "catalogId": "HPlPoQA",
+      "catalogName": "cable hammer curl (with rope)"
+    },
+    {
+      "key": "barbell_preacher_curl",
+      "name": "Rosca Scott",
+      "aliases": [
+        "scott",
+        "rosca scott barra",
+        "rosca scot",
+        "banco scott",
+        "rosca scott barra w",
+        "rosca no banco scott"
+      ],
+      "group": "biceps",
+      "equipment": "barbell",
+      "catalogId": "qOgPVf6",
+      "catalogName": "barbell preacher curl"
+    },
+    {
+      "key": "dumbbell_preacher_curl",
+      "name": "Rosca Scott unilateral com halter",
+      "aliases": [
+        "rosca scott unilateral",
+        "scott unilateral",
+        "rosca scott halter",
+        "rosca scott halteres"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "jivWf8n",
+      "catalogName": "dumbbell preacher curl"
+    },
+    {
+      "key": "machine_preacher_curl",
+      "name": "Rosca Scott na máquina",
+      "aliases": [
+        "rosca scott máquina",
+        "rosca scott articulada",
+        "scott máquina"
+      ],
+      "group": "biceps",
+      "equipment": "machine",
+      "catalogId": "ye84CTU",
+      "catalogName": "Machine Preacher Curl"
+    },
+    {
+      "key": "concentration_curl",
+      "name": "Rosca concentrada",
+      "aliases": [
+        "concentrada",
+        "rosca concentrada halter",
+        "rosca concentrada unilateral"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "gvsWLQw",
+      "catalogName": "dumbbell concentration curl"
+    },
+    {
+      "key": "cable_curl",
+      "name": "Rosca na polia",
+      "aliases": [
+        "rosca polia",
+        "rosca polia baixa",
+        "rosca direta polia",
+        "rosca cabo",
+        "rosca direta cabo",
+        "rosca bíceps polia",
+        "bíceps polia",
+        "bíceps na polia",
+        "bíceps polia baixa"
+      ],
+      "group": "biceps",
+      "equipment": "cable",
+      "catalogId": "G08RZcQ",
+      "catalogName": "cable curl"
+    },
+    {
+      "key": "cable_overhead_curl",
+      "name": "Rosca na polia alta",
+      "aliases": [
+        "rosca polia alta",
+        "rosca crucifixo polia",
+        "bíceps polia alta"
+      ],
+      "group": "biceps",
+      "equipment": "cable",
+      "catalogId": "wDUqY2u",
+      "catalogName": "cable overhead curl"
+    },
+    {
+      "key": "incline_dumbbell_curl",
+      "name": "Rosca inclinada",
+      "aliases": [
+        "rosca no banco inclinado",
+        "rosca inclinada halteres",
+        "rosca alternada inclinada"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "ae9UoXQ",
+      "catalogName": "dumbbell incline curl"
+    },
+    {
+      "key": "spider_curl",
+      "name": "Rosca spider",
+      "aliases": [
+        "spider curl",
+        "rosca aranha"
+      ],
+      "group": "biceps",
+      "equipment": "barbell",
+      "catalogId": "Ye5Qxb0",
+      "catalogName": "EZ-Bar Spider Curl"
+    },
+    {
+      "key": "machine_curl",
+      "name": "Rosca na máquina",
+      "aliases": [
+        "rosca máquina",
+        "rosca articulada",
+        "rosca bíceps máquina"
+      ],
+      "group": "biceps",
+      "equipment": "machine",
+      "catalogId": "q6y3OhV",
+      "catalogName": "Machine Biceps Curl"
+    },
+    {
+      "key": "zottman_curl",
+      "name": "Rosca Zottman",
+      "aliases": [
+        "zottman"
+      ],
+      "group": "biceps",
+      "equipment": "dumbbell",
+      "catalogId": "kXaIn5A",
+      "catalogName": "dumbbell zottman curl"
+    },
+    {
+      "key": "triceps_pushdown",
+      "name": "Tríceps pulley",
+      "aliases": [
+        "tríceps polia",
+        "tríceps pulley barra",
+        "tríceps barra",
+        "tríceps polia alta",
+        "tríceps no pulley",
+        "puxador tríceps",
+        "tríceps barra reta"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "3ZflifB",
+      "catalogName": "cable pushdown"
+    },
+    {
+      "key": "rope_pushdown",
+      "name": "Tríceps corda",
+      "aliases": [
+        "tríceps na corda",
+        "tríceps corda polia",
+        "tríceps pulley corda"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "dU605di",
+      "catalogName": "cable pushdown (with rope attachment)"
+    },
+    {
+      "key": "v_bar_pushdown",
+      "name": "Tríceps barra V",
+      "aliases": [
+        "tríceps v",
+        "tríceps pulley v",
+        "tríceps polia barra v"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "9tvVVM9",
+      "catalogName": "cable triceps pushdown (v-bar)"
+    },
+    {
+      "key": "reverse_pushdown",
+      "name": "Tríceps pulley inverso",
+      "aliases": [
+        "tríceps inverso",
+        "tríceps supinado",
+        "tríceps pegada inversa",
+        "tríceps pulley supinado"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "VjYliFZ",
+      "catalogName": "cable reverse-grip pushdown"
+    },
+    {
+      "key": "single_arm_pushdown",
+      "name": "Tríceps unilateral na polia",
+      "aliases": [
+        "tríceps unilateral",
+        "tríceps unilateral polia",
+        "tríceps unilateral pulley"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "qRZ5S1N",
+      "catalogName": "Cable Single-Arm Triceps Pushdown"
+    },
+    {
+      "key": "skull_crusher",
+      "name": "Tríceps testa",
+      "aliases": [
+        "testa",
+        "tríceps testa barra",
+        "tríceps testa barra w",
+        "triceps testa",
+        "skull crusher"
+      ],
+      "group": "triceps",
+      "equipment": "barbell",
+      "catalogId": "h8LFzo9",
+      "catalogName": "barbell lying triceps extension skull crusher"
+    },
+    {
+      "key": "dumbbell_french_press",
+      "name": "Tríceps francês",
+      "aliases": [
+        "francês",
+        "tríceps francês halter",
+        "tríceps nuca",
+        "tríceps francês sentado",
+        "tríceps francês unilateral"
+      ],
+      "group": "triceps",
+      "equipment": "dumbbell",
+      "catalogId": "kont8Ut",
+      "catalogName": "dumbbell seated triceps extension"
+    },
+    {
+      "key": "ez_french_press",
+      "name": "Tríceps francês com barra W",
+      "aliases": [
+        "tríceps francês barra",
+        "tríceps francês barra w",
+        "francês barra w"
+      ],
+      "group": "triceps",
+      "equipment": "barbell",
+      "catalogId": "1cTf2Ux",
+      "catalogName": "EZ-Bar Standing French Press"
+    },
+    {
+      "key": "cable_overhead_extension",
+      "name": "Tríceps francês na polia",
+      "aliases": [
+        "tríceps francês corda",
+        "tríceps overhead",
+        "tríceps corda acima da cabeça",
+        "tríceps francês polia"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "2IxROQ1",
+      "catalogName": "cable overhead triceps extension (rope attachment)"
+    },
+    {
+      "key": "dumbbell_kickback",
+      "name": "Tríceps coice",
+      "aliases": [
+        "coice",
+        "kickback",
+        "tríceps coice halter",
+        "tríceps kickback"
+      ],
+      "group": "triceps",
+      "equipment": "dumbbell",
+      "catalogId": "W6PxUkg",
+      "catalogName": "dumbbell kickback"
+    },
+    {
+      "key": "cable_kickback",
+      "name": "Tríceps coice na polia",
+      "aliases": [
+        "tríceps coice polia",
+        "coice polia tríceps",
+        "tríceps kickback polia"
+      ],
+      "group": "triceps",
+      "equipment": "cable",
+      "catalogId": "HEJ6DIX",
+      "catalogName": "cable kickback"
+    },
+    {
+      "key": "close_grip_bench_press",
+      "name": "Supino fechado",
+      "aliases": [
+        "supino pegada fechada",
+        "supino fechado barra",
+        "supino reto fechado"
+      ],
+      "group": "triceps",
+      "equipment": "barbell",
+      "catalogId": "J6Dx1Mu",
+      "catalogName": "barbell close-grip bench press"
+    },
+    {
+      "key": "bench_dip",
+      "name": "Tríceps banco",
+      "aliases": [
+        "mergulho no banco",
+        "banco tríceps",
+        "tríceps no banco",
+        "tríceps mergulho banco"
+      ],
+      "group": "triceps",
+      "equipment": "bodyweight",
+      "catalogId": "Wgbn9qo",
+      "catalogName": "triceps dip (between benches)"
+    },
+    {
+      "key": "machine_triceps_extension",
+      "name": "Tríceps na máquina",
+      "aliases": [
+        "tríceps máquina",
+        "tríceps articulado"
+      ],
+      "group": "triceps",
+      "equipment": "machine",
+      "catalogId": "Ser9eQp",
+      "catalogName": "Machine Triceps Extension"
+    },
+    {
+      "key": "machine_dip",
+      "name": "Mergulho na máquina",
+      "aliases": [
+        "paralela máquina",
+        "mergulho articulado",
+        "dip máquina"
+      ],
+      "group": "triceps",
+      "equipment": "machine",
+      "catalogId": "BRImeP8",
+      "catalogName": "Machine Seated Dip"
+    },
+    {
+      "key": "barbell_squat",
+      "name": "Agachamento livre",
+      "aliases": [
+        "agachamento",
+        "agachamento barra",
+        "agachamento livre barra",
+        "agacho",
+        "agachamento completo",
+        "agachamento profundo",
+        "squat"
+      ],
+      "group": "quads",
+      "equipment": "barbell",
+      "catalogId": "qXTaZnJ",
+      "catalogName": "barbell full squat"
+    },
+    {
+      "key": "front_squat",
+      "name": "Agachamento frontal",
+      "aliases": [
+        "agachamento frontal barra",
+        "front squat"
+      ],
+      "group": "quads",
+      "equipment": "barbell",
+      "catalogId": "zG0zs85",
+      "catalogName": "barbell front squat"
+    },
+    {
+      "key": "smith_squat",
+      "name": "Agachamento no Smith",
+      "aliases": [
+        "agachamento smith"
+      ],
+      "group": "quads",
+      "equipment": "smith",
+      "catalogId": "jFtipLl",
+      "catalogName": "smith squat"
+    },
+    {
+      "key": "hack_squat",
+      "name": "Agachamento hack",
+      "aliases": [
+        "hack",
+        "hack squat",
+        "hack machine",
+        "agachamento no hack"
+      ],
+      "group": "quads",
+      "equipment": "machine",
+      "catalogId": "Qa55kX1",
+      "catalogName": "sled hack squat"
+    },
+    {
+      "key": "sumo_squat",
+      "name": "Agachamento sumô",
+      "aliases": [
+        "agachamento sumo",
+        "sumô",
+        "agachamento sumô barra"
+      ],
+      "group": "glutes",
+      "equipment": "barbell",
+      "catalogId": "s7HX1BY",
+      "catalogName": "barbell wide squat"
+    },
+    {
+      "key": "dumbbell_sumo_squat",
+      "name": "Agachamento sumô com halter",
+      "aliases": [
+        "agachamento sumô halter",
+        "agachamento sumô kettlebell",
+        "sumô halter",
+        "sumô kettlebell"
+      ],
+      "group": "glutes",
+      "equipment": "dumbbell",
+      "catalogId": null,
+      "catalogName": null
+    },
+    {
+      "key": "smith_sumo_squat",
+      "name": "Agachamento sumô no Smith",
+      "aliases": [
+        "agachamento sumô smith",
+        "sumô smith"
+      ],
+      "group": "glutes",
+      "equipment": "smith",
+      "catalogId": "dzz6BiV",
+      "catalogName": "smith sumo squat"
+    },
+    {
+      "key": "goblet_squat",
+      "name": "Agachamento goblet",
+      "aliases": [
+        "goblet",
+        "goblet squat",
+        "agachamento taça"
+      ],
+      "group": "quads",
+      "equipment": "dumbbell",
+      "catalogId": "yn8yg1r",
+      "catalogName": "dumbbell goblet squat"
+    },
+    {
+      "key": "leg_press_45",
+      "name": "Leg press 45°",
+      "aliases": [
+        "leg press",
+        "leg 45",
+        "leg press 45",
+        "legpress",
+        "leg press inclinado",
+        "leg",
+        "leg press 45 graus"
+      ],
+      "group": "quads",
+      "equipment": "machine",
+      "catalogId": "10Z2DXU",
+      "catalogName": "sled 45Â° leg press"
+    },
+    {
+      "key": "leg_press_horizontal",
+      "name": "Leg press horizontal",
+      "aliases": [
+        "leg horizontal",
+        "leg press sentado",
+        "leg press reto"
+      ],
+      "group": "quads",
+      "equipment": "machine",
+      "catalogId": null,
+      "catalogName": null
+    },
+    {
+      "key": "single_leg_press",
+      "name": "Leg press unilateral",
+      "aliases": [
+        "leg unilateral",
+        "leg press 45 unilateral"
+      ],
+      "group": "quads",
+      "equipment": "machine",
+      "catalogId": "WWD6FzI",
+      "catalogName": "Sled 45 Degrees Single-Leg Press"
+    },
+    {
+      "key": "leg_extension",
+      "name": "Cadeira extensora",
+      "aliases": [
+        "extensora",
+        "extensor",
+        "cadeira extensor",
+        "cadeira extensora unilateral",
+        "extensora unilateral"
+      ],
+      "group": "quads",
+      "equipment": "machine",
+      "catalogId": "my33uHU",
+      "catalogName": "Machine Leg Extension"
+    },
+    {
+      "key": "bulgarian_split_squat",
+      "name": "Agachamento búlgaro",
+      "aliases": [
+        "búlgaro",
+        "afundo búlgaro",
+        "agachamento bulgaro halteres",
+        "split squat"
+      ],
+      "group": "quads",
+      "equipment": "dumbbell",
+      "catalogId": "qx4fgX7",
+      "catalogName": "dumbbell single leg split squat"
+    },
+    {
+      "key": "lunge",
+      "name": "Afundo",
+      "aliases": [
+        "afundo halteres",
+        "avanço",
+        "afundo estático",
+        "lunge"
+      ],
+      "group": "quads",
+      "equipment": "dumbbell",
+      "catalogId": "Uywa4S5",
+      "catalogName": "dumbbell lunge"
+    },
+    {
+      "key": "walking_lunge",
+      "name": "Passada",
+      "aliases": [
+        "passada halteres",
+        "avanço caminhando",
+        "afundo caminhando",
+        "passadas",
+        "walking lunge"
+      ],
+      "group": "quads",
+      "equipment": "dumbbell",
+      "catalogId": "IZVHb27",
+      "catalogName": "walking lunge"
+    },
+    {
+      "key": "smith_split_squat",
+      "name": "Afundo no Smith",
+      "aliases": [
+        "afundo smith",
+        "búlgaro smith"
+      ],
+      "group": "quads",
+      "equipment": "smith",
+      "catalogId": "wWFspEi",
+      "catalogName": "smith single leg split squat"
+    },
+    {
+      "key": "step_up",
+      "name": "Subida no banco",
+      "aliases": [
+        "step up",
+        "subida no step",
+        "subida no caixote",
+        "step"
+      ],
+      "group": "quads",
+      "equipment": "dumbbell",
+      "catalogId": "aXtJhlg",
+      "catalogName": "dumbbell step-up"
+    },
+    {
+      "key": "sissy_squat",
+      "name": "Sissy squat",
+      "aliases": [
+        "agachamento sissy",
+        "sissy"
+      ],
+      "group": "quads",
+      "equipment": "bodyweight",
+      "catalogId": "DoEYq4s",
+      "catalogName": "sissy squat"
+    },
+    {
+      "key": "lying_leg_curl",
+      "name": "Mesa flexora",
+      "aliases": [
+        "flexora",
+        "flexor deitado",
+        "mesa flexor",
+        "flexora deitada",
+        "mesa flexora deitada"
+      ],
+      "group": "hamstrings",
+      "equipment": "machine",
+      "catalogId": "17lJ1kr",
+      "catalogName": "Machine Lying Leg Curl"
+    },
+    {
+      "key": "seated_leg_curl",
+      "name": "Cadeira flexora",
+      "aliases": [
+        "flexora sentada",
+        "flexor sentado",
+        "cadeira flexor"
+      ],
+      "group": "hamstrings",
+      "equipment": "machine",
+      "catalogId": "Zg3XY7P",
+      "catalogName": "Machine Seated Leg Curl"
+    },
+    {
+      "key": "standing_leg_curl",
+      "name": "Flexora em pé",
+      "aliases": [
+        "flexor em pé",
+        "flexora unilateral em pé",
+        "flexora unilateral"
+      ],
+      "group": "hamstrings",
+      "equipment": "machine",
+      "catalogId": "nnmCTLN",
+      "catalogName": "Machine Kneeling Leg Curl"
+    },
+    {
+      "key": "stiff",
+      "name": "Stiff",
+      "aliases": [
+        "stiff barra",
+        "stiff com barra",
+        "stif",
+        "levantamento terra pernas estendidas"
+      ],
+      "group": "hamstrings",
+      "equipment": "barbell",
+      "catalogId": "hrVQWvE",
+      "catalogName": "Barbell Straight-Leg Deadlift"
+    },
+    {
+      "key": "dumbbell_stiff",
+      "name": "Stiff com halteres",
+      "aliases": [
+        "stiff halteres",
+        "stiff halter"
+      ],
+      "group": "hamstrings",
+      "equipment": "dumbbell",
+      "catalogId": "oom75KC",
+      "catalogName": "Dumbbell Straight-Leg Deadlift"
+    },
+    {
+      "key": "romanian_deadlift",
+      "name": "Levantamento terra romeno",
+      "aliases": [
+        "terra romeno",
+        "rdl",
+        "romeno",
+        "levantamento romeno"
+      ],
+      "group": "hamstrings",
+      "equipment": "barbell",
+      "catalogId": "o6LqKKP",
+      "catalogName": "barbell romanian deadlift"
+    },
+    {
+      "key": "good_morning",
+      "name": "Bom dia",
+      "aliases": [
+        "good morning",
+        "flexão de quadril com barra"
+      ],
+      "group": "hamstrings",
+      "equipment": "barbell",
+      "catalogId": "XlZ4lAC",
+      "catalogName": "barbell good morning"
+    },
+    {
+      "key": "deadlift",
+      "name": "Levantamento terra",
+      "aliases": [
+        "terra",
+        "deadlift",
+        "levantamento terra convencional",
+        "terra convencional"
+      ],
+      "group": "glutes",
+      "equipment": "barbell",
+      "catalogId": "ila4NZS",
+      "catalogName": "barbell deadlift"
+    },
+    {
+      "key": "sumo_deadlift",
+      "name": "Levantamento terra sumô",
+      "aliases": [
+        "terra sumô",
+        "terra sumo",
+        "levantamento terra sumo",
+        "sumo deadlift"
+      ],
+      "group": "glutes",
+      "equipment": "barbell",
+      "catalogId": "KgI0tqW",
+      "catalogName": "barbell sumo deadlift"
+    },
+    {
+      "key": "hip_thrust",
+      "name": "Elevação pélvica",
+      "aliases": [
+        "hip thrust",
+        "elevação de quadril",
+        "elevação pélvica barra",
+        "elevação pélvica no banco",
+        "hip trust",
+        "elevação pelvica"
+      ],
+      "group": "glutes",
+      "equipment": "barbell",
+      "catalogId": "qg2PGl6",
+      "catalogName": "Barbell Glute Bridge Two-Leg On Bench"
+    },
+    {
+      "key": "machine_hip_thrust",
+      "name": "Elevação pélvica na máquina",
+      "aliases": [
+        "elevação pélvica máquina",
+        "hip thrust máquina",
+        "elevação pélvica articulada"
+      ],
+      "group": "glutes",
+      "equipment": "machine",
+      "catalogId": null,
+      "catalogName": null
+    },
+    {
+      "key": "glute_bridge",
+      "name": "Ponte de glúteo",
+      "aliases": [
+        "ponte",
+        "glute bridge",
+        "ponte glútea",
+        "elevação pélvica no solo"
+      ],
+      "group": "glutes",
+      "equipment": "bodyweight",
+      "catalogId": "u0cNiij",
+      "catalogName": "low glute bridge on floor"
+    },
+    {
+      "key": "hip_abduction_machine",
+      "name": "Cadeira abdutora",
+      "aliases": [
+        "abdutora",
+        "abdução",
+        "abdutor",
+        "cadeira abdutor",
+        "abdução de quadril",
+        "abdução máquina"
+      ],
+      "group": "glutes",
+      "equipment": "machine",
+      "catalogId": "CHpahtl",
+      "catalogName": "Machine Seated Hip Abduction"
+    },
+    {
+      "key": "hip_adduction_machine",
+      "name": "Cadeira adutora",
+      "aliases": [
+        "adutora",
+        "adução",
+        "adutor",
+        "cadeira adutor",
+        "adução de quadril",
+        "adução máquina"
+      ],
+      "group": "other",
+      "equipment": "machine",
+      "catalogId": "oHsrypV",
+      "catalogName": "Machine Seated Hip Adduction"
+    },
+    {
+      "key": "cable_hip_abduction",
+      "name": "Abdução na polia",
+      "aliases": [
+        "abdução polia",
+        "abdução cabo",
+        "abdução em pé polia",
+        "abdutora polia"
+      ],
+      "group": "glutes",
+      "equipment": "cable",
+      "catalogId": "7WaDzyL",
+      "catalogName": "side hip abduction"
+    },
+    {
+      "key": "glute_kickback_quadruped",
+      "name": "Glúteo 4 apoios",
+      "aliases": [
+        "glúteo quatro apoios",
+        "glúteo caneleira",
+        "coice caneleira",
+        "quatro apoios",
+        "4 apoios caneleira",
+        "glúteo 4 apoios caneleira",
+        "coice 4 apoios"
+      ],
+      "group": "glutes",
+      "equipment": "other",
+      "catalogId": null,
+      "catalogName": null
+    },
+    {
+      "key": "cable_hip_adduction",
+      "name": "Adução na polia",
+      "aliases": [
+        "adução polia",
+        "adução cabo"
+      ],
+      "group": "other",
+      "equipment": "cable",
+      "catalogId": "hBGWILP",
+      "catalogName": "cable hip adduction"
+    },
+    {
+      "key": "cable_glute_kickback",
+      "name": "Coice na polia",
+      "aliases": [
+        "glúteo polia",
+        "glúteo na polia",
+        "coice glúteo polia",
+        "extensão de quadril polia",
+        "glúteo cabo"
+      ],
+      "group": "glutes",
+      "equipment": "cable",
+      "catalogId": "Kpajagk",
+      "catalogName": "cable standing hip extension"
+    },
+    {
+      "key": "machine_glute_kickback",
+      "name": "Glúteo na máquina",
+      "aliases": [
+        "glúteo máquina",
+        "coice máquina",
+        "glúteo articulado",
+        "extensão de quadril máquina"
+      ],
+      "group": "glutes",
+      "equipment": "machine",
+      "catalogId": "OPqShYN",
+      "catalogName": "Machine Hip Extension"
+    },
+    {
+      "key": "cable_pull_through",
+      "name": "Pull through",
+      "aliases": [
+        "pull through corda",
+        "pullthrough"
+      ],
+      "group": "glutes",
+      "equipment": "cable",
+      "catalogId": "OM46QHm",
+      "catalogName": "cable pull through (with rope)"
+    },
+    {
+      "key": "kettlebell_swing",
+      "name": "Swing com kettlebell",
+      "aliases": [
+        "swing",
+        "kettlebell swing"
+      ],
+      "group": "glutes",
+      "equipment": "other",
+      "catalogId": "UHJlbu3",
+      "catalogName": "kettlebell swing"
+    },
+    {
+      "key": "standing_calf_raise",
+      "name": "Panturrilha em pé",
+      "aliases": [
+        "gêmeos em pé",
+        "panturrilha máquina em pé",
+        "elevação de panturrilha",
+        "panturrilha",
+        "gêmeos",
+        "panturrilha em pé máquina"
+      ],
+      "group": "calves",
+      "equipment": "machine",
+      "catalogId": "ykUOVze",
+      "catalogName": "Machine Standing Calf Raise"
+    },
+    {
+      "key": "seated_calf_raise",
+      "name": "Panturrilha sentada",
+      "aliases": [
+        "panturrilha sentado",
+        "sóleo",
+        "gêmeos sentado",
+        "banco sóleo",
+        "panturrilha banco"
+      ],
+      "group": "calves",
+      "equipment": "machine",
+      "catalogId": "bOOdeyc",
+      "catalogName": "Machine Seated Calf Raise"
+    },
+    {
+      "key": "leg_press_calf_raise",
+      "name": "Panturrilha no leg press",
+      "aliases": [
+        "panturrilha leg press",
+        "panturrilha leg 45",
+        "panturrilha no leg"
+      ],
+      "group": "calves",
+      "equipment": "machine",
+      "catalogId": "qCNVnaU",
+      "catalogName": "sled 45Â° calf press"
+    },
+    {
+      "key": "smith_calf_raise",
+      "name": "Panturrilha no Smith",
+      "aliases": [
+        "panturrilha smith",
+        "gêmeos smith"
+      ],
+      "group": "calves",
+      "equipment": "smith",
+      "catalogId": "6MaEjVA",
+      "catalogName": "smith standing leg calf raise"
+    },
+    {
+      "key": "donkey_calf_raise",
+      "name": "Panturrilha burrinho",
+      "aliases": [
+        "burrinho",
+        "donkey",
+        "panturrilha donkey"
+      ],
+      "group": "calves",
+      "equipment": "machine",
+      "catalogId": "C9LuR4A",
+      "catalogName": "Machine Donkey Calf Raise"
+    },
+    {
+      "key": "single_leg_calf_raise",
+      "name": "Panturrilha unilateral com halter",
+      "aliases": [
+        "panturrilha unilateral",
+        "panturrilha unilateral halter"
+      ],
+      "group": "calves",
+      "equipment": "dumbbell",
+      "catalogId": "1kB3Wmk",
+      "catalogName": "dumbbell single leg calf raise"
+    },
+    {
+      "key": "crunch",
+      "name": "Abdominal supra",
+      "aliases": [
+        "abdominal",
+        "supra",
+        "abdominal reto",
+        "crunch",
+        "abdominal no solo",
+        "abdominal supra solo"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "TFqbd8t",
+      "catalogName": "crunch floor"
+    },
+    {
+      "key": "reverse_crunch",
+      "name": "Abdominal infra",
+      "aliases": [
+        "infra",
+        "abdominal invertido",
+        "abdominal reverso",
+        "abdominal infra solo"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "nCU1Ekp",
+      "catalogName": "reverse crunch"
+    },
+    {
+      "key": "plank",
+      "name": "Prancha",
+      "aliases": [
+        "prancha isométrica",
+        "prancha abdominal",
+        "prancha frontal",
+        "plank"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "VBAWRPG",
+      "catalogName": "weighted front plank"
+    },
+    {
+      "key": "side_plank",
+      "name": "Prancha lateral",
+      "aliases": [
+        "prancha lateral isométrica",
+        "side plank"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "RKjH6Lt",
+      "catalogName": "side bridge"
+    },
+    {
+      "key": "hanging_leg_raise",
+      "name": "Elevação de pernas na barra",
+      "aliases": [
+        "abdominal na barra",
+        "elevação de pernas suspenso",
+        "abdominal suspenso",
+        "infra na barra"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "I3tsCnC",
+      "catalogName": "hanging leg raise"
+    },
+    {
+      "key": "lying_leg_raise",
+      "name": "Elevação de pernas deitado",
+      "aliases": [
+        "elevação de pernas no banco",
+        "abdominal infra deitado",
+        "elevação de pernas"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "WhuFnR7",
+      "catalogName": "lying leg raise flat bench"
+    },
+    {
+      "key": "captains_chair_raise",
+      "name": "Abdominal na paralela",
+      "aliases": [
+        "elevação de pernas na paralela",
+        "abdominal no apoio",
+        "infra na paralela",
+        "cadeira romana abdominal"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "weoDEpH",
+      "catalogName": "Captains Chair Straight-Leg Raise"
+    },
+    {
+      "key": "cable_crunch",
+      "name": "Abdominal na polia",
+      "aliases": [
+        "abdominal polia",
+        "abdominal corda",
+        "crunch na polia",
+        "abdominal ajoelhado polia",
+        "abdominal crunch polia"
+      ],
+      "group": "abs",
+      "equipment": "cable",
+      "catalogId": "CUmLRTA",
+      "catalogName": "cable kneeling crunch"
+    },
+    {
+      "key": "machine_crunch",
+      "name": "Abdominal na máquina",
+      "aliases": [
+        "abdominal máquina",
+        "abdominal articulado",
+        "crunch máquina"
+      ],
+      "group": "abs",
+      "equipment": "machine",
+      "catalogId": "Wgaz7pm",
+      "catalogName": "Machine Seated Crunch"
+    },
+    {
+      "key": "oblique_crunch",
+      "name": "Abdominal oblíquo",
+      "aliases": [
+        "oblíquo",
+        "abdominal lateral",
+        "oblíquos"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "cJgSTmh",
+      "catalogName": "oblique crunch"
+    },
+    {
+      "key": "russian_twist",
+      "name": "Russian twist",
+      "aliases": [
+        "giro russo",
+        "rotação russa",
+        "abdominal russo"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "XVDdcoj",
+      "catalogName": "russian twist"
+    },
+    {
+      "key": "ab_wheel",
+      "name": "Roda abdominal",
+      "aliases": [
+        "rodinha",
+        "rodinha abdominal",
+        "ab wheel",
+        "roda"
+      ],
+      "group": "abs",
+      "equipment": "other",
+      "catalogId": "NAgVB3t",
+      "catalogName": "wheel rollout"
+    },
+    {
+      "key": "bicycle_crunch",
+      "name": "Abdominal bicicleta",
+      "aliases": [
+        "bicicleta",
+        "abdominal bike"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "1ZFqTDN",
+      "catalogName": "Bicycle Crunch"
+    },
+    {
+      "key": "dumbbell_side_bend",
+      "name": "Flexão lateral com halter",
+      "aliases": [
+        "flexão lateral",
+        "inclinação lateral",
+        "flexão lateral de tronco"
+      ],
+      "group": "abs",
+      "equipment": "dumbbell",
+      "catalogId": "IpONWYv",
+      "catalogName": "dumbbell side bend"
+    },
+    {
+      "key": "decline_sit_up",
+      "name": "Abdominal declinado",
+      "aliases": [
+        "abdominal no banco declinado",
+        "abdominal banco declinado"
+      ],
+      "group": "abs",
+      "equipment": "bodyweight",
+      "catalogId": "QLL2gdc",
+      "catalogName": "decline sit-up"
+    },
+    {
+      "key": "hyperextension",
+      "name": "Lombar no banco romano",
+      "aliases": [
+        "banco romano",
+        "hiperextensão",
+        "hiperextensão lombar",
+        "extensão lombar",
+        "lombar",
+        "lombar banco romano",
+        "hiper extensão"
+      ],
+      "group": "lowerBack",
+      "equipment": "bodyweight",
+      "catalogId": "zhMwOwE",
+      "catalogName": "hyperextension"
+    },
+    {
+      "key": "machine_back_extension",
+      "name": "Extensão lombar na máquina",
+      "aliases": [
+        "lombar máquina",
+        "lombar articulada",
+        "extensão lombar máquina"
+      ],
+      "group": "lowerBack",
+      "equipment": "machine",
+      "catalogId": "rUXfn3R",
+      "catalogName": "Machine Back Extension"
+    },
+    {
+      "key": "wrist_curl",
+      "name": "Rosca punho",
+      "aliases": [
+        "rosca de punho",
+        "flexão de punho",
+        "rosca punho barra",
+        "punho"
+      ],
+      "group": "forearms",
+      "equipment": "barbell",
+      "catalogId": "82LxxkW",
+      "catalogName": "barbell wrist curl"
+    },
+    {
+      "key": "reverse_wrist_curl",
+      "name": "Rosca punho inversa",
+      "aliases": [
+        "extensão de punho",
+        "rosca punho invertida",
+        "rosca de punho inversa"
+      ],
+      "group": "forearms",
+      "equipment": "barbell",
+      "catalogId": "qDnGfDb",
+      "catalogName": "barbell reverse wrist curl"
+    },
+    {
+      "key": "reverse_curl",
+      "name": "Rosca inversa",
+      "aliases": [
+        "rosca invertida",
+        "rosca pronada",
+        "rosca inversa barra",
+        "rosca direta pronada"
+      ],
+      "group": "forearms",
+      "equipment": "barbell",
+      "catalogId": "xNrS20v",
+      "catalogName": "barbell reverse curl"
+    },
+    {
+      "key": "farmers_walk",
+      "name": "Caminhada do fazendeiro",
+      "aliases": [
+        "farmer walk",
+        "farmers walk",
+        "caminhada fazendeiro"
+      ],
+      "group": "forearms",
+      "equipment": "dumbbell",
+      "catalogId": "qPEzJjA",
+      "catalogName": "farmers walk"
+    }
+  ]
+}

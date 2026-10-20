@@ -8,6 +8,7 @@ import { E1rmChart, type E1rmPoint } from './E1rmChart'
 import { formatDate, formatKg } from './format'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
+import { ExerciseMedia } from '../../ui/ExerciseMedia'
 import { Icon } from '../../ui/Icon'
 
 interface SessionRow {
@@ -75,6 +76,7 @@ export function ExerciseHistoryPage() {
           Voltar para o histórico
         </Link>
         <h1 className="text-xl font-bold tracking-tight">{exercise?.name ?? 'Exercício'}</h1>
+        {exercise && <ExerciseMedia catalogId={exercise.catalogId} name={exercise.name} size="card" />}
       </div>
       <div className={cardClasses({ padding: 'sm' })}>
         <E1rmChart points={points} />
@@ -103,7 +105,7 @@ export function ExerciseHistoryPage() {
               {[...rows].reverse().map((r) => (
                 <tr key={r.sessionId} className="border-t border-line align-top">
                   <td className="py-1.5 pr-3 whitespace-nowrap">{formatDate(r.date)}</td>
-                  <td className="py-1.5 pr-3">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}`).join(' · ')}</td>
+                  <td className="py-1.5 pr-3">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}${s.parentSetId === null ? '' : s.kind === 'rest_pause' ? ' (rest-pause)' : ` (${s.kind === 'drop' ? 'drop' : s.kind})`}`).join(' · ')}</td>
                   <td className="py-1.5 whitespace-nowrap tabular-nums">{r.best === null ? '—' : `${formatKg(Math.round(r.best * 10) / 10)} kg`}</td>
                 </tr>
               ))}

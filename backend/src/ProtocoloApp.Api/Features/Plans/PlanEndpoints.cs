@@ -179,8 +179,9 @@ public static class PlanEndpoints
             // Normalized above, so it reads.
             PlanDocuments.TryRead<WorkoutDocument>(document, out var workout, out _);
             var known = await ExerciseLinking.LoadHintsAsync(db, userId, ct);
-            document = PlanDocuments.Serialize(ExerciseLinking.LinkExercises(workout!, known, lowConfidence));
-            newExercises = [.. ExerciseLinking.WithoutKnown(request.NewExercises ?? [], known)];
+            var linked = await CatalogLinks.CleanAsync(db, ExerciseLinking.LinkExercises(workout!, known, lowConfidence), ct);
+            document = PlanDocuments.Serialize(linked);
+            newExercises = [.. await CatalogLinks.CleanAsync(db, [.. ExerciseLinking.WithoutKnown(request.NewExercises ?? [], known)], ct)];
         }
 
         var plan = new PlanVersion
@@ -320,10 +321,14 @@ public static class PlanEndpoints
             var problems = ValidateSuggestions(suggestions);
             if (problems.Count > 0)
                 return TypedResults.ValidationProblem(problems);
-            newExercises = PlanMapping.WriteNewExercises(suggestions);
+            newExercises = PlanMapping.WriteNewExercises(await CatalogLinks.CleanAsync(db, [.. suggestions], ct));
         }
 
-        plan.Document = JsonDocument.Parse(normalized.Value.GetRawText());
+        var document = normalized.Value;
+        if (plan.Kind == PlanKind.Workout && PlanDocuments.TryRead<WorkoutDocument>(document, out var workout, out _))
+            document = PlanDocuments.Serialize(await CatalogLinks.CleanAsync(db, workout!, ct));
+
+        plan.Document = JsonDocument.Parse(document.GetRawText());
         db.Entry(plan).Property(p => p.Document).IsModified = true;
         plan.NewExercises = newExercises;
         db.Entry(plan).Property(p => p.NewExercises).IsModified = true;
@@ -447,7 +452,7 @@ public static class PlanEndpoints
         return file.Status != FileStatus.Confirmed ? (file, SourceFileCheck.NotConfirmed) : (file, SourceFileCheck.Ok);
     }
 
-    /// <summary>Suggested new exercises: a usable name and a known muscle group each; keys are <c>newExercises[i].name|group</c>.</summary>
+    /// <summary>Suggested new exercises: a usable name and a known muscle group each (catalog links that are gone are dropped, not rejected); keys are <c>newExercises[i].name|group</c>.</summary>
     private static Dictionary<string, string[]> ValidateSuggestions(IReadOnlyList<NewExerciseSuggestion?> suggestions)
     {
         var problems = new Dictionary<string, string[]>();

@@ -49,9 +49,12 @@ public sealed record PlanVersionSummary(
     Guid SourceFileId,
     string? ExtractionError);
 
-public sealed record ExerciseResponse(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string> Aliases);
+public sealed record ExerciseResponse(Guid Id, string Name, MuscleGroup Group, IReadOnlyList<string> Aliases, string? CatalogId = null);
 
 public sealed record UpdateExerciseRequest(MuscleGroup Group, string[] Aliases);
+
+/// <summary><c>CatalogId</c> null clears the link; otherwise it must exist in the exercise catalog.</summary>
+public sealed record SetExerciseCatalogRequest(string? CatalogId);
 
 /// <summary>Mapping between rows and contracts, including the draft's pending new exercises.</summary>
 internal static class PlanMapping
@@ -69,7 +72,7 @@ internal static class PlanMapping
         plan.SourceFileId);
 
     public static ExerciseResponse ToResponse(Exercise exercise) =>
-        new(exercise.Id, exercise.Name, exercise.PrimaryMuscleGroup, exercise.Aliases);
+        new(exercise.Id, exercise.Name, exercise.PrimaryMuscleGroup, exercise.Aliases, exercise.CatalogId);
 
     public static IReadOnlyList<NewExerciseSuggestion> ReadNewExercises(JsonDocument? stored)
     {
@@ -86,9 +89,12 @@ internal static class PlanMapping
                 continue;
             }
 
+            string? catalogId = element.TryGetProperty("catalogId", out var catalog) && catalog.ValueKind == JsonValueKind.String
+                ? catalog.GetString()
+                : null;
             try
             {
-                list.Add(new NewExerciseSuggestion(name.GetString()!, EnumText.Parse<MuscleGroup>(group.GetString()!)));
+                list.Add(new NewExerciseSuggestion(name.GetString()!, EnumText.Parse<MuscleGroup>(group.GetString()!), catalogId));
             }
             catch (FormatException)
             {
@@ -98,13 +104,13 @@ internal static class PlanMapping
         return list;
     }
 
-    /// <summary>Stored as <c>[{"name","group"}]</c> with the group in snake_case; empty list is stored as null. Names are deduped by normalized name.</summary>
+    /// <summary>Stored as <c>[{"name","group","catalogId"}]</c> (catalogId may be null) with the group in snake_case; empty list is stored as null. Names are deduped by normalized name.</summary>
     public static JsonDocument? WriteNewExercises(IEnumerable<NewExerciseSuggestion> suggestions)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var rows = suggestions
             .Where(s => seen.Add(ExerciseNames.Normalize(s.Name)))
-            .Select(s => new { name = s.Name.Trim(), group = EnumText.ToText(s.Group) })
+            .Select(s => new { name = s.Name.Trim(), group = EnumText.ToText(s.Group), catalogId = s.CatalogId })
             .ToList();
         return rows.Count == 0 ? null : JsonSerializer.SerializeToDocument(rows);
     }

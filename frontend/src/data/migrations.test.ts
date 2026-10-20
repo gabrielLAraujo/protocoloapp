@@ -159,3 +159,24 @@ describe('local migration 5', () => {
     expect(tables.map((t) => t.name)).toEqual(['daily_checkins'])
   })
 })
+
+describe('local migration 6', () => {
+  it('adds the catalog tables and exercises.catalog_id without touching the exercises of a device on version 5', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 5)
+    await db.execute(
+      `INSERT INTO exercises (id, name, normalized_name, primary_muscle_group, aliases, client_updated_at, version, deleted_at)
+       VALUES ('x1', 'Stiff', 'stiff', 'hamstrings', '["a"]', '2026-10-01T10:00:00.000Z', 2, NULL)`,
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT id, name, aliases, catalog_id FROM exercises')).toEqual([{ id: 'x1', name: 'Stiff', aliases: '["a"]', catalog_id: null }])
+    const tables = await db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('catalog_exercises', 'kv')")
+    expect(tables.map((t) => t.name).sort()).toEqual(['catalog_exercises', 'kv'])
+    await db.execute("INSERT INTO catalog_exercises (id, name) VALUES ('c1', 'Curl')")
+    expect(await db.query('SELECT * FROM catalog_exercises')).toEqual([
+      { id: 'c1', name: 'Curl', body_parts: '[]', target_muscles: '[]', equipments: '[]', gif_url: null },
+    ])
+  })
+})

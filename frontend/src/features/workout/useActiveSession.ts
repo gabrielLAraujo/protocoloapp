@@ -27,6 +27,15 @@ export interface LogSetInput {
   kind: SetKind
 }
 
+export interface SubSetInput {
+  parentSetId: string
+  kind: 'drop' | 'rest_pause'
+  /** 1-based position among the parent's sub-sets of this kind. */
+  ordinal: number
+  weightKg: number
+  reps: number
+}
+
 export interface ActiveSession {
   ready: boolean
   failed: boolean
@@ -34,7 +43,10 @@ export interface ActiveSession {
   changes: Map<string, ExerciseChangeLocal>
   /** Per exercise, the working sets of the most recent other session ("Última vez"). */
   lastTime: Map<string, SetLocal[]>
-  logSet(input: LogSetInput): Promise<void>
+  /** Stores a main set; resolves with the session's sets after the write. */
+  logSet(input: LogSetInput): Promise<SetLocal[]>
+  /** Stores a drop/rest-pause under a done set (idempotent per parent + kind + ordinal); resolves with the session's sets. */
+  logSubSet(input: SubSetInput): Promise<SetLocal[]>
   removeSet(setId: string): Promise<void>
   updateSet(setId: string, weightKg: number, reps: number, kind: SetKind): Promise<void>
   /** Undoes the latest change (skip or swap) of a planned exercise. */
@@ -59,7 +71,11 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
   const [lastTime, setLastTime] = useState<Map<string, SetLocal[]>>(new Map())
   const { db, userId } = data
 
-  const reload = useCallback(async () => setState(await readSession(db, sessionId)), [db, sessionId])
+  const reload = useCallback(async () => {
+    const read = await readSession(db, sessionId)
+    setState(read)
+    return read
+  }, [db, sessionId])
 
   useEffect(() => {
     let cancelled = false
@@ -104,8 +120,9 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
   }, [db, sessionId, idsKey])
 
   const after = useCallback(async () => {
-    await reload()
+    const read = await reload()
     void syncNow()
+    return read.sets
   }, [reload, syncNow])
 
   const changes = useMemo(() => effectiveChanges(state?.changes ?? []), [state])
@@ -118,7 +135,11 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
     lastTime,
     async logSet(input) {
       await workoutRepo.logSet(db, userId, { sessionId, ...input }, now())
-      await after()
+      return after()
+    },
+    async logSubSet(input) {
+      await workoutRepo.logSubSet(db, userId, input, now())
+      return after()
     },
     async removeSet(setId) {
       await workoutRepo.deleteSet(db, userId, setId, now())

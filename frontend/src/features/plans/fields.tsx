@@ -47,6 +47,7 @@ export function TextField({
   onChange,
   type = 'text',
   placeholder,
+  error,
 }: {
   label: string
   path?: string
@@ -54,9 +55,10 @@ export function TextField({
   onChange: (value: string | undefined) => void
   type?: 'text' | 'date'
   placeholder?: string
+  error?: string
 }) {
   return (
-    <Field label={label} path={path}>
+    <Field label={label} path={path} error={error}>
       {(props) => (
         <input
           {...props}
@@ -126,6 +128,7 @@ export function SelectField({
   options,
   invalid,
   disabled,
+  error,
 }: {
   label: string
   path?: string
@@ -134,9 +137,10 @@ export function SelectField({
   options: readonly { value: string; label: string }[]
   invalid?: boolean
   disabled?: boolean
+  error?: string
 }) {
   return (
-    <Field label={label} path={path} invalid={invalid}>
+    <Field label={label} path={path} invalid={invalid} error={error}>
       {(props) => (
         <select {...props} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
           {options.map((o) => (

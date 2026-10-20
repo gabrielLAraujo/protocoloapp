@@ -1,0 +1,160 @@
+import { workoutDocumentSchema, type PlannedExercise, type PlannedSet, type WorkoutDocument } from '../../../domain/planDocuments'
+import { freshKey, isLowConfidence, updateList } from '../docEdit'
+import { validateWorkout } from '../validation'
+
+export type Step = { kind: 'rotation' } | { kind: 'day'; index: number } | { kind: 'new' } | { kind: 'activate' }
+
+/** Rotação, one step per day, Exercícios novos (only when there are any) and Ativar. */
+export function buildSteps(doc: WorkoutDocument, hasNew: boolean): Step[] {
+  return [
+    { kind: 'rotation' },
+    ...doc.days.map((_, index): Step => ({ kind: 'day', index })),
+    ...(hasNew ? [{ kind: 'new' } as Step] : []),
+    { kind: 'activate' },
+  ]
+}
+
+/** The letter that names a day: its key when that is one letter (`a`), else its position. */
+export function dayLetter(key: string, index: number): string {
+  return /^[a-z]$/i.test(key) ? key.toUpperCase() : String.fromCharCode(65 + (index % 26))
+}
+
+export function dayLabel(doc: WorkoutDocument, index: number): string {
+  const day = doc.days[index]!
+  const letter = dayLetter(day.key, index)
+  return day.name.trim() ? `Dia ${letter} — ${day.name.trim()}` : `Dia ${letter}`
+}
+
+export function stepTitle(step: Step, doc: WorkoutDocument): string {
+  switch (step.kind) {
+    case 'rotation':
+      return 'Rotação'
+    case 'day':
+      return dayLabel(doc, step.index)
+    case 'new':
+      return 'Exercícios novos'
+    case 'activate':
+      return 'Ativar'
+  }
+}
+
+/** Index of the first day step that is not confirmed yet; the last step when all are. */
+export function firstOpenIndex(steps: Step[], doc: WorkoutDocument, confirmed: ReadonlySet<string>): number {
+  const open = steps.findIndex((s) => s.kind === 'day' && !confirmed.has(doc.days[s.index]!.key))
+  return open === -1 ? steps.length - 1 : open
+}
+
+/** Dots can be tapped for the steps up to the first unconfirmed day, the current one and the confirmed days. */
+export function isStepReachable(steps: Step[], i: number, current: number, doc: WorkoutDocument, confirmed: ReadonlySet<string>): boolean {
+  if (i === current || i <= firstOpenIndex(steps, doc, confirmed)) return true
+  const step = steps[i]!
+  return step.kind === 'day' && confirmed.has(doc.days[step.index]!.key)
+}
+
+const range = (s: PlannedSet) => (s.repsMin === s.repsMax ? `${s.repsMin}` : `${s.repsMin}-${s.repsMax}`)
+
+function extras(s: PlannedSet): string {
+  const parts: string[] = []
+  const drops = s.drops ?? (s.technique?.trim().toLowerCase() === 'drop' ? 1 : 0)
+  if (drops > 0) parts.push(drops === 1 ? '+drop' : `+${drops} drops`)
+  if ((s.restPause ?? 0) > 0) parts.push(s.restPause === 1 ? '+rest-pause' : `+${s.restPause} rest-pauses`)
+  return parts.join(' ')
+}
+
+/** "4× 10–15" when every set is alike; otherwise the pyramid, "15-20 · 10-15 · 8-12 +drop". */
+export function setsSummary(sets: readonly PlannedSet[]): string {
+  if (sets.length === 0) return 'Sem séries'
+  const labels = sets.map((s) => [range(s), extras(s)].filter(Boolean).join(' '))
+  if (labels.every((l) => l === labels[0])) {
+    const first = sets[0]!
+    const reps = first.repsMin === first.repsMax ? `${first.repsMin}` : `${first.repsMin}–${first.repsMax}`
+    return [`${sets.length}× ${reps}`, extras(first)].filter(Boolean).join(' ')
+  }
+  return labels.join(' · ')
+}
+
+/** The sub-fields of an exercise that the extraction flagged, in words ("séries", "descanso"). */
+export function lowFields(lows: readonly string[], base: string): string[] {
+  const fields: [string, string][] = [
+    ['name', 'nome'],
+    ['sets', 'séries'],
+    ['restSeconds', 'descanso'],
+    ['technique', 'técnica'],
+    ['techniques', 'técnicas'],
+  ]
+  return fields.filter(([key]) => isLowConfidence(lows, `${base}.${key}`)).map(([, word]) => word)
+}
+
+const bracket = (path: PropertyKey[]) => path.reduce<string>((acc, part) => (typeof part === 'number' ? `${acc}[${part}]` : acc ? `${acc}.${String(part)}` : String(part)), '')
+
+/** Messages by field path (`days[0].exercises[1].techniques[0].count`): the schema's findings and the activation rules. */
+export function fieldErrors(doc: WorkoutDocument): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const parsed = workoutDocumentSchema.safeParse(doc)
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      const path = bracket(issue.path)
+      if (path in errors) continue
+      errors[path] =
+        issue.code === 'invalid_type'
+          ? 'Obrigatório.'
+          : issue.code === 'too_small' || issue.code === 'too_big'
+            ? 'Valor fora da faixa.'
+            : issue.message === 'set index out of range'
+              ? 'Escolha séries que existem.'
+              : issue.message.startsWith('bi-set')
+                ? 'Escolha outro exercício do mesmo dia.'
+                : 'Valor inválido.'
+    }
+  }
+  for (const issue of validateWorkout(doc)) if (issue.path !== 'document' && !(issue.path in errors)) errors[issue.path] = issue.message
+  return errors
+}
+
+/** Whether this day has a field error (other days' errors do not block it). */
+export function dayBlocked(errors: Record<string, string>, index: number): boolean {
+  return Object.keys(errors).some((path) => path.startsWith(`days[${index}]`))
+}
+
+/** The error messages of one exercise (its own fields and everything under it). */
+export function exerciseErrors(errors: Record<string, string>, base: string): string[] {
+  return Object.entries(errors)
+    .filter(([path]) => path === base || path.startsWith(`${base}.`) || path.startsWith(`${base}[`))
+    .map(([, message]) => message)
+}
+
+/** Adds a blank exercise to a day; returns the new document and the position of the exercise. */
+export function withNewExercise(doc: WorkoutDocument, dayIndex: number): { doc: WorkoutDocument; index: number } {
+  const day = doc.days[dayIndex]!
+  const key = freshKey('e', day.exercises.map((e) => e.key))
+  const next = updateList<WorkoutDocument, PlannedExercise>(doc, `days[${dayIndex}].exercises`, (list) => [...list, { key, name: '', sets: [{ repsMin: 8, repsMax: 12 }] }])
+  return { doc: next, index: day.exercises.length }
+}
+
+
+
+/** The document without the exercise; bi-sets of the same day that pointed to it go with it. */
+export function withoutExercise(doc: WorkoutDocument, dayIndex: number, exIndex: number): WorkoutDocument {
+  const day = doc.days[dayIndex]!
+  const removed = day.exercises[exIndex]!
+  const exercises = day.exercises
+    .filter((_, i) => i !== exIndex)
+    .map((e) => {
+      const techniques = e.techniques?.filter((t) => !(t.type === 'biset' && t.with === removed.key))
+      const next = { ...e, ...(e.techniques ? { techniques } : {}) }
+      if (e.supersetWith === removed.key) next.supersetWith = undefined
+      return next
+    })
+  return { ...doc, days: doc.days.map((d, i) => (i === dayIndex ? { ...d, exercises } : d)) }
+}
+
+/** The exercise without set `index`; drop techniques aimed at specific sets are renumbered (none left means the last set). */
+export function withoutSet(exercise: PlannedExercise, index: number): PlannedExercise {
+  const sets = exercise.sets.filter((_, i) => i !== index)
+  const techniques = exercise.techniques?.map((t) => {
+    if (t.type !== 'drop' || !Array.isArray(t.sets)) return t
+    const kept = t.sets.filter((n) => n !== index).map((n) => (n > index ? n - 1 : n))
+    return { ...t, sets: kept.length > 0 ? kept : ('last' as const) }
+  })
+  return { ...exercise, sets, ...(exercise.techniques ? { techniques } : {}) }
+}

@@ -233,6 +233,16 @@ const setPayload = (r: SetRow): SetPayload => ({
   completed_at: r.completed_at,
 })
 
+/** Soft-deletes the live sub-sets of a set and queues their deletes (a sub-set never outlives its parent). */
+async function deleteChildren(tx: LocalDb, parentId: string, now: Date) {
+  const children = await tx.query<SetRow>('SELECT * FROM set_logs WHERE parent_set_id = ? AND deleted_at IS NULL', [parentId])
+  for (const child of children) {
+    const at = nextClientUpdatedAt(now, child.client_updated_at)
+    await tx.execute('UPDATE set_logs SET deleted_at = ?, client_updated_at = ? WHERE id = ?', [at, at, child.id])
+    await outbox.enqueue(tx, { entity: SET_LOG_ENTITY, id: child.id, op: 'delete', payload: null, clientUpdatedAt: at })
+  }
+}
+
 /**
  * Every write stores the row and queues it in one transaction. The session is queued when it starts, so it always
  * precedes its sets in the outbox (the server requires the session to exist); later edits queue new entries after.
@@ -369,6 +379,51 @@ export const workoutRepo = {
     return id
   },
 
+  /**
+   * Stores a sub-set (drop or rest-pause) under a done set, with the parent's exercise, planned exercise and set index.
+   * Idempotent per parent + kind + ordinal: when the parent already has `ordinal` live sub-sets of that kind (a double tap,
+   * or the slot was filled elsewhere), nothing is written and the existing one's id is returned.
+   */
+  async logSubSet(
+    db: LocalDb,
+    _userId: string,
+    input: { parentSetId: string; kind: 'drop' | 'rest_pause'; ordinal: number; weightKg: number; reps: number },
+    now: Date,
+  ): Promise<string> {
+    return db.transaction(async (tx) => {
+      const [parent] = await tx.query<SetRow>('SELECT * FROM set_logs WHERE id = ? AND deleted_at IS NULL', [input.parentSetId])
+      if (!parent) throw new Error('Set not found.')
+      const siblings = await tx.query<{ id: string }>(
+        'SELECT id FROM set_logs WHERE parent_set_id = ? AND kind = ? AND deleted_at IS NULL ORDER BY completed_at, id',
+        [input.parentSetId, input.kind],
+      )
+      const existing = siblings[input.ordinal - 1]
+      if (existing) return existing.id
+      const [latest] = await tx.query<{ at: string | null }>(
+        'SELECT MAX(completed_at) AS at FROM set_logs WHERE parent_set_id = ? AND deleted_at IS NULL',
+        [input.parentSetId],
+      )
+      const after = Math.max(Date.parse(parent.completed_at), latest?.at ? Date.parse(latest.at) : 0)
+      const id = newId()
+      const payload: SetPayload = {
+        session_id: parent.session_id,
+        exercise_id: parent.exercise_id,
+        planned_exercise_key: parent.planned_exercise_key,
+        set_index: parent.set_index,
+        weight_kg: input.weightKg,
+        reps: input.reps,
+        kind: input.kind,
+        parent_set_id: parent.id,
+        // After the parent and the sub-sets already done, even if the clock went backwards: the order they were done is kept.
+        completed_at: new Date(Math.max(now.getTime(), after + 1)).toISOString(),
+      }
+      const clientUpdatedAt = now.toISOString()
+      await writeSet(tx, id, payload, clientUpdatedAt, null)
+      await outbox.enqueue(tx, { entity: SET_LOG_ENTITY, id, op: 'upsert', payload: JSON.stringify(payload), clientUpdatedAt })
+      return id
+    })
+  },
+
   async updateSet(db: LocalDb, _userId: string, setId: string, patch: SetPatch, now: Date): Promise<void> {
     await db.transaction(async (tx) => {
       const [row] = await tx.query<SetRow>('SELECT * FROM set_logs WHERE id = ? AND deleted_at IS NULL', [setId])
@@ -386,11 +441,15 @@ export const workoutRepo = {
     })
   },
 
-  /** Deletes the set (soft, like the server) and queues the delete. No-op when it is already gone. */
+  /**
+   * Deletes the set (soft, like the server) and queues the delete. No-op when it is already gone. Its sub-sets (drops,
+   * rest-pauses) go with it, queued first: a sub-set never outlives its parent (the server refuses one whose parent is gone).
+   */
   async deleteSet(db: LocalDb, _userId: string, setId: string, now: Date): Promise<void> {
     await db.transaction(async (tx) => {
       const [row] = await tx.query<SetRow>('SELECT * FROM set_logs WHERE id = ?', [setId])
       if (!row || row.deleted_at !== null) return
+      await deleteChildren(tx, setId, now)
       const clientUpdatedAt = nextClientUpdatedAt(now, row.client_updated_at)
       await tx.execute('UPDATE set_logs SET deleted_at = ?, client_updated_at = ? WHERE id = ?', [clientUpdatedAt, clientUpdatedAt, setId])
       await outbox.enqueue(tx, { entity: SET_LOG_ENTITY, id: setId, op: 'delete', payload: null, clientUpdatedAt })
@@ -444,11 +503,11 @@ export const workoutRepo = {
   },
 
   /**
-   * Sessions newest first with their live set count and volume (warm-ups excluded), in one query. `limit`/`offset` page it.
+   * Sessions newest first with their live set count (main sets only: drops and rest-pauses are part of their set) and volume (warm-ups excluded), in one query. `limit`/`offset` page it.
    */
   async sessionSummaries(db: LocalDb, limit: number, offset: number): Promise<SessionSummary[]> {
     const rows = await db.query<SessionRow & { set_count: number; volume: number }>(
-      `SELECT s.*, COUNT(l.id) AS set_count,
+      `SELECT s.*, COUNT(CASE WHEN l.parent_set_id IS NULL THEN l.id END) AS set_count,
               COALESCE(SUM(CASE WHEN l.kind <> 'warmup' THEN l.weight_kg * l.reps ELSE 0 END), 0) AS volume
        FROM workout_sessions s
        LEFT JOIN set_logs l ON l.session_id = s.id AND l.deleted_at IS NULL
@@ -502,8 +561,8 @@ export const workoutSessionSync: SyncEntityAdapter = {
 export const setLogSync: SyncEntityAdapter = {
   entity: SET_LOG_ENTITY,
   table: 'set_logs',
-  applyRemote: (db, record) =>
-    applyPulled(db, SET_LOG_ENTITY, 'set_logs', record, async (payload, clientUpdatedAt) => {
+  applyRemote: async (db, record) => {
+    await applyPulled(db, SET_LOG_ENTITY, 'set_logs', record, async (payload, clientUpdatedAt) => {
       const p = payload as SetPayload
       await writeSet(
         db,
@@ -512,7 +571,10 @@ export const setLogSync: SyncEntityAdapter = {
         clientUpdatedAt,
         record.version,
       )
-    }),
+    })
+    // A set deleted on another device takes the sub-sets this device made under it along (the server refuses them anyway).
+    if (record.deletedAt !== null || record.payload === null) await deleteChildren(db, record.id, new Date())
+  },
 }
 
 export const exerciseChangeSync: SyncEntityAdapter = {

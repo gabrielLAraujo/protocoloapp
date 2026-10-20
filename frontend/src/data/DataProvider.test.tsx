@@ -73,6 +73,8 @@ describe('DataProvider', () => {
     release()
 
     await screen.findByText(USER_B)
+    // The provider may still be opening user B's data (catalog refresh runs alongside), so wait for it.
+    await waitFor(() => expect(seen.data?.engine).toBeTruthy())
     await seen.data!.engine.whenIdle()
     const db = seen.data!.db
     expect(await syncState.get(db, 'user_id')).toBe(USER_B)

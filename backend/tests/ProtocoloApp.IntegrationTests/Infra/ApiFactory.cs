@@ -66,6 +66,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ConnectionStrings:Db", ConnectionString);
         // The reminder loop stays off: tests call ReminderScheduler.RunOnceAsync themselves, with the time they want.
         builder.UseSetting("Reminders:Enabled", "false");
+        // Nothing reaches ExerciseDB: tests run the sync themselves with a fake client.
+        builder.UseSetting("ExerciseCatalog:Enabled", "false");
         builder.UseSetting("Auth:SigningKey", "test-only-signing-key-0123456789-abcdefghij");
         builder.ConfigureTestServices(services =>
         {

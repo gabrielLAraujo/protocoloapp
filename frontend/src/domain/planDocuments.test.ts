@@ -140,3 +140,77 @@ describe('null tolerance (backend reads null strings leniently)', () => {
     }
   })
 })
+
+describe('workout techniques', () => {
+  const withExercise = (exercise: Record<string, unknown>) => ({
+    rotation: { type: 'sequence', items: ['A'] },
+    days: [{ key: 'A', name: 'Treino A', exercises: [{ key: 'a1', name: 'Movimento fictício', sets: [{ repsMin: 8, repsMax: 10 }], ...exercise }] }],
+  })
+
+  it('accepts every technique type and the drops / restPause set fields', () => {
+    const base = withExercise({
+        sets: [{ repsMin: 8, repsMax: 10, drops: 2, restPause: 1 }, { repsMin: 8, repsMax: 10 }, { repsMin: 8, repsMax: 10 }],
+        techniques: [
+          { type: 'drop', count: 2, sets: 'last' },
+          { type: 'drop', count: 1, sets: [0, 2] },
+          { type: 'rest_pause', count: 1 },
+          { type: 'biset', with: 'a2' },
+          { type: 'sst', rests: [40, 20] },
+          { type: 'peak', seconds: 3 },
+          { type: 'isometric', seconds: 20 },
+          { type: 'partials' },
+          { type: 'partials', reps: 6 },
+          { type: 'zero_point', seconds: 2 },
+          { type: 'progressive_load' },
+          { type: 'stretch_interval' },
+        ],
+    })
+    base.days[0].exercises.push({ key: 'a2', name: 'Outro fictício', sets: [{ repsMin: 8, repsMax: 10 }] } as never)
+    const result = parseWorkoutDocument(base)
+    expect(result.ok).toBe(true)
+  })
+
+  it('keeps old documents without the fields valid', () => {
+    expect(parseWorkoutDocument(withExercise({})).ok).toBe(true)
+    expect(parseWorkoutDocument(withExercise({ techniques: null, sets: [{ repsMin: 8, repsMax: 10, drops: null }] })).ok).toBe(true)
+  })
+
+  it.each([
+    [{ type: 'drop', count: 6, sets: 'last' }],
+    [{ type: 'drop', count: 0, sets: 'last' }],
+    [{ type: 'drop', count: 1, sets: 'first' }],
+    [{ type: 'rest_pause', count: 6 }],
+    [{ type: 'peak', seconds: 11 }],
+    [{ type: 'isometric', seconds: 121 }],
+    [{ type: 'partials', reps: 31 }],
+    [{ type: 'zero_point', seconds: 0 }],
+    [{ type: 'biset' }],
+  ])('rejects %j with a path-keyed error', (technique) => {
+    const result = parseWorkoutDocument(withExercise({ techniques: [technique] }))
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors[0]).toMatch(/^days\.0\.exercises\.0\.techniques\.0/)
+  })
+
+  it('drops an unknown technique type and keeps the document and the known techniques', () => {
+    const result = parseWorkoutDocument(withExercise({ techniques: [{ type: 'laser', x: 1 }, { type: 'peak', seconds: 3 }] }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.days[0].exercises[0].techniques).toEqual([{ type: 'peak', seconds: 3 }])
+  })
+
+  it.each([
+    [{ techniques: [{ type: 'sst', rests: [] }] }, 'techniques.0'],
+    [{ techniques: [{ type: 'sst', rests: [901] }] }, 'techniques.0'],
+    [{ techniques: [{ type: 'drop', count: 1, sets: [1] }] }, 'techniques.0.sets'],
+    [{ techniques: [{ type: 'biset', with: 'zz' }] }, 'techniques.0.with'],
+    [{ techniques: [{ type: 'biset', with: 'a1' }] }, 'techniques.0.with'],
+  ])('applies the server rules: %j', (exercise, path) => {
+    const result = parseWorkoutDocument(withExercise(exercise))
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors.join('|')).toContain(path)
+  })
+
+  it('rejects drops / restPause outside 0–5', () => {
+    expect(parseWorkoutDocument(withExercise({ sets: [{ repsMin: 8, repsMax: 10, drops: 6 }] })).ok).toBe(false)
+    expect(parseWorkoutDocument(withExercise({ sets: [{ repsMin: 8, repsMax: 10, restPause: -1 }] })).ok).toBe(false)
+  })
+})

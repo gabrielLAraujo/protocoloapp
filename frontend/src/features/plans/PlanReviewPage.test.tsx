@@ -6,7 +6,7 @@ import { exerciseRepo, exerciseSync } from '../../data/exerciseRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { json, mockFetch, problem } from '../../test/fetch-mock'
 import { setupApp } from '../testSupport'
-import { planVersion, PLAN_ID, protocolDocument, workoutDocument, type PlanVersion } from './fixtures'
+import { planVersion, PLAN_ID, protocolDocument, type PlanVersion } from './fixtures'
 import { PlanReviewPage } from './PlanReviewPage'
 
 beforeEach(() => {
@@ -47,6 +47,8 @@ describe('PlanReviewPage', () => {
   it('shows the diff against the active version', async () => {
     await renderReview(
       planVersion({
+        kind: 'protocol',
+        document: protocolDocument(),
         diff: { added: ['days[c]'], removed: ['days[z]'], changed: [{ path: 'days[a].name', before: 'Treino A', after: 'Treino AA' }] },
       }),
     )
@@ -59,67 +61,9 @@ describe('PlanReviewPage', () => {
     expect(within(list).getByText('Adicionado:')).toBeInTheDocument()
   })
 
-  it('marks low-confidence fields with "Confira" and only those', async () => {
-    await renderReview(planVersion({ lowConfidence: ['days[0].exercises[0].name'] }))
-    const day = within(await screen.findByRole('region', { name: 'Dia 1' }))
-
-    const first = within(day.getByRole('region', { name: 'Exercício 1' }))
-    expect(within(first.getByLabelText('Nome').parentElement!).getByText('Confira')).toBeInTheDocument()
-    expect(first.getByLabelText('Nome')).toHaveClass('border-warn')
-    expect(first.getByLabelText('Descanso (s)')).not.toHaveClass('border-warn')
-    expect(within(day.getByRole('region', { name: 'Exercício 2' })).queryByText('Confira')).not.toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Dia 2' })).queryByText('Confira')).not.toBeInTheDocument()
-  })
-
-  it('a rotation that uses a day that does not exist blocks "Ativar" with the message, until fixed', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    const doc = { ...workoutDocument(), rotation: { type: 'sequence', items: ['a', 'z', 'off'] } }
-    await renderReview(planVersion({ document: doc }))
-
-    expect(await screen.findByText('A rotação usa um dia que não existe')).toBeInTheDocument()
-    expect(activate()).toBeDisabled()
-    expect(screen.getByLabelText('Posição 2')).toBeInvalid()
-
-    await user.selectOptions(screen.getByLabelText('Posição 2'), 'b')
-
-    expect(screen.queryByText('A rotação usa um dia que não existe')).not.toBeInTheDocument()
-    expect(activate()).toBeEnabled()
-  })
-
-  it('an empty rotation also blocks "Ativar"', async () => {
-    const doc = { ...workoutDocument(), rotation: { type: 'sequence', items: [] } }
-    await renderReview(planVersion({ document: doc }))
-
-    expect(await screen.findByText('A rotação não pode ficar vazia.')).toBeInTheDocument()
-    expect(activate()).toBeDisabled()
-  })
-
-  it('the rotation can be edited: add, rest option and removal', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    await renderReview(planVersion())
-    await screen.findByLabelText('Posição 1')
-
-    await user.click(screen.getByRole('button', { name: 'Adicionar descanso' }))
-    expect(screen.getByLabelText('Posição 4')).toHaveValue('off')
-    expect(within(screen.getByLabelText('Posição 4')).getByRole('option', { name: 'Descanso' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Remover posição 4' }))
-    expect(screen.queryByLabelText('Posição 4')).not.toBeInTheDocument()
-  })
-
-  it('a draft that could not be read opens with the banner, blocked until filled by hand', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    await renderReview(planVersion({ document: {}, extractionError: 'timeout' }))
-
-    expect(await screen.findByText('Não consegui ler esse PDF. Você pode preencher à mão.')).toBeInTheDocument()
-    expect(activate()).toBeDisabled()
-    expect(screen.getByText('Informe ao menos um dia de treino.')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Adicionar dia' }))
-    expect(screen.getByRole('region', { name: 'Dia 1' })).toBeInTheDocument()
-  })
-
   it('a draft whose extraction ran out of AI credits says how to top up instead of the generic banner', async () => {
     await renderReview(planVersion({ document: {}, extractionError: 'no_credits' }))
+    await screen.findByRole('heading', { level: 2, name: 'Rotação' })
 
     expect(
       await screen.findByText(
@@ -127,40 +71,6 @@ describe('PlanReviewPage', () => {
       ),
     ).toBeInTheDocument()
     expect(screen.queryByText('Não consegui ler esse PDF. Você pode preencher à mão.')).not.toBeInTheDocument()
-    expect(activate()).toBeDisabled()
-  })
-
-  it('activating saves the edits, activates with the cycle start and triggers a sync', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    const { calls, db, runOnce } = await renderReview(
-      planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }], extractionError: 'timeout' }),
-      {
-        [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion()),
-        [`POST /api/plans/${PLAN_ID}/activate`]: () => json(planVersion({ status: 'active' })),
-      },
-    )
-    await screen.findByRole('region', { name: 'Exercícios novos' })
-
-    await user.selectOptions(screen.getByLabelText('Grupo de Crucifixo novo'), 'shoulders')
-    const day = within(screen.getByRole('region', { name: 'Dia 1' }))
-    const name = within(day.getByRole('region', { name: 'Exercício 1' })).getByLabelText('Nome')
-    await user.clear(name)
-    await user.type(name, 'Rosca alternada')
-    await user.click(activate())
-
-    expect(await screen.findByText('LISTA DE PLANOS')).toBeInTheDocument()
-    const writes = calls.filter((c) => c.method !== 'GET')
-    expect(writes.map((c) => `${c.method} ${c.path}`)).toEqual([`PUT /api/plans/${PLAN_ID}`, `POST /api/plans/${PLAN_ID}/activate`])
-    const put = JSON.parse(writes[0]!.body) as { document: ReturnType<typeof workoutDocument>; newExercises: unknown }
-    expect(put.document.days[0]!.exercises[0]!.name).toBe('Rosca alternada')
-    expect(put.newExercises).toEqual([
-      { name: 'Rosca alternada', group: 'other' }, // renamed to something the catalog does not know
-      { name: 'Crucifixo novo', group: 'shoulders' },
-    ])
-    expect(JSON.parse(writes[1]!.body)).toEqual({ cycleStart: null }) // only a protocol has a cycle start
-    expect(screen.queryByLabelText('Início do ciclo')).not.toBeInTheDocument()
-    expect(runOnce).toHaveBeenCalledTimes(1)
-    expect(await scheduleRepo.all(db)).toEqual([]) // a workout plan has no schedule of its own
   })
 
   it('protocol review edits the dates and activates', async () => {
@@ -200,8 +110,8 @@ describe('PlanReviewPage', () => {
   it('keeps the diff on screen after saving the draft (the PUT answers without one)', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
     await renderReview(
-      planVersion({ diff: { added: ['days[c]'], removed: [], changed: [] } }),
-      { [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ diff: null })) },
+      planVersion({ kind: 'protocol', document: protocolDocument(), diff: { added: ['days[c]'], removed: [], changed: [] } }),
+      { [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ kind: 'protocol', diff: null })) },
     )
     const list = await screen.findByRole('list', { name: 'Mudanças em relação à versão ativa' })
     expect(within(list).getByText('days[c]')).toBeInTheDocument()
@@ -213,52 +123,34 @@ describe('PlanReviewPage', () => {
     expect(within(screen.getByRole('list', { name: 'Mudanças em relação à versão ativa' })).getByText('days[c]')).toBeInTheDocument()
   })
 
-  it('until the catalog is read, the group selectors, "Salvar rascunho" and "Ativar" stay disabled', async () => {
+  it('until the catalog is read, a day cannot be confirmed', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
     let release: (value: Awaited<ReturnType<typeof exerciseRepo.all>>) => void = () => {}
     vi.spyOn(exerciseRepo, 'all').mockReturnValue(new Promise((resolve) => (release = resolve)))
     await renderReview(planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }] }))
 
-    expect(await screen.findByText('Carregando catálogo…')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ativar' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
-    expect(screen.getByLabelText('Grupo de Crucifixo novo')).toBeDisabled()
+    await user.click(await screen.findByRole('button', { name: 'Continuar' }))
+    expect(screen.getByRole('button', { name: 'Confirmar dia' })).toBeDisabled()
 
     await act(async () => {
       release([])
     })
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Ativar' })).toBeEnabled())
-    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled()
-    expect(screen.queryByText('Carregando catálogo…')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar dia' })).toBeEnabled())
   })
 
-  it('when the catalog cannot be read, shows an error and keeps saving and activating disabled', async () => {
+  it('when the catalog cannot be read, shows an error and keeps the day from being confirmed', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(exerciseRepo, 'all').mockRejectedValue(new Error('db closed'))
     await renderReview(planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }] }))
 
-    expect(await screen.findByText('Não foi possível ler o catálogo de exercícios do aparelho.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ativar' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
-    expect(screen.getByLabelText('Grupo de Crucifixo novo')).toBeDisabled()
-  })
-
-  it('a server validation failure is shown and nothing is activated', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    const { calls } = await renderReview(planVersion(), {
-      [`PUT /api/plans/${PLAN_ID}`]: () => problem(400, { title: 'Dados inválidos', errors: { 'days[0].name': ['Obrigatório.'] } }),
-    })
-    await screen.findByRole('button', { name: 'Ativar' })
-
-    await user.click(activate())
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('days[0].name: Obrigatório.')
-    expect(calls.some((c) => c.path.endsWith('/activate'))).toBe(false)
-    expect(screen.queryByText('LISTA DE PLANOS')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Continuar' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar dia' })).toBeDisabled())
   })
 
   it('offline: "Ativar" is disabled with the connect message', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-    await renderReview(planVersion())
+    await renderReview(planVersion({ kind: 'protocol', document: protocolDocument() }))
 
     expect(await screen.findByText('Conecte-se à internet para ativar')).toBeInTheDocument()
     expect(activate()).toBeDisabled()
@@ -278,59 +170,10 @@ describe('PlanReviewPage', () => {
     expect(await screen.findByText('Esta versão não é mais um rascunho.')).toBeInTheDocument()
   })
 
-  it('the chosen group follows a rename, and an exercise renamed to a known one drops out of the list', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    const { calls } = await renderReview(planVersion({ newExercises: [{ name: 'Crucifixo novo', group: 'chest' }] }), {
-      [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion()),
-    })
-    await user.selectOptions(await screen.findByLabelText('Grupo de Crucifixo novo'), 'shoulders')
-    const second = within(within(screen.getByRole('region', { name: 'Dia 1' })).getByRole('region', { name: 'Exercício 2' })).getByLabelText('Nome')
-
-    await user.clear(second)
-    await user.type(second, 'Crucifixo máquina')
-    expect(screen.getByLabelText('Grupo de Crucifixo máquina')).toHaveValue('shoulders')
-    await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
-    await screen.findByText('Rascunho salvo')
-
-    const put = JSON.parse(calls.find((c) => c.method === 'PUT')!.body) as { newExercises: unknown }
-    expect(put.newExercises).toEqual([{ name: 'Crucifixo máquina', group: 'shoulders' }])
-
-    await user.clear(second)
-    await user.type(second, 'Agachamento')
-    expect(screen.queryByRole('region', { name: 'Exercícios novos' })).not.toBeInTheDocument()
-  })
-
-  it('an exercise added by hand gets a group selector once it has a name', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    await renderReview(planVersion())
-    await screen.findByRole('region', { name: 'Dia 2' })
-    expect(screen.queryByRole('region', { name: 'Exercícios novos' })).toBeInTheDocument() // Crucifixo novo (not in the catalog)
-
-    await user.click(within(screen.getByRole('region', { name: 'Dia 2' })).getByRole('button', { name: 'Adicionar exercício' }))
-    const added = within(within(screen.getByRole('region', { name: 'Dia 2' })).getByRole('region', { name: 'Exercício 2' }))
-    await user.type(added.getByLabelText('Nome'), 'Remada baixa')
-
-    expect(screen.getByLabelText('Grupo de Remada baixa')).toHaveValue('other')
-  })
-
-  it('a cleared reps box asks for the value instead of saving 0', async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined })
-    const { calls } = await renderReview(planVersion())
-    const set = within(within(await screen.findByRole('region', { name: 'Dia 2' })).getByRole('group', { name: 'Série 1' }))
-
-    await user.clear(set.getByLabelText('Mín.'))
-
-    expect(set.getByText('Obrigatório')).toBeInTheDocument()
-    expect(activate()).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
-    expect(set.getByLabelText('Mín.')).toHaveValue('')
-    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
-  })
-
   it('saving the draft hides the extraction-error banner', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
-    await renderReview(planVersion({ extractionError: 'timeout' }), {
-      [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ extractionError: 'timeout' })), // the server keeps it
+    await renderReview(planVersion({ kind: 'protocol', document: protocolDocument(), extractionError: 'timeout' }), {
+      [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ kind: 'protocol', extractionError: 'timeout' })), // the server keeps it
     })
     expect(await screen.findByText('Não consegui ler esse PDF. Você pode preencher à mão.')).toBeInTheDocument()
 
@@ -343,7 +186,7 @@ describe('PlanReviewPage', () => {
   it('shows the notice the device import left, until the draft is saved', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
     const notice = 'Esse PDF não tem texto selecionável. Preencha à mão.'
-    await renderReview(planVersion(), { [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion()) }, { notice })
+    await renderReview(planVersion({ kind: 'protocol', document: protocolDocument() }), { [`PUT /api/plans/${PLAN_ID}`]: () => json(planVersion({ kind: 'protocol' })) }, { notice })
     expect(await screen.findByText(notice)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
@@ -352,17 +195,9 @@ describe('PlanReviewPage', () => {
     expect(screen.queryByText(notice)).not.toBeInTheDocument()
   })
 
-  it('marks the paths the device parser flags (sets and rest of an exercise)', async () => {
-    await renderReview(planVersion({ lowConfidence: ['days[0].exercises[0].sets', 'days[0].exercises[0].restSeconds'] }))
-    const first = within(within(await screen.findByRole('region', { name: 'Dia 1' })).getByRole('region', { name: 'Exercício 1' }))
-    expect(first.getByLabelText('Mín.')).toHaveClass('border-warn')
-    expect(first.getByLabelText('Descanso (s)')).toHaveClass('border-warn')
-    expect(first.getByLabelText('Nome')).not.toHaveClass('border-warn')
-  })
-
   it('without the AI on the server there is no "Ler com IA"', async () => {
     await renderReview(planVersion(), { 'GET /api/plans/extraction': () => json({ ai: false }) })
-    await screen.findByRole('region', { name: 'Dia 1' })
+    await screen.findByRole('heading', { level: 2, name: 'Rotação' })
     await act(async () => {})
     expect(screen.queryByRole('button', { name: 'Ler com IA' })).not.toBeInTheDocument()
   })
@@ -391,14 +226,13 @@ describe('PlanReviewPage', () => {
     })
     await user.click(await screen.findByRole('button', { name: 'Ler com IA' }))
     expect(await screen.findByText('Importação indisponível no momento.')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Dia 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Rotação' })).toBeInTheDocument()
   })
 
   it('leaving with unsaved edits asks to discard; staying keeps them; discarding leaves', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
     const { router } = await renderReview(planVersion())
-    const day = within(await screen.findByRole('region', { name: 'Dia 1' }))
-    await user.type(day.getByLabelText('Nome do dia'), '!')
+    await user.click(await screen.findByRole('button', { name: 'Adicionar descanso' }))
 
     await act(() => router.navigate('/planejamento'))
     expect(screen.getByRole('alertdialog', { name: 'Descartar alterações?' })).toBeInTheDocument()
@@ -414,13 +248,13 @@ describe('PlanReviewPage', () => {
   it('without edits, leaving is free; the unload warning only exists while dirty', async () => {
     const user = userEvent.setup({ advanceTimers: () => undefined })
     await renderReview(planVersion())
-    const day = within(await screen.findByRole('region', { name: 'Dia 1' }))
+    await screen.findByRole('button', { name: 'Adicionar descanso' })
 
     const clean = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(clean)
     expect(clean.defaultPrevented).toBe(false)
 
-    await user.type(day.getByLabelText('Nome do dia'), '!')
+    await user.click(screen.getByRole('button', { name: 'Adicionar descanso' }))
     const dirty = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(dirty)
     expect(dirty.defaultPrevented).toBe(true)
@@ -428,7 +262,7 @@ describe('PlanReviewPage', () => {
 
   it('without edits, navigating away is not blocked', async () => {
     const { router } = await renderReview(planVersion())
-    await screen.findByRole('region', { name: 'Dia 1' })
+    await screen.findByRole('heading', { level: 2, name: 'Rotação' })
 
     await act(() => router.navigate('/planejamento'))
 

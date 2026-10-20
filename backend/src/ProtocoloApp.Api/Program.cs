@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.App;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Plans.Extraction;
@@ -78,6 +79,7 @@ builder.Services.AddFiles(builder.Configuration);
 builder.Services.AddPlanExtraction(builder.Configuration);
 builder.Services.AddAppUpdates(builder.Configuration);
 builder.Services.AddPush(builder.Configuration);
+builder.Services.AddExerciseCatalog(builder.Configuration);
 
 builder.Services.AddOpenApi();
 // Tags: /health (liveness) runs the "live" checks, /health/ready runs the "ready" ones (Postgres and the storage bucket).
@@ -108,6 +110,9 @@ app.UseRequestLogging();
 app.UseSpaStaticFiles();
 // CORS for /api only, before authentication so that a preflight (no credentials by definition) is answered, not rejected.
 app.UseWhen(context => context.Request.Path.StartsWithSegments("/api"), branch => branch.UseCors(AppCorsPolicy));
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/api/exercise-catalog"),
+    branch => branch.UseResponseCompression());
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -133,6 +138,7 @@ api.MapFiles();
 api.MapPlans();
 api.MapApp();
 api.MapPush();
+api.MapExerciseCatalog();
 
 app.MapSpaFallback();
 

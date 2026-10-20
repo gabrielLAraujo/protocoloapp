@@ -10,6 +10,8 @@ export interface ExerciseLocal {
   normalizedName: string
   primaryMuscleGroup: MuscleGroup
   aliases: string[]
+  /** Id of the matching item of the device's exercise catalog (media), or null. May no longer exist in the catalog after a refresh. */
+  catalogId: string | null
 }
 
 /** The server's pull payload (snake_case values, e.g. `lower_back`). */
@@ -18,6 +20,7 @@ interface ExercisePayload {
   normalized_name: string
   primary_muscle_group: string
   aliases: string[] | null
+  catalog_id?: string | null
 }
 
 type Row = {
@@ -26,6 +29,7 @@ type Row = {
   normalized_name: string
   primary_muscle_group: string
   aliases: string
+  catalog_id: string | null
 }
 
 const toExercise = (row: Row): ExerciseLocal => ({
@@ -34,6 +38,7 @@ const toExercise = (row: Row): ExerciseLocal => ({
   normalizedName: row.normalized_name,
   primaryMuscleGroup: muscleGroupFromApi(row.primary_muscle_group) ?? 'other',
   aliases: JSON.parse(row.aliases) as string[],
+  catalogId: row.catalog_id ?? null,
 })
 
 /** The exercise catalog is written by the server only (plan activation creates entries). */
@@ -56,13 +61,13 @@ export const exerciseSync: SyncEntityAdapter = {
     applyPulled(db, EXERCISE_ENTITY, 'exercises', record, async (payload, clientUpdatedAt) => {
       const p = payload as ExercisePayload
       await db.execute(
-        `INSERT INTO exercises (id, name, normalized_name, primary_muscle_group, aliases, client_updated_at, version, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+        `INSERT INTO exercises (id, name, normalized_name, primary_muscle_group, aliases, catalog_id, client_updated_at, version, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
          ON CONFLICT (id) DO UPDATE SET
            name = excluded.name, normalized_name = excluded.normalized_name,
-           primary_muscle_group = excluded.primary_muscle_group, aliases = excluded.aliases,
+           primary_muscle_group = excluded.primary_muscle_group, aliases = excluded.aliases, catalog_id = excluded.catalog_id,
            client_updated_at = excluded.client_updated_at, version = excluded.version, deleted_at = NULL`,
-        [record.id, p.name, p.normalized_name, muscleGroupFromApi(p.primary_muscle_group) ?? 'other', JSON.stringify(p.aliases ?? []), clientUpdatedAt, record.version],
+        [record.id, p.name, p.normalized_name, muscleGroupFromApi(p.primary_muscle_group) ?? 'other', JSON.stringify(p.aliases ?? []), p.catalog_id ?? null, clientUpdatedAt, record.version],
       )
     }),
 }

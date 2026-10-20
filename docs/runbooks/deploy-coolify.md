@@ -154,6 +154,9 @@ entram na imagem).
 | `R2__ServiceUrl` | não | Troca o endpoint do R2 por outro servidor S3. **Não defina em produção**: existe só para o e2e do CI. |
 | `MIGRATE_ON_START` | não | `true` (padrão): aplica as migrations antes de subir a API. |
 | `Push__Subject` | não | Contato VAPID dos lembretes (`mailto:` ou `https:`). Padrão: `mailto:admin@frauchesgabriel.work`. Veja o passo 8. |
+| `ExerciseCatalog__Enabled` | não | `true` (padrão). `false` desliga a cópia do catálogo do ExerciseDB: o app funciona sem as demonstrações em GIF. |
+| `ExerciseCatalog__RefreshAfterDays` | não | `30` (padrão). Idade máxima do catálogo; depois disso o próximo start sincroniza de novo. |
+| `ExerciseCatalog__PageDelayMilliseconds` | não | `1200` (padrão). Pausa entre as páginas (25 itens) para não sobrecarregar o ExerciseDB. |
 | `Reminders__Enabled` | não | `true` (padrão). `false` desliga o agendador de lembretes; o envio de teste continua funcionando. |
 
 Pontos de atenção:
@@ -266,6 +269,26 @@ enviada. "Nenhum aparelho recebeu" quer dizer que a inscrição não está no se
 Para um lembrete de verdade, em **Configurações → Horários** ponha um horário 2 minutos à frente num item ainda não marcado
 de hoje e espere.
 
+## 9. Catálogo de exercícios (GIFs do ExerciseDB)
+
+Na primeira subida depois do deploy (e quando o catálogo tem mais de `ExerciseCatalog__RefreshAfterDays` dias) a API baixa o
+catálogo de `https://oss.exercisedb.dev` em segundo plano: páginas de 25 itens com pausa de
+`ExerciseCatalog__PageDelayMilliseconds`, cerca de **1 minuto** no total. A API responde normalmente enquanto isso; só os
+GIFs aparecem depois. Uma instância por vez baixa (trava no Postgres) e uma falha no meio mantém o que já foi salvo e tenta
+de novo no próximo start. Só o catálogo (texto) é guardado; os GIFs são carregados pelo app direto de
+`static.exercisedb.dev` (uso pessoal, nada de GIF no repositório nem no servidor).
+
+Como conferir: `GET /api/exercise-catalog` (autenticado, como qualquer rota `/api`) devolve `items` com o catálogo; o
+esperado são centenas de itens. Nos logs, a linha `Exercise catalog sync ...` traz a contagem. `items: []` e versão `0-0` significam que o
+catálogo ainda não foi baixado.
+
+Sem GIFs no app depois de alguns minutos: veja os logs da API por `ExerciseDB page request failed: status N` (403/429 =
+bloqueio ou limite do ExerciseDB: espere e reinicie o app no Coolify; `unexpected format` = o formato da API mudou),
+`Exercise catalog sync failed` (erro de rede ou banco) ou `skipped: another run holds the lock` (outra instância está
+baixando). Confirme que `ExerciseCatalog__Enabled` não está `false`. Depois de corrigir, reinicie o app: o start tenta de
+novo se o catálogo estiver vazio ou incompleto. No app, o catálogo é atualizado ao abrir (com internet); um aparelho já
+aberto pode precisar recarregar.
+
 ## Verificação pós-deploy
 
 Critérios do spec (seção 9.1). Marque um a um.
@@ -287,6 +310,7 @@ Critérios do spec (seção 9.1). Marque um a um.
   (origens, `PUT`, `Content-Type`) ou para as chaves do R2.
 - [ ] **Lembretes:** no iPhone (app na Tela de Início), Configurações, **Ativar lembretes** e **Enviar teste**: a notificação
   chega (passo 8).
+- [ ] **Catálogo:** depois de ~1 minuto, `GET /api/exercise-catalog` devolve itens (passo 9) e um exercício do treino mostra a demonstração.
 - [ ] **Deploy automático:** um push na `main` dispara um deploy no Coolify e o `/health` volta a responder 200.
 - [ ] **Release do APK:** o CI da `main` publicou a release `v0.1.<n>` com o arquivo `protocolo-0.1.<n>.apk`.
 - [ ] **Aviso de atualização:** com um APK mais antigo instalado, ao abrir o app aparece "Nova versão disponível" e o botão
@@ -309,6 +333,7 @@ Critérios do spec (seção 9.1). Marque um a um.
 | Nenhum lembrete automático chega, o teste funciona | `Reminders__Enabled=false`, item já marcado, lembrete desligado em Horários, ou horário pensado em outro fuso (o servidor usa America/Sao_Paulo) |
 | Lembretes pararam depois de restaurar/limpar o banco | Chaves VAPID novas: "Ativar lembretes" de novo em cada aparelho |
 | Importação mostra "A IA está sem créditos. Recarregue em console.anthropic.com → Plans & Billing…" | A conta da API da Anthropic (`Anthropic__ApiKey`) ficou sem saldo. Recarregue em console.anthropic.com → Plans & Billing e use "Ler com IA" de novo, ou preencha o rascunho à mão. Nada a mudar no Coolify; o log da API registra só o código `no_credits` |
+| Exercícios sem GIF, só "Ver no YouTube" | Catálogo vazio: veja o passo 9 (logs `ExerciseDB page request failed: status`, `ExerciseCatalog__Enabled`). No app nativo não há GIF offline |
 | Banner de atualização nunca aparece | `GitHub__Token` ausente/expirado (a API responde 503 a `/api/app/latest-release`) ou ainda não há release |
 
 ## Operação

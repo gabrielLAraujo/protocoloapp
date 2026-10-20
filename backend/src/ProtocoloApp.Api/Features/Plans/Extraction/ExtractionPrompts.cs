@@ -34,6 +34,7 @@ internal static class ExtractionPrompts
             text.AppendLine("- Séries: gere um item em sets por série. \"5x 7 a 9\" vira cinco séries com repsMin 7 e repsMax 9. \"(1x14 a 16) (1x9 a 11) (1x4 a 6 + drop)\" vira três séries, a última com technique \"drop\".");
             text.AppendLine("- Intervalos de descanso: restSeconds para um valor único; restSequence para listas de intervalos (estilo SST), em segundos.");
             text.AppendLine("- Bi-sets: preencha supersetWith com a chave do outro exercício.");
+            text.AppendLine("- Técnicas (opcional): em techniques use drop (count, sets \"last\"|\"all\"), rest_pause (count), biset (with), sst (rests), peak/isometric/zero_point (seconds), partials, progressive_load, stretch_interval; nas séries, drops e restPause. Use apenas valores dentro dos limites da ferramenta (peak e zero_point até 10 s, isometric até 120 s, sst com ao menos um intervalo); na dúvida, não preencha a técnica. O texto que sobrar fica em technique.");
             text.AppendLine("- Quando o nome do exercício casar com um de knownExercises (ignorando acentos, maiúsculas, pontuação e \"c/\"/\"com\"), use o exerciseId dele. Caso contrário deixe exerciseId null e inclua o exercício em newExercises com o grupo muscular sugerido.");
             text.AppendLine();
             text.AppendLine("knownExercises (id | nome | grupo):");

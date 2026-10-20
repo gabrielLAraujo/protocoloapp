@@ -5,12 +5,15 @@ import type { PlannedExercise } from '../../domain/planDocuments'
 import { buttonClass, inputClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
 import { cardClasses } from '../../ui/styles'
+import { ExerciseMedia } from '../../ui/ExerciseMedia'
 import { Icon } from '../../ui/Icon'
 import { formatKg } from './format'
 import { SetRow } from './SetRow'
 import { SwapExerciseDialog } from './SwapExerciseDialog'
 import { MAX_SET_INDEX } from './setInput'
 import { restDurations } from './restDurations'
+import { isDismissed, plannedSubSets, splitSets, subSetSlots, type SubSetKind, type SubSetSlot } from './subSets'
+import { TechniqueChips } from './TechniqueChips'
 
 /** "80 kg × 10 · 80 × 9" */
 function lastTimeText(sets: SetLocal[]): string {
@@ -35,7 +38,14 @@ interface Props {
   lastTime: SetLocal[] | undefined
   /** Sets logged for this planned exercise under another exercise (the original, before a swap): shown read-only. */
   otherSets: { exerciseName: string; sets: SetLocal[] }[]
-  supersetName: string | null
+  /** The bi-set partner whose skip or swap ended the pairing. */
+  pairEndedWith?: string | null
+  /** Inside a bi-set block: the letter of this exercise and whether it is the one to do now. */
+  biset?: { letter: 'A' | 'B'; next: boolean }
+  /** Sub-set rows removed from the screen (slot keys). */
+  dismissed: ReadonlySet<string>
+  onDismissSlot(key: string): void
+  onSaveSubSet(parent: SetLocal, slot: SubSetSlot & { kind: SubSetKind }, weightKg: number, reps: number): Promise<void>
   /** The catalog id of the planned exercise (null when it is not in the catalog). */
   plannedExerciseId: string | null
   catalog: ExerciseLocal[]
@@ -53,7 +63,7 @@ interface Props {
 }
 
 export function ExerciseCard(props: Props) {
-  const { planned, exercise, change, sets, lastTime, supersetName, catalog } = props
+  const { planned, exercise, change, sets, lastTime, catalog } = props
   const [extra, setExtra] = useState(0)
   const [swapping, setSwapping] = useState(false)
   const [skipping, setSkipping] = useState(false)
@@ -65,8 +75,12 @@ export function ExerciseCard(props: Props) {
   const skipped = change?.action === 'skipped'
   const rest = restText(planned)
 
-  const loggedAt = new Map(sets.map((s) => [s.setIndex, s]))
-  const maxLogged = sets.reduce((m, s) => Math.max(m, s.setIndex), -1)
+  // Main sets fill the rows; their drops/rest-pauses show right below them.
+  const { main, childrenOf } = splitSets(sets)
+  const loggedAt = new Map(main.map((s) => [s.setIndex, s]))
+  const maxLogged = main.reduce((m, s) => Math.max(m, s.setIndex), -1)
+  // "Última vez" and its hints: the main sets (the drops/rest-pauses belong to them).
+  const hints = lastTime?.filter((s) => s.parentSetId === null)
   // Sets logged beyond the planned rows keep their rows; "Adicionar série" always adds one on top of the rows shown
   // (also after a reload, when `extra` is back to 0 but extra sets are already logged).
   const rows = Math.min(MAX_SET_INDEX + 1, Math.max(planned.sets.length + extra, maxLogged + 1))
@@ -85,19 +99,29 @@ export function ExerciseCard(props: Props) {
   }
 
   return (
-    <section aria-label={name} className={cardClasses({ className: 'grid gap-3' })}>
+    <section aria-label={props.biset ? `Exercício ${props.biset.letter}: ${name}` : name} className={cardClasses({ className: `grid gap-3${props.biset?.next ? ' ring-2 ring-accent' : ''}` })}>
       <header className="grid gap-1">
-        <h2 className="text-lg font-bold tracking-tight">{name}</h2>
+        <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          {props.biset && (
+            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-accent text-sm text-on-accent">
+              {props.biset.letter}
+            </span>
+          )}
+          {props.biset && <span className="sr-only">Exercício {props.biset.letter}: </span>}
+          {name}
+        </h2>
         {change?.action === 'swapped' && exercise && exercise.id !== props.plannedExerciseId && <p className="text-xs text-muted">Trocado de “{planned.name}”</p>}
         {planned.technique && <p className="text-sm text-muted">{planned.technique}</p>}
-        {supersetName && <p className="text-sm text-muted">Bi-set com {supersetName}</p>}
+        {props.pairEndedWith && <p className="text-sm text-muted">Bi-set com {props.pairEndedWith} desfeito: siga este exercício sozinho.</p>}
+        <TechniqueChips techniques={planned.techniques ?? []} />
         {rest && <p className="text-sm text-muted">{rest}</p>}
-        {lastTime && lastTime.length > 0 && (
+        {hints && hints.length > 0 && (
           <p className="text-sm text-muted">
             <Icon name="history" size={16} className="mr-1 inline-block align-[-3px]" />
-            <span className="tabular-nums">Última vez: {lastTimeText(lastTime)}</span>
+            <span className="tabular-nums">Última vez: {lastTimeText(hints)}</span>
           </p>
         )}
+        <ExerciseMedia catalogId={exercise?.catalogId} name={name} size="thumb" />
       </header>
 
       {props.otherSets.map((group) => (
@@ -128,19 +152,45 @@ export function ExerciseCard(props: Props) {
         <p className="text-sm text-warn">Este exercício ainda não está no catálogo do aparelho. Sincronize ou troque por outro.</p>
       ) : (
         <ul className="grid gap-2">
-          {Array.from({ length: rows }, (_, i) => (
-            <SetRow
-              // The exercise in the key resets the typed values when it is swapped.
-              key={`${exercise.id}:${i}`}
-              index={i}
-              planned={planned.sets[i]}
-              logged={loggedAt.get(i)}
-              hint={lastTime?.[i]}
-              onSave={(w, r, kind) => props.onSaveSet(i, w, r, kind)}
-              onUpdate={(w, r, kind) => props.onUpdateSet(loggedAt.get(i)!.id, w, r, kind)}
-              onDelete={() => props.onDeleteSet(loggedAt.get(i)!.id)}
-            />
-          ))}
+          {Array.from({ length: rows }, (_, i) => {
+            const parent = loggedAt.get(i)
+            const slots = parent ? subSetSlots(planned, parent, childrenOf.get(parent.id) ?? []).filter((slot) => !isDismissed(props.dismissed, slot)) : []
+            return [
+              <SetRow
+                // The exercise in the key resets the typed values when it is swapped.
+                key={`${exercise.id}:${i}`}
+                index={i}
+                hasSubSets={plannedSubSets(planned, i).length > 0}
+                planned={planned.sets[i]}
+                logged={parent}
+                hint={hints?.[i]}
+                onSave={(w, r, kind) => props.onSaveSet(i, w, r, kind)}
+                onUpdate={(w, r, kind) => props.onUpdateSet(parent!.id, w, r, kind)}
+                onDelete={() => props.onDeleteSet(parent!.id)}
+              />,
+              ...slots.map((slot) =>
+                slot.kind === 'drop' || slot.kind === 'rest_pause' ? (
+                  <SetRow
+                    // The suggestion in the key refreshes the prefilled load when the set above is edited.
+                    key={`${slot.key}:${slot.logged ? 'done' : slot.suggestedKg}`}
+                    index={i}
+                    sub={{
+                      kind: slot.kind,
+                      ordinal: slot.ordinal,
+                      suggestedKg: slot.suggestedKg,
+                      onDismiss: slot.planned ? () => props.onDismissSlot(slot.key) : undefined,
+                    }}
+                    planned={planned.sets[i]}
+                    logged={slot.logged}
+                    hint={undefined}
+                    onSave={(w, r) => props.onSaveSubSet(parent!, { ...slot, kind: slot.kind as SubSetKind }, w, r)}
+                    onUpdate={(w, r, kind) => props.onUpdateSet(slot.logged!.id, w, r, kind)}
+                    onDelete={() => props.onDeleteSet(slot.logged!.id)}
+                  />
+                ) : null,
+              ),
+            ]
+          })}
         </ul>
       )}
 

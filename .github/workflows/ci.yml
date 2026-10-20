@@ -18,6 +18,21 @@ permissions:
   contents: read
 
 jobs:
+  privacy:
+    name: Privacy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - run: node scripts/privacy-guard.mjs
+
+      - run: node --test "scripts/*.test.mjs"
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
