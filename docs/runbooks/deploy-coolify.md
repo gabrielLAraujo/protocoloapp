@@ -308,12 +308,21 @@ Critérios do spec (seção 9.1). Marque um a um.
 | "Enviar teste" diz que nenhum aparelho recebeu | Inscrição removida ou nunca enviada: "Ativar lembretes" de novo. No iPhone, só funciona com o app aberto pela Tela de Início |
 | Nenhum lembrete automático chega, o teste funciona | `Reminders__Enabled=false`, item já marcado, lembrete desligado em Horários, ou horário pensado em outro fuso (o servidor usa America/Sao_Paulo) |
 | Lembretes pararam depois de restaurar/limpar o banco | Chaves VAPID novas: "Ativar lembretes" de novo em cada aparelho |
+| Importação mostra "A IA está sem créditos. Recarregue em console.anthropic.com → Plans & Billing…" | A conta da API da Anthropic (`Anthropic__ApiKey`) ficou sem saldo. Recarregue em console.anthropic.com → Plans & Billing e use "Ler com IA" de novo, ou preencha o rascunho à mão. Nada a mudar no Coolify; o log da API registra só o código `no_credits` |
 | Banner de atualização nunca aparece | `GitHub__Token` ausente/expirado (a API responde 503 a `/api/app/latest-release`) ou ainda não há release |
 
 ## Operação
 
 - **Reverter um deploy:** no Coolify, Deployments, **Redeploy** do commit anterior. As migrations só avançam: antes de
   reverter uma versão que criou migration, avalie se o código antigo funciona com o esquema novo.
+- **Check-in em partes (migrations `CheckinParts` e `CheckinPartClocks`):** aditivas. `CheckinParts` torna nulos os campos
+  das partes em `daily_checkins` (as checagens de faixa continuam) e `CheckinPartClocks` cria `morning_`, `evening_` e
+  `cardio_client_updated_at`, preenchidos com o `client_updated_at` das linhas existentes. Aplicam sozinhas no deploy
+  (`MIGRATE_ON_START`). O código anterior funciona com o esquema novo só enquanto não houver uma linha salva com uma parte
+  apenas; depois disso, reverter o deploy exige completar ou apagar essas linhas, e o `Down` de `CheckinParts` falha
+  enquanto elas existirem. Depois do deploy,
+  **atualize todos os aparelhos** (web/PWA: "Atualizar" no aviso de nova versão; Android: o APK novo) antes de usar o
+  check-in em partes; um aparelho antigo para de sincronizar (sem perder nada) ao receber uma linha só com uma parte.
 - **Trocar uma chave do R2:** crie outro token no escopo do bucket, atualize `R2__AccessKeyId` e `R2__SecretAccessKey`,
   redeploy e só então revogue o antigo.
 - **Trocar `Auth__SigningKey`:** invalida os tokens de acesso (duram 15 min); os aparelhos renovam com o refresh token, sem novo login.

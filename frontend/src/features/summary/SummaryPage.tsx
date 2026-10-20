@@ -11,6 +11,7 @@ import { scheduleRepo } from '../../data/scheduleRepo'
 import { workoutRepo, type SetLocal } from '../../data/workoutRepo'
 import { parseProtocolDocument } from '../../domain/planDocuments'
 import { localDate } from '../checkin/localDate'
+import { loadProgress, type ProgressData } from '../progress/progressData'
 import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
 import { loadWorkoutPlans } from '../workout/workoutPlans'
@@ -32,7 +33,11 @@ interface Loaded {
   /** The active protocol version (target of the dates form), when there is one. */
   protocolId: string | null
   billingDate: string | null
+  /** Streak and closed weeks (the "Sequência" and "Semanas na meta" cards); null when they could not be computed. */
+  progress: ProgressData | null
 }
+
+const daysText = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`
 
 const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${String(n).replace('.', ',')}${unit}`)
 
@@ -43,10 +48,16 @@ function rateHint(rate: AdherenceRate, one: string, many: string, planned: strin
 }
 
 async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: string): Promise<Loaded> {
-  const [active, plans, exercises] = await Promise.all([
+  const now = new Date()
+  const [active, plans, exercises, progress] = await Promise.all([
     planRepo.getActive(db, 'protocol'),
     loadWorkoutPlans(db),
     exerciseRepo.all(db),
+    // A failure here only hides the "Constância" cards; the rest of the summary still shows.
+    loadProgress(db, localDate(now), now).catch((e: unknown) => {
+      console.error('could not compute the progress', e)
+      return null
+    }),
   ])
 
   let protocol: SummaryInput['protocol'] = null
@@ -75,7 +86,7 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
     const statsTo = summary.cycle.end && summary.cycle.end < today ? summary.cycle.end : today
     rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence, slots }, summary.cycle.start, statsTo, new Date())
   }
-  return { summary, rates, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null }
+  return { summary, rates, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null, progress }
 }
 
 /** `/`: the cycle at a glance - timeline, calendar, adherence, check-in averages, weight and strength. */
@@ -109,7 +120,7 @@ export function SummaryPage() {
   if (failed) return <p role="alert" className="text-danger">Não foi possível carregar o resumo.</p>
   if (!loaded) return <p className="text-muted">Carregando…</p>
 
-  const { summary, rates, protocolId, billingDate } = loaded
+  const { summary, rates, protocolId, billingDate, progress } = loaded
   if (!summary.cycle) {
     return (
       <section className="grid gap-4">
@@ -130,6 +141,7 @@ export function SummaryPage() {
   }
 
   const { workouts, cardio } = summary
+  const perfectWeeks = progress?.weeks.filter((w) => w.perfect).length ?? 0
   return (
     <div className="grid gap-6">
       <h1 className="text-xl font-bold tracking-tight">Resumo</h1>
@@ -142,6 +154,32 @@ export function SummaryPage() {
         }
       />
       <CycleCalendar days={summary.calendar} />
+
+      {progress && (
+      <section aria-labelledby="streak-title" className="grid gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="streak-title" className="text-base font-semibold">Constância</h2>
+          <Link
+            to="/conquistas"
+            className="-my-3 inline-flex min-h-11 items-center text-sm font-semibold text-accent underline decoration-accent/40 underline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Ver conquistas
+          </Link>
+        </div>
+        <dl className="grid grid-cols-2 gap-2">
+          <StatCard
+            label="Sequência"
+            value={daysText(progress.streak.current)}
+            hint={`recorde: ${daysText(progress.cycleBest)} no ciclo, ${daysText(progress.streak.best)} no geral`}
+          />
+          <StatCard
+            label="Semanas na meta"
+            value={progress.weeks.length > 0 ? `${perfectWeeks} de ${progress.weeks.length}` : '—'}
+            hint={progress.weeks.length > 0 ? 'semanas fechadas com todas as metas' : 'nenhuma semana fechada ainda'}
+          />
+        </dl>
+      </section>
+      )}
 
       <section aria-labelledby="stats-title" className="grid gap-3">
         <h2 id="stats-title" className="text-base font-semibold">Números do ciclo</h2>

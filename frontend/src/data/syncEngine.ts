@@ -195,6 +195,7 @@ export class SyncEngine {
           await outbox.reject(tx, entry.seq, r.errors ?? [])
           result.rejected++
         } else {
+          if (r.status === 'stale') await this.adapters.get(entry.entity)?.onStale?.(tx, entry)
           done.push(entry.seq)
           result.pushed++
         }

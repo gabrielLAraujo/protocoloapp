@@ -33,6 +33,13 @@ type Doc = WorkoutDocument | ProtocolDocument
 
 const OFFLINE = 'Conecte-se à internet para ativar'
 const EXTRACTION_BANNER = 'Não consegui ler esse PDF. Você pode preencher à mão.'
+const NO_CREDITS_BANNER =
+  'A IA está sem créditos. Recarregue em console.anthropic.com → Plans & Billing e tente de novo — ou preencha à mão.'
+
+/** The banner for a draft whose extraction failed: the out-of-credits case says what to do; anything else is generic. */
+function extractionBanner(error: string): string {
+  return error === 'no_credits' ? NO_CREDITS_BANNER : EXTRACTION_BANNER
+}
 
 /** The document as the editors want it (lists present, defaults filled). An unreadable one starts blank. */
 function toEditable(plan: PlanVersion): Doc {
@@ -279,7 +286,7 @@ export function PlanReviewPage() {
   const catalogReady = plan.kind !== 'workout' || catalogState === 'ready'
   const blocked = issues.length > 0 || !online || !catalogReady
   const title = plan.kind === 'workout' ? 'Revisar treino' : 'Revisar protocolo'
-  const banner = plan.extractionError ? EXTRACTION_BANNER : noticeDone ? null : notice
+  const banner = plan.extractionError ? extractionBanner(plan.extractionError) : noticeDone ? null : notice
 
   /** Reads the same PDF again with the AI: a new draft, opened in place of this one. */
   const readAgainWithAi = async () => {

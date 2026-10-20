@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import type { AdherenceStatus } from '../../data/adherenceRepo'
-import type { AdherenceTargetType } from '../../domain/dayPlan'
+import { CHECKIN_EVENING_KEY, CHECKIN_MORNING_KEY, type AdherenceTargetType } from '../../domain/dayPlan'
 import { Icon, type IconName } from '../../ui/Icon'
 import { REASON_LABELS, type TodayRow } from './todayData'
 
@@ -29,6 +29,13 @@ const RAIL: Record<AdherenceStatus | 'late' | 'open', string> = {
   open: 'before:bg-transparent',
 }
 
+/** Where a target is done when it is not marked here: the workout on /treino, each check-in part on its own screen. */
+function linkOf(target: TodayRow['target']): string | null {
+  if (target.type === 'workout') return '/treino'
+  if (target.type !== 'checkin') return null
+  return target.key === CHECKIN_MORNING_KEY ? '/checkin/manha' : target.key === CHECKIN_EVENING_KEY ? '/checkin/noite' : '/checkin'
+}
+
 const statusButtonClass = (pressed: boolean, on: string) =>
   `inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-control border px-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${
     pressed ? on : 'border-line bg-raised text-ink hover:bg-line/50'
@@ -36,7 +43,7 @@ const statusButtonClass = (pressed: boolean, on: string) =>
 
 /**
  * One target of the day. Meals, protocol items and cardio are marked here; tapping the pressed status again clears it.
- * The workout and the check-in are done elsewhere (/treino, /checkin) and only link there.
+ * The workout and the check-in parts are done elsewhere (/treino, /checkin/manha, /checkin/noite) and only link there.
  */
 export function TargetRow({
   row,
@@ -51,7 +58,7 @@ export function TargetRow({
   onChoose(status: AdherenceStatus): void
 }) {
   const { target } = row
-  const link = target.type === 'workout' ? '/treino' : target.type === 'checkin' ? '/checkin' : null
+  const link = linkOf(target)
   const reason = row.reason ? REASON_LABELS[row.reason] : null
   const rail = RAIL[row.status ?? (late ? 'late' : 'open')]
 

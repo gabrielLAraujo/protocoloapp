@@ -1,6 +1,6 @@
 import type { AdherenceLogLocal } from '../../data/adherenceRepo'
 import { localDate } from '../checkin/localDate'
-import type { DailyCheckin } from '../../data/dailyCheckinRepo'
+import { checkinParts, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import { dateRange, diffDays } from '../../domain/calendarDate'
@@ -10,6 +10,7 @@ import type { MuscleGroup } from '../../domain/muscleGroups'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import { plannedWorkoutDays, resolveDay, type RotationOverrideAt, type WorkoutPlanAt } from '../../domain/rotation'
 import { strengthByGroup, type GroupTrends } from '../../domain/strength'
+import { clockOf, countsAsPlanned } from '../../domain/targetStatus'
 
 export interface SummaryInput {
   /** The active protocol; null when none was imported yet. `activatedOn` is the local date of its activation. */
@@ -55,13 +56,14 @@ export interface SummaryData {
   calendar: CalendarDay[]
   workouts: Ratio
   cardio: Ratio
-  /** Averages with one decimal; null without check-ins in the cycle so far. */
+  /** Averages with one decimal of the answered values; null without any in the cycle so far. */
   sleep: number | null
   energyWake: number | null
   energyDay: number | null
   anxiety: number | null
   water: number | null
   waterTarget: number | null
+  /** Days in the cycle so far with both parts of the check-in saved. */
   checkinCount: number
   weight: WeightPoint[]
   strength: Record<MuscleGroup, GroupTrends> | null
@@ -69,7 +71,9 @@ export interface SummaryData {
 
 const round1 = (n: number) => Math.round(n * 10) / 10
 
-function average(values: number[]): number | null {
+/** Mean of the answered values (a part not saved that day leaves its fields null, which do not count). */
+function average(answers: (number | null)[]): number | null {
+  const values = answers.filter((v): v is number => v !== null)
   if (values.length === 0) return null
   return round1(values.reduce((a, b) => a + b, 0) / values.length)
 }
@@ -142,7 +146,11 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
     anxiety: average(inRange.map((c) => c.anxiety)),
     water: average(inRange.map((c) => c.waterL)),
     waterTarget: guideline?.value ?? null,
-    checkinCount: inRange.length,
+    // A check-in counts once both parts were saved (a full check-in from before the split has both).
+    checkinCount: inRange.filter((c) => {
+      const parts = checkinParts(c)
+      return parts.morning && parts.evening
+    }).length,
     weight: inRange
       .filter((c): c is DailyCheckin & { weightKg: number } => c.weightKg !== null)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -169,8 +177,6 @@ export interface AdherenceInput {
   slots: readonly DaySlot[]
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0')
-
 /**
  * Diet (meals) and protocol items from `from` to `to` (inclusive): what buildDay plans for each day, and how much of
  * it was marked. A mark of something not planned that day does not count. On past days every planned target counts;
@@ -178,7 +184,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
  */
 export function adherenceRates(input: AdherenceInput, from: string, to: string, now: Date): { diet: AdherenceRate; items: AdherenceRate } {
   const today = localDate(now)
-  const clock = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+  const clockNow = clockOf(now)
   const diet: AdherenceRate = { done: 0, partial: 0, planned: 0 }
   const items: AdherenceRate = { done: 0, partial: 0, planned: 0 }
   const marks = new Map(input.adherence.map((l) => [`${l.date}\n${l.targetType}\n${l.targetKey}`, l.status]))
@@ -188,7 +194,7 @@ export function adherenceRates(input: AdherenceInput, from: string, to: string, 
       const rate = t.type === 'meal' ? diet : t.type === 'protocol_item' ? items : null
       if (!rate) continue
       const status = marks.get(`${date}\n${t.type}\n${t.key}`)
-      if (date === today && status === undefined && (t.time === null || t.time > clock)) continue
+      if (!countsAsPlanned(t, status, date === today ? clockNow : null)) continue
       rate.planned++
       if (status === 'done') rate.done++
       else if (status === 'partial') rate.partial++

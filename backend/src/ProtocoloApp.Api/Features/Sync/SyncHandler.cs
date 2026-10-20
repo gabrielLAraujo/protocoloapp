@@ -8,7 +8,8 @@ namespace ProtocoloApp.Api.Features.Sync;
 /// The sync rules shared by every entity; a subclass only maps its payload. For one change:
 /// <list type="number">
 /// <item>An id owned by another user is rejected (<c>forbidden</c>).</item>
-/// <item>A change not newer than the stored one (<c>ClientUpdatedAt &lt;=</c>) is <c>stale</c>: this makes replays harmless.</item>
+/// <item>A change not newer than the stored one (<c>ClientUpdatedAt &lt;=</c>, see <see cref="IsStale"/>) is <c>stale</c>: this
+/// makes replays harmless.</item>
 /// <item>Delete soft-deletes (a delete of an unknown id has nothing to do and is <c>applied</c>). Upsert validates the
 /// payload, creates or overwrites the row and clears <c>DeletedAt</c> (a newer upsert wins over a delete).</item>
 /// <item>Every applied write gets a new <see cref="SyncVersion"/> and the server timestamps.</item>
@@ -29,6 +30,32 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
 
     /// <summary>Copies a validated payload onto the row.</summary>
     protected abstract void Apply(TPayload payload, TEntity entity);
+
+    /// <summary>
+    /// Whether <paramref name="change"/> is not newer than the stored row (checked before anything else, so a replay is
+    /// harmless). Default: row-level last-write-wins on <c>ClientUpdatedAt</c>. An entity with finer clocks (per part) can
+    /// say "maybe newer" here and decide in <see cref="ApplyChange"/>.
+    /// </summary>
+    protected virtual bool IsStale(TEntity existing, SyncChange change)
+    {
+        ArgumentNullException.ThrowIfNull(existing);
+        ArgumentNullException.ThrowIfNull(change);
+        return change.ClientUpdatedAt <= existing.ClientUpdatedAt;
+    }
+
+    /// <summary>
+    /// Applies a validated upsert and sets the row's <c>ClientUpdatedAt</c>. Returns false when nothing in the change was
+    /// newer than the row (the change is then <c>stale</c>; the row must be left untouched). Default: <see cref="Apply"/>
+    /// over the whole row, stamped with the change's timestamp.
+    /// </summary>
+    protected virtual bool ApplyChange(TPayload payload, TEntity entity, SyncChange change)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(change);
+        Apply(payload, entity);
+        entity.ClientUpdatedAt = change.ClientUpdatedAt;
+        return true;
+    }
 
     protected abstract TPayload CreatePayload(TEntity entity);
 
@@ -59,7 +86,7 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
         var existing = await db.Set<TEntity>().FindAsync(new object?[] { change.Id }, ct);
         if (existing is not null && existing.UserId != userId)
             return SyncChangeResult.Rejected(change.Id, SyncErrors.Forbidden);
-        if (existing is not null && change.ClientUpdatedAt <= existing.ClientUpdatedAt)
+        if (existing is not null && IsStale(existing, change))
             return SyncChangeResult.Stale(change.Id);
 
         var now = clock.GetUtcNow();
@@ -71,6 +98,7 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
 
             target = existing;
             target.DeletedAt ??= now;
+            target.ClientUpdatedAt = change.ClientUpdatedAt;
         }
         else
         {
@@ -79,7 +107,8 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
                 return SyncChangeResult.Rejected(change.Id, errors);
 
             target = existing ?? Create(change.Id, userId);
-            Apply(payload, target);
+            if (!ApplyChange(payload, target, change))
+                return SyncChangeResult.Stale(change.Id);
             target.DeletedAt = null;
 
             var invalidReference = await ValidateReferencesAsync(target, userId, ct);
@@ -97,7 +126,6 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
             }
         }
 
-        target.ClientUpdatedAt = change.ClientUpdatedAt;
         target.UpdatedAt = now;
         target.Version = await SyncVersion.NextAsync(db, ct);
         await db.SaveChangesAsync(ct);

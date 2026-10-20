@@ -220,6 +220,31 @@ public sealed class PlanExtractorTests
         Assert.Single(handler.Bodies);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, "invalid_request_error", "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.")]
+    [InlineData(HttpStatusCode.BadRequest, "invalid_request_error", "CREDIT BALANCE exhausted")]
+    [InlineData(HttpStatusCode.Forbidden, "billing_error", "Your credit balance is too low.")]
+    public async Task Credit_balance_error_is_no_credits_with_exactly_one_call(HttpStatusCode status, string type, string message)
+    {
+        var body = JsonSerializer.Serialize(new { type = "error", error = new { type, message } });
+        var handler = new FakeHandler((_, _) => Json(body, status));
+
+        var result = await Extract(Create(handler), PlanKind.Protocol);
+
+        Assert.Equal(PlanExtractionResult.NoCredits, result.Error);
+        Assert.Null(result.Document);
+        Assert.Single(handler.Bodies);
+    }
+
+    [Theory]
+    [InlineData("Your credit balance is too low", AnthropicErrorHint.CreditBalance)]
+    [InlineData("your CREDIT Balance", AnthropicErrorHint.CreditBalance)]
+    [InlineData("credit card declined", AnthropicErrorHint.None)]
+    [InlineData("", AnthropicErrorHint.None)]
+    [InlineData(null, AnthropicErrorHint.None)]
+    public void Error_messages_are_reduced_to_a_hint(string? message, AnthropicErrorHint expected) =>
+        Assert.Equal(expected, AnthropicClient.Classify(message));
+
     [Fact]
     public async Task Provider_400_of_another_type_stays_unavailable()
     {

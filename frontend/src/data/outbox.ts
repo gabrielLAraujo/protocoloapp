@@ -135,6 +135,12 @@ export const outbox = {
     return row?.n ?? 0
   },
 
+  /** The pending entries of one record, oldest first. */
+  async pendingFor(db: LocalDb, entity: string, id: string): Promise<OutboxEntry[]> {
+    const rows = await db.query<Row>("SELECT * FROM outbox WHERE status = 'pending' AND entity = ? AND id = ? ORDER BY seq", [entity, id])
+    return rows.map(toEntry)
+  },
+
   async hasPending(db: LocalDb, entity: string, id: string): Promise<boolean> {
     const rows = await db.query("SELECT 1 FROM outbox WHERE status = 'pending' AND entity = ? AND id = ? LIMIT 1", [entity, id])
     return rows.length > 0

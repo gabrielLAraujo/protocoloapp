@@ -3,11 +3,12 @@ using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Push;
 
-public sealed record DispatchResult(int Sent, int Removed);
+/// <summary>How a send to every device of a user went: delivered, removed (gone or failing too often), and transient failures.</summary>
+public sealed record DispatchResult(int Sent, int Removed, int Transient = 0);
 
 /// <summary>
-/// Sends one message to every subscription of a user and keeps the subscriptions honest: gone ones are removed, failing ones
-/// counted (the fifth removes). Bookkeeping is one SQL statement per subscription, never tracked entities, so a subscription
+/// Sends one message to every subscription of a user and keeps the subscriptions honest: gone ones are removed, permanent
+/// failures counted (the fifth removes); transient failures (429, 5xx, timeouts) leave the subscription as it is. Bookkeeping is one SQL statement per subscription, never tracked entities, so a subscription
 /// deleted meanwhile or a bad one cannot break the rest or the caller's context.
 /// </summary>
 public static class PushDispatcher
@@ -21,6 +22,7 @@ public static class PushDispatcher
         var subscriptions = await db.PushSubscriptions.AsNoTracking().Where(s => s.UserId == userId).OrderBy(s => s.CreatedAt).ToListAsync(ct);
         var sent = 0;
         var removed = 0;
+        var transient = 0;
         foreach (var subscription in subscriptions)
         {
             PushResult result;
@@ -45,6 +47,9 @@ public static class PushDispatcher
                 case PushResult.Gone:
                     removed += await db.PushSubscriptions.Where(s => s.Id == id).ExecuteDeleteAsync(ct);
                     break;
+                case PushResult.Transient:
+                    transient++;
+                    break;
                 default:
                     await db.PushSubscriptions.Where(s => s.Id == id).ExecuteUpdateAsync(u => u.SetProperty(s => s.FailureCount, s => s.FailureCount + 1), ct);
                     removed += await db.PushSubscriptions.Where(s => s.Id == id && s.FailureCount >= PushSubscription.MaxFailures).ExecuteDeleteAsync(ct);
@@ -52,6 +57,6 @@ public static class PushDispatcher
             }
         }
 
-        return new DispatchResult(sent, removed);
+        return new DispatchResult(sent, removed, transient);
     }
 }

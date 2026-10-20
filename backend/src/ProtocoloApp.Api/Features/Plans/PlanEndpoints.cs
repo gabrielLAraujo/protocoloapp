@@ -114,7 +114,7 @@ public static class PlanEndpoints
         }
         else
         {
-            // timeout, invalid_extraction, too_long: an empty draft the user can fill in.
+            // timeout, invalid_extraction, too_long, no_credits: an empty draft the user can fill in.
             plan.ExtractionError = result.Error;
             plan.Document = JsonDocument.Parse(EmptyDocument(request.Kind).GetRawText());
         }

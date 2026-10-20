@@ -9,7 +9,7 @@ public sealed record NewExerciseSuggestion(string Name, MuscleGroup Group);
 
 /// <summary>
 /// Outcome of an extraction. On success <c>Document</c> is the validated plan document (normalized), <c>Raw</c> the model's
-/// whole tool input; on failure only <c>Error</c> (<c>invalid_extraction</c> | <c>timeout</c> | <c>unavailable</c>) is set.
+/// whole tool input; on failure only <c>Error</c> (<c>invalid_extraction</c> | <c>timeout</c> | <c>unavailable</c> | <c>no_credits</c> | <c>too_large</c> | <c>too_long</c>) is set.
 /// </summary>
 public sealed record PlanExtractionResult(
     JsonDocument? Document,
@@ -23,6 +23,9 @@ public sealed record PlanExtractionResult(
     public const string Unavailable = "unavailable";
     public const string TooLarge = "too_large";
     public const string TooLong = "too_long";
+
+    /// <summary>The provider account has no credits: nothing to retry until someone tops it up.</summary>
+    public const string NoCredits = "no_credits";
 
     public bool IsSuccess => Error is null && Document is not null;
 

@@ -4,7 +4,10 @@ using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.DailyCheckins;
 
-/// <summary>Table <c>daily_checkins</c>. The payload limits are enforced again as check constraints.</summary>
+/// <summary>
+/// Table <c>daily_checkins</c>. The payload limits are enforced again as check constraints; the part columns are nullable
+/// and a check on a NULL column passes, so the range checks need no <c>IS NULL OR</c>.
+/// </summary>
 public sealed class DailyCheckinConfiguration : IEntityTypeConfiguration<DailyCheckin>
 {
     public void Configure(EntityTypeBuilder<DailyCheckin> builder)
@@ -31,7 +34,7 @@ public sealed class DailyCheckinConfiguration : IEntityTypeConfiguration<DailyCh
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.Bowel)
-            .HasConversion(v => BowelText.ToText(v), v => BowelText.Parse(v))
+            .HasConversion(v => BowelText.ToText(v!.Value), v => BowelText.Parse(v))
             .HasMaxLength(16);
         builder.Property(c => c.WaterL).HasPrecision(4, 2);
         builder.Property(c => c.WeightKg).HasPrecision(5, 2);
