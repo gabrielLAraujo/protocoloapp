@@ -17,11 +17,13 @@ type Props = {
   group: MuscleGroup | null
   /** The user's exercise this one points to, when it does. */
   linked: ExerciseLocal | null
+  /** What is wrong with this exercise's fields (empty when nothing is). */
+  errors: string[]
   onEdit(): void
 }
 
 /** One exercise of a day, compact: demonstration, name, group, sets, technique tags. Tapping the row opens the editor. */
-export function ExerciseRow({ exercise, base, catalogId, group, linked, onEdit }: Props) {
+export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, onEdit }: Props) {
   const low = useIsLow(base)
   const lows = useContext(LowConfidenceContext)
   const [open, setOpen] = useState<number | null>(null)
@@ -31,7 +33,7 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, onEdit }
   const note = exercise.technique?.trim()
 
   return (
-    <li className={`grid gap-2 rounded-card border p-3 shadow-card ${low ? 'border-warn bg-warn/5' : 'border-line bg-surface'}`} data-low={low ? 'true' : undefined}>
+    <li className={`grid gap-2 rounded-card border p-3 shadow-card ${errors.length > 0 ? 'border-danger bg-danger/5' : low ? 'border-warn bg-warn/5' : 'border-line bg-surface'}`} data-low={low ? 'true' : undefined}>
       <div className="flex items-start gap-3">
         {catalogId ? <ExerciseMedia catalogId={catalogId} name={name} size="thumb" /> : <GifPreview url={null} className="size-16" />}
         <button
@@ -72,6 +74,12 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, onEdit }
       {open !== null && techniques[open] && (
         <p role="note" className="rounded-control bg-raised px-3 py-2 text-sm">
           {techniqueExplanation(techniques[open]!)}
+        </p>
+      )}
+      {errors.length > 0 && (
+        <p className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full bg-danger/15 px-2 py-0.5 text-xs font-semibold text-danger">Corrigir</span>
+          <span className="text-danger">{errors[0]}</span>
         </p>
       )}
       {low && (

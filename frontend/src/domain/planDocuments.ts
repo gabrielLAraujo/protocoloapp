@@ -153,6 +153,8 @@ const plannedExerciseSchema = z.object({
   catalogId: optional(z.string()),
   /** Draft only: true when the user picked this exercise in the review, so activation keeps the PDF name as its alias. */
   aliasConfirmed: optional(z.boolean()),
+  /** Draft only: true when the user picked `catalogId` by hand for an exercise they already have: activation replaces its own link. */
+  catalogConfirmed: optional(z.boolean()),
 })
 
 const workoutDaySchema = z.object({

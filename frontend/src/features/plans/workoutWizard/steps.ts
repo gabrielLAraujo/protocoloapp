@@ -1,6 +1,6 @@
 import { workoutDocumentSchema, type PlannedExercise, type PlannedSet, type WorkoutDocument } from '../../../domain/planDocuments'
 import { freshKey, isLowConfidence, updateList } from '../docEdit'
-import { validateWorkout, type Issue } from '../validation'
+import { validateWorkout } from '../validation'
 
 export type Step = { kind: 'rotation' } | { kind: 'day'; index: number } | { kind: 'new' } | { kind: 'activate' }
 
@@ -111,9 +111,16 @@ export function fieldErrors(doc: WorkoutDocument): Record<string, string> {
   return errors
 }
 
-/** Whether the day (or the document as a whole) has something that blocks saving it. */
-export function dayBlocked(issues: readonly Issue[], index: number): boolean {
-  return issues.some((i) => i.path === 'document' || i.path === 'days' || i.path.startsWith(`days[${index}]`))
+/** Whether this day has a field error (other days' errors do not block it). */
+export function dayBlocked(errors: Record<string, string>, index: number): boolean {
+  return Object.keys(errors).some((path) => path.startsWith(`days[${index}]`))
+}
+
+/** The error messages of one exercise (its own fields and everything under it). */
+export function exerciseErrors(errors: Record<string, string>, base: string): string[] {
+  return Object.entries(errors)
+    .filter(([path]) => path === base || path.startsWith(`${base}.`) || path.startsWith(`${base}[`))
+    .map(([, message]) => message)
 }
 
 /** Adds a blank exercise to a day; returns the new document and the position of the exercise. */
@@ -124,3 +131,30 @@ export function withNewExercise(doc: WorkoutDocument, dayIndex: number): { doc: 
   return { doc: next, index: day.exercises.length }
 }
 
+
+
+/** The document without the exercise; bi-sets of the same day that pointed to it go with it. */
+export function withoutExercise(doc: WorkoutDocument, dayIndex: number, exIndex: number): WorkoutDocument {
+  const day = doc.days[dayIndex]!
+  const removed = day.exercises[exIndex]!
+  const exercises = day.exercises
+    .filter((_, i) => i !== exIndex)
+    .map((e) => {
+      const techniques = e.techniques?.filter((t) => !(t.type === 'biset' && t.with === removed.key))
+      const next = { ...e, ...(e.techniques ? { techniques } : {}) }
+      if (e.supersetWith === removed.key) next.supersetWith = undefined
+      return next
+    })
+  return { ...doc, days: doc.days.map((d, i) => (i === dayIndex ? { ...d, exercises } : d)) }
+}
+
+/** The exercise without set `index`; drop techniques aimed at specific sets are renumbered (none left means the last set). */
+export function withoutSet(exercise: PlannedExercise, index: number): PlannedExercise {
+  const sets = exercise.sets.filter((_, i) => i !== index)
+  const techniques = exercise.techniques?.map((t) => {
+    if (t.type !== 'drop' || !Array.isArray(t.sets)) return t
+    const kept = t.sets.filter((n) => n !== index).map((n) => (n > index ? n - 1 : n))
+    return { ...t, sets: kept.length > 0 ? kept : ('last' as const) }
+  })
+  return { ...exercise, sets, ...(exercise.techniques ? { techniques } : {}) }
+}

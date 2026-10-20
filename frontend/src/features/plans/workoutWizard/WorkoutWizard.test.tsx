@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { json } from '../../../test/fetch-mock'
 import { planVersion, PLAN_ID, workoutDocument } from '../fixtures'
-import { renderReview, SUPINO_ID } from './reviewHarness'
+import { EXERCISE_DICTIONARY } from '../../../domain/exerciseDictionary'
+import { matchExercise } from '../../../domain/exerciseMatch'
+import { AGACHAMENTO_ID, renderReview, SUPINO_ID } from './reviewHarness'
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -467,13 +469,13 @@ describe('workout review wizard', () => {
     await u.click(sheet.getByRole('button', { name: 'Concluído' }))
     await next(u, 'Confirmar dia')
     await waitFor(() => expect(putBodies(calls)).toHaveLength(1))
-    expect(putBodies(calls)[0]!.document.days[0]!.exercises[0]).toMatchObject({ exerciseId: SUPINO_ID, catalogId: 'cat-fly' })
+    expect(putBodies(calls)[0]!.document.days[0]!.exercises[0]).toMatchObject({ exerciseId: SUPINO_ID, catalogId: 'cat-fly', catalogConfirmed: true })
   })
 
-  it('renaming a linked exercise drops the pair its planned exercise carried', async () => {
+  it('renaming an exercise linked to one of the user\'s starts over: no link, no alias, no old pair', async () => {
     const u = user()
     const doc = workoutDocument()
-    Object.assign(doc.days[0]!.exercises[0]!, { exerciseId: SUPINO_ID, catalogId: 'cat-fly' })
+    Object.assign(doc.days[0]!.exercises[0]!, { exerciseId: SUPINO_ID, catalogId: 'cat-fly', aliasConfirmed: true, catalogConfirmed: true })
     const { calls } = await open(planVersion({ document: doc }))
     await next(u, 'Continuar')
     await u.click(screen.getByRole('button', { name: 'Editar Supino reto' }))
@@ -484,7 +486,145 @@ describe('workout review wizard', () => {
     await next(u, 'Confirmar dia')
     await waitFor(() => expect(putBodies(calls)).toHaveLength(1))
     const saved = putBodies(calls)[0]!.document.days[0]!.exercises[0]!
-    expect(saved).toMatchObject({ name: 'Zzz inventado', exerciseId: SUPINO_ID })
-    expect(saved.catalogId).toBeUndefined()
+    expect(saved.name).toBe('Zzz inventado')
+    for (const field of ['exerciseId', 'catalogId', 'aliasConfirmed', 'catalogConfirmed']) expect(saved[field]).toBeUndefined()
+  })
+
+  it('a rename re-matches: a dictionary name gets its pair, one of the user\'s names links without confirming an alias', async () => {
+    const u = user()
+    const doc = workoutDocument()
+    Object.assign(doc.days[0]!.exercises[0]!, { exerciseId: SUPINO_ID, catalogId: 'cat-fly', aliasConfirmed: true })
+    const { calls } = await open(planVersion({ document: doc, newExercises: [{ name: 'Crucifixo novo', group: 'chest', catalogId: 'cat-fly' }] }))
+    await next(u, 'Continuar')
+
+    await u.click(screen.getByRole('button', { name: 'Editar Supino reto' }))
+    let sheet = within(screen.getByRole('dialog'))
+    await u.clear(sheet.getByLabelText('Nome na ficha'))
+    await u.type(sheet.getByLabelText('Nome na ficha'), 'Rosca direta')
+    await u.click(sheet.getByRole('button', { name: 'Concluído' }))
+    await u.click(screen.getByRole('button', { name: 'Editar Crucifixo novo' }))
+    sheet = within(screen.getByRole('dialog'))
+    await u.clear(sheet.getByLabelText('Nome na ficha'))
+    await u.type(sheet.getByLabelText('Nome na ficha'), 'Agachamento')
+    await u.click(sheet.getByRole('button', { name: 'Concluído' }))
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(putBodies(calls)).toHaveLength(1))
+
+    const hit = matchExercise('Rosca direta', { userExercises: [], dictionary: EXERCISE_DICTIONARY })
+    const pair = hit.kind === 'dictionary' ? hit.entry.catalogId : null
+    expect(pair).not.toBeNull()
+    const [first, second] = putBodies(calls)[0]!.document.days[0]!.exercises
+    expect(first).toMatchObject({ name: 'Rosca direta' })
+    expect(first!.exerciseId).toBeUndefined()
+    expect(first!.aliasConfirmed).toBeUndefined()
+    expect(putBodies(calls)[0]!.newExercises).toEqual([{ name: 'Rosca direta', group: expect.any(String), ...(pair ? { catalogId: pair } : {}) }])
+    expect(second).toMatchObject({ name: 'Agachamento', exerciseId: AGACHAMENTO_ID })
+    expect(second!.aliasConfirmed).toBeUndefined()
+  })
+
+  it('Esc and the backdrop do not confirm the alias of a flagged exercise; "Concluído" does', async () => {
+    const u = user()
+    const doc = workoutDocument()
+    ;(doc.days[0]!.exercises[0] as Record<string, unknown>).exerciseId = SUPINO_ID
+    const { calls } = await open(planVersion({ document: doc, lowConfidence: ['days[0].exercises[0].name'] }))
+    await next(u, 'Continuar')
+    await u.click(screen.getByRole('button', { name: 'Editar Supino reto' }))
+    await u.keyboard('{Escape}')
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(putBodies(calls)).toHaveLength(1))
+    expect(putBodies(calls)[0]!.document.days[0]!.exercises[0]!.aliasConfirmed).toBeUndefined()
+  })
+
+  it('removing an exercise asks first, drops the bi-sets that pointed to it, and moves the focus to the day', async () => {
+    const u = user()
+    const doc = workoutDocument()
+    Object.assign(doc.days[0]!.exercises[0]!, { techniques: [{ type: 'biset', with: 'e2' }] })
+    const { calls } = await open(planVersion({ document: doc }))
+    await next(u, 'Continuar')
+    await u.click(screen.getByRole('button', { name: 'Editar Crucifixo novo' }))
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remover exercício' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument() // asked first
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sim, remover' }))
+
+    expect(screen.queryByRole('button', { name: 'Editar Crucifixo novo' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2 })).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Confirmar dia' })).toBeEnabled()
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(putBodies(calls)).toHaveLength(1))
+    expect(putBodies(calls)[0]!.document.days[0]!.exercises).toHaveLength(1)
+    expect(putBodies(calls)[0]!.document.days[0]!.exercises[0]!.techniques).toEqual([])
+  })
+
+  it('removing a set renumbers the drops aimed at sets', async () => {
+    const u = user()
+    const doc = workoutDocument()
+    Object.assign(doc.days[0]!.exercises[0]!, {
+      sets: [{ repsMin: 8, repsMax: 10 }, { repsMin: 8, repsMax: 10 }, { repsMin: 8, repsMax: 10 }],
+      techniques: [{ type: 'drop', count: 1, sets: [0, 2] }],
+    })
+    const { calls } = await open(planVersion({ document: doc }))
+    await next(u, 'Continuar')
+    await u.click(screen.getByRole('button', { name: 'Editar Supino reto' }))
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remover série 1' }))
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Concluído' }))
+    expect(screen.getByRole('button', { name: 'Confirmar dia' })).toBeEnabled()
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(putBodies(calls)).toHaveLength(1))
+    expect(putBodies(calls)[0]!.document.days[0]!.exercises[0]!.techniques).toEqual([{ type: 'drop', count: 1, sets: [1] }])
+  })
+
+  it('an error in one day blocks only that day, and its row says what is wrong', async () => {
+    const u = user()
+    const { calls } = await open()
+    await next(u, 'Continuar')
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(stepTitle()).toBe('Dia B — Treino B'))
+    await u.click(screen.getByRole('button', { name: 'Editar Agachamento' }))
+    await u.selectOptions(within(screen.getByRole('dialog')).getByLabelText('Adicionar técnica'), 'isometric')
+    await u.clear(within(screen.getByRole('dialog')).getByLabelText('Segundos'))
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Concluído' }))
+
+    expect(screen.getByRole('button', { name: 'Confirmar dia' })).toBeDisabled()
+    expect(within(row('Agachamento')).getByText('Corrigir')).toBeInTheDocument()
+    expect(screen.getByText(/1 exercício precisa de correção/)).toBeInTheDocument()
+
+    // Day A is fine: it can be revisited and confirmed without the server being asked to save the invalid document.
+    const puts = putBodies(calls).length
+    await u.click(dot(2))
+    expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
+    expect(putBodies(calls)).toHaveLength(puts)
+  })
+
+  it('"Próximo" saves what was edited since', async () => {
+    const u = user()
+    const { calls } = await open()
+    await next(u, 'Continuar')
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(stepTitle()).toBe('Dia B — Treino B'))
+    await u.click(dot(2))
+    const name = screen.getByLabelText('Nome do dia')
+    await u.clear(name)
+    await u.type(name, 'Peito')
+    await next(u, 'Próximo')
+    await waitFor(() => expect(putBodies(calls)).toHaveLength(2))
+    expect(putBodies(calls)[1]!.document.days[0]!.name).toBe('Peito')
+  })
+
+  it('a day confirmed without saving (offline) is not kept in the session storage', async () => {
+    const u = user()
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    await open()
+    await next(u, 'Continuar')
+    await next(u, 'Confirmar dia')
+    await waitFor(() => expect(stepTitle()).toBe('Dia B — Treino B'))
+    expect(sessionStorage.getItem(`plan-wizard-confirmed:${PLAN_ID}`)).toBeNull()
+  })
+
+  it('the edit sheet opens with the focus on its title, not on the name field', async () => {
+    const u = user()
+    await open()
+    await next(u, 'Continuar')
+    await u.click(screen.getByRole('button', { name: 'Editar Supino reto' }))
+    expect(screen.getByRole('heading', { name: 'Editar exercício' })).toHaveFocus()
   })
 })

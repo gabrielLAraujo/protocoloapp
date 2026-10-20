@@ -7,12 +7,14 @@ type Props = {
   base: string
   set: (path: string, value: unknown) => void
   errors: Record<string, string>
+  /** Removes a set (the sheet also renumbers the drop techniques that point to sets). */
+  onRemoveSet: (index: number) => void
 }
 
 const clampDrops = (v: number | undefined) => (v === undefined ? undefined : Math.max(0, v))
 
 /** The sets of an exercise: reps range, drops and rest-pause sub-sets, and the free-text technique of each set. */
-export function SetsEditor({ exercise, base, set, errors }: Props) {
+export function SetsEditor({ exercise, base, set, errors, onRemoveSet }: Props) {
   return (
     <div className="grid gap-2">
       <span className="text-sm font-medium">Séries (repetições)</span>
@@ -27,7 +29,7 @@ export function SetsEditor({ exercise, base, set, errors }: Props) {
             <div className="col-span-2">
               <TextField label="Técnica da série" path={`${p}.technique`} value={s.technique} onChange={(v) => set(`sets[${k}].technique`, v)} />
             </div>
-            <button type="button" className={`${dangerButtonClass} col-span-2`} aria-label={`Remover série ${k + 1}`} onClick={() => set('sets', exercise.sets.filter((_, i) => i !== k))}>
+            <button type="button" className={`${dangerButtonClass} col-span-2`} aria-label={`Remover série ${k + 1}`} onClick={() => onRemoveSet(k)}>
               Remover série
             </button>
           </div>

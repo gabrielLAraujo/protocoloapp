@@ -18,13 +18,15 @@ type Props = {
   working: 'saving' | 'activating' | null
   saved: boolean
   onJumpToDay(dayIndex: number): void
+  /** Something in a day is invalid: the server would refuse the draft. */
+  saveBlocked: boolean
   onSaveDraft(): void
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 /** Last step: what is about to be activated, what is still open, and the changes against the active plan. */
-export function ActivateStep({ doc, newCount, confirmed, lowConfidence, diff, issues, online, catalogState, working, saved, onJumpToDay, onSaveDraft }: Props) {
+export function ActivateStep({ doc, newCount, confirmed, lowConfidence, diff, issues, online, catalogState, working, saved, saveBlocked, onJumpToDay, onSaveDraft }: Props) {
   const exercises = doc.days.reduce((sum, d) => sum + d.exercises.length, 0)
   const pendingDays = doc.days.map((d, i) => ({ day: d, i })).filter(({ day }) => !confirmed.has(day.key))
   const pendingConfira = pendingDays.reduce(
@@ -96,7 +98,7 @@ export function ActivateStep({ doc, newCount, confirmed, lowConfidence, diff, is
         </p>
       )}
       <div>
-        <button type="button" className={buttonClass} disabled={!online || working !== null || catalogState !== 'ready'} onClick={onSaveDraft}>
+        <button type="button" className={buttonClass} disabled={!online || working !== null || catalogState !== 'ready' || saveBlocked} onClick={onSaveDraft}>
           {working === 'saving' ? 'Salvando…' : 'Salvar rascunho'}
         </button>
       </div>

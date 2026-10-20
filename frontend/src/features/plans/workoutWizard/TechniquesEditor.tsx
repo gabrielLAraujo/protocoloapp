@@ -52,7 +52,7 @@ export function TechniquesEditor({ exercise, partners, base, set, errors }: Prop
       <span className="text-sm font-medium">Técnicas</span>
       {list.length === 0 && <p className="text-sm text-muted">Nenhuma técnica neste exercício.</p>}
       {list.map((technique, k) => (
-        <div key={k} role="group" aria-label={`Técnica ${techniqueLabel(technique)}`} className="grid gap-2 rounded-control border border-line p-2">
+        <div key={`${k}-${technique.type}`} role="group" aria-label={`Técnica ${techniqueLabel(technique)}`} className="grid gap-2 rounded-control border border-line p-2">
           <div className="flex items-center justify-between gap-2">
             <span className="rounded-full bg-accent-soft px-2.5 py-1 text-sm font-semibold text-accent">{techniqueLabel(technique)}</span>
             <button type="button" className={dangerButtonClass} aria-label={`Remover técnica ${techniqueLabel(technique)}`} onClick={() => setList(list.filter((_, i) => i !== k))}>
@@ -148,6 +148,7 @@ function TechniqueFields({
           label="Combinado com"
           value={technique.with}
           invalid={!known}
+          error={errors[`${path}.with`]}
           options={[...(known ? [] : [{ value: technique.with, label: 'Escolha…' }]), ...partners.map((p) => ({ value: p.key, label: p.name || p.key }))]}
           onChange={(v) => change({ ...technique, with: v })}
         />
@@ -176,6 +177,13 @@ function TechniqueFields({
 /** The rests of an SST as text ("15, 15, 20"): what is typed stays, the document gets the numbers once the text reads right. */
 function RestsField({ rests, error, onChange }: { rests: number[]; error?: string; onChange: (rests: number[]) => void }) {
   const [text, setText] = useState(rests.join(', '))
+  const [seen, setSeen] = useState(rests)
+  if (rests !== seen) {
+    // The document changed from outside (another technique was removed): show it, unless this very typing produced it.
+    setSeen(rests)
+    const typed = text.split(/[\s,;]+/).filter(Boolean).map(Number)
+    if (typed.join(',') !== rests.join(',')) setText(rests.join(', '))
+  }
   const parsed = text
     .split(/[\s,;]+/)
     .filter(Boolean)

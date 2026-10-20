@@ -177,7 +177,10 @@ public static class PlanActivation
                     else
                     {
                         var chosen = liveById[given];
-                        var changed = LinkCatalog(chosen, Link(planned.CatalogId));
+                        // A pair the user picked by hand replaces the exercise's own; an automatic suggestion only fills a missing one.
+                        var changed = planned.CatalogConfirmed == true
+                            ? ReplaceCatalog(chosen, Link(planned.CatalogId))
+                            : LinkCatalog(chosen, Link(planned.CatalogId));
                         // Only a pair the user picked in the review teaches an alias: an automatic match must not.
                         if (planned.AliasConfirmed == true)
                             changed |= LearnAlias(chosen, planned.Name, byName, byAlias);
@@ -185,7 +188,7 @@ public static class PlanActivation
                             touched[chosen.Id] = chosen;
                     }
 
-                    exercises.Add(planned with { CatalogId = null, AliasConfirmed = null });
+                    exercises.Add(planned with { CatalogId = null, AliasConfirmed = null, CatalogConfirmed = null });
                     continue;
                 }
 
@@ -227,7 +230,7 @@ public static class PlanActivation
                     touched[match.Id] = match;
                 }
 
-                exercises.Add(planned with { ExerciseId = match.Id, CatalogId = null, AliasConfirmed = null });
+                exercises.Add(planned with { ExerciseId = match.Id, CatalogId = null, AliasConfirmed = null, CatalogConfirmed = null });
             }
 
             days.Add(workout.Days[i] with { Exercises = exercises });
@@ -243,6 +246,14 @@ public static class PlanActivation
     private const int MaxAliases = 20;
 
     /// <summary>Sets the catalog link of an exercise that has none; true when it changed.</summary>
+    private static bool ReplaceCatalog(Exercise exercise, string? catalogId)
+    {
+        if (catalogId is null || exercise.CatalogId == catalogId)
+            return false;
+        exercise.CatalogId = catalogId;
+        return true;
+    }
+
     private static bool LinkCatalog(Exercise exercise, string? catalogId)
     {
         if (catalogId is null || exercise.CatalogId is not null)

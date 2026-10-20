@@ -25,6 +25,7 @@ describe('ActivateStep', () => {
         catalogState="ready"
         working={null}
         saved={false}
+        saveBlocked={false}
         onJumpToDay={(i) => jumps.push(i)}
         onSaveDraft={() => undefined}
       />,

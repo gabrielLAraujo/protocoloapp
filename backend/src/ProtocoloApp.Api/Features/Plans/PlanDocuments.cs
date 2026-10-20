@@ -198,6 +198,9 @@ public sealed record PlannedExerciseDto
 
     /// <summary>True when the user picked this exercise in the review: activation then keeps the PDF name as an alias of it. Never set by an automatic match.</summary>
     public bool? AliasConfirmed { get; init; }
+
+    /// <summary>True when the user picked <see cref="CatalogId"/> by hand in the review for an exercise they already have: activation then replaces the exercise's own link with it instead of only filling a missing one.</summary>
+    public bool? CatalogConfirmed { get; init; }
 }
 
 /// <summary>

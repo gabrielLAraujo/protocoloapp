@@ -38,6 +38,8 @@ type Props = {
   /** The "Salvar rascunho" button of the last step. */
   onSaveDraft(): void
   onActivate(): void
+  /** Whether the draft has edits that were not saved yet. */
+  isDirty(): boolean
 }
 
 /**
@@ -70,13 +72,30 @@ export function WorkoutWizard(props: Props) {
 
   const go = (index: number) => setRequested(Math.max(0, Math.min(index, steps.length - 1)))
 
+  const hasErrors = Object.keys(errors).length > 0
+  const persist = (days: Iterable<string>) => saveConfirmed(planId, days)
+
+  /**
+   * Saves the draft when that is possible (online, nothing invalid anywhere); the confirmations are then kept in the tab's
+   * session storage. Otherwise a day is confirmed in memory only, and the save happens at the next chance (before Ativar).
+   */
+  const saveIfPossible = async (days: Iterable<string>): Promise<boolean> => {
+    if (!online || hasErrors) return true
+    if (!(await props.saveDraft())) return false
+    persist(days)
+    return true
+  }
+
   const confirmDay = async (dayIndex: number) => {
-    // Offline the day is confirmed on the device; the draft is saved at the next save while online (before "Ativar").
-    if (online && !(await props.saveDraft())) return
     const key = doc.days[dayIndex]!.key
     const next = [...new Set([...confirmed, key])]
+    if (!(await saveIfPossible(next))) return
     setConfirmedKeys(next)
-    saveConfirmed(planId, next)
+    go(current + 1)
+  }
+
+  const nextStep = async () => {
+    if (props.isDirty() && !(await saveIfPossible(confirmed))) return
     go(current + 1)
   }
 
@@ -107,10 +126,10 @@ export function WorkoutWizard(props: Props) {
     case 'day': {
       const isConfirmed = confirmed.has(doc.days[step.index]!.key)
       primary = isConfirmed
-        ? { label: 'Próximo', disabled: false, onClick: () => go(current + 1) }
+        ? { label: 'Próximo', disabled: false, onClick: () => void nextStep() }
         : {
             label: working === 'saving' ? 'Salvando…' : 'Confirmar dia',
-            disabled: dayBlocked(issues, step.index) || working !== null || catalogState !== 'ready',
+            disabled: dayBlocked(errors, step.index) || working !== null || catalogState !== 'ready',
             onClick: () => void confirmDay(step.index),
           }
       break
@@ -119,7 +138,7 @@ export function WorkoutWizard(props: Props) {
       primary = { label: working === 'activating' ? 'Ativando…' : 'Ativar', disabled: activateBlocked, onClick: props.onActivate }
       break
     default:
-      primary = { label: 'Continuar', disabled: false, onClick: () => go(current + 1) }
+      primary = { label: 'Continuar', disabled: false, onClick: () => void nextStep() }
   }
 
   return (
@@ -159,6 +178,7 @@ export function WorkoutWizard(props: Props) {
           onChange={onChange}
           dayIndex={step.index}
           errors={errors}
+          focusHeading={() => heading.current?.focus()}
           onRemoveDay={() => onChange(updateList<WorkoutDocument, WorkoutDay>(doc, 'days', (days) => days.filter((_, k) => k !== step.index)))}
           {...pairActions}
         />
@@ -177,6 +197,7 @@ export function WorkoutWizard(props: Props) {
           working={working}
           saved={saved}
           onJumpToDay={(dayIndex) => go(steps.findIndex((s) => s.kind === 'day' && s.index === dayIndex))}
+          saveBlocked={Object.keys(errors).some((path) => path.startsWith('days['))}
           onSaveDraft={props.onSaveDraft}
         />
       )}
@@ -190,7 +211,7 @@ export function WorkoutWizard(props: Props) {
           </ul>
         )}
         <div className="flex gap-2">
-          <button type="button" className={buttonClasses({ variant: 'secondary' })} disabled={current === 0} onClick={() => go(current - 1)}>
+          <button type="button" className={buttonClasses({ variant: 'secondary' })} disabled={current === 0 || working !== null} onClick={() => go(current - 1)}>
             <Icon name="chevronLeft" size={18} />
             Voltar
           </button>

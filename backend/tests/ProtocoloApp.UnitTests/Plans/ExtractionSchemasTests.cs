@@ -12,7 +12,7 @@ public sealed class ExtractionSchemasTests
     private static string[] Enum(JsonElement node) => node.GetProperty("enum").EnumerateArray().Select(e => e.GetString()!).ToArray();
 
     /// <summary>DTO properties the model is not asked for (the app fills them in, or the user does in the review or the device import).</summary>
-    private static readonly HashSet<string> DtoOnly = ["document.rotation.anchor", "document.days[].exercises[].catalogId", "document.days[].exercises[].aliasConfirmed"];
+    private static readonly HashSet<string> DtoOnly = ["document.rotation.anchor", "document.days[].exercises[].catalogId", "document.days[].exercises[].aliasConfirmed", "document.days[].exercises[].catalogConfirmed"];
 
     private static string Camel(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 

@@ -128,6 +128,7 @@ export function SelectField({
   options,
   invalid,
   disabled,
+  error,
 }: {
   label: string
   path?: string
@@ -136,9 +137,10 @@ export function SelectField({
   options: readonly { value: string; label: string }[]
   invalid?: boolean
   disabled?: boolean
+  error?: string
 }) {
   return (
-    <Field label={label} path={path} invalid={invalid}>
+    <Field label={label} path={path} invalid={invalid} error={error}>
       {(props) => (
         <select {...props} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
           {options.map((o) => (

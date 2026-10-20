@@ -11,16 +11,20 @@ export function Sheet({
   title,
   onCancel,
   focusKey,
+  focusTitle,
   children,
 }: {
   title: string
   onCancel(): void
   /** A change moves the focus to the first control again (the content was swapped). */
   focusKey?: unknown
+  /** Start the focus on the title (a long form: the first field would be a surprise) instead of the first control. */
+  focusTitle?: boolean
   children: ReactNode
 }) {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
 
   // Declared before the effect below, so it reads the opener and not the sheet's own first control.
   useEffect(() => {
@@ -31,8 +35,10 @@ export function Sheet({
   }, [])
 
   useEffect(() => {
-    panel.current?.querySelector<HTMLElement>('button, textarea, input, a[href]')?.focus()
-  }, [focusKey])
+    if (focusTitle) heading.current?.focus()
+    else panel.current?.querySelector<HTMLElement>('button, textarea, input, a[href]')?.focus()
+    // Only a new `focusKey` moves the focus again.
+  }, [focusKey, focusTitle])
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
@@ -66,7 +72,7 @@ export function Sheet({
         className="mx-auto grid max-h-[92dvh] w-full max-w-2xl gap-4 overflow-y-auto overscroll-contain rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised"
       >
         <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line" />
-        <h2 id={titleId} className="text-lg font-semibold">
+        <h2 id={titleId} ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
           {title}
         </h2>
         {children}

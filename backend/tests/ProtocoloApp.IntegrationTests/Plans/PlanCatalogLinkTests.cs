@@ -45,14 +45,15 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
         return id;
     });
 
-    private static string WorkoutWith(string exerciseName, Guid exerciseId, bool aliasConfirmed = true, string? catalogId = null)
+    private static string WorkoutWith(string exerciseName, Guid exerciseId, bool aliasConfirmed = true, string? catalogId = null, bool catalogConfirmed = false)
     {
+        var pairConfirmed = catalogConfirmed ? "true" : "false";
         var confirmed = aliasConfirmed ? "true" : "false";
         var catalog = catalogId is null ? "null" : "\"" + catalogId + "\"";
         return $$"""
             {"rotation":{"type":"sequence","items":["a","off"]},
              "days":[{"key":"a","name":"Treino A","exercises":[
-              {"key":"x","name":"{{exerciseName}}","exerciseId":"{{exerciseId}}","aliasConfirmed":{{confirmed}},"catalogId":{{catalog}},"sets":[{"repsMin":8,"repsMax":10}]}]}]}
+              {"key":"x","name":"{{exerciseName}}","exerciseId":"{{exerciseId}}","aliasConfirmed":{{confirmed}},"catalogConfirmed":{{pairConfirmed}},"catalogId":{{catalog}},"sets":[{"repsMin":8,"repsMax":10}]}]}]}
             """;
     }
 
@@ -162,6 +163,33 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory)
 
         Assert.Equal("cat-new", (await ExerciseAsync(api, bare)).CatalogId);
         Assert.Equal("cat-other", (await ExerciseAsync(api, linked)).CatalogId);
+    }
+
+    [Fact]
+    public async Task Activation_replaces_the_exercises_own_catalog_link_only_when_the_user_confirmed_the_pair()
+    {
+        await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat-new", "cat-old");
+        using var api = await PlanApi.CreateAsync(factory);
+        var confirmed = await AddExerciseAsync(api, "Remada Baixa");
+        var automatic = await AddExerciseAsync(api, "Remada Alta");
+        await api.WithDbAsync(async db =>
+        {
+            foreach (var row in await db.Exercises.Where(e => e.UserId == api.UserId).ToListAsync())
+                row.CatalogId = "cat-old";
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        foreach (var (name, id, pick) in new[] { ("Remada Baixa", confirmed, true), ("Remada Alta", automatic, false) })
+        {
+            var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+            var draft = await CreatedIdAsync(await api.CreateDraftAsync(fileId, PlanKind.Workout, WorkoutWith(name, id, aliasConfirmed: false, catalogId: "cat-new", catalogConfirmed: pick)));
+            Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(draft)).StatusCode);
+        }
+
+        Assert.Equal("cat-new", (await ExerciseAsync(api, confirmed)).CatalogId);
+        Assert.Equal("cat-old", (await ExerciseAsync(api, automatic)).CatalogId);
     }
 
     [Fact]

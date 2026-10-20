@@ -404,6 +404,7 @@ export function PlanReviewPage() {
             saveDraft={saveForStep}
             onSaveDraft={() => void run('saving')}
             onActivate={() => void run('activating')}
+            isDirty={() => dirty.current}
           />
         ) : (
           <>

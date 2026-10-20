@@ -7,7 +7,7 @@ import { TextField } from '../fields'
 import { buttonClass, dangerButtonClass } from '../styles'
 import { ExerciseRow } from './ExerciseRow'
 import { ExerciseSheet, type PairActions } from './ExerciseSheet'
-import { withNewExercise } from './steps'
+import { dayLetter, exerciseErrors, withNewExercise } from './steps'
 
 type Props = PairActions & {
   doc: WorkoutDocument
@@ -15,19 +15,27 @@ type Props = PairActions & {
   dayIndex: number
   errors: Record<string, string>
   onRemoveDay(): void
+  /** Where the focus goes when an exercise is removed from the sheet (its row is gone). */
+  focusHeading(): void
 }
 
 /** A day of the plan: its name and its exercises as compact rows; a row opens the edit sheet. */
 export function DayStep(props: Props) {
-  const { doc, onChange, dayIndex, errors, userExercises, newExercises, onRemoveDay } = props
+  const { doc, onChange, dayIndex, errors, userExercises, newExercises, onRemoveDay, focusHeading } = props
   const day = doc.days[dayIndex]!
   const base = `days[${dayIndex}]`
   const [editing, setEditing] = useState<number | null>(null)
+  const badCount = day.exercises.filter((_, j) => exerciseErrors(errors, `${base}.exercises[${j}]`).length > 0).length
 
   return (
     <div className="grid gap-3">
       <TextField label="Nome do dia" path={`${base}.name`} value={day.name} error={errors[`${base}.name`]} onChange={(v) => onChange(setIn(doc, `${base}.name`, v ?? ''))} />
       {errors[`${base}.exercises`] && <p className="text-sm text-danger">{errors[`${base}.exercises`]}</p>}
+      {badCount > 0 && (
+        <p role="status" className="text-sm font-medium text-danger">
+          {badCount === 1 ? '1 exercício precisa de correção' : `${badCount} exercícios precisam de correção`}. Toque na linha marcada.
+        </p>
+      )}
 
       {day.exercises.length === 0 ? (
         <p className="rounded-card border border-dashed border-line px-4 py-6 text-center text-sm text-muted">Este dia ainda não tem exercícios.</p>
@@ -43,9 +51,10 @@ export function DayStep(props: Props) {
                 key={exercise.key || j}
                 exercise={exercise}
                 base={`${base}.exercises[${j}]`}
-                catalogId={linked?.catalogId ?? exercise.catalogId ?? entry?.catalogId ?? known?.catalogId ?? null}
+                catalogId={exercise.catalogId ?? linked?.catalogId ?? entry?.catalogId ?? known?.catalogId ?? null}
                 group={linked?.primaryMuscleGroup ?? entry?.group ?? known?.primaryMuscleGroup ?? null}
                 linked={linked}
+                errors={exerciseErrors(errors, `${base}.exercises[${j}]`)}
                 onEdit={() => setEditing(j)}
               />
             )
@@ -67,7 +76,7 @@ export function DayStep(props: Props) {
           Adicionar exercício
         </button>
         <button type="button" className={dangerButtonClass} onClick={onRemoveDay}>
-          Remover dia {dayIndex + 1}
+          Remover dia {dayLetter(day.key, dayIndex)}
         </button>
       </div>
 
@@ -76,6 +85,7 @@ export function DayStep(props: Props) {
           {...props}
           exIndex={editing}
           onClose={() => setEditing(null)}
+          onRemoved={() => setTimeout(focusHeading, 0)}
         />
       )}
     </div>
