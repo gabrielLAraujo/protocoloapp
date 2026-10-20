@@ -901,6 +901,25 @@
           }
         }
       }
+    },
+    "/api/exercise-catalog": {
+      "get": {
+        "tags": [
+          "ExerciseCatalog"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -917,6 +936,67 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "CatalogItemResponse": {
+        "required": [
+          "id",
+          "name",
+          "bodyParts",
+          "targetMuscles",
+          "equipments",
+          "gifUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "bodyParts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "targetMuscles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "equipments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gifUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CatalogResponse": {
+        "required": [
+          "version",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemResponse"
+            }
           }
         }
       },
@@ -1036,6 +1116,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1682,6 +1768,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "catalogId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1771,6 +1863,9 @@
     },
     {
       "name": "Push"
+    },
+    {
+      "name": "ExerciseCatalog"
     }
   ]
 }
