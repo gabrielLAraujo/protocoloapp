@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
 
-const FOCUSABLE = 'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), a[href]'
+const FOCUSABLE = 'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]'
 
 /**
  * A bottom sheet (modal dialog). Escape or a tap on the backdrop calls `onCancel`. The focus moves to the first control
@@ -63,7 +63,7 @@ export function Sheet({
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="mx-auto grid w-full max-w-2xl gap-4 rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised"
+        className="mx-auto grid max-h-[92dvh] w-full max-w-2xl gap-4 overflow-y-auto overscroll-contain rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised"
       >
         <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line" />
         <h2 id={titleId} className="text-lg font-semibold">

@@ -1,7 +1,9 @@
 import { normalizeExerciseName } from '../../domain/exerciseNames'
 import type { MuscleGroup } from '../../domain/muscleGroups'
 import type { WorkoutDocument } from '../../domain/planDocuments'
-import type { NewExercise } from './WorkoutPlanEditor'
+
+/** An exercise of the document that the catalog does not know yet: it needs a muscle group. `id` is `dayKey/exerciseKey`. */
+export type NewExercise = { id: string; name: string; group: MuscleGroup; catalogId?: string | null }
 
 /** `dayKey/exerciseKey`: survives renames of the exercise (and of its position in the list). */
 export const exerciseId = (dayKey: string, exerciseKey: string) => `${dayKey}/${exerciseKey}`

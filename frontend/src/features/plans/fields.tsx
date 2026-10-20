@@ -47,6 +47,7 @@ export function TextField({
   onChange,
   type = 'text',
   placeholder,
+  error,
 }: {
   label: string
   path?: string
@@ -54,9 +55,10 @@ export function TextField({
   onChange: (value: string | undefined) => void
   type?: 'text' | 'date'
   placeholder?: string
+  error?: string
 }) {
   return (
-    <Field label={label} path={path}>
+    <Field label={label} path={path} error={error}>
       {(props) => (
         <input
           {...props}

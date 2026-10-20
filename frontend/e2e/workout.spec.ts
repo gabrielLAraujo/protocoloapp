@@ -37,6 +37,18 @@ async function importOnDevice(page: Page, title: 'Protocolo' | 'Treino', file: {
   await expect(page).toHaveURL(/\/planejamento\/revisao\//)
 }
 
+/** Goes through the review steps (Rotação, the days, Exercícios novos) confirming each day, up to the last step. */
+async function stepToActivate(page: Page) {
+  const label = page.getByText(/^Etapa \d+ de \d+$/)
+  for (let i = 0; i < 20; i++) {
+    const [current, total] = ((await label.textContent()) ?? '').match(/\d+/g)!.map(Number)
+    if (current === total) return
+    await page.getByRole('button', { name: /^(Continuar|Confirmar dia|Próximo)$/ }).click()
+    await expect(label).not.toHaveText(`Etapa ${current} de ${total}`)
+  }
+  throw new Error('the review has more steps than expected')
+}
+
 /** Activates the draft on screen and waits for the planning page to show it active. */
 async function activate(page: Page, title: 'Protocolo' | 'Treino') {
   const button = page.getByRole('button', { name: 'Ativar', exact: true })
@@ -69,11 +81,15 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
 
   await importOnDevice(page, 'Treino', pdfFile('treino-ficticio.pdf', workoutPdf()))
   await expect(page.getByRole('heading', { name: 'Revisar treino' })).toBeVisible()
-  await expect(page.getByLabel('Nome do dia').first()).toHaveValue('Treino A - Exemplo')
+  await expect(page.getByRole('heading', { level: 2, name: 'Rotação' })).toBeVisible()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await expect(page.getByLabel('Nome do dia')).toHaveValue('Treino A - Exemplo')
   // The wrapped line is one exercise with its rest; the exercise without sets inherits the day's, marked for review.
-  const day1 = page.getByRole('region', { name: 'Dia 1' })
-  await expect(day1.getByRole('region', { name: 'Exercício 2' }).getByLabel('Descanso (s)', { exact: true })).toHaveValue('60')
-  await expect(page.getByRole('region', { name: 'Dia 2' }).getByText('Confira').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Editar Exercicio Ficticio Gama' }).locator('..')).toContainText('descanso 60 s')
+  await page.getByRole('button', { name: 'Confirmar dia' }).click()
+  await expect(page.getByLabel('Nome do dia')).toHaveValue('Treino B - Exemplo')
+  await expect(page.getByText('Confira').first()).toBeVisible()
+  await stepToActivate(page)
   await activate(page, 'Treino')
 
   // Nothing went to the AI.
@@ -140,6 +156,8 @@ test('a scanned PDF opens an empty draft to fill in, and "Ler com IA" reads the 
 
   await importOnDevice(page, 'Treino', pdfFile('escaneado.pdf', scan))
   await expect(page.getByText('Esse PDF não tem texto selecionável. Preencha à mão.')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Rotação' })).toBeVisible()
+  await page.getByRole('button', { name: 'Continuar' }).click()
   await expect(page.getByRole('button', { name: 'Ativar', exact: true })).toBeDisabled()
   const firstDraft = page.url()
 
@@ -148,7 +166,10 @@ test('a scanned PDF opens an empty draft to fill in, and "Ler com IA" reads the 
   await page.getByRole('button', { name: 'Ler com IA' }).click()
   expect((await imported).status()).toBe(201)
   await expect(page).not.toHaveURL(firstDraft)
-  await expect(page.getByLabel('Nome do dia').first()).toHaveValue('Treino A - Exemplo')
+  // The new draft has days (the scanned one had none: 2 steps), so it has more steps.
+  await expect(page.getByText(/^Etapa 1 de ([3-9]|\d{2})$/)).toBeVisible()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await expect(page.getByLabel('Nome do dia')).toHaveValue('Treino A - Exemplo')
   await expect(page.getByText('Esse PDF não tem texto selecionável. Preencha à mão.')).toHaveCount(0)
 
   const received = ((await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]).slice(before.length)

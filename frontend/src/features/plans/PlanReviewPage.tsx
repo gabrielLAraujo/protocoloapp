@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import type { components } from '../../api/schema'
 import { toProblem } from '../../api/problem'
 import { useData } from '../../data/dataContext'
-import { exerciseRepo } from '../../data/exerciseRepo'
+import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { normalizeExerciseName } from '../../domain/exerciseNames'
 import type { MuscleGroup } from '../../domain/muscleGroups'
@@ -25,7 +25,7 @@ import { buttonClasses } from '../../ui/styles'
 import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
 import { initialCatalogIds, initialGroups, newExerciseEntries } from './newExercises'
-import { WorkoutPlanEditor } from './WorkoutPlanEditor'
+import { WorkoutWizard } from './workoutWizard/WorkoutWizard'
 import { ImportError, readWithAi } from './uploadPdf'
 
 type PlanVersion = components['schemas']['PlanVersionResponse']
@@ -88,6 +88,7 @@ export function PlanReviewPage() {
   // The catalog item (media) each new exercise carries from the draft; sent back on every save.
   const [catalogIds, setCatalogIds] = useState<Record<string, string>>({})
   const [catalog, setCatalog] = useState<ReadonlySet<string>>(new Set())
+  const [userExercises, setUserExercises] = useState<ExerciseLocal[]>([])
   // Which exercises are new depends on the catalog: until it is read nothing may be saved or activated.
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [diff, setDiff] = useState<PlanDiff | null>(null)
@@ -118,6 +119,7 @@ export function PlanReviewPage() {
       .all(data.db)
       .then((list) => {
         if (cancelled) return
+        setUserExercises(list)
         setCatalog(new Set(list.flatMap((e) => [e.normalizedName, ...e.aliases.map(normalizeExerciseName)])))
         setCatalogState('ready')
       })
@@ -245,6 +247,22 @@ export function PlanReviewPage() {
     return true
   }
 
+  /** The draft save the wizard asks for when a day is confirmed. */
+  const saveForStep = async (): Promise<boolean> => {
+    if (working) return false
+    setWorking('saving')
+    setActionErrors([])
+    setSaved(false)
+    try {
+      return await save()
+    } catch {
+      setActionErrors([OFFLINE])
+      return false
+    } finally {
+      setWorking(null)
+    }
+  }
+
   const run = async (mode: 'saving' | 'activating') => {
     if (working) return
     setWorking(mode)
@@ -352,84 +370,99 @@ export function PlanReviewPage() {
           <p className="text-sm text-muted">Os campos marcados com “Confira” podem ter sido lidos errado do PDF.</p>
         )}
 
-        <Section title="O que mudou">
-          <DiffList diff={diff} />
-        </Section>
-
         {plan.kind === 'workout' ? (
-          <WorkoutPlanEditor
+          <WorkoutWizard
+            key={plan.id}
+            planId={plan.id}
             doc={doc as WorkoutDocument}
             onChange={edit}
             newExercises={newExercises}
-            groupsDisabled={!catalogReady}
+            userExercises={userExercises}
+            lowConfidence={plan.lowConfidence}
+            issues={issues}
+            diff={diff}
+            online={online}
+            catalogState={catalogState}
+            working={working}
+            saved={saved}
+            actionErrors={actionErrors}
             onGroupChange={(id, group) => {
               dirty.current = true
               setGroups((current) => ({ ...current, [id]: group }))
               setSaved(false)
             }}
+            onCatalogChange={(id, catalogId) => {
+              dirty.current = true
+              setCatalogIds((current) => {
+                const next = { ...current }
+                if (catalogId) next[id] = catalogId
+                else delete next[id]
+                return next
+              })
+              setSaved(false)
+            }}
+            saveDraft={saveForStep}
+            onSaveDraft={() => void run('saving')}
+            onActivate={() => void run('activating')}
           />
         ) : (
-          <ProtocolEditor doc={doc as ProtocolDocument} onChange={edit} />
+          <>
+            <Section title="O que mudou">
+              <DiffList diff={diff} />
+            </Section>
+            <ProtocolEditor doc={doc as ProtocolDocument} onChange={edit} />
+            <Section title="Ativação">
+              <TextField
+                label="Início do ciclo"
+                type="date"
+                value={cycleStart}
+                onChange={(v) => {
+                  dirty.current = true
+                  setCycleStart(v ?? '')
+                }}
+              />
+              {issues.length > 0 && (
+                <div id={issuesId} className="grid gap-1 text-sm text-danger">
+                  <p className="font-semibold">Corrija antes de ativar:</p>
+                  <ul className="list-disc pl-5">
+                    {issues.map((issue, i) => {
+                      const where = describePath(issue.path, doc)
+                      return (
+                        <li key={i}>
+                          {where && <span className="text-muted">{where}: </span>}
+                          {issue.message}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
+              {!online && <p className="text-sm text-muted">{OFFLINE}</p>}
+              {actionErrors.length > 0 && (
+                <ul role="alert" className="list-disc pl-5 text-sm text-danger">
+                  {actionErrors.map((message, i) => (
+                    <li key={i}>{message}</li>
+                  ))}
+                </ul>
+              )}
+              {saved && <p role="status" className="text-sm text-ok">Rascunho salvo</p>}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={buttonClass} disabled={!online || working !== null || incomplete} onClick={() => void run('saving')}>
+                  {working === 'saving' ? 'Salvando…' : 'Salvar rascunho'}
+                </button>
+                <button
+                  type="button"
+                  disabled={blocked || working !== null}
+                  aria-describedby={issues.length > 0 ? issuesId : undefined}
+                  onClick={() => void run('activating')}
+                  className={buttonClasses({ variant: 'primary', className: 'px-6' })}
+                >
+                  {working === 'activating' ? 'Ativando…' : 'Ativar'}
+                </button>
+              </div>
+            </Section>
+          </>
         )}
-
-        <Section title="Ativação">
-          {plan.kind === 'protocol' && (
-            <TextField
-              label="Início do ciclo"
-              type="date"
-              value={cycleStart}
-              onChange={(v) => {
-                dirty.current = true
-                setCycleStart(v ?? '')
-              }}
-            />
-          )}
-          {issues.length > 0 && (
-            <div id={issuesId} className="grid gap-1 text-sm text-danger">
-              <p className="font-semibold">Corrija antes de ativar:</p>
-              <ul className="list-disc pl-5">
-                {issues.map((issue, i) => {
-                  const where = describePath(issue.path, doc)
-                  return (
-                    <li key={i}>
-                      {where && <span className="text-muted">{where}: </span>}
-                      {issue.message}
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
-          {!online && <p className="text-sm text-muted">{OFFLINE}</p>}
-          {plan.kind === 'workout' && catalogState === 'loading' && <p className="text-sm text-muted">Carregando catálogo…</p>}
-          {plan.kind === 'workout' && catalogState === 'failed' && (
-            <p role="alert" className="text-sm text-danger">
-              Não foi possível ler o catálogo de exercícios do aparelho.
-            </p>
-          )}
-          {actionErrors.length > 0 && (
-            <ul role="alert" className="list-disc pl-5 text-sm text-danger">
-              {actionErrors.map((message, i) => (
-                <li key={i}>{message}</li>
-              ))}
-            </ul>
-          )}
-          {saved && <p role="status" className="text-sm text-ok">Rascunho salvo</p>}
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={buttonClass} disabled={!online || working !== null || incomplete || !catalogReady} onClick={() => void run('saving')}>
-              {working === 'saving' ? 'Salvando…' : 'Salvar rascunho'}
-            </button>
-            <button
-              type="button"
-              disabled={blocked || working !== null}
-              aria-describedby={issues.length > 0 ? issuesId : undefined}
-              onClick={() => void run('activating')}
-              className={buttonClasses({ variant: 'primary', className: 'px-6' })}
-            >
-              {working === 'activating' ? 'Ativando…' : 'Ativar'}
-            </button>
-          </div>
-        </Section>
       </div>
     </LowConfidenceContext>
   )
