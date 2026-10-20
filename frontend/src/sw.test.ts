@@ -10,7 +10,25 @@ const workbox = vi.hoisted(() => {
     precacheAndRoute: (...args: unknown[]) => void calls.push(['precacheAndRoute', ...args]),
     cleanupOutdatedCaches: () => void calls.push(['cleanupOutdatedCaches']),
     createHandlerBoundToURL: (url: string) => ({ boundTo: url }),
-    registerRoute: (route: unknown) => void calls.push(['registerRoute', route]),
+    registerRoute: (...args: unknown[]) => void calls.push(['registerRoute', ...args]),
+    CacheFirst: class {
+      options: unknown
+      constructor(options: unknown) {
+        this.options = options
+      }
+    },
+    CacheableResponsePlugin: class {
+      options: unknown
+      constructor(options: unknown) {
+        this.options = options
+      }
+    },
+    ExpirationPlugin: class {
+      options: unknown
+      constructor(options: unknown) {
+        this.options = options
+      }
+    },
     NavigationRoute: class {
       handler: unknown
       options: unknown
@@ -26,6 +44,9 @@ vi.mock('workbox-precaching', () => ({
   cleanupOutdatedCaches: workbox.cleanupOutdatedCaches,
   createHandlerBoundToURL: workbox.createHandlerBoundToURL,
 }))
+vi.mock('workbox-strategies', () => ({ CacheFirst: workbox.CacheFirst }))
+vi.mock('workbox-cacheable-response', () => ({ CacheableResponsePlugin: workbox.CacheableResponsePlugin }))
+vi.mock('workbox-expiration', () => ({ ExpirationPlugin: workbox.ExpirationPlugin }))
 vi.mock('workbox-routing', () => ({ registerRoute: workbox.registerRoute, NavigationRoute: workbox.NavigationRoute }))
 
 const MANIFEST = [{ url: 'index.html', revision: 'r1' }]
@@ -55,12 +76,31 @@ const dispatch = (type: string, event: Record<string, unknown>) => {
 
 describe('service worker', () => {
   it('precaches the build manifest and serves the app shell for navigations outside the denylist', () => {
-    expect(workbox.calls).toEqual([
-      ['precacheAndRoute', MANIFEST],
-      ['cleanupOutdatedCaches'],
-      ['registerRoute', { handler: { boundTo: '/index.html' }, options: { denylist: NAVIGATE_FALLBACK_DENYLIST } }],
-    ])
+    expect(workbox.calls[0]).toEqual(['precacheAndRoute', MANIFEST])
+    expect(workbox.calls[1]).toEqual(['cleanupOutdatedCaches'])
+    expect(workbox.calls[2]).toEqual(['registerRoute', { handler: { boundTo: '/index.html' }, options: { denylist: NAVIGATE_FALLBACK_DENYLIST } }])
+    expect(workbox.calls).toHaveLength(4)
     expect(NAVIGATE_FALLBACK_DENYLIST.map(String)).toEqual(['/^\\/api\\//', '/^\\/health/', '/^\\/openapi/', '/^\\/scalar/'])
+  })
+
+  it('caches the exercise GIFs cache-first, limited by count and age', () => {
+    const [name, route, strategy] = workbox.calls[3] as ['registerRoute', (ctx: unknown) => boolean, InstanceType<typeof workbox.CacheFirst>]
+    expect(name).toBe('registerRoute')
+
+    const options = strategy.options as { cacheName: string; plugins: { options: unknown; constructor: { name: string } }[] }
+    expect(options.cacheName).toBe('exercise-gifs')
+    const [cacheable, expiration] = options.plugins
+    expect(cacheable).toBeInstanceOf(workbox.CacheableResponsePlugin)
+    expect(cacheable.options).toEqual({ statuses: [0, 200] })
+    expect(expiration).toBeInstanceOf(workbox.ExpirationPlugin)
+    expect(expiration.options).toEqual({ maxEntries: 400, maxAgeSeconds: 90 * 24 * 60 * 60 })
+
+    const gif = (href: string, destination = 'image') => route({ request: { destination }, url: new URL(href) })
+    expect(gif('https://static.exercisedb.dev/media/abc123.gif')).toBe(true)
+    expect(gif('https://static.exercisedb.dev/media/abc123.gif', 'script')).toBe(false)
+    expect(gif('https://static.exercisedb.dev/other/abc123.gif')).toBe(false)
+    expect(gif('https://example.test/media/abc123.gif')).toBe(false)
+    expect(gif('https://static.exercisedb.dev/media/abc123.png')).toBe(false)
   })
 
   // Review Focus 5: the "Atualizar" button (updateSW(true) → workbox-window messageSkipWaiting) still activates the new worker.

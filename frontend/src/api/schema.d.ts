@@ -1260,6 +1260,7 @@ export interface components {
         NewExerciseSuggestion: {
             name: string;
             group: components["schemas"]["MuscleGroup"];
+            catalogId?: null | string;
         };
         PlanChange: {
             path: string;

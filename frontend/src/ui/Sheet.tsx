@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
 
-const FOCUSABLE = 'button:not(:disabled), textarea:not(:disabled), input:not(:disabled)'
+const FOCUSABLE = 'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), a[href]'
 
 /**
  * A bottom sheet (modal dialog). Escape or a tap on the backdrop calls `onCancel`. The focus moves to the first control
@@ -31,7 +31,7 @@ export function Sheet({
   }, [])
 
   useEffect(() => {
-    panel.current?.querySelector<HTMLElement>('button, textarea, input')?.focus()
+    panel.current?.querySelector<HTMLElement>('button, textarea, input, a[href]')?.focus()
   }, [focusKey])
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {

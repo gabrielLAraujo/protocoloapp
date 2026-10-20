@@ -8,6 +8,7 @@ import { E1rmChart, type E1rmPoint } from './E1rmChart'
 import { formatDate, formatKg } from './format'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
+import { ExerciseMedia } from '../../ui/ExerciseMedia'
 import { Icon } from '../../ui/Icon'
 
 interface SessionRow {
@@ -75,6 +76,7 @@ export function ExerciseHistoryPage() {
           Voltar para o histórico
         </Link>
         <h1 className="text-xl font-bold tracking-tight">{exercise?.name ?? 'Exercício'}</h1>
+        {exercise && <ExerciseMedia catalogId={exercise.catalogId} name={exercise.name} size="card" />}
       </div>
       <div className={cardClasses({ padding: 'sm' })}>
         <E1rmChart points={points} />

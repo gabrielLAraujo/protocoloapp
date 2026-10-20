@@ -6,7 +6,7 @@ import { NumberField, Section, SelectField, TextField } from './fields'
 import { buttonClass, dangerButtonClass } from './styles'
 
 /** An exercise of the document that the catalog does not know yet: it needs a muscle group. `id` is `dayKey/exerciseKey`. */
-export type NewExercise = { id: string; name: string; group: MuscleGroup }
+export type NewExercise = { id: string; name: string; group: MuscleGroup; catalogId?: string | null }
 
 const GROUP_OPTIONS = MUSCLE_GROUPS.map((g) => ({ value: g, label: MUSCLE_GROUP_LABELS[g] }))
 

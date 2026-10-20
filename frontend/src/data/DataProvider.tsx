@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../auth/authContext'
+import { catalogRepo } from './catalogRepo'
 import { DataContext, type Data } from './dataContext'
 import type { LocalDb } from './localDb'
 import { resolveLocalUser } from './localUser'
@@ -40,6 +41,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const engine = new SyncEngine(db, api)
         stop = engine.start()
         setData({ db, userId, engine })
+        // The exercise catalog (GIFs, search): refreshed in the background when there is a network; the app works without it.
+        if (navigator.onLine !== false) void catalogRepo.refresh(db, api)
       } catch (error) {
         console.error('local database unavailable', error)
       }

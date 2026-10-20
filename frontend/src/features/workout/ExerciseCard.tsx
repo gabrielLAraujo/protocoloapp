@@ -5,6 +5,7 @@ import type { PlannedExercise } from '../../domain/planDocuments'
 import { buttonClass, inputClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
 import { cardClasses } from '../../ui/styles'
+import { ExerciseMedia } from '../../ui/ExerciseMedia'
 import { Icon } from '../../ui/Icon'
 import { formatKg } from './format'
 import { SetRow } from './SetRow'
@@ -98,6 +99,7 @@ export function ExerciseCard(props: Props) {
             <span className="tabular-nums">Última vez: {lastTimeText(lastTime)}</span>
           </p>
         )}
+        <ExerciseMedia catalogId={exercise?.catalogId} name={name} size="thumb" />
       </header>
 
       {props.otherSets.map((group) => (

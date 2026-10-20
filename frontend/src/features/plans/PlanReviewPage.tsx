@@ -24,7 +24,7 @@ import { buttonClass, dangerButtonClass } from './styles'
 import { buttonClasses } from '../../ui/styles'
 import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
-import { initialGroups, newExerciseEntries } from './newExercises'
+import { initialCatalogIds, initialGroups, newExerciseEntries } from './newExercises'
 import { WorkoutPlanEditor } from './WorkoutPlanEditor'
 import { ImportError, readWithAi } from './uploadPdf'
 
@@ -85,6 +85,8 @@ export function PlanReviewPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
   const [groups, setGroups] = useState<Record<string, MuscleGroup>>({})
+  // The catalog item (media) each new exercise carries from the draft; sent back on every save.
+  const [catalogIds, setCatalogIds] = useState<Record<string, string>>({})
   const [catalog, setCatalog] = useState<ReadonlySet<string>>(new Set())
   // Which exercises are new depends on the catalog: until it is read nothing may be saved or activated.
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'failed'>('loading')
@@ -157,6 +159,7 @@ export function PlanReviewPage() {
         setPlan(data)
         setDoc(editable)
         setGroups(data.kind === 'workout' ? initialGroups(editable as WorkoutDocument, data.newExercises) : {})
+        setCatalogIds(data.kind === 'workout' ? initialCatalogIds(editable as WorkoutDocument, data.newExercises) : {})
         setDiff(data.diff)
         setNoticeDone(false)
         setSaved(false)
@@ -180,8 +183,8 @@ export function PlanReviewPage() {
   }, [plan, doc, cycleStart])
 
   const newExercises = useMemo(
-    () => (plan?.kind === 'workout' && doc ? newExerciseEntries(doc as WorkoutDocument, catalog, groups) : []),
-    [plan, doc, catalog, groups],
+    () => (plan?.kind === 'workout' && doc ? newExerciseEntries(doc as WorkoutDocument, catalog, groups, catalogIds) : []),
+    [plan, doc, catalog, groups, catalogIds],
   )
 
   if (loadError) {
@@ -223,7 +226,7 @@ export function PlanReviewPage() {
   }
   const body = () => ({
     document: doc as unknown,
-    newExercises: plan.kind === 'workout' ? newExercises.map(({ name, group }) => ({ name, group })) : null,
+    newExercises: plan.kind === 'workout' ? newExercises.map(({ name, group, catalogId }) => (catalogId ? { name, group, catalogId } : { name, group })) : null,
   })
 
   /** Saves the draft; resolves with whether it worked. */
