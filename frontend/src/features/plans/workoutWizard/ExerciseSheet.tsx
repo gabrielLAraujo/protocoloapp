@@ -142,7 +142,7 @@ export function ExerciseSheet(props: Props) {
       <TechniquesEditor exercise={exercise} partners={partners} base={base} set={set} errors={errors} />
       <TextField label="Outras observações de técnica" path={`${base}.technique`} value={exercise.technique} onChange={(v) => set('technique', v)} />
 
-      <div className="sticky bottom-0 -mx-4 -mb-1 flex flex-wrap gap-2 border-t border-line bg-surface px-4 pt-3 pb-1">
+      <div className="sticky bottom-[calc(-1rem-env(safe-area-inset-bottom))] -mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-wrap gap-2 border-t border-line bg-surface px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <button type="button" className={buttonClasses({ variant: 'primary', className: 'flex-1' })} onClick={close}>
           Concluído
         </button>
