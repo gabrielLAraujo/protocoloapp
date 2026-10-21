@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { TECHNIQUE_INFO, techniqueLabel } from '../../../domain/techniques'
 import type { PlannedExercise, Technique, TechniqueType } from '../../../domain/planDocuments'
-import { NumberField, SelectField } from '../fields'
+import { NumberField, SelectField, TextField } from '../fields'
 import { dangerButtonClass } from '../styles'
 
 type Props = {
@@ -33,8 +33,16 @@ function fresh(type: TechniqueType, partners: Props['partners']): Technique | nu
       return { type }
     case 'zero_point':
       return { type, seconds: 1 }
+    case 'eccentric':
+      return { type, seconds: 3 }
+    case 'cluster':
+      return { type, reps: [3, 3, 3], restSeconds: 20 }
+    case 'tempo':
+      return { type, text: '3:2' }
     case 'progressive_load':
     case 'stretch_interval':
+    case 'fst7':
+    case 'to_failure':
       return { type }
   }
 }
@@ -136,6 +144,15 @@ function TechniqueFields({
             </fieldset>
           )}
           {errors[`${path}.sets`] && <p className="text-sm text-danger">{errors[`${path}.sets`]}</p>}
+          <NumberField
+            label="Redução da carga em % (opcional)"
+            value={technique.percent}
+            error={errors[`${path}.percent`]}
+            onChange={(v) => {
+              const { percent: _, ...rest } = technique
+              change(v === undefined ? rest : { ...rest, percent: v })
+            }}
+          />
         </>
       )
     }
@@ -155,10 +172,55 @@ function TechniqueFields({
       )
     }
     case 'sst':
-      return <RestsField rests={technique.rests} error={errors[`${path}.rests`]} onChange={(rests) => change({ ...technique, rests })} />
+      return (
+        <NumberListField
+          label="Descansos em segundos, separados por vírgula"
+          hint="Use números de 0 a 900, como 15, 15, 20."
+          min={0}
+          max={900}
+          values={technique.rests}
+          error={errors[`${path}.rests`]}
+          onChange={(rests) => change({ ...technique, rests })}
+        />
+      )
+    case 'cluster':
+      return (
+        <>
+          <NumberListField
+            label="Repetições de cada mini-série, separadas por vírgula"
+            hint="Use de 1 a 8 números de 1 a 30, como 3, 3, 3."
+            min={1}
+            max={30}
+            maxItems={8}
+            values={technique.reps}
+            error={errors[`${path}.reps`]}
+            onChange={(reps) => change({ ...technique, reps })}
+          />
+          <NumberField label="Pausa entre as mini-séries (s)" value={technique.restSeconds} error={errors[`${path}.restSeconds`]} onChange={(v) => change({ ...technique, restSeconds: v as number })} />
+        </>
+      )
+    case 'fst7':
+      return (
+        <NumberField
+          label="Descanso entre as séries em s (opcional)"
+          value={technique.restSeconds}
+          error={errors[`${path}.restSeconds`]}
+          onChange={(v) => change(v === undefined ? { type: 'fst7' } : { type: 'fst7', restSeconds: v })}
+        />
+      )
+    case 'tempo':
+      return (
+        <TextField
+          label="Cadência (subida:descida, como 3:2)"
+          value={technique.text}
+          error={errors[`${path}.text`]}
+          onChange={(v) => change({ ...technique, text: v ?? '' })}
+        />
+      )
     case 'peak':
     case 'zero_point':
     case 'isometric':
+    case 'eccentric':
       return <NumberField label="Segundos" value={technique.seconds} error={errors[`${path}.seconds`]} onChange={(v) => change({ ...technique, seconds: v as number })} />
     case 'partials':
       return (
@@ -174,24 +236,45 @@ function TechniqueFields({
   }
 }
 
-/** The rests of an SST as text ("15, 15, 20"): what is typed stays, the document gets the numbers once the text reads right. */
-function RestsField({ rests, error, onChange }: { rests: number[]; error?: string; onChange: (rests: number[]) => void }) {
-  const [text, setText] = useState(rests.join(', '))
-  const [seen, setSeen] = useState(rests)
-  if (rests !== seen) {
+/** A list of whole numbers as text ("15, 15, 20"): what is typed stays, the document gets the numbers once the text reads right. */
+function NumberListField({
+  label,
+  hint,
+  min,
+  max,
+  maxItems,
+  values,
+  error,
+  onChange,
+}: {
+  label: string
+  /** Shown while the text does not read as a valid list. */
+  hint: string
+  min: number
+  max: number
+  maxItems?: number
+  values: number[]
+  error?: string
+  onChange: (values: number[]) => void
+}) {
+  const [text, setText] = useState(values.join(', '))
+  const [seen, setSeen] = useState(values)
+  const read = (value: string) =>
+    value
+      .split(/[\s,;]+/)
+      .filter(Boolean)
+      .map(Number)
+  const valid = (list: number[]) =>
+    list.length > 0 && (maxItems === undefined || list.length <= maxItems) && list.every((n) => Number.isInteger(n) && n >= min && n <= max)
+  if (values !== seen) {
     // The document changed from outside (another technique was removed): show it, unless this very typing produced it.
-    setSeen(rests)
-    const typed = text.split(/[\s,;]+/).filter(Boolean).map(Number)
-    if (typed.join(',') !== rests.join(',')) setText(rests.join(', '))
+    setSeen(values)
+    if (read(text).join(',') !== values.join(',')) setText(values.join(', '))
   }
-  const parsed = text
-    .split(/[\s,;]+/)
-    .filter(Boolean)
-    .map(Number)
-  const bad = parsed.length === 0 || parsed.some((n) => !Number.isInteger(n) || n < 0 || n > 900)
+  const bad = !valid(read(text))
   return (
     <label className="grid gap-1 text-sm font-medium">
-      Descansos em segundos, separados por vírgula
+      {label}
       <input
         type="text"
         inputMode="numeric"
@@ -200,14 +283,11 @@ function RestsField({ rests, error, onChange }: { rests: number[]; error?: strin
         className={`w-full min-h-11 rounded-control border bg-surface px-3 py-2 text-base font-normal text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${bad || error ? 'border-danger' : 'border-control-line'}`}
         onChange={(e) => {
           setText(e.target.value)
-          const next = e.target.value
-            .split(/[\s,;]+/)
-            .filter(Boolean)
-            .map(Number)
-          if (next.length > 0 && next.every((n) => Number.isInteger(n) && n >= 0 && n <= 900)) onChange(next)
+          const next = read(e.target.value)
+          if (valid(next)) onChange(next)
         }}
       />
-      {(bad || error) && <span className="text-sm font-normal text-danger">{bad ? 'Use números de 0 a 900, como 15, 15, 20.' : error}</span>}
+      {(bad || error) && <span className="text-sm font-normal text-danger">{bad ? hint : error}</span>}
     </label>
   )
 }

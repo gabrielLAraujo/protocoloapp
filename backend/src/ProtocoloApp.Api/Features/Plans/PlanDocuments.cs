@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace ProtocoloApp.Api.Features.Plans;
 
@@ -205,10 +206,12 @@ public sealed record PlannedExerciseDto
 
 /// <summary>
 /// A structured technique of an exercise, discriminated by <c>Type</c> (see <see cref="TechniqueTypes"/>); only the fields of
-/// that type are used: drop (<c>Count</c> 1–5, <c>Sets</c>: "last" | "all" | array of 0-based set indexes), rest_pause
-/// (<c>Count</c> 1–5), biset (<c>With</c>: key of another exercise of the same day), sst (<c>Rests</c> in seconds), peak
-/// (<c>Seconds</c> 1–10), isometric (<c>Seconds</c> 1–120), partials (optional <c>Reps</c> 1–30), zero_point
-/// (<c>Seconds</c> 1–10), progressive_load, stretch_interval. A flat record keeps reading tolerant: an unknown <c>Type</c> is
+/// that type are used: drop (<c>Count</c> 1–5, <c>Sets</c>: "last" | "all" | array of 0-based set indexes, optional
+/// <c>Percent</c> 1–50), rest_pause (<c>Count</c> 1–5), biset (<c>With</c>: key of another exercise of the same day), sst
+/// (<c>Rests</c> in seconds), peak (<c>Seconds</c> 1–10), isometric (<c>Seconds</c> 1–120), partials (optional <c>Reps</c>:
+/// an integer 1–30), zero_point (<c>Seconds</c> 1–10), progressive_load, stretch_interval, eccentric (<c>Seconds</c> 1–15),
+/// cluster (<c>Reps</c>: array of 1–8 integers 1–30, <c>RestSeconds</c> 5–120), fst7 (optional <c>RestSeconds</c> 5–120),
+/// tempo (<c>Text</c> like "3:2" or "3:1:2") and to_failure. A flat record keeps reading tolerant: an unknown <c>Type</c> is
 /// reported by <see cref="WorkoutDocumentValidator"/> under <c>...techniques[i].type</c> instead of failing the whole read.
 /// </summary>
 public sealed record TechniqueDto
@@ -225,7 +228,36 @@ public sealed record TechniqueDto
 
     public int? Seconds { get; init; }
 
-    public int? Reps { get; init; }
+    /// <summary>partials: an integer (1–30); cluster: an array of 1–8 integers (1–30). Read as JSON for that reason.</summary>
+    public JsonElement? Reps { get; init; }
+
+    public int? RestSeconds { get; init; }
+
+    public string? Text { get; init; }
+
+    public int? Percent { get; init; }
+}
+
+/// <summary>Reads the JSON-typed fields of a <see cref="TechniqueDto"/>.</summary>
+public static partial class TechniqueValues
+{
+    /// <summary>True for a tempo text such as "3:2" or "3:1:2" (see <see cref="TechniqueTypes.TempoPattern"/>).</summary>
+    public static bool IsTempo(string? text) => text is not null && TempoRegex().IsMatch(text);
+
+    [GeneratedRegex(@"^[0-9]{1,2}:[0-9]{1,2}(:[0-9]{1,2})?\z", RegexOptions.CultureInvariant)]
+    private static partial Regex TempoRegex();
+
+    /// <summary>True when <paramref name="value"/> carries something (JSON null counts as missing).</summary>
+    public static bool IsPresent(JsonElement? value) => value is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) };
+
+    /// <summary>The value as a single integer, or null when it is missing or not one.</summary>
+    public static int? AsInt(JsonElement? value) => value is { ValueKind: JsonValueKind.Number } n && n.TryGetInt32(out var i) ? i : null;
+
+    /// <summary>The value as a list of integers, or null when it is missing or not an array of integers.</summary>
+    public static IReadOnlyList<int>? AsIntList(JsonElement? value) =>
+        value is { ValueKind: JsonValueKind.Array } array && array.EnumerateArray().All(e => e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out _))
+            ? array.EnumerateArray().Select(e => e.GetInt32()).ToList()
+            : null;
 }
 
 /// <summary>The <see cref="TechniqueDto.Type"/> values.</summary>
@@ -241,8 +273,16 @@ public static class TechniqueTypes
     public const string ZeroPoint = "zero_point";
     public const string ProgressiveLoad = "progressive_load";
     public const string StretchInterval = "stretch_interval";
+    public const string Eccentric = "eccentric";
+    public const string Cluster = "cluster";
+    public const string Fst7 = "fst7";
+    public const string Tempo = "tempo";
+    public const string ToFailure = "to_failure";
 
-    public static readonly string[] All = [Drop, RestPause, Biset, Sst, Peak, Isometric, Partials, ZeroPoint, ProgressiveLoad, StretchInterval];
+    public static readonly string[] All = [Drop, RestPause, Biset, Sst, Peak, Isometric, Partials, ZeroPoint, ProgressiveLoad, StretchInterval, Eccentric, Cluster, Fst7, Tempo, ToFailure];
+
+    /// <summary>The <c>Text</c> of a tempo: "3:2" or "3:1:2" (seconds per phase).</summary>
+    public const string TempoPattern = "^[0-9]{1,2}:[0-9]{1,2}(:[0-9]{1,2})?$";
 }
 
 public sealed record PlannedSetDto

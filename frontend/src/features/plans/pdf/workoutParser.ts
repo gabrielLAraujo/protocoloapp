@@ -1,8 +1,16 @@
 import { OFF, type PlannedExercise, type PlannedSet, type Technique, type WorkoutDay, type WorkoutDocument } from '../../../domain/planDocuments'
 import type { PdfLine } from './pdfText'
+import { clean, dayKey, tidy } from './sheetText'
+import { isLayoutBLine, parseLayoutB } from './workoutParserB'
+
+export { tidy } from './sheetText'
 
 /**
- * Reads the consultancy's workout sheet (a Word document exported to PDF) into a draft `WorkoutDocument`:
+ * Reads the consultancy's workout sheet (a Word document exported to PDF) into a draft `WorkoutDocument`. Two layouts
+ * exist; a sheet with any layout-A day header or dash exercise line is read as layout A, any other as layout B (see
+ * `parseLayoutB`).
+ *
+ * Layout A:
  *
  * - `(<name>) 4x 6 a 10` opens a day (keys A, B, C… in order); the sets after the name are the day's default sets.
  * - `DESCANSO` is a rest day (`off`) in the `sequence` rotation, at its place between the days.
@@ -14,6 +22,26 @@ import type { PdfLine } from './pdfText'
  * `lowConfidence` (paths like `days[0].exercises[2].sets`), so the review marks it "Confira".
  */
 export function parseWorkout(lines: readonly PdfLine[]): { document: WorkoutDocument; lowConfidence: string[] } {
+  return isLayoutA(lines) ? parseLayoutA(lines) : parseLayoutB(lines)
+}
+
+/**
+ * Scores each line for the layout it belongs to: a `(name) 4x 6 a 10` day header with its sets or a `- ` line counts for
+ * layout A; a line with `N SERIES`, a rest such as `DESCANSO 60S` or a muscle-group header counts for layout B. A lone
+ * `(…)` line or one `- note` does not flip a layout-B sheet: the layout with more lines wins, layout A on a tie.
+ */
+export function isLayoutA(lines: readonly PdfLine[]): boolean {
+  let a = 0
+  let b = 0
+  for (const line of lines) {
+    const text = clean(line.text)
+    if (DASH.test(text) || parseHeader(text)?.defaults) a++
+    else if (isLayoutBLine(text)) b++
+  }
+  return a >= b
+}
+
+function parseLayoutA(lines: readonly PdfLine[]): { document: WorkoutDocument; lowConfidence: string[] } {
   const days: DayDraft[] = []
   const rotation: (DayDraft | typeof OFF)[] = []
   let current: DayDraft | null = null
@@ -109,19 +137,8 @@ const UNIT_START = /^(?:min(?:uto)?s?|seg(?:undo)?s?)\b/i
 /** Starts with a lowercase letter (any accent). */
 const startsLowercase = (text: string) => /^\p{Ll}/u.test(text)
 
-function clean(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
-}
-
 function capitalize(text: string): string {
   return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1)
-}
-
-function dayKey(index: number): string {
-  // A..Z, then AA, AB… (a sheet never gets there, but keys must stay unique).
-  let key = ''
-  for (let n = index; n >= 0; n = Math.floor(n / 26) - 1) key = String.fromCharCode(65 + (n % 26)) + key
-  return key
 }
 
 function parseHeader(text: string): { name: string; defaults: DefaultSets | null; notes: string[] } | null {
@@ -379,30 +396,6 @@ function extractTechniques(text: string, restSequence: number[] | null): { rest:
 function dropDangling(text: string): string {
   const cleaned = tidy(text).replace(/^(?:com|c|e|ou)$/i, '').replace(/\s+(?:com|c|e|ou|de)$/i, '')
   return tidy(cleaned)
-}
-
-/** Drops empty or unmatched parentheses and stray punctuation left where the sets and the rest were cut out. */
-export function tidy(text: string): string {
-  let out = clean(text)
-  for (let previous = ''; previous !== out; ) {
-    previous = out
-    out = out.replace(/\(\s*[,;.+]?\s*\)/g, ' ')
-    out = clean(out)
-  }
-  // Unmatched parentheses: keep only the balanced pairs.
-  const chars = [...out]
-  const opens: number[] = []
-  const drop = new Set<number>()
-  chars.forEach((c, i) => {
-    if (c === '(') opens.push(i)
-    else if (c === ')') {
-      if (opens.length > 0) opens.pop()
-      else drop.add(i)
-    }
-  })
-  opens.forEach((i) => drop.add(i))
-  out = clean(chars.filter((_, i) => !drop.has(i)).join(''))
-  return out.replace(/^[\s,;.:\-–+]+|[\s,;:\-–+]+$/g, '').trim()
 }
 
 const normalize = (text: string) =>

@@ -102,6 +102,11 @@ const TECHNIQUE_TYPES = new Set([
   'zero_point',
   'progressive_load',
   'stretch_interval',
+  'eccentric',
+  'cluster',
+  'fst7',
+  'tempo',
+  'to_failure',
 ])
 
 /** A technique type this app does not know (written by a newer version) is dropped instead of rejecting the document. */
@@ -124,6 +129,8 @@ export const techniqueSchema = z.discriminatedUnion('type', [
     count: z.number().int().min(1).max(5),
     /** `last`, `all` or the 0-based indexes of the sets that get the drops. */
     sets: z.union([z.enum(['last', 'all']), z.array(z.number().int().min(0))]),
+    /** How much to take off the load, in percent (optional; the explanation assumes about 20%). */
+    percent: optional(z.number().int().min(1).max(50)),
   }),
   z.object({ type: z.literal('rest_pause'), count: z.number().int().min(1).max(5) }),
   /** `with`: key of another exercise of the same day. */
@@ -135,6 +142,19 @@ export const techniqueSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('zero_point'), seconds: z.number().int().min(1).max(10) }),
   z.object({ type: z.literal('progressive_load') }),
   z.object({ type: z.literal('stretch_interval') }),
+  /** Slow lowering phase, in seconds. */
+  z.object({ type: z.literal('eccentric'), seconds: z.number().int().min(1).max(15) }),
+  /** Mini-sets of `reps` with `restSeconds` between them. */
+  z.object({
+    type: z.literal('cluster'),
+    reps: z.array(z.number().int().min(1).max(30)).min(1).max(8),
+    restSeconds: z.number().int().min(5).max(120),
+  }),
+  /** FST-7: seven sets with a short rest (optional `restSeconds`). */
+  z.object({ type: z.literal('fst7'), restSeconds: optional(z.number().int().min(5).max(120)) }),
+  /** Cadence such as `3:2` (up:down, seconds), optionally with a third pause value. */
+  z.object({ type: z.literal('tempo'), text: z.string().regex(/^\d{1,2}:\d{1,2}(:\d{1,2})?$/) }),
+  z.object({ type: z.literal('to_failure') }),
 ])
 
 const plannedExerciseSchema = z.object({

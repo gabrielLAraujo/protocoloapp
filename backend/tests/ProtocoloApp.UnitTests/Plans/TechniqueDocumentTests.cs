@@ -31,7 +31,11 @@ public sealed class TechniqueDocumentTests
           { "type": "rest_pause", "count": 1 }, { "type": "biset", "with": "A2" }, { "type": "sst", "rests": [40, 20, 10] },
           { "type": "peak", "seconds": 3 }, { "type": "isometric", "seconds": 20 }, { "type": "partials" },
           { "type": "partials", "reps": 6 }, { "type": "zero_point", "seconds": 2 },
-          { "type": "progressive_load" }, { "type": "stretch_interval" } ]
+          { "type": "progressive_load" }, { "type": "stretch_interval" },
+          { "type": "drop", "count": 1, "sets": "last", "percent": 20 }, { "type": "eccentric", "seconds": 15 },
+          { "type": "cluster", "reps": [3, 3, 3], "restSeconds": 20 }, { "type": "fst7" }, { "type": "fst7", "restSeconds": 30 },
+          { "type": "tempo", "text": "3:2" }, { "type": "tempo", "text": "2:1:2" }, { "type": "to_failure" },
+          { "type": "partials", "reps": null } ]
         """;
 
     [Fact]
@@ -42,7 +46,7 @@ public sealed class TechniqueDocumentTests
 
         var doc = PlanDocuments.Deserialize<WorkoutDocument>(json)!;
         var exercise = doc.Days[0].Exercises[0];
-        Assert.Equal(12, exercise.Techniques!.Count);
+        Assert.Equal(21, exercise.Techniques!.Count);
         Assert.Equal((2, 1), (exercise.Sets[1].Drops, exercise.Sets[1].RestPause));
 
         var again = PlanDocuments.Deserialize<WorkoutDocument>(PlanDocuments.Serialize(doc))!;
@@ -51,6 +55,18 @@ public sealed class TechniqueDocumentTests
         Assert.Equal([40, 20, 10], again.Days[0].Exercises[0].Techniques![4].Rests);
         Assert.Equal("last", again.Days[0].Exercises[0].Techniques![0].Sets!.Value.GetString());
         Assert.Equal(2, again.Days[0].Exercises[0].Sets[1].Drops);
+
+        var techniques = again.Days[0].Exercises[0].Techniques!;
+        Assert.Equal(6, TechniqueValues.AsInt(techniques[8].Reps));
+        Assert.Equal(20, techniques[12].Percent);
+        Assert.Equal(15, techniques[13].Seconds);
+        Assert.Equal([3, 3, 3], TechniqueValues.AsIntList(techniques[14].Reps));
+        Assert.Equal(20, techniques[14].RestSeconds);
+        Assert.Null(techniques[15].RestSeconds);
+        Assert.Equal(30, techniques[16].RestSeconds);
+        Assert.Equal("2:1:2", techniques[18].Text);
+        Assert.Equal(TechniqueTypes.ToFailure, techniques[19].Type);
+        Assert.False(TechniqueValues.IsPresent(techniques[20].Reps));
     }
 
     [Fact]
@@ -81,6 +97,21 @@ public sealed class TechniqueDocumentTests
     [InlineData("""[ { "type": "isometric", "seconds": 121 } ]""", "days[0].exercises[0].techniques[0].seconds")]
     [InlineData("""[ { "type": "zero_point", "seconds": 0 } ]""", "days[0].exercises[0].techniques[0].seconds")]
     [InlineData("""[ { "type": "partials", "reps": 31 } ]""", "days[0].exercises[0].techniques[0].reps")]
+    [InlineData("""[ { "type": "partials", "reps": [3, 3] } ]""", "days[0].exercises[0].techniques[0].reps")]
+    [InlineData("""[ { "type": "drop", "count": 1, "sets": "last", "percent": 51 } ]""", "days[0].exercises[0].techniques[0].percent")]
+    [InlineData("""[ { "type": "drop", "count": 1, "sets": "last", "percent": 0 } ]""", "days[0].exercises[0].techniques[0].percent")]
+    [InlineData("""[ { "type": "eccentric", "seconds": 16 } ]""", "days[0].exercises[0].techniques[0].seconds")]
+    [InlineData("""[ { "type": "eccentric" } ]""", "days[0].exercises[0].techniques[0].seconds")]
+    [InlineData("""[ { "type": "cluster", "reps": [], "restSeconds": 20 } ]""", "days[0].exercises[0].techniques[0].reps")]
+    [InlineData("""[ { "type": "cluster", "reps": [1, 1, 1, 1, 1, 1, 1, 1, 1], "restSeconds": 20 } ]""", "days[0].exercises[0].techniques[0].reps")]
+    [InlineData("""[ { "type": "cluster", "reps": [31], "restSeconds": 20 } ]""", "days[0].exercises[0].techniques[0].reps")]
+    [InlineData("""[ { "type": "cluster", "reps": 3, "restSeconds": 20 } ]""", "days[0].exercises[0].techniques[0].reps")]
+    [InlineData("""[ { "type": "cluster", "reps": [3, 3], "restSeconds": 4 } ]""", "days[0].exercises[0].techniques[0].restSeconds")]
+    [InlineData("""[ { "type": "cluster", "reps": [3, 3] } ]""", "days[0].exercises[0].techniques[0].restSeconds")]
+    [InlineData("""[ { "type": "fst7", "restSeconds": 121 } ]""", "days[0].exercises[0].techniques[0].restSeconds")]
+    [InlineData("""[ { "type": "tempo", "text": "3-2" } ]""", "days[0].exercises[0].techniques[0].text")]
+    [InlineData("""[ { "type": "tempo", "text": "123:2" } ]""", "days[0].exercises[0].techniques[0].text")]
+    [InlineData("""[ { "type": "tempo" } ]""", "days[0].exercises[0].techniques[0].text")]
     public void Technique_out_of_range_or_unknown_is_a_field_keyed_error(string techniques, string path)
     {
         Assert.Contains(path, Errors(Doc("", techniques)));

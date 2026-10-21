@@ -185,8 +185,18 @@ internal static class ExtractionSchemas
             },
             ["with"] = NullableStr("biset only: key of ANOTHER exercise of the same day (never itself or another day)."),
             ["rests"] = Nullable(new JsonObject { ["type"] = "array", ["minItems"] = 1, ["items"] = new JsonObject { ["type"] = "integer", ["minimum"] = 0, ["maximum"] = PlanDocumentRules.MaxRestSeconds } }, "sst only: at least one rest, in seconds (0-900)."),
-            ["seconds"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 120 }, "Required for peak (1-10), isometric (1-120) and zero_point (1-10): seconds. Never above these limits."),
-            ["reps"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 30 }, "partials only: optional repetitions."),
+            ["seconds"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 120 }, "Required for peak (1-10), isometric (1-120), zero_point (1-10) and eccentric (1-15): seconds. Never above these limits."),
+            ["reps"] = new JsonObject
+            {
+                ["description"] = "partials (optional): one integer 1-30. cluster (required): the repetitions of each mini-set, 1-8 integers of 1-30, e.g. [3, 3, 3].",
+                ["anyOf"] = new JsonArray(
+                    new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 30 },
+                    new JsonObject { ["type"] = "array", ["minItems"] = 1, ["maxItems"] = 8, ["items"] = new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 30 } },
+                    new JsonObject { ["type"] = "null" }),
+            },
+            ["restSeconds"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 5, ["maximum"] = 120 }, "cluster (required): pause between the mini-sets; fst7 (optional): rest between the 7 sets. Seconds, 5-120."),
+            ["text"] = Nullable(new JsonObject { ["type"] = "string", ["pattern"] = TechniqueTypes.TempoPattern }, "tempo only (required): cadence such as \"3:2\" (up:down, seconds)."),
+            ["percent"] = Nullable(new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 50 }, "drop only (optional): load reduction in percent."),
         },
         "type");
 

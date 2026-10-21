@@ -43,7 +43,7 @@ internal static class TechniqueSanitizer
         switch (t.Type)
         {
             case TechniqueTypes.Drop:
-                return t with { Count = Math.Clamp(t.Count ?? 1, 1, 5), Sets = RepairDropSets(t.Sets, setCount) };
+                return t with { Count = Math.Clamp(t.Count ?? 1, 1, 5), Sets = RepairDropSets(t.Sets, setCount), Percent = t.Percent is >= 1 and <= 50 ? t.Percent : null };
             case TechniqueTypes.RestPause:
                 return t with { Count = Math.Clamp(t.Count ?? 1, 1, 5) };
             case TechniqueTypes.Biset:
@@ -56,9 +56,21 @@ internal static class TechniqueSanitizer
             case TechniqueTypes.Isometric:
                 return t.Seconds is { } s2 ? t with { Seconds = Math.Clamp(s2, 1, 120) } : null;
             case TechniqueTypes.Partials:
-                return t with { Reps = t.Reps is >= 1 and <= 30 ? t.Reps : null };
+                return t with { Reps = TechniqueValues.AsInt(t.Reps) is >= 1 and <= 30 ? t.Reps : null };
+            case TechniqueTypes.Eccentric:
+                return t.Seconds is { } s3 ? t with { Seconds = Math.Clamp(s3, 1, 15) } : null;
+            case TechniqueTypes.Cluster:
+                return TechniqueValues.AsIntList(t.Reps) is { Count: > 0 } miniSets && t.RestSeconds is { } pause
+                    ? t with { Reps = JsonSerializer.SerializeToElement(miniSets.Take(8).Select(r => Math.Clamp(r, 1, 30)).ToList()), RestSeconds = Math.Clamp(pause, 5, 120) }
+                    : null;
+            case TechniqueTypes.Fst7:
+                return t with { RestSeconds = t.RestSeconds is { } fstRest ? Math.Clamp(fstRest, 5, 120) : null };
+            case TechniqueTypes.Tempo:
+                var tempo = t.Text?.Replace(" ", "", StringComparison.Ordinal);
+                return TechniqueValues.IsTempo(tempo) ? t with { Text = tempo } : null;
             case TechniqueTypes.ProgressiveLoad:
             case TechniqueTypes.StretchInterval:
+            case TechniqueTypes.ToFailure:
                 return t;
             default:
                 return null;

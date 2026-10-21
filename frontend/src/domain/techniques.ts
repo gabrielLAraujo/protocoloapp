@@ -12,11 +12,16 @@ export const TECHNIQUE_INFO: Record<TechniqueType, { label: string; explanation:
   zero_point: { label: 'Ponto zero', explanation: 'Faça uma pausa no ponto zero do movimento, sem impulso, pelo tempo indicado.' },
   progressive_load: { label: 'Carga progressiva', explanation: 'Aumente a carga a cada série, mantendo a técnica.' },
   stretch_interval: { label: 'Intervalo alongado', explanation: 'Alongue o músculo trabalhado durante o intervalo.' },
+  eccentric: { label: 'Excêntrica', explanation: 'Desça a carga devagar, controlando a fase excêntrica.' },
+  cluster: { label: 'Cluster set', explanation: 'Faça mini-séries com uma pausa curta entre elas.' },
+  fst7: { label: 'FST-7', explanation: '7 séries com descanso curto (30–45 s), buscando o máximo de pump.' },
+  tempo: { label: 'Cadência', explanation: 'Controle a velocidade da subida e da descida.' },
+  to_failure: { label: 'Até a falha', explanation: 'Leve a série até a falha.' },
 }
 
 export const techniqueLabel = (technique: Technique): string => TECHNIQUE_INFO[technique.type].label
 
-/** The explanation, with the numbers of this technique filled in where the sentence has one (peak, isometric, zero point). */
+/** The explanation, with the numbers of this technique filled in where the sentence has one (peak, eccentric, cluster…). */
 export function techniqueExplanation(technique: Technique): string {
   switch (technique.type) {
     case 'peak':
@@ -26,6 +31,9 @@ export function techniqueExplanation(technique: Technique): string {
     case 'zero_point':
       return `Faça uma pausa de ${technique.seconds} s no ponto zero do movimento, sem impulso.`
     case 'drop':
+      if (technique.percent) {
+        return `Ao terminar a série, reduza a carga cerca de ${technique.percent}% e continue sem descanso.${technique.count > 1 ? ` Faça ${technique.count} drops.` : ''}`
+      }
       return `${TECHNIQUE_INFO.drop.explanation}${technique.count > 1 ? ` Faça ${technique.count} drops.` : ''}`
     case 'rest_pause':
       return `${TECHNIQUE_INFO.rest_pause.explanation}${technique.count > 1 ? ` Faça ${technique.count} rest-pauses.` : ''}`
@@ -35,6 +43,18 @@ export function techniqueExplanation(technique: Technique): string {
       return technique.reps
         ? `Depois da falha, continue com ${technique.reps} repetições parciais, em amplitude curta.`
         : TECHNIQUE_INFO.partials.explanation
+    case 'eccentric':
+      return `Desça a carga devagar, em cerca de ${technique.seconds} s.`
+    case 'cluster':
+      return `Faça mini-séries de ${technique.reps.join('-')} repetições com ${technique.restSeconds} s de pausa entre elas.`
+    case 'fst7':
+      return technique.restSeconds
+        ? `7 séries com descanso curto (${technique.restSeconds} s), buscando o máximo de pump.`
+        : TECHNIQUE_INFO.fst7.explanation
+    case 'tempo':
+      return technique.text.split(':').length === 2
+        ? `Cadência ${technique.text} (subida:descida em segundos).`
+        : `Cadência ${technique.text} (segundos de cada fase do movimento).`
     default:
       return TECHNIQUE_INFO[technique.type].explanation
   }

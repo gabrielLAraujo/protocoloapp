@@ -145,6 +145,35 @@ public sealed class ExtractionSchemasTests
     }
 
     [Fact]
+    public void Technique_schema_lists_every_type_and_the_layout_b_fields()
+    {
+        var technique = Document(ExtractionSchemas.Workout()).GetProperty("properties").GetProperty("days").GetProperty("items")
+            .GetProperty("properties").GetProperty("exercises").GetProperty("items").GetProperty("properties").GetProperty("techniques")
+            .GetProperty("items").GetProperty("properties");
+
+        Assert.Equal(TechniqueTypes.All, Enum(technique.GetProperty("type")));
+        Assert.Contains(TechniqueTypes.Cluster, TechniqueTypes.All);
+        var reps = technique.GetProperty("reps").GetProperty("anyOf");
+        Assert.Equal(["integer", "array", "null"], reps.EnumerateArray().Select(e => e.GetProperty("type").GetString()));
+        Assert.Equal(8, reps[1].GetProperty("maxItems").GetInt32());
+        Assert.Equal(TechniqueTypes.TempoPattern, technique.GetProperty("text").GetProperty("pattern").GetString());
+        Assert.Equal(120, technique.GetProperty("restSeconds").GetProperty("maximum").GetInt32());
+        Assert.Equal(50, technique.GetProperty("percent").GetProperty("maximum").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("3:2", true)]
+    [InlineData("10:1:2", true)]
+    [InlineData("3 : 2", false)]
+    [InlineData("3-2", false)]
+    [InlineData("3:2\n", false)]
+    [InlineData("٣:٢", false)]
+    public void Tempo_text_follows_the_pattern(string text, bool valid)
+    {
+        Assert.Equal(valid, TechniqueValues.IsTempo(text));
+    }
+
+    [Fact]
     public void Tool_names_follow_the_kind()
     {
         Assert.Equal("submit_protocol", ExtractionSchemas.ToolName(PlanKind.Protocol));
