@@ -17,12 +17,14 @@ const isTabActive = (tab: (typeof TABS)[number], pathname: string) =>
   (tab.also?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? false)
 
 const tabClass = (active: boolean) =>
-  `group flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center gap-1 px-0.5 pt-1.5 pb-1 text-xs tracking-tight focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${active ? 'font-semibold text-accent' : 'font-medium text-muted hover:text-ink'}`
+  `group flex min-h-15 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 pt-2 pb-1.5 text-xs tracking-tight focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${active ? 'font-semibold text-accent' : 'font-medium text-muted hover:text-ink'}`
 
-/** The icon sits in a pill that fills in for the current tab. */
+/** The icon sits in a pill: filled with the soft accent for the current tab, empty otherwise. */
 const TabIcon = ({ name, active }: { name: IconName; active: boolean }) => (
-  <span className={`grid h-7 w-12 place-items-center rounded-full transition-colors ${active ? 'bg-accent-soft' : ''}`}>
-    <Icon name={name} size={22} strokeWidth={active ? 2.2 : 1.9} />
+  <span
+    className={`grid h-8 w-14 place-items-center rounded-full transition-colors ${active ? 'bg-accent-soft' : 'group-hover:bg-raised'}`}
+  >
+    <Icon name={name} size={22} strokeWidth={active ? 2.2 : 1.8} />
   </span>
 )
 
@@ -131,7 +133,7 @@ export function BottomNav() {
       <nav
         ref={nav}
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
       >
         <div className="mx-auto flex max-w-2xl">
         {TABS.map((tab) => {

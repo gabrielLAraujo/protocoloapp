@@ -1,4 +1,6 @@
 import { weekdayOf } from '../../domain/calendarDate'
+import { Card } from '../../ui/Card'
+import { SectionHeader } from '../../ui/SectionHeader'
 import { formatShortDate } from '../workout/format'
 import type { CalendarDay, DayState } from './summaryData'
 
@@ -14,11 +16,11 @@ const LABEL: Record<DayState, string> = {
   today: 'hoje',
 }
 const STYLE: Record<DayState, string> = {
-  done: 'border-ok/60 bg-ok/10 text-ok',
-  missed: 'border-danger/60 bg-danger/10 text-danger',
-  rest: 'border-line bg-surface text-muted',
-  future: 'border-line border-dashed text-muted',
-  today: 'border-accent border-2 bg-surface text-ink font-semibold',
+  done: 'bg-ok/10 text-ok',
+  missed: 'bg-danger/10 text-danger',
+  rest: 'bg-raised text-muted',
+  future: 'text-muted',
+  today: 'bg-surface text-ink font-semibold ring-2 ring-accent',
 }
 
 function describe(day: CalendarDay): string {
@@ -29,7 +31,7 @@ function describe(day: CalendarDay): string {
   return parts.join(', ')
 }
 
-/** Weekly grid (Mon-Sun) of the cycle. State is shown by symbol and border, never by color alone. */
+/** Weekly grid (Mon-Sun) of the cycle. State is shown by symbol (and the today ring), never by color alone. */
 export function CycleCalendar({ days }: { days: CalendarDay[] }) {
   if (days.length === 0) return null
   const lead = WEEKDAY_INDEX[weekdayOf(days[0].date)]
@@ -38,8 +40,9 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7))
 
   return (
-    <section aria-labelledby="calendar-title" className="grid gap-3">
-      <h2 id="calendar-title" className="text-base font-semibold">Calendário do ciclo</h2>
+    <section aria-labelledby="calendar-title" className="grid gap-1">
+      <SectionHeader id="calendar-title" title="Calendário do ciclo" />
+      <Card padding="sm" className="grid gap-3">
       <div role="table" aria-label="Calendário do ciclo" className="grid gap-1">
         <div role="row" className="grid grid-cols-7 gap-1 text-center text-xs text-muted">
           {HEADERS.map((h) => (
@@ -58,7 +61,7 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
                   aria-label={describe(day)}
                   aria-current={day.state === 'today' ? 'date' : undefined}
                   data-state={day.state}
-                  className={`relative flex min-h-11 flex-col items-center justify-center rounded-control border text-xs ${STYLE[day.state]}`}
+                  className={`relative flex min-h-11 flex-col items-center justify-center rounded-control text-xs ${STYLE[day.state]}`}
                 >
                   <span className="tabular-nums">{day.date.slice(8)}</span>
                   <span aria-hidden="true" className="text-sm font-bold leading-none">
@@ -71,13 +74,14 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
           </div>
         ))}
       </div>
-      <ul aria-label="Legenda" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+      <ul aria-label="Legenda" className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
         <li><span aria-hidden="true" className="font-bold text-ok">✓</span> Treino feito</li>
         <li><span aria-hidden="true" className="font-bold text-danger">✗</span> Treino não feito</li>
         <li><span aria-hidden="true" className="font-bold">–</span> Descanso</li>
         <li><span aria-hidden="true" className="font-bold">•</span> Hoje, treino previsto</li>
         <li><span aria-hidden="true" className="inline-block size-2 rounded-full bg-accent" /> Cardio feito</li>
       </ul>
+      </Card>
     </section>
   )
 }

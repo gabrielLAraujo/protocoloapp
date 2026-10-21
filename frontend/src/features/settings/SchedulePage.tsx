@@ -130,14 +130,14 @@ export function SchedulePage() {
           <Icon name="chevronLeft" size={18} />
           Configurações
         </Link>
-        <h1 className="text-xl font-bold tracking-tight">Horários</h1>
+        <h1 className="text-xl font-bold">Horários</h1>
         <p className="mt-1 text-sm text-muted">Sem horário, o item fica sem lembrete.</p>
       </div>
 
       {DAY_TYPES.map((dayType) => (
-        <section key={dayType} aria-labelledby={`schedule-${dayType}`} className="grid gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id={`schedule-${dayType}`} className="text-base font-semibold">
+        <section key={dayType} aria-labelledby={`schedule-${dayType}`} className="grid gap-1">
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
+            <h2 id={`schedule-${dayType}`} className="text-lg font-semibold text-ink">
               {DAY_LABELS[dayType]}
             </h2>
             {dayType === 'off' && (
@@ -146,15 +146,15 @@ export function SchedulePage() {
               </button>
             )}
           </div>
-          <ul className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line' })}>
+          <ul className={cardClasses({ tone: 'list' })}>
             {loaded.rows.map(({ slot, label }) => {
               const row = bySlot.get(key(slot, dayType))
               const draftKey = key(slot, dayType)
               const value = drafts[draftKey] ?? row?.time ?? ''
               const context = `${label} (${DAY_CONTEXT[dayType]})`
               return (
-                <li key={slot} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
-                  <span className="min-w-28 flex-1 text-sm font-medium">{label}</span>
+                <li key={slot} className="flex min-h-13 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
+                  <span className="min-w-28 flex-1 text-base font-medium text-ink">{label}</span>
                   <input
                     type="time"
                     aria-label={`Horário de ${context}`}

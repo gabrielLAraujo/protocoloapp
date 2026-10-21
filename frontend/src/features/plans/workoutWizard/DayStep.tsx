@@ -28,7 +28,7 @@ export function DayStep(props: Props) {
   const badCount = day.exercises.filter((_, j) => exerciseErrors(errors, `${base}.exercises[${j}]`).length > 0).length
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <TextField label="Nome do dia" path={`${base}.name`} value={day.name} error={errors[`${base}.name`]} onChange={(v) => onChange(setIn(doc, `${base}.name`, v ?? ''))} />
       {errors[`${base}.exercises`] && <p className="text-sm text-danger">{errors[`${base}.exercises`]}</p>}
       {badCount > 0 && (
@@ -38,7 +38,7 @@ export function DayStep(props: Props) {
       )}
 
       {day.exercises.length === 0 ? (
-        <p className="rounded-card border border-dashed border-line px-4 py-6 text-center text-sm text-muted">Este dia ainda não tem exercícios.</p>
+        <p className="rounded-card border border-dashed border-line bg-surface/60 px-4 py-6 text-center text-sm text-muted">Este dia ainda não tem exercícios.</p>
       ) : (
         <ul aria-label="Exercícios do dia" className="grid gap-2">
           {day.exercises.map((exercise, j) => {

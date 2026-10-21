@@ -87,8 +87,8 @@ export function MedalArt({ medal, earned, size = 56 }: { medal: MedalKey; earned
             fill="currentColor"
             stroke="none"
             fontSize={days >= 10 ? 17 : 19}
-            fontWeight={800}
-            fontFamily="system-ui, sans-serif"
+            fontWeight={700}
+            style={{ fontVariantNumeric: 'tabular-nums' }}
             letterSpacing="-0.5"
           >
             {days}

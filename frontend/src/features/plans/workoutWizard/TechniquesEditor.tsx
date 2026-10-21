@@ -57,12 +57,12 @@ export function TechniquesEditor({ exercise, partners, base, set, errors }: Prop
   ]
   return (
     <div className="grid gap-2">
-      <span className="text-sm font-medium">Técnicas</span>
+      <span className="text-sm font-semibold text-muted">Técnicas</span>
       {list.length === 0 && <p className="text-sm text-muted">Nenhuma técnica neste exercício.</p>}
       {list.map((technique, k) => (
         <div key={`${k}-${technique.type}`} role="group" aria-label={`Técnica ${techniqueLabel(technique)}`} className="grid gap-2 rounded-control border border-line p-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="rounded-full bg-accent-soft px-2.5 py-1 text-sm font-semibold text-accent">{techniqueLabel(technique)}</span>
+            <span className="inline-flex min-h-7 items-center rounded-control border border-accent/25 bg-accent-soft px-2.5 text-sm font-semibold text-accent">{techniqueLabel(technique)}</span>
             <button type="button" className={dangerButtonClass} aria-label={`Remover técnica ${techniqueLabel(technique)}`} onClick={() => setList(list.filter((_, i) => i !== k))}>
               Remover
             </button>
@@ -273,7 +273,7 @@ function NumberListField({
   }
   const bad = !valid(read(text))
   return (
-    <label className="grid gap-1 text-sm font-medium">
+    <label className="grid gap-1.5 text-sm font-semibold text-muted">
       {label}
       <input
         type="text"

@@ -112,6 +112,7 @@ describe('SummaryPage', () => {
     await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-26', { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: 82.4 }, at)
     await dailyCheckinRepo.saveEvening(app.db, USER_A, '2026-10-26', { energyDay: 4, anxiety: 2, waterL: 2.5, note: null }, at)
     await dailyCheckinRepo.setCardio(app.db, USER_A, '2026-10-26', { done: true, minutes: 30 }, at)
+    await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-25', { sleepQuality: 3, bowel: 'normal', energyWake: 3, weightKg: 83.1 }, at)
     app.view(<SummaryPage />)
 
     expect(await screen.findByText('Faltam 39 dias para a atualização')).toBeInTheDocument()
@@ -119,9 +120,22 @@ describe('SummaryPage', () => {
     expect(screen.getByRole('progressbar', { name: 'Andamento do ciclo' })).toBeInTheDocument()
 
     const stats = screen.getByRole('region', { name: 'Números do ciclo' })
-    expect(within(stats).getByText('Treinos').nextSibling).toHaveTextContent('2 de 8')
-    expect(within(stats).getByText('Cardio').nextSibling).toHaveTextContent('1 de 8')
+    expect(within(stats).getByText('Treinos').nextSibling).toHaveTextContent('2')
+    expect(within(stats).getByText('de 8 previstos')).toBeInTheDocument()
+    expect(within(stats).getByText('Cardio').closest('div')).toHaveTextContent('1 de 8')
     expect(within(stats).getByText('Água').nextSibling).toHaveTextContent('2,5 L')
+    expect(within(stats).getByText('meta 3 L')).toBeInTheDocument()
+    // Label → value pairs of description lists (the E2E reads them as `dl > div` → `dt` → first `dd`).
+    const valueOf = (label: string) => {
+      const term = within(stats).getByText(label)
+      expect(term.tagName).toBe('DT')
+      expect(term.closest('dl')).not.toBeNull()
+      return term.parentElement!.querySelector('dd')
+    }
+    expect(valueOf('Treinos')).toHaveTextContent(/^2$/)
+    expect(valueOf('Água')).toHaveTextContent(/^2,5 L$/)
+    expect(valueOf('Check-ins')).toHaveTextContent(/^1$/)
+    expect(valueOf('Sono')).toHaveTextContent(/^3,5$/)
 
     const calendar = screen.getByRole('table', { name: 'Calendário do ciclo' })
     expect(within(calendar).getByRole('cell', { name: /21\/10, treino feito/ })).toHaveTextContent('✓')
@@ -129,7 +143,7 @@ describe('SummaryPage', () => {
     expect(within(calendar).getByRole('cell', { name: /26\/10.*cardio feito/ })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Legenda' })).toHaveTextContent('Treino não feito')
 
-    expect(screen.getByRole('img', { name: /82,4 kg → 82,4 kg/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /83,1 kg → 82,4 kg/ })).toBeInTheDocument()
     const strength = screen.getByRole('region', { name: 'Força por grupo' })
     expect(within(strength).getByText('Peito')).toBeInTheDocument()
     expect(within(strength).getByText('Supino reto')).toBeInTheDocument()
@@ -212,8 +226,8 @@ describe('SummaryPage', () => {
 
     const diet = (await screen.findByText('Dieta')).parentElement!
     expect(within(diet).getByText('63%')).toBeInTheDocument()
-    expect(within(diet).getByText('2 feitas · 1 parcial de 4 previstas')).toBeInTheDocument()
-    const items = screen.getByText('Itens do protocolo').parentElement!
+    expect(within(diet).getByText('2 feitas · 1 parcial de 4')).toBeInTheDocument()
+    const items = screen.getByText('Itens do protocolo').closest('div')!
     // Today (the 23rd) the untimed, unmarked item is not due yet: 3 planned.
     expect(within(items).getByText('33%')).toBeInTheDocument()
     expect(within(items).getByText('1 feito · 0 parciais de 3 previstos')).toBeInTheDocument()
@@ -237,8 +251,8 @@ describe('SummaryPage', () => {
     await cardio('2026-10-24', 'missed')
     app.view(<SummaryPage />)
 
-    const card = (await screen.findByText('Cardio')).parentElement!
-    expect(within(card).getByText('2 de 8')).toBeInTheDocument()
+    const row = (await screen.findByText('Cardio')).closest('div')!
+    expect(within(row).getByText('2 de 8')).toBeInTheDocument()
   })
 
   it('Dieta shows "—" when the protocol has no meals', async () => {
@@ -247,5 +261,22 @@ describe('SummaryPage', () => {
     app.view(<SummaryPage />)
     const diet = (await screen.findByText('Dieta')).parentElement!
     expect(within(diet).getByText('—')).toBeInTheDocument()
+  })
+
+  it('with fewer than two weigh-ins the weight section is a sentence, not a chart', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
+    app.view(<SummaryPage />)
+    expect(await screen.findByText('Sem pesagens no ciclo.')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Peso/ })).not.toBeInTheDocument()
+  })
+
+  it('a single weigh-in says the chart starts at the second one', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
+    await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-26', { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: 82.4 }, new Date(2026, 9, 26, 8))
+    app.view(<SummaryPage />)
+    expect(await screen.findByText(/Uma pesagem no ciclo \(82,4 kg\)/)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Peso/ })).not.toBeInTheDocument()
   })
 })

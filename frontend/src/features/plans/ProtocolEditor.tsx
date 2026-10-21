@@ -62,7 +62,7 @@ export function ProtocolEditor({ doc, onChange }: Props) {
 
       <Section title="Cardio" path="cardio">
         <NumberField label="Sessões por semana" path="cardio.sessionsPerWeek" value={cardio.sessionsPerWeek} onChange={(v) => set('cardio.sessionsPerWeek', v)} />
-        <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
           <input type="checkbox" checked={cardio.daily ?? false} onChange={(e) => set('cardio.daily', e.target.checked)} className="size-5 accent-accent" />
           Todos os dias
         </label>

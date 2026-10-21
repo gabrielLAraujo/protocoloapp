@@ -22,17 +22,17 @@ export function EmptyState({
       className={
         compact
           ? 'flex items-start gap-3 py-1'
-          : 'grid justify-items-start gap-3 rounded-card border border-dashed border-line bg-surface/60 p-6'
+          : 'grid justify-items-start gap-4 rounded-card border border-dashed border-line bg-surface/60 p-6'
       }
     >
       <span
-        className={`grid shrink-0 place-items-center rounded-full bg-accent-soft text-accent ${compact ? 'size-9' : 'size-12'}`}
+        className={`grid shrink-0 place-items-center rounded-control bg-accent-soft text-accent ${compact ? 'size-9' : 'size-12'}`}
       >
         <Icon name={icon} size={compact ? 18 : 24} />
       </span>
       <div className="grid gap-1">
-        {title && <p className="text-base font-semibold">{title}</p>}
-        {children && <p className={compact ? 'pt-2 text-sm text-muted' : 'text-sm text-muted'}>{children}</p>}
+        {title && <p className="text-base font-semibold text-ink">{title}</p>}
+        {children && <p className={compact ? 'pt-2 text-sm text-muted' : title ? 'text-sm text-muted' : 'text-base text-ink'}>{children}</p>}
       </div>
       {action}
     </div>

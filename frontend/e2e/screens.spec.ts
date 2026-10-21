@@ -45,7 +45,7 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
   await expect(page.getByRole('region', { name: 'Semana' })).toBeVisible()
   await shoot(page, '2-hoje')
 
-  await page.getByRole('link', { name: 'Check-in da manhã' }).click()
+  await page.getByRole('link', { name: 'Check-in da manhã', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Check-in da manhã' })).toBeVisible()
   await shoot(page, '2b-checkin-manha')
 

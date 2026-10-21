@@ -120,7 +120,7 @@ export function ExerciseSheet(props: Props) {
     <Sheet title="Editar exercício" onCancel={onClose} focusKey={mode} focusTitle>
       <TextField label="Nome na ficha" path={`${base}.name`} value={exercise.name} error={errors[`${base}.name`]} onChange={(v) => rename(v ?? '')} />
 
-      <section aria-label="Exercício no app" className="grid gap-2 rounded-control border border-line bg-raised p-3">
+      <section aria-label="Exercício no app" className="grid gap-3 rounded-control border border-line bg-raised p-3">
         <div className="flex items-start gap-3">
           {linked.catalogId ? <ExerciseMedia catalogId={linked.catalogId} name={linked.displayName ?? exercise.name} size="thumb" /> : null}
           <div className="grid min-w-0 flex-1 gap-0.5">

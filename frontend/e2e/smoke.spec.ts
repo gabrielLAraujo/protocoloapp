@@ -61,7 +61,7 @@ async function login(page: Page) {
 
 /** Opens a part of today's check-in from its row on Hoje. */
 async function openPart(page: Page, row: 'Check-in da manhã' | 'Check-in da noite', path: RegExp) {
-  await page.getByRole('link', { name: row }).click()
+  await page.getByRole('link', { name: row, exact: true }).click()
   await expect(page).toHaveURL(path)
   await expect(page.getByRole('heading', { name: row })).toBeVisible()
 }
@@ -75,7 +75,8 @@ async function choose(page: Page, group: string, option: string) {
 async function expectCheckinCount(page: Page, count: string) {
   await nav(page, 'Resumo').click()
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
-  const card = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Check-ins$/ }) }).locator('dd')
+  // The value is the first <dd> of the row; its subtitle ("no ciclo") is a second one.
+  const card = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Check-ins$/ }) }).locator('dd').first()
   await expect(card).toHaveText(count)
   await nav(page, 'Hoje').click()
   await expect(page).toHaveURL(/\/hoje$/)

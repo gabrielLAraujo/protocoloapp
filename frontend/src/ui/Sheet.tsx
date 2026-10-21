@@ -72,7 +72,7 @@ export function Sheet({
         className="mx-auto grid max-h-[92dvh] w-full max-w-2xl gap-4 overflow-y-auto overscroll-contain rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised"
       >
         <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line" />
-        <h2 id={titleId} ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
+        <h2 id={titleId} ref={heading} tabIndex={-1} className="text-lg font-semibold text-ink outline-none">
           {title}
         </h2>
         {children}

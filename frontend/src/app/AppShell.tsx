@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { Outlet } from 'react-router'
 import { SyncProvider } from '../features/sync/SyncProvider'
 import { SyncStatus } from '../features/sync/SyncStatus'
+import { BrandMark } from '../ui/BrandMark'
 import { InstallHint } from '../pwa/InstallHint'
 import { requestPersistentStorage } from '../pwa/persistentStorage'
 import { WebUpdateBanner } from '../pwa/WebUpdateBanner'
@@ -18,12 +19,9 @@ export function AppShell() {
   return (
     <SyncProvider>
       <div className="min-h-dvh">
-        <header className="sticky top-0 z-10 border-b border-line bg-page/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-          <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1 pl-4 pr-2">
-            <span className="flex items-center gap-2 text-base font-bold tracking-tight">
-              <span aria-hidden="true" className="h-4 w-1.5 rounded-full bg-accent" />
-              Protocolo
-            </span>
+        <header className="sticky top-0 z-10 border-b border-line bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+          <div className="mx-auto flex min-h-14 max-w-2xl flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1 pl-4 pr-2">
+            <BrandMark />
             <SyncStatus />
           </div>
         </header>

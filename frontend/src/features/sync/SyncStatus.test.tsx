@@ -26,6 +26,20 @@ describe('SyncStatus', () => {
     expect(await screen.findByText('Sincronizado')).toBeInTheDocument()
   })
 
+  it('keeps a calm state for screen readers only and shows the text when something is pending', async () => {
+    mockFetch({})
+    const { db, view } = await setupApp()
+    await syncState.set(db, 'last_sync_at', '2026-10-18T12:00:00.000Z')
+    view(<SyncStatus />)
+    expect(await screen.findByRole('status')).toHaveTextContent('Sincronizado')
+    expect(screen.getByRole('status')).toHaveClass('sr-only')
+    await dailyCheckinRepo.saveMorning(db, USER_A, '2026-10-17', fields, at)
+    view(<SyncStatus />)
+    const pending = await screen.findByText('1 pendente')
+    expect(pending).toHaveAttribute('role', 'status')
+    expect(pending).not.toHaveClass('sr-only')
+  })
+
   it('shows "Nunca sincronizado" before the first complete run', async () => {
     mockFetch({})
     const { view } = await setupApp()

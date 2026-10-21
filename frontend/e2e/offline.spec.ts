@@ -14,7 +14,7 @@ test('the installed app shell opens offline with the saved evening check-in', as
   await login(page)
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
   await expect(page).toHaveURL(/\/hoje$/)
-  await page.getByRole('link', { name: 'Check-in da noite' }).click()
+  await page.getByRole('link', { name: 'Check-in da noite', exact: true }).click()
   await expect(page).toHaveURL(/\/checkin\/noite$/)
   await expect(page.getByRole('heading', { name: 'Check-in da noite' })).toBeVisible()
 
@@ -38,7 +38,7 @@ test('the installed app shell opens offline with the saved evening check-in', as
   // Hoje comes back from the cache with the evening row done, and the form with the saved values.
   await expect(page.getByRole('heading', { name: 'Hoje' })).toBeVisible()
   await expect(page.getByRole('listitem', { name: 'Check-in da noite' }).getByText('Feito', { exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'Check-in da noite' }).click()
+  await page.getByRole('link', { name: 'Check-in da noite', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Check-in da noite' })).toBeVisible()
   await expect(page.getByRole('radiogroup', { name: 'Disposição no dia (1–5)' }).getByRole('radio', { name: '3', exact: true })).toBeChecked()
   await expect(page.getByRole('radiogroup', { name: 'Ansiedade (1–5)' }).getByRole('radio', { name: '1', exact: true })).toBeChecked()

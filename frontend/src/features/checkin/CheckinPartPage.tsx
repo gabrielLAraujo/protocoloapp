@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 import { dailyCheckinRepo, type DailyCheckin } from '../../data/dailyCheckinRepo'
 import { useData, type Data } from '../../data/dataContext'
 import { Button } from '../../ui/Button'
+import { cardClasses } from '../../ui/styles'
 import { useSync } from '../sync/syncContext'
 import type { TodayNotice } from '../today/TodayPage'
 import { useTodayState } from '../workout/useToday'
@@ -87,7 +88,7 @@ export function CheckinPartPage<I extends FieldValues, O>({ part }: { part: Chec
   )
 }
 
-const bannerClass = 'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium'
+const bannerClass = 'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border border-warn/40 bg-warn/10 px-4 py-2 text-sm font-medium text-ink'
 const bannerButtonClass = 'min-h-11 font-semibold text-accent underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-accent'
 
 function PartForm<I extends FieldValues, O>({
@@ -171,10 +172,10 @@ function PartForm<I extends FieldValues, O>({
 
   return (
     <form onSubmit={(event) => void handleSubmit(save)(event)} noValidate className="grid gap-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">{part.title}</h1>
+      <header className="grid gap-1">
+        <h1 className="text-xl font-bold">{part.title}</h1>
         <p className="text-sm text-muted first-letter:uppercase">{longDate(date)}</p>
-      </div>
+      </header>
 
       {(dayChanged || stale === 'day') && (
         <div role="alert" className={bannerClass}>
@@ -193,10 +194,10 @@ function PartForm<I extends FieldValues, O>({
         </div>
       )}
 
-      {part.fields(form)}
+      <div className={cardClasses({ className: 'grid gap-6' })}>{part.fields(form)}</div>
 
       {saveError && (
-        <p role="alert" className="rounded-card border border-danger/40 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+        <p role="alert" className={cardClasses({ tone: 'danger', className: 'text-sm font-medium text-danger' })}>
           Não foi possível salvar. Tente de novo.
         </p>
       )}
@@ -210,7 +211,7 @@ function PartForm<I extends FieldValues, O>({
 }
 
 const inputClass =
-  'w-full rounded-control border border-line bg-surface px-3 py-2.5 text-base text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent'
+  'w-full min-h-11 rounded-control border border-control-line bg-surface px-3 py-2.5 text-base text-ink tabular-nums placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent'
 
 /** A labelled text input (or textarea) registered on the form, with its error under it (outside the label, described-by). */
 export function TextField<I extends FieldValues, O>({
@@ -238,7 +239,7 @@ export function TextField<I extends FieldValues, O>({
   }
   return (
     <div className="grid gap-2">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-sm font-semibold text-muted">
         {label}
       </label>
       {multiline ? <textarea rows={3} {...control} /> : <input type="text" inputMode={inputMode} autoComplete="off" {...control} />}

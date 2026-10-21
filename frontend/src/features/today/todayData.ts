@@ -32,8 +32,15 @@ export interface TodayRow {
   status: AdherenceStatus | null
   reason: AdherenceReason | null
   note: string | null
-  /** Text lines shown when the row is expanded. */
-  details: string[]
+  /** What the item sheet lists: a food and its grams, an item and its dose, the cardio's minutes. */
+  details: TodayDetail[]
+}
+
+/** One line of the item sheet: `amount` goes right-aligned in tabular numbers; `kind` styles alternatives and notes. */
+export interface TodayDetail {
+  text: string
+  amount?: string
+  kind?: 'alternative' | 'note'
 }
 
 export interface TodayView {
@@ -97,28 +104,30 @@ export const toDayPlans = (plans: readonly WorkoutPlanEntry[]): DayWorkoutPlan[]
 
 const grams = (n: number) => `${String(n).replace('.', ',')} g`
 
-function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): string[] {
+function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): TodayDetail[] {
   if (!protocol) return []
   switch (target.type) {
     case 'meal': {
       const meal = protocol.meals.find((m) => m.key === target.key)
       if (!meal) return []
-      const lines = meal.items.flatMap((item) => {
-        const main = item.grams == null ? item.food : `${item.food} — ${grams(item.grams)}`
-        return item.alternatives.length > 0 ? [main, `  ou: ${item.alternatives.join(', ')}`] : [main]
+      const lines = meal.items.flatMap((item): TodayDetail[] => {
+        const main: TodayDetail = item.grams == null ? { text: item.food } : { text: item.food, amount: grams(item.grams) }
+        return item.alternatives.length > 0 ? [main, { text: `ou: ${item.alternatives.join(', ')}`, kind: 'alternative' }] : [main]
       })
-      return meal.notes?.trim() ? [...lines, meal.notes] : lines
+      return meal.notes?.trim() ? [...lines, { text: meal.notes, kind: 'note' }] : lines
     }
     case 'protocol_item': {
       const item = protocol.items.find((i) => i.key === target.key)
       if (!item) return []
-      return [item.doseText?.trim() ? `${item.name} — ${item.doseText}` : item.name]
+      return [item.doseText?.trim() ? { text: item.name, amount: item.doseText } : { text: item.name }]
     }
     case 'cardio': {
       const cardio = protocol.cardio
       if (!cardio) return []
-      const parts = [cardio.durationMin ? `${cardio.durationMin} min` : null, cardio.intensity?.trim() || null].filter((p): p is string => p !== null)
-      return parts.length > 0 ? [parts.join(' · ')] : []
+      const lines: TodayDetail[] = []
+      if (cardio.durationMin) lines.push({ text: 'Duração', amount: `${cardio.durationMin} min` })
+      if (cardio.intensity?.trim()) lines.push({ text: 'Intensidade', amount: cardio.intensity.trim() })
+      return lines
     }
     default:
       return []
@@ -141,7 +150,7 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     const { log, status } = resolveTargetStatus(target, find, derived)
     const label = target.type === 'workout' && workoutTitle ? workoutTitle : target.label
     const details = detailsOf(target, src.protocol)
-    if (target.type === 'cardio' && status === 'done' && src.cardioMinutes != null) details.push(`Feito: ${src.cardioMinutes} min`)
+    if (target.type === 'cardio' && status === 'done' && src.cardioMinutes != null) details.push({ text: 'Feito', amount: `${src.cardioMinutes} min` })
     return {
       target,
       label,
@@ -177,12 +186,50 @@ export function wholeDayScore(view: TodayView): DayScore {
   return dayScore(planOf(view), statusesOf(view), { isToday: false, cardioOptional: view.cardioOptional })
 }
 
+/** More than LATE_AFTER_MIN minutes past `time` (HH:mm) on `now`'s day: the one rule of "late" (rows and the hero). */
+function pastLateMark(time: string, now: Date): boolean {
+  const [h, m] = time.split(':').map(Number)
+  const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h!, m! + LATE_AFTER_MIN)
+  return now.getTime() > due.getTime()
+}
+
 /** Not marked and more than LATE_AFTER_MIN minutes past its time (today only). */
 export function isLate(row: TodayRow, date: string, now: Date): boolean {
   if (row.status !== null || row.target.time === null || localDate(now) !== date) return false
-  const [h, m] = row.target.time.split(':').map(Number)
-  const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h!, m! + LATE_AFTER_MIN)
-  return now.getTime() > due.getTime()
+  return pastLateMark(row.target.time, now)
+}
+
+export type DayPeriod = 'morning' | 'afternoon' | 'evening' | 'anytime'
+
+export const PERIOD_LABELS: Record<DayPeriod, string> = { morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite', anytime: 'Sem horário' }
+
+const PERIODS: DayPeriod[] = ['morning', 'afternoon', 'evening', 'anytime']
+
+/** Manhã until 11:59, Tarde 12:00–17:59, Noite from 18:00; no time is "Sem horário". */
+export function periodOf(time: string | null): DayPeriod {
+  if (time === null) return 'anytime'
+  return time < '12:00' ? 'morning' : time < '18:00' ? 'afternoon' : 'evening'
+}
+
+/** The rows by period of the day, in the day's order, keeping their order inside each period; empty periods are left out. */
+export function groupByPeriod<R extends { target: { time: string | null } }>(rows: readonly R[]): { period: DayPeriod; rows: R[] }[] {
+  return PERIODS.map((period) => ({ period, rows: rows.filter((r) => periodOf(r.target.time) === period) })).filter((g) => g.rows.length > 0)
+}
+
+/**
+ * The task the hero shows: the first open row that is not late yet (its time is ahead, or less than LATE_AFTER_MIN
+ * minutes past), else the first late one, else the first open row without a time. Null when everything is marked.
+ */
+export function nextRow<R extends { target: { time: string | null }; status: AdherenceStatus | null }>(rows: readonly R[], now: Date): R | null {
+  const open = rows.filter((r) => r.status === null)
+  const timed = open.filter((r) => r.target.time !== null)
+  return (
+    // Same comparison as isLate, so the hero never offers as "on time" a task it then marks "Atrasado".
+    timed.find((r) => !pastLateMark(r.target.time!, now)) ??
+    timed[0] ??
+    open.find((r) => r.target.time === null) ??
+    null
+  )
 }
 
 const WEEKDAY_NAMES: Record<Weekday, string> = {

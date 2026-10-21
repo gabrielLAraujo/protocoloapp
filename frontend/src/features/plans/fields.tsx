@@ -1,9 +1,10 @@
 import { useId, useState, type ReactNode } from 'react'
 import { useIsLow } from './lowConfidence'
 import { inputClass } from './styles'
+import { cardClasses, chipClasses } from '../../ui/styles'
 
 export function ConfiraBadge() {
-  return <span className="rounded-full bg-warn/15 px-2 py-0.5 text-xs font-semibold text-warn">Confira</span>
+  return <span className={chipClasses({ tone: 'warn' })}>Confira</span>
 }
 
 export function Field({
@@ -23,9 +24,9 @@ export function Field({
   const id = useId()
   const low = useIsLow(path ?? '\u0000')
   return (
-    <div className="grid gap-1">
-      <div className="flex items-center gap-2">
-        <label htmlFor={id} className="text-sm font-medium">
+    <div className="grid gap-1.5">
+      <div className="flex min-h-6 items-center gap-2">
+        <label htmlFor={id} className="text-sm font-semibold text-muted">
           {label}
         </label>
         {low && <ConfiraBadge />}
@@ -157,9 +158,9 @@ export function SelectField({
 export function Section({ title, children, path }: { title: string; children: ReactNode; path?: string }) {
   const low = useIsLow(path ?? '\u0000')
   return (
-    <section aria-label={title} className={`grid gap-3 rounded-card border p-4 shadow-card ${low ? 'border-warn' : 'border-line'} bg-surface`}>
+    <section aria-label={title} className={cardClasses({ className: `grid gap-4${low ? ' border-warn!' : ''}` })}>
       <div className="flex items-center gap-2">
-        <h3 className="text-base font-semibold">{title}</h3>
+        <h3 className="text-lg font-semibold text-ink">{title}</h3>
         {low && <ConfiraBadge />}
       </div>
       {children}

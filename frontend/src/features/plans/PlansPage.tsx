@@ -13,6 +13,7 @@ import { localDate } from '../checkin/localDate'
 import { createDeviceDraft, fileBytes, readOnDevice } from './importPlan'
 import { ImportError, OFFLINE_IMPORT_MESSAGE, uploadPdf, type UploadStage } from './uploadPdf'
 import { buttonClasses, cardClasses } from '../../ui/styles'
+import { Chip } from '../../ui/Chip'
 import { Icon, type IconName } from '../../ui/Icon'
 
 type Loaded = Record<PlanKind, { active: PlanVersionLocal | null; draft: PlanVersionLocal | null }>
@@ -109,8 +110,8 @@ export function PlansPage() {
   if (!data || !loaded) return <p className="text-muted">Carregando…</p>
 
   return (
-    <div className="grid gap-4">
-      <h1 className="text-xl font-bold tracking-tight">Planejamento</h1>
+    <div className="grid gap-6">
+      <h1 className="text-xl font-bold">Planejamento</h1>
       {!online && (
         <p className="flex items-start gap-2 text-sm text-muted">
           <Icon name="offline" size={18} className="mt-px" />
@@ -123,21 +124,33 @@ export function PlansPage() {
         const mine = busy?.kind === kind ? busy : null
         return (
           <section key={kind} aria-label={title} className={cardClasses({ className: 'grid gap-4' })}>
-            <div className="flex items-center gap-3">
-              <span className={`grid size-10 shrink-0 place-items-center rounded-full ${active ? 'bg-accent-soft text-accent' : 'bg-raised text-muted'}`}>
+            <div className="flex items-start gap-3">
+              <span className={`grid size-10 shrink-0 place-items-center rounded-control ${active ? 'bg-accent-soft text-accent' : 'bg-raised text-muted'}`}>
                 <Icon name={KIND_ICONS[kind]} />
               </span>
-              <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+              <div className="grid min-w-0 flex-1 gap-1">
+                <h2 className="text-lg font-semibold text-ink">{title}</h2>
+                {active ? (
+                  <ul className="grid gap-1 text-sm text-muted">
+                    {describe(kind, active).map((line) =>
+                      line.startsWith('Ativo desde') ? (
+                        <li key={line} className="pt-1">
+                          <Chip tone="ok" icon="check">
+                            {line}
+                          </Chip>
+                        </li>
+                      ) : (
+                        <li key={line} className="tabular-nums">
+                          {line}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted">Nenhuma versão ativa.</p>
+                )}
+              </div>
             </div>
-            {active ? (
-              <ul className="grid gap-1 text-sm text-muted">
-                {describe(kind, active).map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted">Nenhuma versão ativa.</p>
-            )}
 
             {mine && (
               <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium tabular-nums">

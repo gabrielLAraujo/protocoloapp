@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import { cardClasses, type CardPadding, type CardTone } from './styles'
 
-type CardTag = 'section' | 'div' | 'li' | 'article' | 'nav' | 'form'
+type CardTag = 'section' | 'div' | 'li' | 'ul' | 'ol' | 'dl' | 'article' | 'nav' | 'form'
 
 export function Card({
   as: Tag = 'div',

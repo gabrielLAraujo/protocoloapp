@@ -6,7 +6,6 @@ import { adherenceRepo, type AdherenceReason, type AdherenceStatus } from '../..
 import { useData } from '../../data/dataContext'
 import { isOnTarget, streak, type DayScore } from '../../domain/progress'
 import { clockOf } from '../../domain/targetStatus'
-import { Icon } from '../../ui/Icon'
 import { localDate } from '../checkin/localDate'
 import { loadProgress, type ProgressData } from '../progress/progressData'
 import { useSync } from '../sync/syncContext'
@@ -15,10 +14,11 @@ import { Celebration, GoalToast } from './Celebration'
 import { DayTimeline } from './DayTimeline'
 import { MinutesSheet } from './MinutesSheet'
 import { claimOnceADay, prefersReducedMotion } from './onceADay'
-import { ProgressRing } from './ProgressRing'
 import { ReasonSheet } from './ReasonSheet'
+import { StatusMenuSheet } from './StatusMenuSheet'
 import { StreakLink } from './StreakLink'
-import { buildTodayView, dueScore, headerText, isLate, loadTodaySources, wholeDayScore, type TodayRow, type TodayView } from './todayData'
+import { TodayHero } from './TodayHero'
+import { buildTodayView, dueScore, headerText, isLate, loadTodaySources, nextRow, wholeDayScore, type TodayRow, type TodayView } from './todayData'
 import { WeekCard } from './WeekCard'
 
 const CLOCK_MS = 30_000
@@ -74,41 +74,6 @@ function useDayMoments(date: string | null, score: DayScore | null) {
 
 const Message = ({ children }: { children: ReactNode }) => <p className="text-muted">{children}</p>
 
-const SEGMENT: Record<AdherenceStatus | 'late' | 'open', string> = {
-  done: 'bg-ok',
-  partial: 'bg-warn',
-  missed: 'bg-danger',
-  late: 'bg-danger/35',
-  open: 'bg-line',
-}
-
-/** The day at a glance: one segment per target, in time order, colored by its state (the counts say it in words). */
-function DayStrip({ view, now }: { view: TodayView; now: Date }) {
-  return (
-    <div aria-hidden="true" className="flex h-2 gap-1">
-      {view.rows.map((row) => (
-        <span
-          key={`${row.target.type}:${row.target.key}`}
-          className={`flex-1 rounded-full ${SEGMENT[row.status ?? (isLate(row, view.date, now) ? 'late' : 'open')]}`}
-        />
-      ))}
-    </div>
-  )
-}
-
-/** Where the day stands against its 90 % goal ("Dia completo" is also the static form of the celebration). */
-function DayGoalLine({ complete, onTarget }: { complete: boolean; onTarget: boolean }) {
-  if (complete)
-    return (
-      <p className="flex items-center gap-1 text-sm font-semibold text-ok">
-        <Icon name="check" size={16} strokeWidth={2.4} />
-        Dia completo
-      </p>
-    )
-  if (onTarget) return <p className="text-sm font-medium text-ok">Meta do dia batida</p>
-  return <p className="text-sm text-muted">Meta do dia: 90%</p>
-}
-
 /** What another screen sends along when it returns here (`navigate('/hoje', { state })`). */
 export interface TodayNotice {
   /** A short confirmation shown at the top ("Check-in da manhã salvo"). */
@@ -133,6 +98,7 @@ export function TodayPage() {
   const [error, setError] = useState(false)
   const [sheet, setSheet] = useState<{ row: TodayRow; status: 'partial' | 'missed' } | null>(null)
   const [minutesFor, setMinutesFor] = useState<TodayRow | null>(null)
+  const [menuFor, setMenuFor] = useState<TodayRow | null>(null)
   const [progress, setProgress] = useState<ProgressData | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
@@ -183,6 +149,11 @@ export function TodayPage() {
     }
   }, [data, today, dataVersion, reload])
 
+  // The item sheet follows its row: once the row is gone (a pull dropped it, the plan changed) the sheet is closed for
+  // good, so it does not pop up again if the row comes back. Adjusted while rendering (React's pattern for state that
+  // follows other state), not in an effect.
+  if (menuFor && view && !view.rows.some((r) => r.target.type === menuFor.target.type && r.target.key === menuFor.target.key)) setMenuFor(null)
+
   const ready = view !== null && view.date === today
   const score = ready ? wholeDayScore(view) : null
   const moments = useDayMoments(ready ? today : null, score)
@@ -221,6 +192,7 @@ export function TodayPage() {
       else await adherenceRepo.mark(data.db, data.userId, { ...target, status, reason, note }, at)
       setSheet(null)
       setMinutesFor(null)
+      setMenuFor(null)
       setReload((n) => n + 1)
       void syncNow()
     } catch (e) {
@@ -244,32 +216,40 @@ export function TodayPage() {
   const total = counted ? score.planned : view.rows.length
   const partial = counted ? score.partial : view.rows.filter((r) => r.status === 'partial').length
   const weekGoals = progress?.today === today ? progress.weekGoals : []
+  const next = nextRow(view.rows, now)
+  // The item sheet shows the row as it is now (a mark saved meanwhile, the cardio minutes).
+  const menuRow = menuFor ? (view.rows.find((r) => r.target.type === menuFor.target.type && r.target.key === menuFor.target.key) ?? null) : null
+  const fromMenu = (row: TodayRow, status: AdherenceStatus) => {
+    setMenuFor(null)
+    choose(row, status)
+  }
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
-            <p className="text-sm text-muted">{headerText(view)}</p>
-          </div>
-          {liveStreak && <StreakLink current={liveStreak.current} />}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
+          <p className="text-sm text-muted">{headerText(view)}</p>
         </div>
-        {view.rows.length > 0 && (
-          <div className="flex items-center gap-4">
-            {/* Without a plan nothing counts toward the day's goal: no ring, just the rows done. */}
-            {counted && <ProgressRing score={score}>{moments.celebrating && <Celebration />}</ProgressRing>}
-            <div className="grid min-w-0 flex-1 gap-2">
-              <p role="status" className="text-base font-semibold tabular-nums">
-                {done} de {total} feitos
-                {partial > 0 && <span className="font-medium text-muted"> · {partial} {partial === 1 ? 'parcial' : 'parciais'}</span>}
-              </p>
-              {counted && <DayGoalLine complete={moments.complete} onTarget={moments.onTarget} />}
-              <DayStrip view={view} now={now} />
-            </div>
-          </div>
-        )}
+        {liveStreak && <StreakLink current={liveStreak.current} />}
       </div>
+
+      {view.rows.length > 0 && (
+        <TodayHero
+          score={score}
+          counted={counted}
+          done={done}
+          total={total}
+          partial={partial}
+          complete={moments.complete}
+          onTarget={moments.onTarget}
+          celebration={moments.celebrating && <Celebration />}
+          next={next}
+          nextLate={next !== null && isLate(next, view.date, now)}
+          busy={busy}
+          onDone={(row) => choose(row, 'done')}
+        />
+      )}
 
       {notice && (
         <p role="status" className="rounded-card border border-ok/40 bg-ok/10 px-4 py-3 text-sm font-medium">
@@ -283,11 +263,15 @@ export function TodayPage() {
         </p>
       )}
 
-      <DayTimeline view={view} now={now} busy={busy} onChoose={choose} />
+      <DayTimeline view={view} now={now} busy={busy} onChoose={choose} onOpen={setMenuFor} />
 
       <WeekCard goals={weekGoals} />
 
       {moments.toast && <GoalToast onClose={moments.closeToast} />}
+
+      {menuRow && (
+        <StatusMenuSheet row={menuRow} busy={busy} onCancel={() => setMenuFor(null)} onChoose={(status) => fromMenu(menuRow, status)} />
+      )}
 
       {sheet && (
         <ReasonSheet

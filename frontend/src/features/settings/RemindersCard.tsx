@@ -157,12 +157,12 @@ export function RemindersCard() {
   }
 
   return (
-    <section aria-labelledby="reminders-title" className={cardClasses({ className: 'grid gap-3' })}>
+    <section aria-labelledby="reminders-title" className={cardClasses({ className: 'grid gap-4' })}>
       <div className="flex items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+        <span className="grid size-10 shrink-0 place-items-center rounded-control bg-accent-soft text-accent">
           <Icon name="bell" />
         </span>
-        <h2 id="reminders-title" className="text-lg font-bold tracking-tight">
+        <h2 id="reminders-title" className="text-lg font-semibold text-ink">
           Lembretes
         </h2>
       </div>

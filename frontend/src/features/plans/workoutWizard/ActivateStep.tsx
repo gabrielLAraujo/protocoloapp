@@ -3,6 +3,8 @@ import { DiffList, type PlanDiff } from '../DiffList'
 import { isLowConfidence } from '../docEdit'
 import { Section } from '../fields'
 import { buttonClass } from '../styles'
+import { cardClasses } from '../../../ui/styles'
+import { Icon } from '../../../ui/Icon'
 import { describePath, type Issue } from '../validation'
 import { dayLabel } from './steps'
 
@@ -42,11 +44,11 @@ export function ActivateStep({ doc, newCount, confirmed, lowConfidence, diff, is
 
   return (
     <div className="grid gap-4">
-      <dl aria-label="Resumo do treino" className="grid grid-cols-2 gap-2">
+      <dl aria-label="Resumo do treino" className={cardClasses({ className: 'grid grid-cols-2 gap-x-4 gap-y-3' })}>
         {stats.map(([n, label]) => (
-          <div key={label} className="flex items-baseline gap-2 rounded-card border border-line bg-surface px-4 py-3 shadow-card">
-            <dt className="order-2 text-sm text-muted">{label}</dt>
-            <dd className="order-1 text-xl font-bold tabular-nums">{n}</dd>
+          <div key={label} className="flex flex-col">
+            <dt className="order-2 text-sm font-semibold text-muted">{label}</dt>
+            <dd className="order-1 text-display font-semibold text-ink tabular-nums">{n}</dd>
           </div>
         ))}
       </dl>
@@ -54,12 +56,19 @@ export function ActivateStep({ doc, newCount, confirmed, lowConfidence, diff, is
       {pendingDays.length > 0 ? (
         <Section title="Falta confirmar">
           <p className="text-sm text-muted">{plural(pendingDays.length, 'dia ainda não foi confirmado', 'dias ainda não foram confirmados')}. Ativar só libera com todos confirmados.</p>
-          <ul className="grid gap-2">
+          <ul className="divide-y divide-line overflow-hidden rounded-control border border-line">
             {pendingDays.map(({ i }) => (
               <li key={i}>
-                <button type="button" className={`${buttonClass} w-full justify-between`} onClick={() => onJumpToDay(i)}>
-                  <span className="truncate">{dayLabel(doc, i)}</span>
-                  <span className="text-accent">Revisar</span>
+                <button
+                  type="button"
+                  className="flex min-h-13 w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-raised active:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  onClick={() => onJumpToDay(i)}
+                >
+                  <span className="truncate font-medium text-ink">{dayLabel(doc, i)}</span>
+                  <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-accent">
+                    Revisar
+                    <Icon name="chevronRight" size={16} />
+                  </span>
                 </button>
               </li>
             ))}
