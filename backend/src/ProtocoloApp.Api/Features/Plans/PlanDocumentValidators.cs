@@ -340,6 +340,8 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
                     fail($"{path}.count", "Quantidade de drops fora da faixa (1–5).");
                 if (!ValidDropSets(technique.Sets, (exercise.Sets ?? []).Count))
                     fail($"{path}.sets", "Informe \"last\", \"all\" ou os índices das séries.");
+                if (technique.Percent is { } percent && !Between(percent, 1, 50))
+                    fail($"{path}.percent", "Redução da carga fora da faixa (1–50%).");
                 break;
             case TechniqueTypes.RestPause:
                 if (!Between(technique.Count, 1, 5))
@@ -368,11 +370,30 @@ public sealed class WorkoutDocumentValidator : AbstractValidator<WorkoutDocument
                     fail($"{path}.seconds", "Segundos fora da faixa (1–120).");
                 break;
             case TechniqueTypes.Partials:
-                if (technique.Reps is { } reps && !Between(reps, 1, 30))
+                if (TechniqueValues.IsPresent(technique.Reps) && !Between(TechniqueValues.AsInt(technique.Reps), 1, 30))
                     fail($"{path}.reps", "Repetições fora da faixa (1–30).");
+                break;
+            case TechniqueTypes.Eccentric:
+                if (!Between(technique.Seconds, 1, 15))
+                    fail($"{path}.seconds", "Segundos fora da faixa (1–15).");
+                break;
+            case TechniqueTypes.Cluster:
+                if (TechniqueValues.AsIntList(technique.Reps) is not { Count: >= 1 and <= 8 } miniSets || miniSets.Any(r => r is < 1 or > 30))
+                    fail($"{path}.reps", "Informe de 1 a 8 mini-séries de 1 a 30 repetições.");
+                if (!Between(technique.RestSeconds, 5, 120))
+                    fail($"{path}.restSeconds", "Pausa fora da faixa (5–120 s).");
+                break;
+            case TechniqueTypes.Fst7:
+                if (technique.RestSeconds is { } fstRest && !Between(fstRest, 5, 120))
+                    fail($"{path}.restSeconds", "Descanso fora da faixa (5–120 s).");
+                break;
+            case TechniqueTypes.Tempo:
+                if (!TechniqueValues.IsTempo(technique.Text))
+                    fail($"{path}.text", "Informe a cadência como 3:2.");
                 break;
             case TechniqueTypes.ProgressiveLoad:
             case TechniqueTypes.StretchInterval:
+            case TechniqueTypes.ToFailure:
                 break;
             default:
                 fail($"{path}.type", "Técnica desconhecida.");

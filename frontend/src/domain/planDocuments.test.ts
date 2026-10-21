@@ -163,6 +163,14 @@ describe('workout techniques', () => {
           { type: 'zero_point', seconds: 2 },
           { type: 'progressive_load' },
           { type: 'stretch_interval' },
+          { type: 'drop', count: 1, sets: 'last', percent: 20 },
+          { type: 'eccentric', seconds: 15 },
+          { type: 'cluster', reps: [3, 3, 3], restSeconds: 20 },
+          { type: 'fst7' },
+          { type: 'fst7', restSeconds: 30 },
+          { type: 'tempo', text: '3:2' },
+          { type: 'tempo', text: '2:1:2' },
+          { type: 'to_failure' },
         ],
     })
     base.days[0].exercises.push({ key: 'a2', name: 'Outro fictício', sets: [{ repsMin: 8, repsMax: 10 }] } as never)
@@ -185,6 +193,17 @@ describe('workout techniques', () => {
     [{ type: 'partials', reps: 31 }],
     [{ type: 'zero_point', seconds: 0 }],
     [{ type: 'biset' }],
+    [{ type: 'drop', count: 1, sets: 'last', percent: 51 }],
+    [{ type: 'eccentric', seconds: 16 }],
+    [{ type: 'eccentric', seconds: 0 }],
+    [{ type: 'cluster', reps: [], restSeconds: 20 }],
+    [{ type: 'cluster', reps: [1, 1, 1, 1, 1, 1, 1, 1, 1], restSeconds: 20 }],
+    [{ type: 'cluster', reps: [31], restSeconds: 20 }],
+    [{ type: 'cluster', reps: [3], restSeconds: 4 }],
+    [{ type: 'cluster', reps: [3], restSeconds: 121 }],
+    [{ type: 'fst7', restSeconds: 200 }],
+    [{ type: 'tempo', text: '3-2' }],
+    [{ type: 'tempo', text: '123:2' }],
   ])('rejects %j with a path-keyed error', (technique) => {
     const result = parseWorkoutDocument(withExercise({ techniques: [technique] }))
     expect(result.ok).toBe(false)
