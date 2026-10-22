@@ -10,8 +10,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Plans;
 
-[Collection("api")]
-public sealed class PlanPullTests(ApiFactory factory)
+public sealed class PlanPullTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private async Task<(HttpClient Client, Guid UserId)> NewUserAsync()
     {

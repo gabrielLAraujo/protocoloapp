@@ -9,8 +9,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.ExerciseCatalog;
 
-[Collection("api")]
-public sealed class ExerciseCatalogSyncTests(ApiFactory factory)
+public sealed class ExerciseCatalogSyncTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
 

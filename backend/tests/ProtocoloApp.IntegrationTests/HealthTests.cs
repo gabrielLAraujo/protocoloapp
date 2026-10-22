@@ -3,8 +3,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests;
 
-[Collection("api")]
-public sealed class HealthTests(ApiFactory factory)
+public sealed class HealthTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
     public async Task Health_returns_200_when_database_is_up()

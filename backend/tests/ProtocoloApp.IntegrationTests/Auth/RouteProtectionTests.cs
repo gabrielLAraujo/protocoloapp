@@ -5,8 +5,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Auth;
 
-[Collection("api")]
-public sealed class RouteProtectionTests(ApiFactory factory)
+public sealed class RouteProtectionTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly string[] AnonymousRoutes = ["/api/auth/login", "/api/auth/refresh", "/api/auth/logout"];
 

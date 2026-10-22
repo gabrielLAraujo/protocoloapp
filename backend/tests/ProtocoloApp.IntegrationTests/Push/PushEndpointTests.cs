@@ -8,8 +8,7 @@ using ProtocoloApp.IntegrationTests.Plans;
 
 namespace ProtocoloApp.IntegrationTests.Push;
 
-[Collection("api")]
-public sealed class PushEndpointTests(ApiFactory factory)
+public sealed class PushEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly Uri PublicKeyUrl = new("/api/push/public-key", UriKind.Relative);
 

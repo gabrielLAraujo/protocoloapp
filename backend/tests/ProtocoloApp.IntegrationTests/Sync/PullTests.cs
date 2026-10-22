@@ -5,8 +5,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Sync;
 
-[Collection("api")]
-public sealed class PullTests(ApiFactory factory)
+public sealed class PullTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly DateOnly Day = new(2026, 4, 1);
 

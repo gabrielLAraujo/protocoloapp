@@ -9,8 +9,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Plans;
 
-[Collection("api")]
-public sealed class ExerciseEndpointTests(ApiFactory factory)
+public sealed class ExerciseEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static async Task<List<ExerciseResponse>> ListAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<List<ExerciseResponse>>(new Uri("/api/exercises", UriKind.Relative), PlanApi.Json))!;

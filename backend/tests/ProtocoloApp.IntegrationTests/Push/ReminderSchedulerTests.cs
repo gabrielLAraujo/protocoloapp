@@ -11,8 +11,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Push;
 
-[Collection("api")]
-public sealed class ReminderSchedulerTests(ApiFactory factory)
+public sealed class ReminderSchedulerTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string SecretName = "Composto Secreto";
     private const string SecretDose = "999 mg";

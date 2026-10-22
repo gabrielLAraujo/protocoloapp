@@ -10,8 +10,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Auth;
 
-[Collection("api")]
-public sealed class RefreshTests(ApiFactory factory)
+public sealed class RefreshTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private async Task<(HttpClient Client, TokenResponse Tokens)> LoginNewUserAsync()
     {
