@@ -343,3 +343,56 @@ describe('medals', () => {
     expect(medals([], TODAY, none).map((m) => m.key)).toEqual(['perfect_week', 'diet_100_7', 'streak_7', 'streak_14', 'streak_30', 'all_workouts_cycle'])
   })
 })
+
+describe('diet deviations', () => {
+  const meals = [target('meal', '1', '08:00'), target('meal', '2', '12:00'), target('protocol_item', 'creatina')]
+
+  it('each deviation is one more planned diet target not done: done ÷ (planned + deviations)', () => {
+    expect(dayScore(plan(meals), statuses({ 'meal:1': 'done', 'meal:2': 'done', 'protocol_item:creatina': 'done' }), { isToday: false, deviations: 1 }))
+      .toEqual({ done: 3, partial: 0, planned: 4, ratio: 0.75 })
+  })
+
+  it('today a deviation counts at once, even before any meal is due', () => {
+    const now = new Date(2026, 9, 22, 7, 0)
+    expect(dayScore(plan(meals), statuses({}), { isToday: true, now, deviations: 1 })).toEqual({ done: 0, partial: 0, planned: 1, ratio: 0 })
+  })
+
+  it('a day with 0 planned meals and a deviation has diet 0 %, and the diet is not complete', () => {
+    const info = buildDayInfo(
+      { date: TODAY, when: 'past', plan: plan([target('protocol_item', 'creatina')]), statuses: statuses({}), checkinParts: { morning: false, evening: false }, waterL: null, cardioOptional: false, deviations: 1 },
+    )
+    expect(info.diet).toEqual({ done: 0, partial: 0, planned: 1 })
+    expect(info.dietComplete).toBe(false)
+    expect(info.items).toEqual({ done: 0, partial: 0, planned: 1 })
+  })
+
+  it('every meal done with a deviation is not a complete diet day; with no deviation (deleted) it is', () => {
+    const input = { date: TODAY, when: 'past' as const, plan: plan(meals), statuses: statuses({ 'meal:1': 'done', 'meal:2': 'done' }), checkinParts: { morning: false, evening: false }, waterL: null, cardioOptional: false }
+    expect(buildDayInfo({ ...input, deviations: 1 })).toMatchObject({ dietComplete: false, diet: { done: 2, planned: 3 } })
+    expect(buildDayInfo({ ...input, deviations: 0 })).toMatchObject({ dietComplete: true, diet: { done: 2, planned: 2 } })
+  })
+
+  it('without any plan a deviation counts nowhere', () => {
+    const info = buildDayInfo({ date: TODAY, when: 'past', plan: plan([], 'none'), statuses: statuses({}), checkinParts: { morning: false, evening: false }, waterL: null, cardioOptional: false, deviations: 2 })
+    expect(info.diet.planned).toBe(0)
+    expect(info.dietComplete).toBeNull()
+    expect(info.score).toEqual(EMPTY_SCORE)
+  })
+
+  it('deviations pull the week goal "Dieta ≥ 90%" down', () => {
+    const week = dateRange('2026-10-19', '2026-10-25').map((date) =>
+      buildDayInfo({
+        date,
+        when: date < TODAY ? 'past' : date === TODAY ? 'today' : 'future',
+        plan: plan([target('meal', '1'), target('meal', '2')]),
+        statuses: statuses({ 'meal:1': 'done', 'meal:2': 'done' }),
+        checkinParts: { morning: false, evening: false },
+        waterL: null,
+        cardioOptional: false,
+        deviations: date === '2026-10-20' ? 2 : 0,
+      }, new Date(2026, 9, 22, 23, 0)),
+    )
+    // 8 meals done of 8 planned + 2 deviations = 80 %.
+    expect(weekGoals(week, null).find((g) => g.key === 'diet')).toMatchObject({ progress: 80, done: false })
+  })
+})

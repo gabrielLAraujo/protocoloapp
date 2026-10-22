@@ -12,6 +12,7 @@ const meal = (key: string, label: string, time: string): TodayRow => ({
   reason: null,
   note: null,
   details: [],
+  deviations: [],
 })
 
 const REF1 = meal('1', 'REF 1', '07:00')

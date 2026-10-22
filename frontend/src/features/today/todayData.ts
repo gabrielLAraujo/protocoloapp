@@ -1,6 +1,7 @@
 import { loadActiveProtocol } from '../../data/activeProtocol'
 import { adherenceRepo, type AdherenceLogLocal, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
 import { checkinParts, dailyCheckinRepo, type CheckinParts } from '../../data/dailyCheckinRepo'
+import { dietDeviationRepo, type DietDeviationLocal } from '../../data/dietDeviationRepo'
 import type { LocalDb } from '../../data/localDb'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
@@ -45,6 +46,8 @@ export interface TodayRow {
   note: string | null
   /** What the item sheet lists: a food and its grams, an item and its dose, the cardio's minutes. */
   details: TodayDetail[]
+  /** Meals only: what was eaten outside the plan in this meal (empty otherwise). */
+  deviations: DietDeviationLocal[]
 }
 
 /** One line of the item sheet: `amount` goes right-aligned in tabular numbers; `kind` styles alternatives and notes. */
@@ -66,6 +69,13 @@ export interface TodayView {
   water: { totalL: number; targetL: number | null }
   /** "A repor": the items that ran out and were not done since, in the protocol's order. */
   restock: RestockItem[]
+  /** Every diet deviation of the day (they all count in the diet). */
+  deviations: DietDeviationLocal[]
+  /**
+   * The ones shown as rows of their own: extra meals (no meal key), and those of a meal that is not on today's list
+   * (the plan changed after they were recorded).
+   */
+  extras: DietDeviationLocal[]
 }
 
 export interface TodaySources {
@@ -87,11 +97,13 @@ export interface TodaySources {
   cardioMinutes: number | null
   /** Water of the day's check-in, null when none. */
   waterL: number | null
+  /** The day's diet deviations. */
+  deviations: DietDeviationLocal[]
 }
 
 /** Reads everything the Hoje screen needs for `date` from the device. */
 export async function loadTodaySources(db: LocalDb, date: string): Promise<TodaySources> {
-  const [active, plans, slots, logs, recentLogs, sessions, checkin] = await Promise.all([
+  const [active, plans, slots, logs, recentLogs, sessions, checkin, deviations] = await Promise.all([
     loadActiveProtocol(db),
     loadWorkoutPlans(db),
     scheduleRepo.all(db),
@@ -99,6 +111,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     adherenceRepo.between(db, addDays(date, 1 - RESTOCK_WINDOW_DAYS), date),
     workoutRepo.sessionsBetween(db, date, date),
     dailyCheckinRepo.get(db, date),
+    dietDeviationRepo.between(db, date, date),
   ])
   // Overrides re-anchor the rotation from each version's activation: load them since the first one (as /treino).
   const overridesFrom = plans.map((p) => p.at.activatedOn).sort()[0] ?? date
@@ -118,6 +131,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     cardioDone: checkin?.cardioDone === true,
     cardioMinutes: checkin?.cardioDone === true ? checkin.cardioMinutes : null,
     waterL: checkin?.waterL ?? null,
+    deviations,
   }
 }
 
@@ -199,8 +213,10 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
       reason: status === log?.status ? (log?.reason ?? null) : null,
       note: status === log?.status ? (log?.note ?? null) : null,
       details,
+      deviations: target.type === 'meal' ? src.deviations.filter((d) => d.mealKey === target.key) : [],
     }
   })
+  const mealKeys = new Set(rows.filter((r) => r.target.type === 'meal').map((r) => r.target.key))
 
   return {
     date,
@@ -210,6 +226,8 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     cardioOptional: src.protocol?.cardio != null && src.protocol.cardio.daily !== true,
     water: { totalL: src.waterL ?? 0, targetL: waterMinL(src.protocol) },
     restock: restockItems(date, src.itemLogs, src.protocol),
+    deviations: src.deviations,
+    extras: src.deviations.filter((d) => d.mealKey === null || !mealKeys.has(d.mealKey)),
   }
 }
 
@@ -218,15 +236,16 @@ const statusesOf = (view: TodayView) => new Map(view.rows.map((r) => [targetId(r
 
 /** Today's score as the streak reads it: only what is marked or already due at `now` (same rule as loadProgress). */
 export function dueScore(view: TodayView, now: Date): DayScore {
-  return dayScore(planOf(view), statusesOf(view), { isToday: true, now, cardioOptional: view.cardioOptional })
+  return dayScore(planOf(view), statusesOf(view), { isToday: true, now, cardioOptional: view.cardioOptional, deviations: view.deviations.length })
 }
 
 /**
  * The day's score over everything planned for the whole day (the ring of Hoje): the same rows and rules as the
- * gamification's `dayScore`, counted as a closed day, so 100 % means every target of the day is done.
+ * gamification's `dayScore`, counted as a closed day, so 100 % means every target of the day is done (and no diet
+ * deviation: each one is a planned diet target not done).
  */
 export function wholeDayScore(view: TodayView): DayScore {
-  return dayScore(planOf(view), statusesOf(view), { isToday: false, cardioOptional: view.cardioOptional })
+  return dayScore(planOf(view), statusesOf(view), { isToday: false, cardioOptional: view.cardioOptional, deviations: view.deviations.length })
 }
 
 /** More than LATE_AFTER_MIN minutes past `time` (HH:mm) on `now`'s day: the one rule of "late" (rows and the hero). */
@@ -257,6 +276,33 @@ export function periodOf(time: string | null): DayPeriod {
 /** The rows by period of the day, in the day's order, keeping their order inside each period; empty periods are left out. */
 export function groupByPeriod<R extends { target: { time: string | null } }>(rows: readonly R[]): { period: DayPeriod; rows: R[] }[] {
   return PERIODS.map((period) => ({ period, rows: rows.filter((r) => periodOf(r.target.time) === period) })).filter((g) => g.rows.length > 0)
+}
+
+export type TimelineItem<R> = { kind: 'target'; row: R } | { kind: 'extra'; deviation: DietDeviationLocal }
+
+/**
+ * The rows and the extra meals by period: each extra goes into the period of its time ("Sem horário" without one),
+ * before the first row of that period that comes later; extras keep their own order. Empty periods are left out.
+ */
+export function timelineGroups<R extends { target: { time: string | null } }>(
+  rows: readonly R[],
+  extras: readonly DietDeviationLocal[],
+): { period: DayPeriod; items: TimelineItem<R>[] }[] {
+  return PERIODS.map((period) => {
+    const items: TimelineItem<R>[] = rows.filter((r) => periodOf(r.target.time) === period).map((row) => ({ kind: 'target', row }))
+    for (const deviation of extras) {
+      if (periodOf(deviation.time) !== period) continue
+      const at =
+        deviation.time === null
+          ? -1
+          : items.findIndex((item) => {
+              const time = item.kind === 'target' ? item.row.target.time : item.deviation.time
+              return time !== null && time > deviation.time!
+            })
+      items.splice(at === -1 ? items.length : at, 0, { kind: 'extra', deviation })
+    }
+    return { period, items }
+  }).filter((g) => g.items.length > 0)
 }
 
 /**

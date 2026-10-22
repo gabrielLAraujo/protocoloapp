@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { components } from '../../api/schema'
 import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { dietDeviationRepo } from '../../data/dietDeviationRepo'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { workoutRepo } from '../../data/workoutRepo'
@@ -169,5 +170,21 @@ describe('loadProgress', () => {
     expect(p.cycle).toBeNull()
     // The history starts today (Thursday): the check-in goal covers Thursday to Sunday.
     expect(p.weekGoals).toMatchObject([{ key: 'checkins', progress: 0, target: 4 }])
+  })
+
+  it('diet deviations count on their day; a deleted one stops counting', async () => {
+    const db = await newLocalDb()
+    await planVersionSync.applyRemote(db, record(PROTOCOL_ID, 'protocol', protocol, '2026-10-19T12:00:00.000Z'))
+    await seedDay(db, TODAY) // meal + 2 check-ins: 3/3
+    const id = await dietDeviationRepo.add(db, { date: TODAY, mealKey: null, time: '16:00', description: 'Doce', quantity: null }, T)
+
+    const withDeviation = await loadProgress(db, TODAY, NOW)
+    expect(withDeviation.todayScore).toMatchObject({ done: 3, planned: 4 })
+    expect(withDeviation.week.find((d) => d.date === TODAY)).toMatchObject({ diet: { done: 1, planned: 2 }, dietComplete: false })
+
+    await dietDeviationRepo.remove(db, id, new Date(T.getTime() + 1000))
+    const without = await loadProgress(db, TODAY, NOW)
+    expect(without.todayScore).toMatchObject({ done: 3, planned: 3 })
+    expect(without.week.find((d) => d.date === TODAY)).toMatchObject({ diet: { done: 1, planned: 1 }, dietComplete: true })
   })
 })
