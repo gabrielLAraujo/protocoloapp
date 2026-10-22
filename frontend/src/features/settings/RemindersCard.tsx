@@ -13,7 +13,7 @@ import {
 } from '../../pwa/push'
 import { buttonClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
-import { buttonClasses, cardClasses } from '../../ui/styles'
+import { ACTION_ROW, buttonClasses, cardClasses } from '../../ui/styles'
 import { Icon } from '../../ui/Icon'
 
 type Message = { kind: 'status' | 'alert'; text: string }
@@ -132,7 +132,7 @@ export function RemindersCard() {
           <Icon name="check" size={18} strokeWidth={2.4} />
           Lembretes ativados
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className={ACTION_ROW}>
           <button type="button" className={buttonClass} disabled={busy} onClick={() => void test()}>
             Enviar teste
           </button>

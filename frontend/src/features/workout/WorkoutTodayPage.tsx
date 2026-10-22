@@ -10,7 +10,7 @@ import { activePlanAt, resolveDay } from '../../domain/rotation'
 import { useSync } from '../sync/syncContext'
 import { buttonClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
-import { buttonClasses, cardClasses } from '../../ui/styles'
+import { ACTION_ROW, buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
 import { Icon } from '../../ui/Icon'
 import { ListRow } from '../../ui/ListRow'
@@ -161,7 +161,7 @@ export function WorkoutTodayPage() {
         <p role="alert" className={cardClasses({ tone: 'warn', className: 'font-medium' })}>
           Você tem um treino aberto de {formatShortDate(open.date)}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className={ACTION_ROW}>
           <button type="button" className={primaryClass} onClick={() => setResumeOld(true)}>
             Continuar
           </button>
@@ -369,7 +369,7 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
 }
 
 const HistoryLink = () => (
-  <Link to="/treino/historico" className={buttonClasses({ variant: 'ghost', className: 'w-fit -ml-2' })}>
+  <Link to="/treino/historico" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
     <Icon name="history" size={18} />
     Histórico de treinos
   </Link>

@@ -4,7 +4,7 @@ import { MAX_EXERCISE_NOTE_LENGTH, type ExerciseChangeLocal, type SetKind, type 
 import type { PlannedExercise } from '../../domain/planDocuments'
 import { buttonClass, inputClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
-import { cardClasses } from '../../ui/styles'
+import { ACTION_ROW, cardClasses } from '../../ui/styles'
 import { ExerciseMedia } from '../../ui/ExerciseMedia'
 import { Icon } from '../../ui/Icon'
 import { formatKg } from './format'
@@ -211,7 +211,7 @@ export function ExerciseCard(props: Props) {
         </div>
       )}
 
-      <label className="grid gap-1.5 text-sm font-semibold text-muted">
+      <label className="grid gap-2 text-sm font-semibold text-muted">
         Anotação
         <textarea
           className={`${inputClass} min-h-16`}
@@ -237,11 +237,11 @@ export function ExerciseCard(props: Props) {
 
       {skipping && (
         <div className="grid gap-3 rounded-control border border-line bg-raised p-3">
-          <label className="grid gap-1.5 text-sm font-semibold text-muted">
+          <label className="grid gap-2 text-sm font-semibold text-muted">
             Motivo (opcional)
             <input className={inputClass} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className={ACTION_ROW}>
             <button
               type="button"
               className={buttonClass}

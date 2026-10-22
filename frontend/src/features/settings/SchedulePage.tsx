@@ -125,13 +125,13 @@ export function SchedulePage() {
 
   return (
     <section className="grid gap-6">
-      <div>
+      <div className="grid gap-1">
         <Link to="/configuracoes" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
           <Icon name="chevronLeft" size={18} />
           Configurações
         </Link>
         <h1 className="text-xl font-bold">Horários</h1>
-        <p className="mt-1 text-sm text-muted">Sem horário, o item fica sem lembrete.</p>
+        <p className="text-sm text-muted">Sem horário, o item fica sem lembrete.</p>
       </div>
 
       {DAY_TYPES.map((dayType) => (

@@ -13,6 +13,7 @@ import { mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
+import { GROUP_LABEL } from '../../ui/styles'
 import { TodayPage } from './TodayPage'
 
 // Tuesday 2026-10-20. The workout fixtures rotate from 2026-10-18, so with [a, b] today is "a"; with [a, off] it is off.
@@ -102,6 +103,24 @@ describe('TodayPage', () => {
     expect(row('Check-in da manhã').getByRole('link', { name: 'Check-in da manhã' })).toHaveAttribute('href', '/checkin/manha')
     expect(row('Check-in da noite').getByRole('link', { name: 'Check-in da noite' })).toHaveAttribute('href', '/checkin/noite')
     expect(row('Treino A').queryByRole('button', { name: 'Feito' })).not.toBeInTheDocument()
+  })
+
+  it('lays every row out the same way: the name line, then the time line, in one text column', async () => {
+    await render()
+
+    // A link row (check-in) and a marked-here row (meal): the name and the meta line are consecutive siblings, so the
+    // time sits right under the name in both, and the name button is only as tall as its text (no min-height of its own).
+    const linkName = row('Check-in da manhã').getByText('Check-in da manhã')
+    const buttonName = row('REF 1').getByRole('button', { name: 'REF 1' })
+    for (const name of [linkName, buttonName]) {
+      expect(name.nextElementSibling).toHaveTextContent('07:00')
+      expect(name.className).not.toMatch(/min-h-/)
+    }
+    // The name button's hit area is stretched over the row instead (behind the text; the controls sit above it).
+    expect(buttonName.className).toMatch(/after:absolute after:inset-0/)
+    expect(row('REF 1').getByRole('group', { name: 'Marcar REF 1' }).className).toMatch(/\brelative\b/)
+    // The period labels have no inset of their own: they line up with the card edge.
+    for (const heading of within(items()).getAllByRole('heading')) expect(heading.className).toBe(GROUP_LABEL)
   })
 
   it('✓ marks done and tapping it again clears the mark', async () => {

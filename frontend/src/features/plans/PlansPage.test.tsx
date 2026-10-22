@@ -81,6 +81,24 @@ describe('PlansPage', () => {
     expect(card('Protocolo').getByRole('link', { name: 'Ver protocolo' })).toHaveAttribute('href', '/planejamento/protocolo')
   })
 
+  it('lays the card actions out as the upload across the card and the others in equal halves below', async () => {
+    mockFetch({})
+    const user = userEvent.setup()
+    await renderPage()
+    await screen.findByRole('heading', { name: 'Protocolo' })
+
+    const actions = (name: string) => screen.getByRole('region', { name }).querySelector('[data-plan-actions]')!
+    // The upload is the first cell (it spans both columns); the rest follow in order.
+    expect(Array.from(actions('Protocolo').children).map((el) => el.textContent)).toEqual(['Enviar novo PDF', 'Ver protocolo', 'Editar datas'])
+    expect(actions('Protocolo').className).toMatch(/grid-cols-2/)
+    expect(actions('Protocolo').className).toMatch(/\[&>\*:first-child\]:col-span-2/)
+    // An odd one out (here the workout has only the upload) still fills the row.
+    expect(Array.from(actions('Treino').children).map((el) => el.textContent)).toEqual(['Enviar novo PDF'])
+    // The dates form opens under the actions, not among them.
+    await user.click(card('Protocolo').getByRole('button', { name: 'Editar datas' }))
+    expect(actions('Protocolo').children).toHaveLength(3)
+  })
+
   it('sending a PDF reads it on the device, shows "Lendo o PDF…", blocks a second import and opens the review', async () => {
     let finish!: () => void
     const gate = new Promise<void>((resolve) => (finish = resolve))

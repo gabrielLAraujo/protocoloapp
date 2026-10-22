@@ -145,7 +145,7 @@ export function WorkoutWizard(props: Props) {
     <div className="grid gap-4">
       <div className="grid gap-1">
         <StepRail steps={railSteps} current={current} onJump={go} />
-        <div className="px-1">
+        <div>
           <p className="text-sm font-semibold text-muted tabular-nums">
             Etapa {current + 1} de {steps.length}
           </p>

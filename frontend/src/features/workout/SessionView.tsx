@@ -5,7 +5,7 @@ import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import type { PlannedExercise, WorkoutDay } from '../../domain/planDocuments'
 import { buttonClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
-import { cardClasses } from '../../ui/styles'
+import { ACTION_ROW, cardClasses } from '../../ui/styles'
 import { DiscardSession } from './DiscardSession'
 import { ExerciseCard } from './ExerciseCard'
 import { RestTimerBar } from './RestTimerBar'
@@ -224,7 +224,7 @@ export function SessionView({
       {confirming ? (
         <div role="group" aria-label="Confirmar finalização" className={cardClasses({ className: 'grid gap-3' })}>
           <p className="text-lg font-semibold">Finalizar o treino agora?</p>
-          <div className="flex flex-wrap gap-2">
+          <div className={ACTION_ROW}>
             <Button variant="primary" loading={finishing} onClick={() => void finish()}>
               Sim, finalizar
             </Button>

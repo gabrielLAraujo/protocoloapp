@@ -3,6 +3,7 @@ import { freshKey, setIn, updateList } from './docEdit'
 import { Field, NumberField, Section, SelectField, TextField } from './fields'
 import { buttonClass, dangerButtonClass } from './styles'
 import { CATEGORY_LABELS, scheduleSummary, TIMING_LABELS, timingLabel } from './labels'
+import { ACTION_ROW } from '../../ui/styles'
 
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))
 
@@ -94,7 +95,7 @@ function MealEditor({ doc, meal, index, onChange }: { doc: ProtocolDocument; mea
           </button>
         </div>
       ))}
-      <div className="flex flex-wrap gap-2">
+      <div className={ACTION_ROW}>
         <button type="button" className={buttonClass} onClick={() => set('items', [...meal.items, { food: '', alternatives: [] }])}>
           Adicionar alimento
         </button>

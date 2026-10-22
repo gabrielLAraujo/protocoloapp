@@ -3,6 +3,7 @@ import type { GroupTrends, Trend } from '../../domain/strength'
 import { Card } from '../../ui/Card'
 import { ListRow } from '../../ui/ListRow'
 import { SectionHeader } from '../../ui/SectionHeader'
+import { GROUP_LABEL } from '../../ui/styles'
 
 const kg = (v: number) => `${Math.round(v)} kg`
 
@@ -33,10 +34,10 @@ export function StrengthByGroup({ strength }: { strength: Record<MuscleGroup, Gr
       {groups.length === 0 ? (
         <p className="text-sm text-muted">Sem dados: são precisas ao menos 2 sessões do mesmo exercício no ciclo.</p>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-5">
           {groups.map((g) => (
-            <div key={g} className="grid gap-1">
-              <h3 className="px-1 text-sm font-semibold text-muted">{muscleGroupLabel(g)}</h3>
+            <div key={g} className="grid gap-2">
+              <h3 className={GROUP_LABEL}>{muscleGroupLabel(g)}</h3>
               <Card tone="list">
                 {strength![g].best.map((t) => (
                   <TrendRow key={t.exerciseId} trend={t} />

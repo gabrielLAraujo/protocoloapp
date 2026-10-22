@@ -94,14 +94,19 @@ export function HistoryPage() {
             {loaded.rows.map(({ session, setCount, volume }) => (
               <li key={session.id}>
                 <ListRow
-                  title={<time dateTime={session.date}>{formatDate(session.date)}</time>}
+                  title={
+                    // The "em andamento" chip goes with the date, so every row's volume stays in the same right column.
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <time dateTime={session.date}>{formatDate(session.date)}</time>
+                      {session.endedAt === null && <Chip>em andamento</Chip>}
+                    </span>
+                  }
                   subtitle={
                     <span className="tabular-nums">
                       {loaded.dayNames.get(session.planVersionId)?.get(session.dayKey) ?? session.dayKey}, {setCount} {setCount === 1 ? 'série' : 'séries'}
                     </span>
                   }
                   value={formatVolume(volume)}
-                  trailing={session.endedAt === null ? <Chip>em andamento</Chip> : undefined}
                 />
               </li>
             ))}

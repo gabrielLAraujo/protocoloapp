@@ -8,6 +8,7 @@ import { buttonClass, dangerButtonClass } from '../styles'
 import { ExerciseRow } from './ExerciseRow'
 import { ExerciseSheet, type PairActions } from './ExerciseSheet'
 import { dayLetter, exerciseErrors, withNewExercise } from './steps'
+import { ACTION_ROW } from '../../../ui/styles'
 
 type Props = PairActions & {
   doc: WorkoutDocument
@@ -62,7 +63,7 @@ export function DayStep(props: Props) {
         </ul>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className={ACTION_ROW}>
         <button
           type="button"
           className={buttonClass}
