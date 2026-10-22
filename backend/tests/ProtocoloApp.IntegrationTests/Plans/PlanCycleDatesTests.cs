@@ -7,8 +7,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Plans;
 
-[Collection("api")]
-public sealed class PlanCycleDatesTests(ApiFactory factory)
+public sealed class PlanCycleDatesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static Task<HttpResponseMessage> PatchAsync(PlanApi api, Guid id, object body) =>
         api.Client.PatchAsJsonAsync(new Uri($"/api/plans/{id}/cycle-dates", UriKind.Relative), body, PlanApi.Json);

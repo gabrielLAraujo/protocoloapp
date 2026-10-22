@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Push;
@@ -16,8 +17,9 @@ using ProtocoloApp.Api.Shared.Storage;
 namespace ProtocoloApp.IntegrationTests.Infra;
 
 /// <summary>
-/// The whole API against a real Postgres (<see cref="PostgresFixture"/>), shared by the <c>api</c> collection.
-/// Each test creates its own data, so nobody cleans up.
+/// The whole API against a database of its own in the shared Postgres (<see cref="PostgresServer"/>). Each test class gets
+/// its own factory (<c>IClassFixture</c>), so classes run in parallel; inside a class, each test creates its own data, so
+/// nobody cleans up.
 /// </summary>
 /// <remarks>
 /// The auth endpoints are rate limited per client IP (5 per minute), and the limiter lives as long as the factory. Clients
@@ -30,7 +32,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     private static int _ipCounter;
 
-    private readonly PostgresFixture _postgres = new();
+    private string? _connectionString;
 
     /// <summary>The storage every test talks to: no R2 settings are needed because this replaces the real one.</summary>
     public FakeFileStorage Storage { get; } = new();
@@ -41,11 +43,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>The push sender every test talks to: nothing reaches a push service.</summary>
     public FakePushSender Push { get; } = new();
 
-    public string ConnectionString => _postgres.ConnectionString;
+    public string ConnectionString => _connectionString ?? throw new InvalidOperationException("The factory is not initialized yet.");
 
     public async Task InitializeAsync()
     {
-        await _postgres.InitializeAsync();
+        _connectionString = await PostgresServer.CreateDatabaseAsync();
 
         // Same path production takes (the migrations bundle), minus the bundle itself.
         await using var scope = Services.CreateAsyncScope();
@@ -55,7 +57,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
-        await _postgres.DisposeAsync();
+
+        // The pools are global to the process: close this database's idle connections so finished classes free their slots.
+        if (_connectionString is not null)
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            NpgsqlConnection.ClearPool(connection);
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

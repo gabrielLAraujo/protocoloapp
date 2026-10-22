@@ -12,8 +12,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 namespace ProtocoloApp.IntegrationTests.Plans;
 
 /// <summary><c>POST /api/plans/drafts</c> (a draft read on the device) and <c>GET /api/plans/extraction</c>.</summary>
-[Collection("api")]
-public sealed class PlanDraftTests(ApiFactory factory)
+public sealed class PlanDraftTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static async Task<JsonElement> ProblemErrorsAsync(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");

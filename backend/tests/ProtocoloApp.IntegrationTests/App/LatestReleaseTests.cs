@@ -11,8 +11,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 namespace ProtocoloApp.IntegrationTests.App;
 
 /// <summary>The update check: the API asks GitHub (a fake here) for the latest release and proxies the APK to the logged-in app.</summary>
-[Collection("api")]
-public sealed class LatestReleaseTests(ApiFactory factory)
+public sealed class LatestReleaseTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string LatestPath = "/repos/gabrielLAraujo/protocoloapp/releases/latest";
     private const string AssetPath = "/repos/gabrielLAraujo/protocoloapp/releases/assets/42";

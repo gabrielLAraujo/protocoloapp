@@ -10,8 +10,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Files;
 
-[Collection("api")]
-public sealed class FilesTests(ApiFactory factory)
+public sealed class FilesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {

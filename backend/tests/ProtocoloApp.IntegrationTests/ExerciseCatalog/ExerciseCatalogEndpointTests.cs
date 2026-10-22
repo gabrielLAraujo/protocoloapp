@@ -5,8 +5,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.ExerciseCatalog;
 
-[Collection("api")]
-public sealed class ExerciseCatalogEndpointTests(ApiFactory factory)
+public sealed class ExerciseCatalogEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly Uri Route = new("/api/exercise-catalog", UriKind.Relative);
 

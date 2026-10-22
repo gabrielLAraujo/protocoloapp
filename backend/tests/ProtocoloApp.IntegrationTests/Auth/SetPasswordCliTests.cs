@@ -6,8 +6,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Auth;
 
-[Collection("api")]
-public sealed class SetPasswordCliTests(ApiFactory factory)
+public sealed class SetPasswordCliTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string NewPassword = "Outra-senha-456";
 

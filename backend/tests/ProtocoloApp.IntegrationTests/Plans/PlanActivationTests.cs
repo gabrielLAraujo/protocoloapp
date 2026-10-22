@@ -9,8 +9,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Plans;
 
-[Collection("api")]
-public sealed class PlanActivationTests(ApiFactory factory)
+public sealed class PlanActivationTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static Task<List<PlanVersion>> PlansOfAsync(PlanApi api, PlanKind kind) =>
         api.WithDbAsync(db => db.PlanVersions.AsNoTracking().Where(p => p.UserId == api.UserId && p.Kind == kind).OrderBy(p => p.Version).ToListAsync());

@@ -8,8 +8,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Sync;
 
-[Collection("api")]
-public sealed class ConcurrencyTests(ApiFactory factory)
+public sealed class ConcurrencyTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     // Long enough for an unblocked push to finish many times over; the blocked one can never finish within it.
     private static readonly TimeSpan BlockedWait = TimeSpan.FromMilliseconds(500);

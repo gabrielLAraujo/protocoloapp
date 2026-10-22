@@ -6,8 +6,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Plans;
 
-[Collection("api")]
-public sealed class PlanDiffTests(ApiFactory factory)
+public sealed class PlanDiffTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string Active = """
         {"rotation":{"type":"sequence","items":["a"]},"days":[{"key":"a","name":"A","exercises":[

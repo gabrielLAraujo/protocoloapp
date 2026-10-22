@@ -7,8 +7,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Auth;
 
-[Collection("api")]
-public sealed class LoginTests(ApiFactory factory)
+public sealed class LoginTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
     public async Task Valid_credentials_return_tokens()

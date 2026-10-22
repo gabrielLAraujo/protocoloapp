@@ -6,8 +6,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 namespace ProtocoloApp.IntegrationTests;
 
 /// <summary>The front the API serves (a Vite build in <c>wwwroot</c>): what browsers and the service worker may cache.</summary>
-[Collection("api")]
-public sealed class SpaHostingTests : IDisposable
+public sealed class SpaHostingTests : IDisposable, IClassFixture<ApiFactory>
 {
     // As the framework normalizes the header (the code sets it without spaces).
     private const string Immutable = "public, max-age=31536000, immutable";

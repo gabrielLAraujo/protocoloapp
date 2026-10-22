@@ -12,8 +12,7 @@ namespace ProtocoloApp.IntegrationTests.DailyCheckins;
 /// The check-in saved in parts (<c>parts</c>: morning, evening, cardio), each with its own last-write-wins clock.
 /// Fictitious values.
 /// </summary>
-[Collection("api")]
-public sealed class CheckinPartsTests(ApiFactory factory)
+public sealed class CheckinPartsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly DateOnly Day = new(2026, 4, 14);
 

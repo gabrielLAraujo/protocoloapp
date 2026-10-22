@@ -11,8 +11,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 namespace ProtocoloApp.IntegrationTests.Plans;
 
 /// <summary><c>catalogId</c> on the new exercises of a draft, at activation, and the alias the activation learns.</summary>
-[Collection("api")]
-public sealed class PlanCatalogLinkTests(ApiFactory factory)
+public sealed class PlanCatalogLinkTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static async Task<JsonElement> ErrorsAsync(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");

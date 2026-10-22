@@ -6,8 +6,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Auth;
 
-[Collection("api")]
-public sealed class CreateUserCliTests(ApiFactory factory)
+public sealed class CreateUserCliTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
     public async Task Creates_user_once()

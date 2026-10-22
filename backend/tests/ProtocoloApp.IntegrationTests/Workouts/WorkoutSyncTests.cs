@@ -10,8 +10,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Workouts;
 
-[Collection("api")]
-public sealed class WorkoutSyncTests(ApiFactory factory)
+public sealed class WorkoutSyncTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly DateOnly Day = new(2026, 3, 10);
 

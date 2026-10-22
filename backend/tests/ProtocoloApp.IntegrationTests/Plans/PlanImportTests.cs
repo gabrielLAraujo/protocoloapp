@@ -13,8 +13,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests.Plans;
 
-[Collection("api")]
-public sealed class PlanImportTests(ApiFactory factory)
+public sealed class PlanImportTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
     public async Task Import_creates_a_draft_with_the_extracted_document()

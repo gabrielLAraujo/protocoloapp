@@ -2,8 +2,7 @@ using ProtocoloApp.IntegrationTests.Infra;
 
 namespace ProtocoloApp.IntegrationTests;
 
-[Collection("api")]
-public sealed class CorsTests(ApiFactory factory)
+public sealed class CorsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static HttpRequestMessage Preflight(string path, string origin)
     {

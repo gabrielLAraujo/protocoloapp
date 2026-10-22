@@ -7,8 +7,7 @@ using ProtocoloApp.IntegrationTests.Sync;
 
 namespace ProtocoloApp.IntegrationTests.Today;
 
-[Collection("api")]
-public sealed class TodaySyncTests(ApiFactory factory)
+public sealed class TodaySyncTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly DateOnly Day = new(2026, 3, 10);
 
