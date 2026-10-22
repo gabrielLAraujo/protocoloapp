@@ -4,6 +4,7 @@ import { ensureScheduleDefaults } from '../../data/activeProtocol'
 import { setCardio } from '../../data/adherenceLinks'
 import { adherenceRepo, type AdherenceReason, type AdherenceStatus } from '../../data/adherenceRepo'
 import { useData } from '../../data/dataContext'
+import { dietDeviationRepo, type DietDeviationLocal } from '../../data/dietDeviationRepo'
 import { isOnTarget, streak, type DayScore } from '../../domain/progress'
 import { clockOf } from '../../domain/targetStatus'
 import { localDate } from '../checkin/localDate'
@@ -12,6 +13,8 @@ import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
 import { Celebration, GoalToast } from './Celebration'
 import { DayTimeline } from './DayTimeline'
+import { DeviationSheet } from './DeviationSheet'
+import type { DeviationValues } from './deviationSchema'
 import { MinutesSheet } from './MinutesSheet'
 import { claimOnceADay, prefersReducedMotion } from './onceADay'
 import { ReasonSheet } from './ReasonSheet'
@@ -22,6 +25,7 @@ import { TodayHero } from './TodayHero'
 import { buildTodayView, dueScore, headerText, isLate, loadTodaySources, nextRow, wholeDayScore, type TodayRow, type TodayView } from './todayData'
 import { WaterCard } from './WaterCard'
 import { WeekCard } from './WeekCard'
+import { Button } from '../../ui/Button'
 
 const CLOCK_MS = 30_000
 
@@ -82,6 +86,9 @@ export interface TodayNotice {
   notice?: string
 }
 
+/** The deviation sheet: inside a meal (its key and label) or a meal outside the plan; `initial` when editing. */
+type DeviationTarget = { mode: 'meal'; mealKey: string; mealLabel: string; initial?: DietDeviationLocal } | { mode: 'extra'; initial?: DietDeviationLocal }
+
 const SHEET_TITLE: Record<'partial' | 'missed', string> = { partial: 'Parcial', missed: 'Não fiz' }
 
 /**
@@ -101,6 +108,7 @@ export function TodayPage() {
   const [sheet, setSheet] = useState<{ row: TodayRow; status: 'partial' | 'missed' } | null>(null)
   const [minutesFor, setMinutesFor] = useState<TodayRow | null>(null)
   const [menuFor, setMenuFor] = useState<TodayRow | null>(null)
+  const [deviationFor, setDeviationFor] = useState<DeviationTarget | null>(null)
   const [progress, setProgress] = useState<ProgressData | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
@@ -205,6 +213,43 @@ export function TodayPage() {
     }
   }
 
+  /** Adds, edits or deletes a diet deviation (`values` null deletes `initial`). Errors never carry the texts. */
+  async function saveDeviation(target: DeviationTarget, values: DeviationValues | null) {
+    if (!data || !view) return
+    setBusy(true)
+    setError(false)
+    const at = new Date()
+    try {
+      if (values === null) {
+        if (target.initial) await dietDeviationRepo.remove(data.db, target.initial.id, at)
+      } else {
+        const input = {
+          date: view.date,
+          mealKey: target.mode === 'meal' ? target.mealKey : null,
+          time: target.mode === 'extra' ? values.time : null,
+          description: values.description,
+          quantity: values.quantity,
+        }
+        if (target.initial) await dietDeviationRepo.update(data.db, target.initial.id, input, at)
+        else await dietDeviationRepo.add(data.db, input, at)
+      }
+      setDeviationFor(null)
+      setReload((n) => n + 1)
+      void syncNow()
+    } catch (e) {
+      console.error('could not save the diet deviation', e instanceof Error ? e.name : 'error')
+      setError(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const mealTarget = (row: TodayRow, initial?: DietDeviationLocal): DeviationTarget => ({ mode: 'meal', mealKey: row.target.key, mealLabel: row.label, initial })
+  const openDeviation = (target: DeviationTarget) => {
+    setMenuFor(null)
+    setDeviationFor(target)
+  }
+
   const choose = (row: TodayRow, status: AdherenceStatus) => {
     if (row.status === status) void save(row, null)
     else if (status === 'done' && row.target.type === 'cardio') setMinutesFor(row)
@@ -292,14 +337,47 @@ export function TodayPage() {
             </p>
           )}
 
-          <DayTimeline view={view} now={now} busy={busy} onChoose={choose} onOpen={setMenuFor} />
+          <DayTimeline
+            view={view}
+            now={now}
+            busy={busy}
+            onChoose={choose}
+            onOpen={setMenuFor}
+            onOpenExtra={(deviation) => setDeviationFor({ mode: 'extra', initial: deviation })}
+          />
+          {view.rows.length > 0 && (
+            <Button icon="plus" className="justify-self-start" disabled={busy} onClick={() => setDeviationFor({ mode: 'extra' })}>
+              Refeição fora do plano
+            </Button>
+          )}
         </div>
       </div>
 
       {moments.toast && <GoalToast onClose={moments.closeToast} />}
 
       {menuRow && (
-        <StatusMenuSheet row={menuRow} busy={busy} onCancel={() => setMenuFor(null)} onChoose={(status) => fromMenu(menuRow, status)} />
+        <StatusMenuSheet
+          row={menuRow}
+          busy={busy}
+          onCancel={() => setMenuFor(null)}
+          onChoose={(status) => fromMenu(menuRow, status)}
+          onAddDeviation={() => openDeviation(mealTarget(menuRow))}
+          onEditDeviation={(d) => openDeviation(mealTarget(menuRow, d))}
+          onDeleteDeviation={(d) => void saveDeviation(mealTarget(menuRow, d), null)}
+        />
+      )}
+
+      {deviationFor && (
+        <DeviationSheet
+          key={deviationFor.initial?.id ?? deviationFor.mode}
+          mode={deviationFor.mode}
+          mealLabel={deviationFor.mode === 'meal' ? deviationFor.mealLabel : undefined}
+          initial={deviationFor.initial}
+          busy={busy}
+          onCancel={() => setDeviationFor(null)}
+          onSave={(values) => void saveDeviation(deviationFor, values)}
+          onDelete={deviationFor.initial ? () => void saveDeviation(deviationFor, null) : undefined}
+        />
       )}
 
       {sheet && (

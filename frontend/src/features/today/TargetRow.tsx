@@ -25,6 +25,7 @@ function Meta({ row, late, id }: { row: TodayRow; late: boolean; id?: string }) 
         </Chip>
       )}
       {row.status && <Chip tone={STATUS_TONE[row.status]}>{STATUS_TEXT[row.status]}</Chip>}
+      {row.deviations.length > 0 && <Chip tone="warn">Desvio</Chip>}
       {why && (
         <span className="min-w-0 [overflow-wrap:anywhere]">
           {STATUS_TEXT[row.status!]}: {why}

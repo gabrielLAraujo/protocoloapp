@@ -1,7 +1,9 @@
 import type { AdherenceStatus } from '../../data/adherenceRepo'
+import type { DietDeviationLocal } from '../../data/dietDeviationRepo'
 import { Button } from '../../ui/Button'
 import { Icon, type IconName } from '../../ui/Icon'
 import { Sheet } from '../../ui/Sheet'
+import { GROUP_LABEL } from '../../ui/styles'
 import { STATUS_TEXT } from './targetKinds'
 import type { TodayDetail, TodayRow } from './todayData'
 
@@ -31,21 +33,72 @@ function DetailList({ details }: { details: readonly TodayDetail[] }) {
   )
 }
 
+/** The deviations recorded in a meal, each with "Editar" and "Apagar". */
+function DeviationList({
+  deviations,
+  busy,
+  onEdit,
+  onDelete,
+}: {
+  deviations: readonly DietDeviationLocal[]
+  busy: boolean
+  onEdit(d: DietDeviationLocal): void
+  onDelete(d: DietDeviationLocal): void
+}) {
+  return (
+    <section aria-label="Fora do plano" className="grid gap-2">
+      <h3 className={GROUP_LABEL}>Fora do plano</h3>
+      <ul className="divide-y divide-line rounded-control border border-line">
+        {deviations.map((d) => (
+          <li key={d.id} className="flex items-center gap-2 py-1.5 pr-1 pl-3">
+            <span className="min-w-0 flex-1">
+              <span className="block text-base [overflow-wrap:anywhere]">{d.description}</span>
+              {d.quantity && <span className="block text-sm text-muted [overflow-wrap:anywhere]">{d.quantity}</span>}
+            </span>
+            <Button size="sm" variant="ghost" aria-label={`Editar ${d.description}`} aria-disabled={busy || undefined} onClick={() => !busy && onEdit(d)}>
+              Editar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-danger! hover:bg-danger/10!"
+              aria-label={`Apagar ${d.description}`}
+              aria-disabled={busy || undefined}
+              onClick={() => !busy && onDelete(d)}
+            >
+              Apagar
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 /**
  * The sheet of one item of Hoje (from "⋯" or its name): what it is (foods and grams, dose, minutes), then "Parcial" and
- * "Não fiz", which go on to the reason sheet. The pressed one clears the mark when tapped again.
+ * "Não fiz", which go on to the reason sheet. The pressed one clears the mark when tapped again. A meal also lists what
+ * was eaten outside the plan in it (edit, delete) and offers "Comi algo fora do plano".
  */
 export function StatusMenuSheet({
   row,
   busy,
   onChoose,
   onCancel,
+  onAddDeviation,
+  onEditDeviation,
+  onDeleteDeviation,
 }: {
   row: TodayRow
   busy: boolean
   onChoose(status: AdherenceStatus): void
   onCancel(): void
+  /** Meals only: "Comi algo fora do plano". */
+  onAddDeviation?(): void
+  onEditDeviation?(d: DietDeviationLocal): void
+  onDeleteDeviation?(d: DietDeviationLocal): void
 }) {
+  const meal = row.target.type === 'meal'
   return (
     // The focus starts on the title: the first control is "Parcial", which one Enter would choose by mistake.
     <Sheet title={row.label} onCancel={onCancel} focusTitle>
@@ -73,6 +126,14 @@ export function StatusMenuSheet({
           )
         })}
       </div>
+      {meal && row.deviations.length > 0 && onEditDeviation && onDeleteDeviation && (
+        <DeviationList deviations={row.deviations} busy={busy} onEdit={onEditDeviation} onDelete={onDeleteDeviation} />
+      )}
+      {meal && onAddDeviation && (
+        <Button icon="plus" aria-disabled={busy || undefined} onClick={() => !busy && onAddDeviation()}>
+          Comi algo fora do plano
+        </Button>
+      )}
       <Button variant="ghost" onClick={onCancel}>
         Fechar
       </Button>

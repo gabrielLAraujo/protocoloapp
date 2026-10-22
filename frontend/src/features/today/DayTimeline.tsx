@@ -1,40 +1,51 @@
 import type { AdherenceStatus } from '../../data/adherenceRepo'
+import type { DietDeviationLocal } from '../../data/dietDeviationRepo'
 import { cardClasses, GROUP_LABEL } from '../../ui/styles'
+import { ExtraMealRow } from './ExtraMealRow'
 import { TargetRow } from './TargetRow'
-import { groupByPeriod, isLate, PERIOD_LABELS, type TodayRow, type TodayView } from './todayData'
+import { isLate, PERIOD_LABELS, timelineGroups, type TodayRow, type TodayView } from './todayData'
 
-/** The day's targets by period (Manhã, Tarde, Noite, Sem horário), each period a list card in time order. */
+/**
+ * The day's targets by period (Manhã, Tarde, Noite, Sem horário), each period a list card in time order. Meals outside
+ * the plan are rows of the period of their time.
+ */
 export function DayTimeline({
   view,
   now,
   busy,
   onChoose,
   onOpen,
+  onOpenExtra,
 }: {
   view: TodayView
   now: Date
   busy: boolean
   onChoose(row: TodayRow, status: AdherenceStatus): void
   onOpen(row: TodayRow): void
+  onOpenExtra(deviation: DietDeviationLocal): void
 }) {
   return (
     <ul aria-label="Itens de hoje" className="grid gap-5">
-      {groupByPeriod(view.rows).map(({ period, rows }) => (
+      {timelineGroups(view.rows, view.extras).map(({ period, items }) => (
         <li key={period} aria-labelledby={`period-${period}`} className="grid gap-2">
           <h2 id={`period-${period}`} className={GROUP_LABEL}>
             {PERIOD_LABELS[period]}
           </h2>
           <ul className={cardClasses({ tone: 'list' })}>
-            {rows.map((row) => (
-              <TargetRow
-                key={`${row.target.type}:${row.target.key}`}
-                row={row}
-                late={isLate(row, view.date, now)}
-                busy={busy}
-                onChoose={(status) => onChoose(row, status)}
-                onOpen={() => onOpen(row)}
-              />
-            ))}
+            {items.map((item) =>
+              item.kind === 'target' ? (
+                <TargetRow
+                  key={`${item.row.target.type}:${item.row.target.key}`}
+                  row={item.row}
+                  late={isLate(item.row, view.date, now)}
+                  busy={busy}
+                  onChoose={(status) => onChoose(item.row, status)}
+                  onOpen={() => onOpen(item.row)}
+                />
+              ) : (
+                <ExtraMealRow key={`deviation:${item.deviation.id}`} deviation={item.deviation} busy={busy} onOpen={() => onOpenExtra(item.deviation)} />
+              ),
+            )}
           </ul>
         </li>
       ))}
