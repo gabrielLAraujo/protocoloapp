@@ -12,7 +12,6 @@ import { RestTimerBar } from './RestTimerBar'
 import { useActiveSession } from './useActiveSession'
 import { useRestTimer } from './useRestTimer'
 import { bisetNext, dayBlocks, restAfterSet, type FlowExercise, type RestDecision } from './sessionFlow'
-import { Icon } from '../../ui/Icon'
 import { findExercise } from './workoutPlans'
 
 const DISMISSED_KEY = 'protocolo.dismissedSubSets'
@@ -180,8 +179,8 @@ export function SessionView({
           {day.name}
           {day.notes ? ` — ${day.notes}` : ''}
         </h1>
-        <p className="flex items-center gap-2 text-sm font-semibold text-accent">
-          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+        <p className="flex items-center gap-2 text-sm font-semibold text-muted">
+          <span aria-hidden="true" className="size-2 rounded-full bg-ink" />
           Treino em andamento
         </p>
       </header>
@@ -196,11 +195,10 @@ export function SessionView({
           <section
             key={`${block.a.key}+${block.b.key}`}
             aria-label={`Bi-set: ${a.name} + ${b.name}`}
-            className="grid gap-3 rounded-card border border-accent/30 bg-accent-soft p-2"
+            className="grid gap-3 rounded-card border border-ink/20 bg-raised p-2"
           >
             <header className="grid gap-1 px-2 pt-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-accent">
-                <Icon name="swap" size={16} />
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-muted">
                 Bi-set
               </h2>
               <p role="status" className="text-base font-medium text-ink">

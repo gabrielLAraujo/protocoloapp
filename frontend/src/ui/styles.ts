@@ -37,12 +37,13 @@ export function buttonClasses({
 /** `list`: no padding, rows separated by dividers (for `ListRow`s). */
 export type CardTone = 'default' | 'ok' | 'warn' | 'danger' | 'accent' | 'list'
 
+/** No card has a colored background: a state shows in the border only, and "accent" is a stronger neutral border. */
 const TONES: Record<CardTone, string> = {
   default: 'border-line bg-surface',
-  ok: 'border-ok/40 bg-ok/10',
-  warn: 'border-warn/40 bg-warn/10',
-  danger: 'border-danger/40 bg-danger/10',
-  accent: 'border-accent/25 bg-accent-soft',
+  ok: 'border-ok/50 bg-surface',
+  warn: 'border-warn/50 bg-surface',
+  danger: 'border-danger/50 bg-surface',
+  accent: 'border-ink/20 bg-surface',
   list: 'overflow-hidden border-line bg-surface divide-y divide-line',
 }
 
@@ -55,17 +56,17 @@ export function cardClasses({ tone = 'default', padding = 'md', className = '' }
   return `rounded-card border shadow-card ${TONES[tone]}${pad}${className ? ` ${className}` : ''}`
 }
 
-export type ChipTone = 'neutral' | 'ok' | 'warn' | 'danger' | 'accent'
+export type ChipTone = 'neutral' | 'ok' | 'warn' | 'danger'
 
+/** Always the same neutral chip; a state colors only its text (src/ui/contrast.test.ts: 4.5:1 on page, surface, raised). */
 const CHIP_TONES: Record<ChipTone, string> = {
-  neutral: 'border-line bg-raised text-muted',
-  ok: 'border-ok/25 bg-ok/10 text-ok',
-  warn: 'border-warn/25 bg-warn/10 text-warn',
-  danger: 'border-danger/25 bg-danger/10 text-danger',
-  accent: 'border-accent/25 bg-accent-soft text-accent',
+  neutral: 'text-muted',
+  ok: 'text-ok',
+  warn: 'text-warn',
+  danger: 'text-danger',
 }
 
-/** A small state label ("Feito", "Parcial", "Atrasado"): the color repeats what the text says. */
+/** A small state label ("Feito", "Parcial", "Atrasado"): the color of the text repeats what it says. */
 export function chipClasses({ tone = 'neutral', className = '' }: { tone?: ChipTone; className?: string } = {}) {
-  return `inline-flex min-h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-control border px-2 text-xs font-semibold ${CHIP_TONES[tone]}${className ? ` ${className}` : ''}`
+  return `inline-flex min-h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-control border border-line bg-surface px-2 text-xs font-semibold ${CHIP_TONES[tone]}${className ? ` ${className}` : ''}`
 }

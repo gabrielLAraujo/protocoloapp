@@ -62,7 +62,7 @@ export function TechniquesEditor({ exercise, partners, base, set, errors }: Prop
       {list.map((technique, k) => (
         <div key={`${k}-${technique.type}`} role="group" aria-label={`Técnica ${techniqueLabel(technique)}`} className="grid gap-2 rounded-control border border-line p-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex min-h-7 items-center rounded-control border border-accent/25 bg-accent-soft px-2.5 text-sm font-semibold text-accent">{techniqueLabel(technique)}</span>
+            <span className="inline-flex min-h-7 items-center rounded-control border border-line bg-raised px-2.5 text-sm font-semibold text-ink">{techniqueLabel(technique)}</span>
             <button type="button" className={dangerButtonClass} aria-label={`Remover técnica ${techniqueLabel(technique)}`} onClick={() => setList(list.filter((_, i) => i !== k))}>
               Remover
             </button>

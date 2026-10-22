@@ -23,7 +23,7 @@ export function TechniqueChips({ techniques }: { techniques: Technique[] }) {
               aria-controls={`${id}-explanation`}
               onClick={() => setOpen(open === i ? null : i)}
               className={`min-h-11 rounded-full border px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                open === i ? 'border-accent bg-accent text-on-accent' : 'border-accent/40 bg-accent-soft text-accent hover:border-accent'
+                open === i ? 'border-ink bg-ink text-surface' : 'border-control-line bg-surface text-ink hover:border-ink'
               }`}
             >
               {techniqueLabel(technique)}
@@ -33,7 +33,7 @@ export function TechniqueChips({ techniques }: { techniques: Technique[] }) {
       </ul>
       <div id={`${id}-explanation`} aria-live="polite">
         {shown && (
-          <div className="flex items-start justify-between gap-3 rounded-control border border-accent/30 bg-accent-soft p-3 text-sm">
+          <div className="flex items-start justify-between gap-3 rounded-control border border-line bg-raised p-3 text-sm">
             <p>
               <span className="font-semibold">{techniqueLabel(shown)}: </span>
               {techniqueExplanation(shown)}

@@ -5,7 +5,7 @@ import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { ProgressRing } from './ProgressRing'
-import { linkOf, TYPE_ICON } from './targetKinds'
+import { linkOf } from './targetKinds'
 import type { TodayRow } from './todayData'
 
 /** How long "Feito" on the next task stays off after a tap. */
@@ -15,16 +15,16 @@ export const DONE_COOLDOWN_MS = 600
 function DayGoalLine({ complete, onTarget }: { complete: boolean; onTarget: boolean }) {
   if (complete)
     return (
-      <p className="flex items-center gap-1 text-sm font-semibold text-ok">
+      <p className="flex items-center gap-1 text-sm font-semibold text-ink">
         <Icon name="check" size={16} strokeWidth={2.4} />
         Dia completo
       </p>
     )
-  if (onTarget) return <p className="text-sm font-medium text-ok">Meta do dia batida</p>
+  if (onTarget) return <p className="text-sm font-medium text-ink">Meta do dia batida</p>
   return <p className="text-sm text-muted">Meta do dia: 90%</p>
 }
 
-/** The next task: its type, name and time, and the one action that finishes it ("Feito", or opening its screen). */
+/** The next task: its name and time, and the one action that finishes it ("Feito", or opening its screen). */
 function NextTask({ row, late, busy, onDone }: { row: TodayRow; late: boolean; busy: boolean; onDone(): void }) {
   const link = linkOf(row.target)
   return (
@@ -34,9 +34,6 @@ function NextTask({ row, late, busy, onDone }: { row: TodayRow; late: boolean; b
       </h2>
       {/* Keyed by the target: the next task is a new button, not the old one relabelled. */}
       <div key={`${row.target.type}:${row.target.key}`} className="flex items-center gap-3">
-        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-control bg-accent-soft text-accent">
-          <Icon name={TYPE_ICON[row.target.type]} size={22} />
-        </span>
         <div className="min-w-0 flex-1">
           <p className="text-lg leading-snug font-semibold [overflow-wrap:anywhere]">{row.label}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -118,7 +115,7 @@ export function TodayHero({
     onDone(row)
   }
   return (
-    <section aria-label="Resumo do dia" className={cardClasses({ className: 'grid gap-4' })}>
+    <section aria-label="Resumo do dia" className={cardClasses({ tone: 'accent', className: 'grid gap-4' })}>
       <div className="flex items-center gap-4">
         {counted && <ProgressRing score={score}>{celebration}</ProgressRing>}
         <div className="grid min-w-0 flex-1 gap-1">

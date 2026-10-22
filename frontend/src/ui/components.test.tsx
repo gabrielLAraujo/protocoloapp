@@ -7,10 +7,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { BrandMark } from './BrandMark'
 import { Card } from './Card'
 import { Chip } from './Chip'
+import { Sheet } from './Sheet'
 import { ListRow } from './ListRow'
 import { SectionHeader } from './SectionHeader'
 import { Stat } from './Stat'
-import { cardClasses } from './styles'
+import { cardClasses, chipClasses } from './styles'
 
 function inRouter(element: ReactNode) {
   const router = createMemoryRouter(
@@ -26,12 +27,21 @@ function inRouter(element: ReactNode) {
 
 describe('ListRow', () => {
   it('shows title, subtitle and the value in tabular numbers', () => {
-    render(<ListRow icon="meal" title="Café da manhã" subtitle="3 alimentos" value="07:30" />)
+    const { container } = render(<ListRow title="Café da manhã" subtitle="3 alimentos" value="07:30" />)
     expect(screen.getByText('Café da manhã')).toBeInTheDocument()
     expect(screen.getByText('3 alimentos')).toBeInTheDocument()
     expect(screen.getByText('07:30')).toHaveClass('tabular-nums')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    // No decorative icon in the row.
+    expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('draws a leading mark (a position) as plain muted text, no icon tile', () => {
+    render(<ListRow leading={2} title="Supino" />)
+    const mark = screen.getByText('2')
+    expect(mark).toHaveClass('text-muted', 'tabular-nums')
+    expect(mark.className).not.toMatch(/\bbg-/)
   })
 
   it('is a link with `to`', async () => {
@@ -103,10 +113,48 @@ describe('Chip', () => {
     ['ok', 'text-ok'],
     ['warn', 'text-warn'],
     ['danger', 'text-danger'],
-    ['accent', 'text-accent'],
-  ] as const)('tone %s', (tone, cls) => {
+  ] as const)('tone %s colors only the text, on the neutral chip', (tone, cls) => {
     render(<Chip tone={tone}>Parcial</Chip>)
-    expect(screen.getByText('Parcial')).toHaveClass(cls)
+    const chip = screen.getByText('Parcial')
+    expect(chip).toHaveClass(cls, 'bg-surface', 'border-line')
+    // No tinted fill nor colored border (e.g. bg-ok/10, border-danger/25).
+    expect(chip.className).not.toMatch(/\bbg-(ok|warn|danger|accent)/)
+    expect(chip.className).not.toMatch(/\bborder-(ok|warn|danger|accent)/)
+  })
+
+  it('no tone has a tinted background', () => {
+    for (const tone of ['neutral', 'ok', 'warn', 'danger'] as const) expect(chipClasses({ tone })).not.toMatch(/\/\d+|accent-soft/)
+  })
+})
+
+describe('Card tones', () => {
+  it.each(['default', 'ok', 'warn', 'danger', 'accent', 'list'] as const)('%s has the neutral surface, no colored background', (tone) => {
+    const classes = cardClasses({ tone })
+    expect(classes).toContain('bg-surface')
+    expect(classes).not.toMatch(/\bbg-(ok|warn|danger|accent)/)
+  })
+
+  it('"accent" is a stronger neutral border', () => {
+    expect(cardClasses({ tone: 'accent' })).toContain('border-ink/20')
+  })
+})
+
+describe('Sheet', () => {
+  it('is a bottom sheet on the phone and a centered dialog on the desktop (lg)', () => {
+    render(
+      <Sheet title="Motivo" onCancel={vi.fn()}>
+        <button type="button">OK</button>
+      </Sheet>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Motivo' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    // Phone: pinned to the bottom with rounded top corners.
+    expect(dialog).toHaveClass('rounded-t-sheet')
+    expect(dialog.parentElement).toHaveClass('items-end')
+    // Desktop: centered, all corners rounded, a bounded width, no drag handle.
+    expect(dialog.parentElement).toHaveClass('lg:items-center', 'lg:justify-center')
+    expect(dialog).toHaveClass('lg:rounded-sheet', 'lg:max-w-lg', 'lg:border')
+    expect(dialog.querySelector('span[aria-hidden="true"]')).toHaveClass('lg:hidden')
   })
 })
 

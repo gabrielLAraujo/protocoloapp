@@ -81,3 +81,53 @@
 - Os textos acessíveis usados pelos testes permanecem. Quando a interação muda (marcar Parcial/Não fiz pelo menu), os testes de unidade e E2E são atualizados.
 - Teste de contraste dos tokens (claro e escuro), incluindo o texto de estado sobre o próprio fundo a 10 % (sobre página, superfície e elevada).
 - Capturas de tela do CI (job `screenshots`) comparadas antes e depois.
+
+## Segunda etapa: desktop e sobriedade
+
+**Objetivo:** usar bem a tela grande (≥ 1024 px, `lg:` do Tailwind) e deixar o visual mais sóbrio em todos os tamanhos. O celular continua com o mesmo layout. Sem mudança de fluxo nem de dados.
+
+### Desktop (≥ 1024 px)
+
+- **Navegação:** a barra inferior vira uma **barra lateral fixa à esquerda**:
+  - no topo, a marca e o nome;
+  - as abas, com os mesmos links e nomes acessíveis (a `navigation` "Navegação principal" com Resumo, Hoje, Treino e Planejamento);
+  - o que fica em "Mais" no celular (Conquistas, Check-in de hoje, Configurações, Sair) aparece direto na barra, sem o botão "Mais";
+  - o estado da sincronização fica no pé da barra.
+  - Abaixo de `lg` ficam o cabeçalho e a barra inferior atuais. A escolha entre um e outro é feita por `matchMedia('(min-width: 64rem)')`, para que só um dos dois exista na página (sem nomes acessíveis duplicados).
+- **Área de conteúdo:** até ~1100 px nas telas de duas colunas, com margens maiores. Check-in e Configurações ficam numa coluna centralizada de ~640 px; as demais telas de uma coluna, em ~760 px.
+- **Hoje:** duas colunas. À esquerda, a lista do dia. À direita, um painel fixo (`sticky`) com o anel, a próxima tarefa e o cartão "Semana".
+- **Resumo:** à esquerda, o ciclo, os "Números do ciclo" e a força por grupo. À direita, o calendário, a constância e o peso.
+- **Treino:** a lista de exercícios à esquerda; à direita, "Começar treino", trocar o treino e o histórico.
+- **Planejamento:** os cartões de protocolo e de treino lado a lado.
+- **Protocolo:** as refeições à esquerda; suplementos, cardio e orientações à direita.
+- **Folhas:** as folhas inferiores (menu "⋯", motivo, minutos etc.) aparecem como diálogo centralizado.
+
+### Sóbrio (todos os tamanhos)
+
+- **Destaque (azul-petróleo) só em três lugares:** botões de ação primária, item ativo da navegação e links.
+  - Títulos, ícones, o anel de progresso, as barras e os elementos decorativos ficam em grafite (tinta ou secundário).
+  - A marca vira um monograma grafite.
+- **Estados:** a cor de estado aparece só no **texto** do chip, sobre fundo neutro (sem preenchimento colorido).
+  - O ponto vermelho de atrasado sai, porque o chip "Atrasado" já diz isso.
+  - O check marcado fica grafite.
+- **Ícones:** saem os ícones decorativos das linhas:
+  - o tipo do item (refeição, comprimido, chama, haltere, nota) nas linhas de Hoje e na próxima tarefa;
+  - o ícone opcional do `ListRow`;
+  - os ícones em quadrinho no cabeçalho dos cartões (Planejamento, lembretes, estado vazio).
+  - Ficam os ícones funcionais: check, "⋯", setas, navegação e sincronização.
+- **Cartões:** nenhum cartão tem fundo colorido.
+  - O tom "destaque" vira um cartão neutro com borda mais forte (`ink/20`).
+  - Os tons de estado ficam com fundo neutro e só a borda na cor do estado.
+  - As listas usam divisórias finas.
+- **Contraste:** o texto de estado sobre página, superfície e elevada continua ≥ 4,5:1. O teste de contraste confere esse par; o par "texto sobre o próprio fundo a 10 %" deixa de valer para os chips.
+
+### Testes
+
+- **Unidade:**
+  - a barra lateral em `lg` (com `matchMedia` simulado): itens diretos, sem "Mais", e o rodapé;
+  - a folha como diálogo centralizado em `lg` (classes);
+  - os chips sem fundo colorido;
+  - o atrasado sem ponto.
+- **E2E:**
+  - o Playwright roda por padrão a 1280×720, ou seja, já na barra lateral; os nomes de navegação continuam os mesmos;
+  - `screens.spec.ts` continua com as capturas do celular (390×844) e ganha capturas de desktop (1280×800, tema claro) de Hoje, Resumo, Planejamento e Protocolo.

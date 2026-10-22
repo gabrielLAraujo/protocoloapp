@@ -5,7 +5,7 @@ import { Icon } from '../../ui/Icon'
 const SPARKS = Array.from({ length: 14 }, (_, i) => ({
   angle: i * (360 / 14) + (i % 2 === 0 ? 0 : 7),
   delay: (i % 3) * 70,
-  color: ['var(--accent)', 'var(--ok)', 'var(--muted)'][i % 3]!,
+  color: ['var(--ink)', 'var(--muted)', 'var(--control-line)'][i % 3]!,
   long: i % 2 === 0,
 }))
 
@@ -62,9 +62,9 @@ export function GoalToast({ onClose }: { onClose(): void }) {
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPaused(false)
       }}
-      className="gami-rise fixed inset-x-4 bottom-[calc(var(--bottom-nav-height,0px)+12px)] z-20 mx-auto flex max-w-sm items-center gap-3 rounded-card border border-ok/40 bg-surface py-2 pr-1 pl-4 shadow-raised"
+      className="gami-rise fixed inset-x-4 lg:left-64 bottom-[calc(var(--bottom-nav-height,0px)+12px)] z-20 mx-auto flex max-w-sm items-center gap-3 rounded-card border border-ink/20 bg-surface py-2 pr-1 pl-4 shadow-raised"
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-ok/15 text-ok">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-raised text-ink">
         <Icon name="check" size={18} strokeWidth={2.4} />
       </span>
       <span role="status" className="grid flex-1">

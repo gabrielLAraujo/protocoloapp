@@ -33,7 +33,7 @@ export function Field({
       </div>
       {children({
         id,
-        className: `${inputClass}${low ? ' border-warn bg-warn/10' : ''}${invalid || error ? ' border-danger' : ''}`,
+        className: `${inputClass}${low ? ' border-warn' : ''}${invalid || error ? ' border-danger' : ''}`,
         ...((invalid || error) && { 'aria-invalid': true as const }),
       })}
       {error && <p className="text-sm text-danger">{error}</p>}

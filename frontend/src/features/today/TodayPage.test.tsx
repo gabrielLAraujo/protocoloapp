@@ -217,11 +217,14 @@ describe('TodayPage', () => {
     act(() => document.dispatchEvent(new Event('visibilitychange')))
 
     expect(await row('REF 1').findByText('Atrasado')).toBeInTheDocument()
-    // A red dot and the chip; the row itself is not tinted.
+    // Only the chip says it: no red dot, no type icon, and the row itself is not tinted.
     const late = screen.getByRole('listitem', { name: 'REF 1' })
-    expect(late.querySelector('[data-late-dot]')).not.toBeNull()
+    expect(late.querySelector('[data-late-dot]')).toBeNull()
+    expect(late.querySelector('.bg-danger')).toBeNull()
     expect(late.className).not.toMatch(/danger/)
-    expect(screen.getByRole('listitem', { name: 'REF 2' }).querySelector('[data-late-dot]')).toBeNull()
+    const chip = row('REF 1').getByText('Atrasado')
+    expect(chip).toHaveClass('text-danger', 'bg-surface')
+    expect(chip.className).not.toMatch(/bg-danger/)
     expect(row('Creatina').getByText('Atrasado')).toBeInTheDocument()
     expect(row('Cardio').queryByText('Atrasado')).not.toBeInTheDocument() // 07:30 + 30 min
     expect(row('Vitamina D').queryByText('Atrasado')).not.toBeInTheDocument() // no time

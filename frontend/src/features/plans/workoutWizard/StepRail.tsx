@@ -22,9 +22,9 @@ export function StepRail({ steps, current, onJump }: { steps: RailStep[]; curren
                 <span
                   className={`grid size-6 place-items-center rounded-full border-2 transition-colors ${
                     step.done
-                      ? 'border-accent bg-accent text-on-accent'
+                      ? 'border-ink bg-ink text-surface'
                       : isCurrent
-                        ? 'border-accent bg-accent-soft'
+                        ? 'border-accent bg-surface'
                         : step.reachable
                           ? 'border-control-line bg-surface'
                           : 'border-line bg-raised'
@@ -33,7 +33,7 @@ export function StepRail({ steps, current, onJump }: { steps: RailStep[]; curren
                   {step.done ? <Icon name="check" size={14} /> : isCurrent ? <span className="size-2 rounded-full bg-accent" /> : null}
                 </span>
               </button>
-              {i < steps.length - 1 && <span aria-hidden="true" className={`h-0.5 min-w-1 flex-1 rounded-full ${step.done ? 'bg-accent' : 'bg-line'}`} />}
+              {i < steps.length - 1 && <span aria-hidden="true" className={`h-0.5 min-w-1 flex-1 rounded-full ${step.done ? 'bg-ink/60' : 'bg-line'}`} />}
             </li>
           )
         })}

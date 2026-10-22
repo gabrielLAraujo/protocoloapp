@@ -153,90 +153,104 @@ export function SummaryPage() {
   return (
     <div className="grid gap-6">
       <h1 className="text-xl font-bold tracking-tight">Resumo</h1>
-      <CycleTimeline
-        cycle={summary.cycle}
-        datesForm={
-          protocolId && (
-            <CycleDatesForm planId={protocolId} updateDate={null} billingDate={billingDate} requireUpdateDate />
-          )
-        }
-      />
-
-      <section aria-labelledby="stats-title" className="grid gap-1">
-        <SectionHeader id="stats-title" title="Números do ciclo" />
-        <div className="grid gap-3">
-          {/* Three across from ~360 px; narrower, they wrap (two, then one) instead of overflowing. */}
-          <Card as="dl" className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-3">
-            <Stat label="Treinos" value={String(workouts.done)} caption={`de ${workouts.planned} ${workouts.planned === 1 ? 'previsto' : 'previstos'}`} />
-            {rates ? (
-              <Stat label="Dieta" value={formatRate(rates.diet)} caption={rateCaption(rates.diet)} />
-            ) : (
-              <Stat label="Dieta" value="—" caption="sem protocolo" />
-            )}
-            <Stat
-              label="Água"
-              value={fmt(summary.water, ' L')}
-              caption={summary.waterTarget === null ? 'média por dia' : `meta ${fmt(summary.waterTarget, ' L')}`}
-            />
-          </Card>
-          <Card as="dl" tone="list">
-            <ListRow
-              term
-              title="Cardio"
-              subtitle={cardio.planned > 0 ? 'feitos / previstos até hoje' : 'dias com cardio'}
-              value={cardio.planned > 0 ? `${cardio.done} de ${cardio.planned}` : String(cardio.done)}
-            />
-            {rates && (
-              <ListRow term title="Itens do protocolo" subtitle={rateHint(rates.items, 'feito', 'feitos', 'previstos')} value={formatRate(rates.items)} />
-            )}
-            <ListRow term title="Sono" subtitle="média, 1–5" value={fmt(summary.sleep)} />
-            <ListRow term title="Disposição ao acordar" subtitle="média, 1–5" value={fmt(summary.energyWake)} />
-            <ListRow term title="Disposição no dia" subtitle="média, 1–5" value={fmt(summary.energyDay)} />
-            <ListRow term title="Ansiedade" subtitle="média, 1–5" value={fmt(summary.anxiety)} />
-            <ListRow term title="Check-ins" subtitle="no ciclo" value={String(summary.checkinCount)} />
-          </Card>
-        </div>
-      </section>
-
-      {progress && (
-        <section aria-labelledby="streak-title" className="grid gap-1">
-          <SectionHeader
-            id="streak-title"
-            title="Constância"
-            action={
-              <Link
-                to="/conquistas"
-                className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline decoration-accent/40 underline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                Ver conquistas
-              </Link>
+      {/*
+        Desktop: the cycle and its numbers (and strength) on the left; calendar, constância and weight on the right. On the
+        phone both columns are `display: contents` and the order is the original one (strength last, via `order-1`).
+      */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
+        <div className="contents lg:grid lg:gap-6">
+          <CycleTimeline
+            cycle={summary.cycle}
+            datesForm={
+              protocolId && (
+                <CycleDatesForm planId={protocolId} updateDate={null} billingDate={billingDate} requireUpdateDate />
+              )
             }
           />
-          <Card as="dl" className="grid grid-cols-2 gap-4">
-            <Stat
-              label="Sequência"
-              value={daysText(progress.streak.current)}
-              caption={`recorde: ${daysText(progress.cycleBest)} no ciclo, ${daysText(progress.streak.best)} no geral`}
-            />
-            <Stat
-              label="Semanas na meta"
-              value={progress.weeks.length > 0 ? `${perfectWeeks} de ${progress.weeks.length}` : '—'}
-              caption={progress.weeks.length > 0 ? 'semanas fechadas com todas as metas' : 'nenhuma semana fechada ainda'}
-            />
-          </Card>
-        </section>
-      )}
 
-      <CycleCalendar days={summary.calendar} />
+          <section aria-labelledby="stats-title" className="grid gap-1">
+            <SectionHeader id="stats-title" title="Números do ciclo" />
+            <div className="grid gap-3">
+              {/* Three across from ~360 px; narrower, they wrap (two, then one) instead of overflowing. */}
+              <Card as="dl" className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-3">
+                <Stat label="Treinos" value={String(workouts.done)} caption={`de ${workouts.planned} ${workouts.planned === 1 ? 'previsto' : 'previstos'}`} />
+                {rates ? (
+                  <Stat label="Dieta" value={formatRate(rates.diet)} caption={rateCaption(rates.diet)} />
+                ) : (
+                  <Stat label="Dieta" value="—" caption="sem protocolo" />
+                )}
+                <Stat
+                  label="Água"
+                  value={fmt(summary.water, ' L')}
+                  caption={summary.waterTarget === null ? 'média por dia' : `meta ${fmt(summary.waterTarget, ' L')}`}
+                />
+              </Card>
+              <Card as="dl" tone="list">
+                <ListRow
+                  term
+                  title="Cardio"
+                  subtitle={cardio.planned > 0 ? 'feitos / previstos até hoje' : 'dias com cardio'}
+                  value={cardio.planned > 0 ? `${cardio.done} de ${cardio.planned}` : String(cardio.done)}
+                />
+                {rates && (
+                  <ListRow term title="Itens do protocolo" subtitle={rateHint(rates.items, 'feito', 'feitos', 'previstos')} value={formatRate(rates.items)} />
+                )}
+                <ListRow term title="Sono" subtitle="média, 1–5" value={fmt(summary.sleep)} />
+                <ListRow term title="Disposição ao acordar" subtitle="média, 1–5" value={fmt(summary.energyWake)} />
+                <ListRow term title="Disposição no dia" subtitle="média, 1–5" value={fmt(summary.energyDay)} />
+                <ListRow term title="Ansiedade" subtitle="média, 1–5" value={fmt(summary.anxiety)} />
+                <ListRow term title="Check-ins" subtitle="no ciclo" value={String(summary.checkinCount)} />
+              </Card>
+            </div>
+          </section>
 
-      <section aria-labelledby="weight-title" className="grid gap-1">
-        <SectionHeader id="weight-title" title="Peso" />
-        <Card padding="sm">
-          <WeightSparkline points={summary.weight} />
-        </Card>
-      </section>
+          <div className="order-1 empty:hidden lg:order-none">
+            <StrengthByGroup strength={summary.strength} />
+          </div>
+        </div>
 
-      <StrengthByGroup strength={summary.strength} />
+        <div className="contents lg:grid lg:gap-6">
+          {progress && (
+            <section aria-labelledby="streak-title" className="grid gap-1">
+              <SectionHeader
+                id="streak-title"
+                title="Constância"
+                action={
+                  <Link
+                    to="/conquistas"
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline decoration-accent/40 underline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
+                  >
+                    Ver conquistas
+                  </Link>
+                }
+              />
+              <Card as="dl" className="grid grid-cols-2 gap-4">
+                <Stat
+                  label="Sequência"
+                  value={daysText(progress.streak.current)}
+                  caption={`recorde: ${daysText(progress.cycleBest)} no ciclo, ${daysText(progress.streak.best)} no geral`}
+                />
+                <Stat
+                  label="Semanas na meta"
+                  value={progress.weeks.length > 0 ? `${perfectWeeks} de ${progress.weeks.length}` : '—'}
+                  caption={progress.weeks.length > 0 ? 'semanas fechadas com todas as metas' : 'nenhuma semana fechada ainda'}
+                />
+              </Card>
+            </section>
+          )}
+
+          <div className="lg:order-first">
+            <CycleCalendar days={summary.calendar} />
+          </div>
+
+          <section aria-labelledby="weight-title" className="grid gap-1">
+            <SectionHeader id="weight-title" title="Peso" />
+            <Card padding="sm">
+              <WeightSparkline points={summary.weight} />
+            </Card>
+          </section>
+        </div>
+      </div>
     </div>
   )
 }

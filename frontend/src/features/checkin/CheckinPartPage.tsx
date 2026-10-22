@@ -88,7 +88,7 @@ export function CheckinPartPage<I extends FieldValues, O>({ part }: { part: Chec
   )
 }
 
-const bannerClass = 'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border border-warn/40 bg-warn/10 px-4 py-2 text-sm font-medium text-ink'
+const bannerClass = 'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border border-warn/50 bg-surface px-4 py-2 text-sm font-medium text-ink'
 const bannerButtonClass = 'min-h-11 font-semibold text-accent underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-accent'
 
 function PartForm<I extends FieldValues, O>({

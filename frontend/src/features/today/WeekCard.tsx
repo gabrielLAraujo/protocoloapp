@@ -16,7 +16,7 @@ function GoalRow({ goal }: { goal: WeekGoal }) {
     <li aria-label={goal.label} className="grid gap-1.5">
       <div className="flex items-baseline justify-between gap-3 text-sm">
         <span className="font-medium">{goal.label}</span>
-        <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${goal.done ? 'font-semibold text-ok' : 'text-muted'}`}>
+        <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${goal.done ? 'font-semibold text-ink' : 'text-muted'}`}>
           {goal.done && <Icon name="check" size={14} strokeWidth={2.6} label="Meta batida" />}
           {valueOf(goal)}
         </span>
@@ -24,7 +24,7 @@ function GoalRow({ goal }: { goal: WeekGoal }) {
       <div aria-hidden="true" className="relative h-1.5 rounded-full bg-line">
         <div
           data-bar-fill
-          className={`h-full w-full origin-left rounded-full transition-transform duration-500 ease-out motion-reduce:transition-none ${goal.done ? 'bg-ok' : 'bg-accent'}`}
+          className={`h-full w-full origin-left rounded-full transition-transform duration-500 ease-out motion-reduce:transition-none ${goal.done ? 'bg-ink' : 'bg-ink/55'}`}
           style={{ transform: `scaleX(${Math.round(fill * 1000) / 1000})` }}
         />
         {goal.unit === 'percent' && (

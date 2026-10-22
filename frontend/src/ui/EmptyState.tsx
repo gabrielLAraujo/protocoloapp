@@ -26,7 +26,8 @@ export function EmptyState({
       }
     >
       <span
-        className={`grid shrink-0 place-items-center rounded-control bg-accent-soft text-accent ${compact ? 'size-9' : 'size-12'}`}
+        aria-hidden="true"
+        className={`grid shrink-0 place-items-center rounded-control bg-raised text-muted ${compact ? 'size-9' : 'size-12'}`}
       >
         <Icon name={icon} size={compact ? 18 : 24} />
       </span>
