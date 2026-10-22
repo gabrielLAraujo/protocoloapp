@@ -11,13 +11,17 @@ const isPush = (response: Response) => response.url().includes('/api/sync/push')
 
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 
+/** "1,5 de 4 L" → 1.5. */
+const litersOf = (text: string | null) => Number((text ?? '').trim().split(' ')[0]!.replace(',', '.'))
+const formatLiters = (liters: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(liters)
+
 /** Waits for the header to say "Sincronizado" with nothing pending (the label only shows after a complete, successful run). */
 async function expectSynced(page: Page) {
   await expect(page.getByRole('status').filter({ hasText: /^Sincronizado$/ })).toBeVisible()
   await expect(page.locator('header').getByText(/pendente/)).toHaveCount(0)
 }
 
-test('marks a meal on Hoje offline, syncs it and sees the diet rate in the summary', async ({ browser }) => {
+test('marks a meal on Hoje offline, syncs it, adds water and sees the diet rate in the summary', async ({ browser }) => {
   const context = await browser.newContext()
   const page = await context.newPage()
 
@@ -44,6 +48,15 @@ test('marks a meal on Hoje offline, syncs it and sees the diet rate in the summa
   await context.setOffline(false)
   await page.getByRole('button', { name: 'Sincronizar agora' }).click()
   expect((await pushed).status()).toBe(200)
+  await expectSynced(page)
+
+  // Água: "+500 ml" adds half a liter to the day's total (earlier specs may have saved water today already).
+  const water = page.getByRole('region', { name: 'Água' })
+  const total = water.locator('[data-water-total]')
+  await expect(total).toHaveText(/\d L$/)
+  const before = litersOf(await total.textContent())
+  await water.getByRole('button', { name: 'Adicionar 500 ml de água' }).click()
+  await expect(total).toHaveText(new RegExp(`^${formatLiters(before + 0.5)} (de |L)`))
   await expectSynced(page)
 
   // Resumo: the cycle started today (activation), so the marked meal makes the diet rate positive.
