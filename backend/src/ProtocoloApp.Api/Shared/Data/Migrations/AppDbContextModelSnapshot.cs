@@ -768,7 +768,7 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
 
                     b.ToTable("adherence_logs", null, t =>
                         {
-                            t.HasCheckConstraint("ck_adherence_logs_reason", "reason IS NULL OR (status <> 'done' AND reason IN ('no_appetite', 'no_time', 'felt_sick', 'free_meal', 'other'))");
+                            t.HasCheckConstraint("ck_adherence_logs_reason", "reason IS NULL OR (status <> 'done' AND (reason IN ('no_appetite', 'no_time', 'felt_sick', 'free_meal', 'other') OR (reason = 'ran_out' AND target_type = 'protocol_item')))");
 
                             t.HasCheckConstraint("ck_adherence_logs_status", "status IN ('done', 'partial', 'missed')");
 
