@@ -11,7 +11,7 @@ function Harness({ onPick = vi.fn() }: { onPick?: () => void }) {
       <button type="button" onClick={() => setOpen(true)}>
         Parcial
       </button>
-      {open && <ReasonSheet title="Parcial — Almoço" busy={false} onPick={onPick} onCancel={() => setOpen(false)} />}
+      {open && <ReasonSheet title="Parcial — Almoço" targetType="meal" busy={false} onPick={onPick} onCancel={() => setOpen(false)} />}
     </>
   )
 }
@@ -52,7 +52,7 @@ describe('ReasonSheet', () => {
     const user = userEvent.setup()
     function Saving() {
       const [busy, setBusy] = useState(false)
-      return <ReasonSheet title="Não fiz — Creatina" busy={busy} onPick={() => setBusy(true)} onCancel={() => undefined} />
+      return <ReasonSheet title="Não fiz — Creatina" targetType="protocol_item" busy={busy} onPick={() => setBusy(true)} onCancel={() => undefined} />
     }
     render(<Saving />)
     const tempo = screen.getByRole('button', { name: 'Sem tempo' })
@@ -65,5 +65,25 @@ describe('ReasonSheet', () => {
     expect(screen.getByRole('dialog', { name: 'Não fiz — Creatina' })).toContainElement(document.activeElement as HTMLElement)
     await user.tab({ shift: true })
     expect(tempo).toHaveFocus()
+  })
+
+  it('offers "Acabou" only for a protocol item', () => {
+    const { unmount } = render(<ReasonSheet title="Não fiz — Creatina" targetType="protocol_item" busy={false} onPick={vi.fn()} onCancel={() => undefined} />)
+    expect(screen.getByRole('button', { name: 'Acabou' })).toBeInTheDocument()
+    unmount()
+    for (const targetType of ['meal', 'cardio'] as const) {
+      const view = render(<ReasonSheet title="Não fiz — REF 1" targetType={targetType} busy={false} onPick={vi.fn()} onCancel={() => undefined} />)
+      expect(screen.queryByRole('button', { name: 'Acabou' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Sem tempo' })).toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it('"Acabou" saves at once, without a note', async () => {
+    const user = userEvent.setup()
+    const onPick = vi.fn()
+    render(<ReasonSheet title="Não fiz — Creatina" targetType="protocol_item" busy={false} onPick={onPick} onCancel={() => undefined} />)
+    await user.click(screen.getByRole('button', { name: 'Acabou' }))
+    expect(onPick).toHaveBeenCalledWith('ran_out', null)
   })
 })

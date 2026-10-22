@@ -206,3 +206,11 @@ export function adherenceRates(input: AdherenceInput, from: string, to: string, 
 /** Rounded percent ("63%" for 62.5%), or "—" when nothing was planned. */
 export const formatRate = (rate: AdherenceRate): string =>
   rate.planned === 0 ? '—' : `${Math.round(((2 * rate.done + rate.partial) * 50) / rate.planned)}%` // (done + 0.5 × partial) / planned, in integers
+
+/** Days of `from..to` (yyyy-MM-dd) with at least one protocol item marked "Acabou" (two items on one day count once). */
+export function ranOutDays(adherence: readonly AdherenceLogLocal[], from: string, to: string): number {
+  const days = new Set(
+    adherence.filter((l) => l.targetType === 'protocol_item' && l.reason === 'ran_out' && l.date >= from && l.date <= to).map((l) => l.date),
+  )
+  return days.size
+}

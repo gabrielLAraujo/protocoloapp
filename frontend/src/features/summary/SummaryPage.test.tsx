@@ -231,6 +231,26 @@ describe('SummaryPage', () => {
     // Today (the 23rd) the untimed, unmarked item is not due yet: 3 planned.
     expect(within(items).getByText('33%')).toBeInTheDocument()
     expect(within(items).getByText('1 feito · 0 parciais de 3 previstos')).toBeInTheDocument()
+    // No item ran out in the cycle: no line for it.
+    expect(screen.queryByText('Itens que acabaram')).not.toBeInTheDocument()
+  })
+
+  it('"Itens que acabaram" counts the days of the cycle with an item marked "Acabou"', async () => {
+    vi.setSystemTime(new Date(2026, 9, 23, 12, 0))
+    const app = await setupApp()
+    await seedProtocol(app.db, {
+      updateDate: '2026-12-05',
+      items: [{ key: 'creatina', category: 'supplement', name: 'Creatina', timing: 'any', schedule: { type: 'daily' } }],
+    })
+    const ranOut = (date: string) =>
+      adherenceRepo.mark(app.db, USER_A, { date, targetType: 'protocol_item', targetKey: 'creatina', status: 'missed', reason: 'ran_out' }, new Date(2026, 9, 23, 12))
+    await ranOut('2026-10-19') // before the cycle
+    await ranOut('2026-10-21')
+    await ranOut('2026-10-22')
+    app.view(<SummaryPage />)
+
+    const line = (await screen.findByText('Itens que acabaram')).closest('div')!
+    expect(within(line).getByText('2 dias')).toBeInTheDocument()
   })
 
   it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {

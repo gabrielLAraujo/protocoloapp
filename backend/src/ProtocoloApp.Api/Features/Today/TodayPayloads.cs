@@ -44,7 +44,8 @@ public sealed class ScheduleSlotPayloadValidator : AbstractValidator<ScheduleSlo
 /// <summary>
 /// <c>adherence_log</c>: <c>{date, target_type, target_key, status, reason?, note?}</c>; <c>target_type</c> is
 /// <c>meal|protocol_item|cardio|workout|checkin</c>, <c>status</c> is <c>done|partial|missed</c>, <c>reason</c> is one of
-/// <see cref="AdherenceLog.Reasons"/> and only allowed when the status is partial or missed.
+/// <see cref="AdherenceLog.Reasons"/> (or <c>ran_out</c> for a <c>protocol_item</c>) and only allowed when the status is
+/// partial or missed.
 /// </summary>
 public sealed record AdherenceLogPayload
 {
@@ -74,8 +75,13 @@ public sealed class AdherenceLogPayloadValidator : AbstractValidator<AdherenceLo
         RuleFor(p => p.TargetKey).Must(k => k is not null && TodayPatterns.Key().IsMatch(k)).OverridePropertyName("target_key");
         RuleFor(p => p.Status).Must(s => s is not null && Statuses.Contains(s)).OverridePropertyName("status");
         RuleFor(p => p.Reason)
-            .Must((p, reason) => reason is null || (AdherenceLog.Reasons.Contains(reason) && p.Status != Done))
+            .Must((p, reason) => reason is null || (p.Status != Done && IsReasonAllowed(reason, p.TargetType)))
             .OverridePropertyName("reason");
         RuleFor(p => p.Note).MaximumLength(AdherenceLog.MaxNoteLength).OverridePropertyName("note");
     }
+
+    private static bool IsReasonAllowed(string reason, string? targetType) =>
+        targetType is not null && TargetTypes.Contains(targetType)
+            ? AdherenceLog.IsReasonAllowed(reason, EnumText.Parse<AdherenceTargetType>(targetType))
+            : AdherenceLog.Reasons.Contains(reason);
 }

@@ -15,6 +15,7 @@ import { DayTimeline } from './DayTimeline'
 import { MinutesSheet } from './MinutesSheet'
 import { claimOnceADay, prefersReducedMotion } from './onceADay'
 import { ReasonSheet } from './ReasonSheet'
+import { RestockCard } from './RestockCard'
 import { StatusMenuSheet } from './StatusMenuSheet'
 import { StreakLink } from './StreakLink'
 import { TodayHero } from './TodayHero'
@@ -237,9 +238,9 @@ export function TodayPage() {
       </div>
 
       {/*
-        Desktop: the day's list on the left, a sticky panel on the right with the ring, the next task, the water and the week.
-        On the phone both wrappers are `display: contents`, so the order stays hero, water, notices, list, week (the week is
-        `order-1`).
+        Desktop: the day's list on the left, a sticky panel on the right with the ring, the next task, the water, "A repor" and the week.
+        On the phone both wrappers are `display: contents`, so the order stays hero, water, restock, notices, list, week (the
+        week is `order-1`).
         On the desktop the panel starts one group label lower (its line, 18 px, plus the label's 8 px gap), so the hero's top
         edge lines up with the first list card, not with the "Manhã" label above it.
       */}
@@ -272,6 +273,7 @@ export function TodayPage() {
               void syncNow()
             }}
           />
+          <RestockCard items={view.restock} />
           <div className="order-1 lg:order-none empty:hidden">
             <WeekCard goals={weekGoals} />
           </div>
@@ -303,6 +305,7 @@ export function TodayPage() {
       {sheet && (
         <ReasonSheet
           title={`${SHEET_TITLE[sheet.status]} — ${sheet.row.label}`}
+          targetType={sheet.row.target.type}
           busy={busy}
           onCancel={() => setSheet(null)}
           onPick={(reason, note) => void save(sheet.row, sheet.status, reason, note)}

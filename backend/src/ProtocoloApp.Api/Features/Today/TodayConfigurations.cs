@@ -40,7 +40,8 @@ public sealed class AdherenceLogConfiguration : IEntityTypeConfiguration<Adheren
             table.HasCheckConstraint("ck_adherence_logs_status", $"status IN {EnumText.SqlList<AdherenceStatus>()}");
             table.HasCheckConstraint(
                 "ck_adherence_logs_reason",
-                $"reason IS NULL OR (status <> 'done' AND reason IN ({string.Join(", ", AdherenceLog.Reasons.Select(r => $"'{r}'"))}))");
+                $"reason IS NULL OR (status <> 'done' AND (reason IN ({string.Join(", ", AdherenceLog.Reasons.Select(r => $"'{r}'"))})"
+                + $" OR (reason = '{AdherenceLog.RanOut}' AND target_type = '{EnumText.ToText(AdherenceTargetType.ProtocolItem)}')))");
         });
 
         builder.HasKey(a => a.Id);

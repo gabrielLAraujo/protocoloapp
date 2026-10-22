@@ -181,6 +181,47 @@ describe('TodayPage', () => {
     expect(await today(db)).toMatchObject([{ targetKey: '1', status: 'partial' }])
   })
 
+  it('"Acabou" (only for protocol items) lists the item under "A repor" until it is done again', async () => {
+    const { db, user } = await render()
+    // No item ran out: no card.
+    expect(screen.queryByRole('heading', { name: 'A repor' })).not.toBeInTheDocument()
+
+    await openMenu(user, 'REF 1')
+    await user.click(dialog('REF 1').getByRole('button', { name: 'Não fiz' }))
+    expect(dialog('Não fiz — REF 1').queryByRole('button', { name: 'Acabou' })).not.toBeInTheDocument()
+    await user.click(dialog('Não fiz — REF 1').getByRole('button', { name: 'Cancelar' }))
+
+    await openMenu(user, 'Creatina')
+    await user.click(dialog('Creatina').getByRole('button', { name: 'Não fiz' }))
+    await user.click(dialog('Não fiz — Creatina').getByRole('button', { name: 'Acabou' }))
+
+    const card = within(await screen.findByRole('region', { name: 'A repor' }))
+    expect(card.getByText('Creatina')).toBeInTheDocument()
+    expect(card.getByText('acabou em 20/10')).toBeInTheDocument()
+    expect(row('Creatina').getByText('Não fiz: Acabou')).toBeInTheDocument()
+    expect(await today(db)).toMatchObject([{ targetType: 'protocol_item', targetKey: 'creatina', status: 'missed', reason: 'ran_out' }])
+
+    await user.click(row('Creatina').getByRole('button', { name: 'Feito' }))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'A repor' })).not.toBeInTheDocument())
+  })
+
+  it('"A repor" keeps an item that ran out on an earlier day of the last 14', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    await seedProtocol(app.db)
+    const mark = (date: string, targetKey: string) =>
+      adherenceRepo.mark(app.db, USER_A, { date, targetType: 'protocol_item', targetKey, status: 'missed', reason: 'ran_out' }, new Date())
+    await mark('2026-10-16', 'vitd')
+    await mark('2026-10-06', 'creatina') // 15 days ago: out of the window
+    app.view(<TodayPage />)
+
+    const card = within(await screen.findByRole('region', { name: 'A repor' }))
+    expect(card.getByText('Vitamina D')).toBeInTheDocument()
+    expect(card.getByText('acabou em 16/10')).toBeInTheDocument()
+    expect(card.queryByText('Creatina')).not.toBeInTheDocument()
+  })
+
   it('the item sheet lists the foods with their grams, the alternatives and the dose', async () => {
     const { user } = await render()
 

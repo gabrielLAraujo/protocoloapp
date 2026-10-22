@@ -211,6 +211,32 @@ public sealed class TodaySyncTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(SyncResultStatus.Applied, result.Status);
     }
 
+    [Fact]
+    public async Task Adherence_ran_out_on_a_protocol_item_roundtrips()
+    {
+        using var api = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        var result = await SyncApi.PushOneAsync(
+            api.Client, Adherence(id, "item_1", "protocol_item", "missed", reason: "ran_out"));
+
+        Assert.Equal(SyncResultStatus.Applied, result.Status);
+        var record = (await SyncApi.PullAllAsync(api.Client)).Single(r => r.Entity == "adherence_log" && r.Id == id);
+        Assert.Equal("ran_out", record.Payload!.Value.GetProperty("reason").GetString());
+    }
+
+    [Theory]
+    [InlineData("meal")]
+    [InlineData("cardio")]
+    public async Task Adherence_ran_out_on_other_target_types_is_invalid_payload_reason(string type)
+    {
+        using var api = await NewUserAsync();
+
+        var result = await SyncApi.PushOneAsync(api.Client, Adherence(Guid.NewGuid(), type: type, status: "missed", reason: "ran_out"));
+
+        AssertRejected(result, "invalid_payload:reason");
+    }
+
     [Theory]
     [InlineData("target_type", "snack")]
     [InlineData("status", "skipped")]
