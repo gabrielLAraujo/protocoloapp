@@ -51,7 +51,8 @@ public sealed class CatalogLinkCleanupTests(ApiFactory factory) : IClassFixture<
     private static Task<Guid> AddExerciseAsync(PlanApi api, string name, string? catalogId) => api.WithDbAsync(async db =>
     {
         var id = Guid.NewGuid();
-        var version = await db.Exercises.CountAsync(e => e.UserId == api.UserId) + 1;
+        // (user, version) is unique and the cleanup stamps with the global sequence: negative versions never collide with it.
+        var version = -(await db.Exercises.CountAsync(e => e.UserId == api.UserId) + 1);
         db.Exercises.Add(new Exercise
         {
             Id = id,
@@ -139,9 +140,9 @@ public sealed class CatalogLinkCleanupTests(ApiFactory factory) : IClassFixture<
         var draftId = (await create.Content.ReadFromJsonAsync<CreateDraftResponse>(PlanApi.Json))!.PlanVersionId;
         var version = await api.WithDbAsync(db => db.PlanVersions.AsNoTracking().Where(p => p.Id == draftId).Select(p => p.Version).SingleAsync());
 
-        var result = await CreateSync(new FakeClient(_ => null)).CleanLinksAsync(CancellationToken.None);
+        // Other tests of this class may leave drafts of their own users: only this draft is checked.
+        await CreateSync(new FakeClient(_ => null)).CleanLinksAsync(CancellationToken.None);
 
-        Assert.Equal(0, result.Drafts);
         Assert.Equal(version, await api.WithDbAsync(db => db.PlanVersions.AsNoTracking().Where(p => p.Id == draftId).Select(p => p.Version).SingleAsync()));
         Assert.Equal("cat-real", PlannedCatalogId(await api.GetAsync(draftId)).GetString());
     }
