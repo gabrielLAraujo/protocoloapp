@@ -312,6 +312,9 @@ jobs:
       R2__ServiceUrl: http://127.0.0.1:9101
       Anthropic__ApiKey: test
       Anthropic__BaseUrl: http://127.0.0.1:9100
+      # No download from ExerciseDB: its background sync raced the tests (a draft keeps a catalog link only when the server
+      # already has the item). The catalog is the fixture seeded below.
+      ExerciseCatalog__Enabled: 'false'
       E2E_ANTHROPIC_STUB_URL: http://127.0.0.1:9100
       ASPNETCORE_URLS: http://localhost:5190
       E2E_BASE_URL: http://localhost:5190
@@ -354,6 +357,11 @@ jobs:
         run: |
           dotnet tool restore
           dotnet ef database update --project src/ProtocoloApp.Api --startup-project src/ProtocoloApp.Api --configuration Release --no-build --connection "$ConnectionStrings__Db"
+
+      - name: Seed the exercise catalog
+        env:
+          PGPASSWORD: e2e-only-password
+        run: psql -h localhost -U protocoloapp -d protocoloapp -v ON_ERROR_STOP=1 -f frontend/e2e/fixtures/exercise-catalog.sql
 
       # The only way to get a user, as in production.
       - name: Create the user

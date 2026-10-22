@@ -15,24 +15,13 @@ interface StubRequest {
   pdfSha256: string | null
 }
 
-// The e2e backend runs with ExerciseCatalog disabled (no call to ExerciseDB): the catalog the app asks for is a single
-// fictitious item, the pair of the dictionary's "Supino reto" (its id), and its GIF is a 1x1 image served by the test.
-const CATALOG_ID = 'EIeI8Vf'
+// The e2e backend runs with ExerciseCatalog disabled (no call to ExerciseDB): CI seeds its catalog with a single fictitious
+// item (fixtures/exercise-catalog.sql), the pair of the dictionary's "Supino reto" (its id). The app gets it from the real
+// GET /api/exercise-catalog, so the server keeps the draft's link; only the GIF (ExerciseDB's site) is served by the test.
 const GIF_URL = 'https://static.exercisedb.dev/media/test.gif'
 const TINY_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
 
-async function stubCatalog(context: BrowserContext) {
-  await context.route('**/api/exercise-catalog', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      headers: { etag: '"e2e-1"' },
-      body: JSON.stringify({
-        version: 'e2e-1',
-        items: [{ id: CATALOG_ID, name: 'barbell bench press', bodyParts: ['chest'], targetMuscles: ['pectorals'], equipments: ['barbell'], gifUrl: GIF_URL }],
-      }),
-    }),
-  )
+async function stubGif(context: BrowserContext) {
   await context.route(GIF_URL, (route) => route.fulfill({ status: 200, contentType: 'image/gif', body: TINY_GIF }))
 }
 
@@ -85,7 +74,7 @@ async function activate(page: Page, title: 'Protocolo' | 'Treino') {
 // timezone (America/Sao_Paulo, playwright.config.ts) matches the stub's "today" (UTC-3), so midnight cannot split them.
 test('imports a workout plan, logs a session offline and sees it in the summary', async ({ browser }) => {
   const context = await browser.newContext()
-  await stubCatalog(context)
+  await stubGif(context)
   const page = await context.newPage()
   const before = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
 
@@ -121,6 +110,8 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   await page.getByRole('button', { name: 'Confirmar dia' }).click()
   await expect(page.getByRole('heading', { level: 2, name: 'Exercícios novos' })).toBeVisible()
   await expect(page.getByText('Supino reto').first()).toBeVisible()
+  // The draft kept the dictionary's catalog link (the server has the item), so activation gives the exercise its media.
+  await expect(page.getByText('Par: barbell bench press')).toBeVisible()
   await stepToActivate(page)
   await activate(page, 'Treino')
 
