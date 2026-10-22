@@ -213,6 +213,24 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'ALTER TABLE exercises ADD COLUMN catalog_id TEXT',
     ],
   },
+  {
+    // Diet deviations: what was eaten outside the plan, inside a meal (meal_key) or as an extra meal (meal_key NULL).
+    version: 7,
+    statements: [
+      `CREATE TABLE diet_deviations (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        meal_key TEXT,
+        time TEXT,
+        description TEXT NOT NULL,
+        quantity TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_diet_deviations_date ON diet_deviations (date)',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version
