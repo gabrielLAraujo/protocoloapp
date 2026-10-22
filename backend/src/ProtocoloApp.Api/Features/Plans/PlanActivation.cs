@@ -146,8 +146,9 @@ public static class PlanActivation
                 catalogLinks.TryAdd(key, link);
         }
 
-        // The catalog is refreshed from outside: a link that disappeared since the draft was saved is simply dropped.
-        var found = await CatalogLinks.ExistingAsync(
+        // The catalog is refreshed from outside: a link that disappeared since the draft was saved is simply dropped (only once
+        // the catalog is synced; before that a well-formed link is kept, see CatalogLinks).
+        var found = await CatalogLinks.KeptAsync(
             db,
             catalogLinks.Values.Concat(workout.Days.SelectMany(d => d.Exercises).Select(e => e.CatalogId)),
             ct);

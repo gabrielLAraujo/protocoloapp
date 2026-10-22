@@ -43,6 +43,10 @@ const toItem = (row: Row): CatalogExercise => ({
 
 export type RefreshResult = 'updated' | 'unchanged' | 'failed'
 
+// Bumped each time a refresh replaces the rows, so screens that read an item before the catalog arrived read it again.
+let changes = 0
+const listeners = new Set<() => void>()
+
 /** Escapes the LIKE wildcards of a search word (the query uses `ESCAPE '\\'`). */
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`)
 
@@ -80,11 +84,26 @@ export const catalogRepo = {
         }
         await tx.execute('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)', [VERSION_KEY, data.version])
       })
+      changes += 1
+      for (const listener of [...listeners]) listener()
       return 'updated'
     } catch (error) {
       // Offline, a server error or a database failure: the device keeps working with what it has. Only the kind is logged.
       console.error('could not refresh the exercise catalog', error instanceof Error ? error.name : typeof error)
       return 'failed'
+    }
+  },
+
+  /** How many times the rows were replaced since the app started (see `useCatalogChanges`). */
+  changes(): number {
+    return changes
+  },
+
+  /** Called after each refresh that replaced the rows; returns the unsubscribe. */
+  subscribe(listener: () => void): () => void {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
     }
   },
 

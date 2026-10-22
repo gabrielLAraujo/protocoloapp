@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Auth;
-using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Plans;
@@ -95,9 +94,9 @@ public static class ExerciseEndpoints
         if (request is null)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["body"] = ["Corpo da requisição inválido."] });
 
+        // Unknown ids are refused only once the catalog is synced; before that a well-formed id is accepted (CatalogLinks).
         var catalogId = request.CatalogId;
-        if (catalogId is not null
-            && (catalogId.Length > CatalogExercise.MaxIdLength || !await db.CatalogExercises.AnyAsync(c => c.Id == catalogId, ct)))
+        if (catalogId is not null && !(await CatalogLinks.KeptAsync(db, [catalogId], ct)).Contains(catalogId))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["catalogId"] = ["Exercício do catálogo não encontrado."] });
         }
