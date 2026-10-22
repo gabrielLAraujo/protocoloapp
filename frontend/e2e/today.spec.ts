@@ -50,7 +50,8 @@ test('marks a meal on Hoje offline, syncs it, adds water and sees the diet rate 
   expect((await pushed).status()).toBe(200)
   await expectSynced(page)
 
-  // Água: "+500 ml" adds half a liter to the day's total (earlier specs may have saved water today already).
+  // Água: "+500 ml" adds half a liter to the day's total. Relative to what is there (earlier specs may have saved an
+  // evening check-in today, or not): water alone is a valid evening part, so the push is applied either way.
   const water = page.getByRole('region', { name: 'Água' })
   const total = water.locator('[data-water-total]')
   await expect(total).toHaveText(/\d L$/)

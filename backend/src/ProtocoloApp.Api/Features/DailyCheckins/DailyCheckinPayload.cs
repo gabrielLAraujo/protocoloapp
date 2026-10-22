@@ -22,8 +22,10 @@ namespace ProtocoloApp.Api.Features.DailyCheckins;
 /// }
 /// </code>
 /// Each listed part replaces all of its fields, null included (null clears); parts not listed keep their stored values and
-/// their fields in the payload are ignored. A listed morning or evening part is either complete (its required fields
-/// non-null; weight and note stay optional) or entirely null (clears the part). Without <c>parts</c> the payload must carry
+/// their fields in the payload are ignored. A listed morning part is either complete (its required fields non-null; weight
+/// stays optional) or entirely null (clears the part). A listed evening part is complete (energy_day, anxiety and water_l;
+/// note optional), or carries no scores: water_l and/or note alone (the water logged during the day), or nothing (clears
+/// the part). energy_day and anxiety come together. Without <c>parts</c> the payload must carry
 /// some data (a date-only payload is <c>invalid_payload:parts</c>). Each part has its own last-write-wins clock (see
 /// <see cref="DailyCheckinSyncHandler"/>). Unknown properties are ignored. Pull writes every field (null when not stored)
 /// and no <c>parts</c>.
@@ -94,14 +96,16 @@ public sealed class DailyCheckinPayloadValidator : AbstractValidator<DailyChecki
             .Must((p, minutes) => minutes is null || p.CardioDone == true)
             .OverridePropertyName("cardio_minutes");
 
-        // A written part with any data must be complete; all null clears it.
+        // A written morning with any data must be complete; all null clears it.
         When(p => p.Writes(CheckinPart.Morning) && p.HasMorningData, () =>
         {
             RuleFor(p => p.SleepQuality).NotNull().OverridePropertyName("sleep_quality");
             RuleFor(p => p.EnergyWake).NotNull().OverridePropertyName("energy_wake");
             RuleFor(p => p.Bowel).NotNull().OverridePropertyName("bowel");
         });
-        When(p => p.Writes(CheckinPart.Evening) && p.HasEveningData, () =>
+        // The evening may also carry water (and a note) alone: the water logged on Hoje during the day, before the evening
+        // check-in. Once a score is there, the part is the full check-in: both scores and the water.
+        When(p => p.Writes(CheckinPart.Evening) && (p.EnergyDay is not null || p.Anxiety is not null), () =>
         {
             RuleFor(p => p.EnergyDay).NotNull().OverridePropertyName("energy_day");
             RuleFor(p => p.Anxiety).NotNull().OverridePropertyName("anxiety");

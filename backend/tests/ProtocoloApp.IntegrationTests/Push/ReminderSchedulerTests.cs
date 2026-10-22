@@ -209,6 +209,25 @@ public sealed class ReminderSchedulerTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Water_alone_in_the_evening_part_does_not_silence_the_evening_reminder()
+    {
+        var waterOnly = new SyncChange(SyncApi.Entity, Guid.NewGuid(), SyncOp.Upsert,
+            JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+            {
+                ["date"] = Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["parts"] = new[] { "evening" },
+                ["water_l"] = 1.5m,
+            }),
+            SyncApi.Past(60));
+        var (api, endpoint) = await SetupAsync(Slot("checkin", "21:30"), waterOnly);
+        using var _ = api;
+
+        await RunAsync(Local("21:30"));
+
+        Assert.Equal("Check-in da noite", Assert.Single(factory.Push.SentTo(endpoint)).Body);
+    }
+
+    [Fact]
     public async Task A_check_in_row_with_only_cardio_silences_neither_part()
     {
         var cardioOnly = new SyncChange(SyncApi.Entity, Guid.NewGuid(), SyncOp.Upsert,
