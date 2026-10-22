@@ -49,7 +49,7 @@ jobs:
         with:
           global-json-file: backend/global.json
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload generated OpenAPI
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: openapi
           path: frontend/openapi.json
@@ -302,7 +302,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
@@ -360,7 +360,7 @@ jobs:
         working-directory: frontend
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -384,7 +384,7 @@ jobs:
       # Light and dark screenshots of the main screens at 390x844 (e2e/screens.spec.ts), for visual review.
       - name: Upload screenshots
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: screenshots
           path: frontend/e2e-screenshots
@@ -393,7 +393,7 @@ jobs:
 
       - name: Upload Playwright report
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: |
@@ -455,7 +455,7 @@ jobs:
         run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName="$VERSION_NAME" --no-daemon
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: protocolo-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
