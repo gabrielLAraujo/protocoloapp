@@ -5,7 +5,7 @@ import type { LocalDb } from '../../data/localDb'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { workoutRepo } from '../../data/workoutRepo'
-import { weekdayOf, type Weekday } from '../../domain/calendarDate'
+import { addDays, weekdayOf, type Weekday } from '../../domain/calendarDate'
 import { buildDay, type DayKind, type DayTarget, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import { dayScore, waterMinL, type DayScore } from '../../domain/progress'
@@ -21,7 +21,18 @@ export const REASON_LABELS: Record<AdherenceReason, string> = {
   no_time: 'Sem tempo',
   felt_sick: 'Passou mal',
   free_meal: 'Refeição livre',
+  ran_out: 'Acabou',
   other: 'Outro',
+}
+
+/** Days (today included) the "A repor" card looks back for an item that ran out. */
+export const RESTOCK_WINDOW_DAYS = 14
+
+/** A protocol item whose last mark in the window was "Acabou": its name and the day it ran out (yyyy-MM-dd). */
+export interface RestockItem {
+  key: string
+  name: string
+  date: string
 }
 
 /** A target of today with what the screen shows about it. */
@@ -53,6 +64,8 @@ export interface TodayView {
   cardioOptional: boolean
   /** The day's water so far (the evening check-in's field, 0 when none) and the protocol's minimum (null without one). */
   water: { totalL: number; targetL: number | null }
+  /** "A repor": the items that ran out and were not done since, in the protocol's order. */
+  restock: RestockItem[]
 }
 
 export interface TodaySources {
@@ -62,6 +75,8 @@ export interface TodaySources {
   overrides: { date: string; dayKey: string }[]
   slots: { slot: string; dayType: 'training' | 'off'; time: string; reminderEnabled: boolean }[]
   logs: AdherenceLogLocal[]
+  /** Protocol item marks of the last RESTOCK_WINDOW_DAYS days, today included (the "A repor" card). */
+  itemLogs: AdherenceLogLocal[]
   /** A session of the day was finished with at least one working set. */
   workoutDone: boolean
   /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
@@ -76,11 +91,12 @@ export interface TodaySources {
 
 /** Reads everything the Hoje screen needs for `date` from the device. */
 export async function loadTodaySources(db: LocalDb, date: string): Promise<TodaySources> {
-  const [active, plans, slots, logs, sessions, checkin] = await Promise.all([
+  const [active, plans, slots, logs, recentLogs, sessions, checkin] = await Promise.all([
     loadActiveProtocol(db),
     loadWorkoutPlans(db),
     scheduleRepo.all(db),
     adherenceRepo.between(db, date, date),
+    adherenceRepo.between(db, addDays(date, 1 - RESTOCK_WINDOW_DAYS), date),
     workoutRepo.sessionsBetween(db, date, date),
     dailyCheckinRepo.get(db, date),
   ])
@@ -96,6 +112,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     overrides,
     slots,
     logs,
+    itemLogs: recentLogs.filter((l) => l.targetType === 'protocol_item'),
     workoutDone: sets.some((list) => list.some((s) => s.kind !== 'warmup')),
     checkinParts: checkin ? checkinParts(checkin) : { morning: false, evening: false },
     cardioDone: checkin?.cardioDone === true,
@@ -139,6 +156,25 @@ function detailsOf(target: DayTarget, protocol: ProtocolDocument | null): TodayD
   }
 }
 
+/**
+ * Pure: the items to restock on `date`. An item is listed when its last mark (by date) within the window is "Acabou";
+ * a later mark ("Feito", or any other) takes it off. Items no longer in the protocol are left out.
+ */
+export function restockItems(date: string, itemLogs: readonly AdherenceLogLocal[], protocol: ProtocolDocument | null): RestockItem[] {
+  if (!protocol) return []
+  const from = addDays(date, 1 - RESTOCK_WINDOW_DAYS)
+  const last = new Map<string, AdherenceLogLocal>()
+  for (const log of itemLogs) {
+    if (log.targetType !== 'protocol_item' || log.date < from || log.date > date) continue
+    const seen = last.get(log.targetKey)
+    if (!seen || log.date > seen.date) last.set(log.targetKey, log)
+  }
+  return protocol.items.flatMap((item): RestockItem[] => {
+    const log = last.get(item.key)
+    return log && log.status !== 'done' && log.reason === 'ran_out' ? [{ key: item.key, name: item.name, date: log.date }] : []
+  })
+}
+
 /** Pure: the Hoje screen of `date`, rows in buildDay order. */
 export function buildTodayView(date: string, src: TodaySources): TodayView {
   const plan = buildDay(date, src.protocol, toDayPlans(src.plans), src.overrides, src.slots, { protocolActivatedOn: src.protocolActivatedOn })
@@ -173,6 +209,7 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     rows,
     cardioOptional: src.protocol?.cardio != null && src.protocol.cardio.daily !== true,
     water: { totalL: src.waterL ?? 0, targetL: waterMinL(src.protocol) },
+    restock: restockItems(date, src.itemLogs, src.protocol),
   }
 }
 

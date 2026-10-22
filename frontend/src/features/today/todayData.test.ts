@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AdherenceLogLocal } from '../../data/adherenceRepo'
-import { buildTodayView, groupByPeriod, isLate, nextRow, type TodayRow, type TodaySources } from './todayData'
+import type { ProtocolDocument } from '../../domain/planDocuments'
+import { buildTodayView, groupByPeriod, isLate, nextRow, restockItems, type TodayRow, type TodaySources } from './todayData'
 
 const DATE = '2026-10-20'
 
@@ -11,6 +12,7 @@ const sources = (over: Partial<TodaySources> = {}): TodaySources => ({
   overrides: [],
   slots: [],
   logs: [],
+  itemLogs: [],
   workoutDone: false,
   checkinParts: { morning: false, evening: false },
   cardioDone: false,
@@ -106,5 +108,45 @@ describe('nextRow', () => {
     expect(nextRow(rows, now(20, 0))?.target.key).toBe('a')
     expect(nextRow([at('a', '07:00', 'partial'), at('e', null)], now(20, 0))?.target.key).toBe('e')
     expect(nextRow([at('a', '07:00', 'done'), at('e', null, 'missed')], now(8, 0))).toBeNull()
+  })
+})
+
+describe('restockItems', () => {
+  const protocol = {
+    meals: [],
+    items: [
+      { key: 'creatina', category: 'supplement', name: 'Creatina', timing: 'any', schedule: { type: 'daily' } },
+      { key: 'vitd', category: 'supplement', name: 'Vitamina D', timing: 'any', schedule: { type: 'daily' } },
+    ],
+    guidelines: [],
+  } as unknown as ProtocolDocument
+  const item = (date: string, targetKey: string, status: AdherenceLogLocal['status'], reason: AdherenceLogLocal['reason'] = null): AdherenceLogLocal => ({
+    id: `log-${date}-${targetKey}`, date, targetType: 'protocol_item', targetKey, status, reason, note: null, clientUpdatedAt: `${date}T10:00:00.000Z`,
+  })
+
+  it('lists an item whose last mark in the 14 days is "Acabou", with the day it ran out', () => {
+    expect(restockItems(DATE, [item('2026-10-18', 'creatina', 'missed', 'ran_out')], protocol)).toEqual([
+      { key: 'creatina', name: 'Creatina', date: '2026-10-18' },
+    ])
+  })
+
+  it('a later "Feito" takes it off; a "Acabou" after a "Feito" puts it back', () => {
+    const ranOut = item('2026-10-15', 'creatina', 'missed', 'ran_out')
+    expect(restockItems(DATE, [ranOut, item('2026-10-17', 'creatina', 'done')], protocol)).toEqual([])
+    expect(restockItems(DATE, [item('2026-10-12', 'creatina', 'done'), ranOut], protocol)).toEqual([{ key: 'creatina', name: 'Creatina', date: '2026-10-15' }])
+  })
+
+  it('ignores marks older than 14 days, other reasons, other targets and items no longer in the protocol', () => {
+    expect(restockItems(DATE, [item('2026-10-06', 'creatina', 'missed', 'ran_out')], protocol)).toEqual([])
+    expect(restockItems(DATE, [item('2026-10-07', 'creatina', 'partial', 'ran_out')], protocol)).toHaveLength(1)
+    expect(restockItems(DATE, [item('2026-10-19', 'vitd', 'missed', 'no_time')], protocol)).toEqual([])
+    expect(restockItems(DATE, [item('2026-10-19', 'gone', 'missed', 'ran_out')], protocol)).toEqual([])
+    expect(restockItems(DATE, [{ ...item('2026-10-19', 'creatina', 'missed', 'ran_out'), targetType: 'meal' }], protocol)).toEqual([])
+    expect(restockItems(DATE, [item('2026-10-19', 'creatina', 'missed', 'ran_out')], null)).toEqual([])
+  })
+
+  it('keeps the protocol order and is part of the day view', () => {
+    const logs = [item('2026-10-19', 'vitd', 'missed', 'ran_out'), item('2026-10-20', 'creatina', 'missed', 'ran_out')]
+    expect(buildTodayView(DATE, sources({ protocol, itemLogs: logs })).restock.map((r) => r.key)).toEqual(['creatina', 'vitd'])
   })
 })

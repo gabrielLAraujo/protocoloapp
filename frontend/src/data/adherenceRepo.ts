@@ -9,9 +9,14 @@ import { SLOT_KEY } from './scheduleRepo'
 export const ADHERENCE_LOG_ENTITY = 'adherence_log'
 
 export type AdherenceStatus = 'done' | 'partial' | 'missed'
-export type AdherenceReason = 'no_appetite' | 'no_time' | 'felt_sick' | 'free_meal' | 'other'
+export type AdherenceReason = 'no_appetite' | 'no_time' | 'felt_sick' | 'free_meal' | 'ran_out' | 'other'
 
-export const ADHERENCE_REASONS: readonly AdherenceReason[] = ['no_appetite', 'no_time', 'felt_sick', 'free_meal', 'other']
+/** Every reason, in the order the reason sheet offers them. */
+export const ADHERENCE_REASONS: readonly AdherenceReason[] = ['no_appetite', 'no_time', 'felt_sick', 'free_meal', 'ran_out', 'other']
+
+/** "Acabou" only makes sense for a protocol item (the server rejects it on any other target). */
+export const reasonsFor = (targetType: AdherenceTargetType): readonly AdherenceReason[] =>
+  targetType === 'protocol_item' ? ADHERENCE_REASONS : ADHERENCE_REASONS.filter((r) => r !== 'ran_out')
 export const MAX_NOTE_LENGTH = 500
 
 const TARGET_TYPES: readonly AdherenceTargetType[] = ['meal', 'protocol_item', 'cardio', 'workout', 'checkin']
@@ -94,7 +99,7 @@ function toPayload(mark: AdherenceMark): AdherenceLogPayload {
   if (!SLOT_KEY.test(mark.targetKey)) throw new RangeError(`Invalid target key: ${mark.targetKey}`)
   if (!STATUSES.includes(mark.status)) throw new RangeError(`Invalid status: ${mark.status}`)
   const reason = mark.status === 'done' ? null : (mark.reason ?? null)
-  if (reason !== null && !ADHERENCE_REASONS.includes(reason)) throw new RangeError(`Invalid reason: ${reason}`)
+  if (reason !== null && !reasonsFor(mark.targetType).includes(reason)) throw new RangeError(`Invalid reason: ${reason}`)
   const note = mark.note?.trim() ? mark.note : null
   if (note !== null && note.length > MAX_NOTE_LENGTH) throw new RangeError('Note too long')
   return { date: mark.date, target_type: mark.targetType, target_key: mark.targetKey, status: mark.status, reason, note }

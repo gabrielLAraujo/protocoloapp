@@ -6,7 +6,7 @@ import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
 import type { DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
 import type { WorkoutPlanAt } from '../../domain/rotation'
-import { adherenceRates, buildSummary, formatRate, type SummaryInput } from './summaryData'
+import { adherenceRates, buildSummary, formatRate, ranOutDays, type SummaryInput } from './summaryData'
 
 const TODAY = '2026-10-27'
 const protocolDoc = (extra: Partial<ProtocolDocument> = {}): ProtocolDocument => ({
@@ -256,5 +256,23 @@ describe('adherenceRates', () => {
 
   it('nothing planned shows "—"', () => {
     expect(formatRate({ done: 0, partial: 0, planned: 0 })).toBe('—')
+  })
+})
+
+describe('ranOutDays', () => {
+  const log = (date: string, targetKey: string, reason: AdherenceLogLocal['reason'], targetType: AdherenceLogLocal['targetType'] = 'protocol_item'): AdherenceLogLocal => ({
+    id: `${date}-${targetKey}`, date, targetType, targetKey, status: 'missed', reason, note: null, clientUpdatedAt: `${date}T10:00:00.000Z`,
+  })
+
+  it('counts the days of the span with an item marked "Acabou", once per day', () => {
+    const logs = [
+      log('2026-10-19', 'creatina', 'ran_out'), // before the span
+      log('2026-10-21', 'creatina', 'ran_out'),
+      log('2026-10-21', 'vitd', 'ran_out'),
+      log('2026-10-22', 'creatina', 'no_time'),
+      log('2026-10-23', 'vitd', 'ran_out'),
+    ]
+    expect(ranOutDays(logs, '2026-10-20', '2026-10-27')).toBe(2)
+    expect(ranOutDays([], '2026-10-20', '2026-10-27')).toBe(0)
   })
 })

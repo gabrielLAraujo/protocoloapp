@@ -42,11 +42,20 @@ describe('adherenceRepo', () => {
     expect(JSON.parse(entry!.payload!)).toMatchObject({ reason: null, note: null })
   })
 
+  it('takes "Acabou" on a protocol item', async () => {
+    const db = await newLocalDb()
+    const item = { date: '2026-10-19', targetType: 'protocol_item', targetKey: 'creatina' } as const
+    await adherenceRepo.mark(db, USER_A, { ...item, status: 'missed', reason: 'ran_out' }, T0)
+    expect(await adherenceRepo.between(db, '2026-10-19', '2026-10-19')).toMatchObject([{ ...item, status: 'missed', reason: 'ran_out' }])
+  })
+
   it('refuses what the server would reject, writing nothing', async () => {
     const db = await newLocalDb()
 
     await expect(adherenceRepo.mark(db, USER_A, { ...meal2, targetKey: 'meal 2', status: 'done' }, T0)).rejects.toThrow(RangeError)
     await expect(adherenceRepo.mark(db, USER_A, { ...meal2, status: 'missed', note: 'x'.repeat(501) }, T0)).rejects.toThrow(RangeError)
+    // "Acabou" is only for protocol items (the server rejects it elsewhere).
+    await expect(adherenceRepo.mark(db, USER_A, { ...meal2, status: 'missed', reason: 'ran_out' }, T0)).rejects.toThrow(RangeError)
     await expect(
       adherenceRepo.mark(db, USER_A, { ...meal2, status: 'missed', reason: 'bored' as unknown as 'other' }, T0),
     ).rejects.toThrow(RangeError)

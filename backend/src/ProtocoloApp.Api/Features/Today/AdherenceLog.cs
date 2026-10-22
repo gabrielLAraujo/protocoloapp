@@ -25,8 +25,15 @@ public sealed class AdherenceLog : ISyncEntity
     public const int MaxReasonLength = 32;
     public const int MaxNoteLength = 500;
 
-    /// <summary>The reasons a partial or missed target may carry.</summary>
+    /// <summary>The reasons any partial or missed target may carry.</summary>
     public static readonly IReadOnlyList<string> Reasons = ["no_appetite", "no_time", "felt_sick", "free_meal", "other"];
+
+    /// <summary>The item ran out; only a partial or missed <see cref="AdherenceTargetType.ProtocolItem"/> may carry it.</summary>
+    public const string RanOut = "ran_out";
+
+    /// <summary>Whether <paramref name="reason"/> is allowed on a partial or missed target of <paramref name="targetType"/>.</summary>
+    public static bool IsReasonAllowed(string reason, AdherenceTargetType targetType) =>
+        Reasons.Contains(reason) || (reason == RanOut && targetType == AdherenceTargetType.ProtocolItem);
 
     public Guid Id { get; set; }
 

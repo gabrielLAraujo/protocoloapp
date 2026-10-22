@@ -1,22 +1,26 @@
 import { useId, useState } from 'react'
-import { ADHERENCE_REASONS, MAX_NOTE_LENGTH, type AdherenceReason } from '../../data/adherenceRepo'
+import { MAX_NOTE_LENGTH, reasonsFor, type AdherenceReason } from '../../data/adherenceRepo'
+import type { AdherenceTargetType } from '../../domain/dayPlan'
 import { inputClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
 import { Sheet } from '../../ui/Sheet'
 import { REASON_LABELS } from './todayData'
 
 /**
- * The quick reasons for "½ Parcial" / "✗ Não fiz". A reason saves at once; "Outro" asks for an optional note first.
+ * The quick reasons for "½ Parcial" / "✗ Não fiz" ("Acabou" only for a protocol item). A reason saves at once; "Outro"
+ * asks for an optional note first.
  * Escape or "Cancelar" closes without saving (focus handling: Sheet). While a choice is being saved the buttons are
  * aria-disabled, not disabled: a disabled button drops the focus to the page, outside the sheet.
  */
 export function ReasonSheet({
   title,
+  targetType,
   busy,
   onPick,
   onCancel,
 }: {
   title: string
+  targetType: AdherenceTargetType
   busy: boolean
   onPick(reason: AdherenceReason, note: string | null): void
   onCancel(): void
@@ -53,7 +57,7 @@ export function ReasonSheet({
         <>
           <p className="text-sm text-muted">Qual foi o motivo?</p>
           <div className="grid grid-cols-2 gap-2">
-            {ADHERENCE_REASONS.map((reason) => (
+            {reasonsFor(targetType).map((reason) => (
               <Button key={reason} size="lg" aria-disabled={busy || undefined} onClick={() => !busy && (reason === 'other' ? setOther(true) : onPick(reason, null))}>
                 {REASON_LABELS[reason]}
               </Button>

@@ -19,7 +19,7 @@ import { toDayPlans } from '../today/todayData'
 import { CycleCalendar } from './CycleCalendar'
 import { CycleTimeline } from './CycleTimeline'
 import { StrengthByGroup } from './StrengthByGroup'
-import { adherenceRates, buildSummary, formatRate, type AdherenceRate, type SummaryData, type SummaryInput } from './summaryData'
+import { adherenceRates, buildSummary, formatRate, ranOutDays, type AdherenceRate, type SummaryData, type SummaryInput } from './summaryData'
 import { WeightSparkline } from './WeightSparkline'
 import { buttonClasses } from '../../ui/styles'
 import { Card } from '../../ui/Card'
@@ -32,6 +32,8 @@ interface Loaded {
   summary: SummaryData
   /** Meals and protocol items of the cycle so far; null without an active protocol. */
   rates: { diet: AdherenceRate; items: AdherenceRate } | null
+  /** Days of the cycle so far with a protocol item marked "Acabou". */
+  ranOut: number
   /** The active protocol version (target of the dates form), when there is one. */
   protocolId: string | null
   billingDate: string | null
@@ -89,12 +91,14 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
   const cardioMarkDates = adherence.filter((l) => l.targetType === 'cardio' && l.status === 'done').map((l) => l.date)
   const summary = buildSummary({ protocol, plans: plans.map((p) => p.at), overrides, sessions, sets, checkins, exercises, cardioMarkDates }, today)
   let rates: Loaded['rates'] = null
+  let ranOut = 0
   if (protocol && summary.cycle) {
     // Same span as the other statistics: cycle start through today (or the update date once the cycle is over).
     const statsTo = summary.cycle.end && summary.cycle.end < today ? summary.cycle.end : today
     rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence, slots }, summary.cycle.start, statsTo, new Date())
+    ranOut = ranOutDays(adherence, summary.cycle.start, statsTo)
   }
-  return { summary, rates, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null, progress }
+  return { summary, rates, ranOut, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null, progress }
 }
 
 /** `/`: the cycle at a glance - timeline, calendar, adherence, check-in averages, weight and strength. */
@@ -128,7 +132,7 @@ export function SummaryPage() {
   if (failed) return <p role="alert" className="text-danger">Não foi possível carregar o resumo.</p>
   if (!loaded) return <p className="text-muted">Carregando…</p>
 
-  const { summary, rates, protocolId, billingDate, progress } = loaded
+  const { summary, rates, ranOut, protocolId, billingDate, progress } = loaded
   if (!summary.cycle) {
     return (
       <section className="grid gap-4">
@@ -197,6 +201,7 @@ export function SummaryPage() {
                 {rates && (
                   <ListRow term title="Itens do protocolo" subtitle={rateHint(rates.items, 'feito', 'feitos', 'previstos')} value={formatRate(rates.items)} />
                 )}
+                {ranOut > 0 && <ListRow term title="Itens que acabaram" subtitle="no ciclo" value={daysText(ranOut)} />}
                 <ListRow term title="Sono" subtitle="média, 1–5" value={fmt(summary.sleep)} />
                 <ListRow term title="Disposição ao acordar" subtitle="média, 1–5" value={fmt(summary.energyWake)} />
                 <ListRow term title="Disposição no dia" subtitle="média, 1–5" value={fmt(summary.energyDay)} />
