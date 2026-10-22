@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.App;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.DietDeviations;
 using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
@@ -73,7 +74,8 @@ builder.Services.AddSync()
     .AddSyncHandler<ExerciseChangeSyncHandler>()
     .AddSyncHandler<RotationOverrideSyncHandler>()
     .AddSyncHandler<ScheduleSlotSyncHandler>()
-    .AddSyncHandler<AdherenceLogSyncHandler>();
+    .AddSyncHandler<AdherenceLogSyncHandler>()
+    .AddSyncHandler<DietDeviationSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
 builder.Services.AddPlanExtraction(builder.Configuration);

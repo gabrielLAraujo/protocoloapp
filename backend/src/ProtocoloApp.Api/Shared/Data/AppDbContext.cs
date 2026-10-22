@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.DailyCheckins;
+using ProtocoloApp.Api.Features.DietDeviations;
 using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
@@ -36,6 +37,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ScheduleSlot> ScheduleSlots => Set<ScheduleSlot>();
 
     public DbSet<AdherenceLog> AdherenceLogs => Set<AdherenceLog>();
+
+    public DbSet<DietDeviation> DietDeviations => Set<DietDeviation>();
 
     public DbSet<AppSecret> AppSecrets => Set<AppSecret>();
 
