@@ -8,7 +8,10 @@
  * Type scale (Inter, the only six sizes):
  *   xs 12/16 caption · sm 13/18 label · base 15/22 body · lg 17/24 section title · xl 26/32 screen title · display 32/36 number.
  * Spacing on a 4 px grid: screens use 16 px side margins and 24 px between sections.
- * Radii by hierarchy: control 10 (buttons, inputs, chips) · card 12 · sheet 20 (bottom sheets).
+ * Radii by hierarchy: control 10 (buttons, inputs, chips) · card 12 · sheet 20 (bottom sheets, and dialogs on the desktop).
+ *
+ * Sober: the accent is only for primary actions, the active navigation item and links. Titles, icons, the ring and bars are
+ * graphite (ink / muted); state colors are only the text of chips, on a neutral background.
  */
 @theme {
   --color-page: var(--page);
@@ -49,6 +52,7 @@
 
   --shadow-card: var(--shadow-card-value);
   --shadow-raised: var(--shadow-raised-value);
+  --shadow-dialog: var(--shadow-dialog-value);
 }
 
 /* Values are parsed by src/ui/contrast.test.ts: keep one `--token: #hex;` per line. */
@@ -78,6 +82,7 @@
   --scrim: rgb(15 23 42 / 0.45);
   --shadow-card-value: 0 1px 1px rgb(15 23 42 / 0.04), 0 1px 2px rgb(15 23 42 / 0.05);
   --shadow-raised-value: 0 -4px 20px rgb(15 23 42 / 0.08);
+  --shadow-dialog-value: 0 12px 32px rgb(15 23 42 / 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -98,6 +103,7 @@
     --scrim: rgb(0 0 0 / 0.6);
     --shadow-card-value: 0 0 0 0 transparent;
     --shadow-raised-value: 0 -6px 24px rgb(0 0 0 / 0.45);
+    --shadow-dialog-value: 0 16px 40px rgb(0 0 0 / 0.55);
   }
 }
 

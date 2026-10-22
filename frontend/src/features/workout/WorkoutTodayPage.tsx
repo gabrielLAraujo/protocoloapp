@@ -105,16 +105,18 @@ export function WorkoutTodayPage() {
 
   if (summary) {
     return (
-      <FinishSummary
-        data={data}
-        sessionId={summary.sessionId}
-        date={summary.date}
-        catalog={loaded.catalog}
-        onDone={() => {
-          setSummary(null)
-          void reload()
-        }}
-      />
+      <div className={NARROW}>
+        <FinishSummary
+          data={data}
+          sessionId={summary.sessionId}
+          date={summary.date}
+          catalog={loaded.catalog}
+          onDone={() => {
+            setSummary(null)
+            void reload()
+          }}
+        />
+      </div>
     )
   }
 
@@ -130,24 +132,26 @@ export function WorkoutTodayPage() {
       )
     }
     return (
-      <SessionView
-        key={open.id}
-        data={data}
-        session={open}
-        day={day}
-        catalog={loaded.catalog}
-        onDiscarded={() => {
-          setResumeOld(false)
-          setLiveSessionId(null)
-          void reload()
-        }}
-        onFinished={() => {
-          setResumeOld(false)
-          setLiveSessionId(null)
-          setSummary({ sessionId: open.id, date: open.date })
-          void reload()
-        }}
-      />
+      <div className={NARROW}>
+        <SessionView
+          key={open.id}
+          data={data}
+          session={open}
+          day={day}
+          catalog={loaded.catalog}
+          onDiscarded={() => {
+            setResumeOld(false)
+            setLiveSessionId(null)
+            void reload()
+          }}
+          onFinished={() => {
+            setResumeOld(false)
+            setLiveSessionId(null)
+            setSummary({ sessionId: open.id, date: open.date })
+            void reload()
+          }}
+        />
+      </div>
     )
   }
   if (open) {
@@ -204,6 +208,9 @@ function EndOpenSession({ data, session, onEnded }: { data: Data; session: Sessi
     </>
   )
 }
+
+/** The session and its summary are one column on the desktop too (/treino itself is a wide screen). */
+const NARROW = 'lg:mx-auto lg:max-w-[760px]'
 
 function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; today: string; loaded: Loaded; onChanged(): Promise<void>; onStarted(): Promise<void> }) {
   const { syncNow } = useSync()
@@ -286,20 +293,21 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
           </p>
         )}
         {loaded.doneToday && (
-          <p className="flex items-center gap-2 pt-1 text-sm font-medium text-ok">
+          <p className="flex items-center gap-2 pt-1 text-sm font-medium text-ink">
             <Icon name="check" size={18} strokeWidth={2.4} />
             Você já concluiu um treino hoje.
           </p>
         )}
       </header>
 
-      {resolved.kind === 'workout' && day && (
-        <div className="grid gap-4">
+      {/* Desktop: the exercises on the left, the actions and the history on the right. */}
+      <div className={`grid gap-6 ${resolved.kind === 'workout' ? 'lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8' : ''}`}>
+        {resolved.kind === 'workout' && day && (
           <ol aria-label="Exercícios do dia" className={cardClasses({ tone: 'list' })}>
             {day.exercises.map((e, i) => (
               <li key={e.key}>
                 <ListRow
-                  icon={<span className="text-sm font-semibold tabular-nums">{i + 1}</span>}
+                  leading={i + 1}
                   title={e.name}
                   value={
                     <span className="text-sm text-muted">
@@ -310,47 +318,52 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
               </li>
             ))}
           </ol>
-          <Button variant="primary" size="lg" icon="dumbbell" disabled={busy} onClick={() => void start()}>
-            Começar treino
-          </Button>
+        )}
+        {resolved.kind === 'workout' && !day && <p role="alert">Este treino não existe mais na ficha. Troque o treino de hoje.</p>}
+
+        <div className="grid gap-6 lg:sticky lg:top-10">
+          {resolved.kind === 'workout' && day && (
+            <Button variant="primary" size="lg" icon="dumbbell" disabled={busy} onClick={() => void start()}>
+              Começar treino
+            </Button>
+          )}
+
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
+
+          {swapping && plan ? (
+            <section aria-label="Trocar o treino de hoje" className="grid gap-1">
+              <SectionHeader title="Trocar o treino de hoje" />
+              <ul className={cardClasses({ tone: 'list' })}>
+                {plan.document.days.map((d) => (
+                  <li key={d.key}>
+                    <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(d.key)}>
+                      <span className="font-medium text-ink">{d.name}</span>
+                      {d.notes ? <span className="text-muted">{` — ${d.notes}`}</span> : null}
+                    </button>
+                  </li>
+                ))}
+                <li>
+                  <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(OFF)}>
+                    <span className="font-medium text-ink">Descanso</span>
+                  </button>
+                </li>
+              </ul>
+              <Button variant="ghost" className="mt-2" onClick={() => setSwapping(false)}>
+                Cancelar
+              </Button>
+            </section>
+          ) : (
+            <Button icon="swap" onClick={() => setSwapping(true)}>
+              Trocar o treino de hoje
+            </Button>
+          )}
+          <HistoryLink />
         </div>
-      )}
-      {resolved.kind === 'workout' && !day && <p role="alert">Este treino não existe mais na ficha. Troque o treino de hoje.</p>}
-
-      {error && (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      )}
-
-      {swapping && plan ? (
-        <section aria-label="Trocar o treino de hoje" className="grid gap-1">
-          <SectionHeader title="Trocar o treino de hoje" />
-          <ul className={cardClasses({ tone: 'list' })}>
-            {plan.document.days.map((d) => (
-              <li key={d.key}>
-                <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(d.key)}>
-                  <span className="font-medium text-ink">{d.name}</span>
-                  {d.notes ? <span className="text-muted">{` — ${d.notes}`}</span> : null}
-                </button>
-              </li>
-            ))}
-            <li>
-              <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(OFF)}>
-                <span className="font-medium text-ink">Descanso</span>
-              </button>
-            </li>
-          </ul>
-          <Button variant="ghost" className="mt-2" onClick={() => setSwapping(false)}>
-            Cancelar
-          </Button>
-        </section>
-      ) : (
-        <Button icon="swap" onClick={() => setSwapping(true)}>
-          Trocar o treino de hoje
-        </Button>
-      )}
-      <HistoryLink />
+      </div>
     </div>
   )
 }

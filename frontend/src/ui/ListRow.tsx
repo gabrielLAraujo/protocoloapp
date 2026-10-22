@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import { Icon, type IconName } from './Icon'
+import { Icon } from './Icon'
 
 const ROW =
   'flex min-h-13 w-full items-center gap-3 px-4 py-2.5 text-left ' +
@@ -8,7 +8,7 @@ const ROW =
 const INTERACTIVE = 'hover:bg-raised active:bg-raised'
 
 /**
- * One row of a list card (`<Card tone="list">`): optional icon, title, subtitle, and a value on the right in tabular
+ * One row of a list card (`<Card tone="list">`): optional leading mark (a position number, never a decorative icon), title, subtitle, and a value on the right in tabular
  * numbers. With `to` it is a link (with a chevron), with `onClick` a button, otherwise a plain row. `trailing` goes after
  * the value (a chip, a button of its own when the row is not interactive); `children` go under the subtitle.
  *
@@ -17,7 +17,7 @@ const INTERACTIVE = 'hover:bg-raised active:bg-raised'
  * and value are drawn then.
  */
 export function ListRow({
-  icon,
+  leading,
   title,
   subtitle,
   value,
@@ -28,8 +28,8 @@ export function ListRow({
   className,
   term,
 }: {
-  /** An icon of the app's set (drawn muted in a soft square) or any node. */
-  icon?: IconName | ReactNode
+  /** Something that carries meaning before the title (e.g. the exercise's position), drawn muted. */
+  leading?: ReactNode
   title: ReactNode
   subtitle?: ReactNode
   value?: ReactNode
@@ -53,10 +53,8 @@ export function ListRow({
     )
   const body = (
     <>
-      {icon !== undefined && icon !== null && (
-        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-control bg-raised text-muted">
-          {typeof icon === 'string' ? <Icon name={icon as IconName} size={20} /> : icon}
-        </span>
+      {leading !== undefined && leading !== null && (
+        <span className="w-6 shrink-0 text-center text-sm font-semibold text-muted tabular-nums">{leading}</span>
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-base font-medium text-ink [overflow-wrap:anywhere]">{title}</span>

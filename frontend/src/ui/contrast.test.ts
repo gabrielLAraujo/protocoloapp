@@ -68,29 +68,24 @@ describe.each([
   })
 })
 
-/** `fg` at `alpha` over `bg` (what `bg-ok/10` on a surface paints). */
-function mix(fg: string, bg: string, alpha: number): string {
-  const channel = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16)
-  return `#${[1, 3, 5]
-    .map((i) => Math.round(alpha * channel(fg, i) + (1 - alpha) * channel(bg, i)).toString(16).padStart(2, '0'))
-    .join('')}`
-}
-
 const STATES = ['ok', 'warn', 'danger']
 
 describe.each([
   ['light', light],
   ['dark', dark],
-])('tinted state backgrounds (%s theme)', (_, t) => {
-  // Chips and the pressed "Parcial" / "Não fiz": the state color as text on its own 10 % tint.
-  it.each(STATES.flatMap((state) => BACKGROUNDS.map((bg) => [state, bg])))('text %s on its own tint (alpha 0.1) over %s is at least 4.5:1', (state, bg) => {
-    expect(contrast(t[state], mix(t[state], t[bg], 0.1))).toBeGreaterThanOrEqual(4.5)
+])('state chips (%s theme)', (_, t) => {
+  // Chips are neutral (surface background) and only their text carries the state; the calendar cells use raised.
+  it.each(STATES.flatMap((state) => ['surface', 'raised'].map((bg) => [state, bg])))('state text %s on the neutral %s is at least 4.5:1', (state, bg) => {
+    expect(contrast(t[state], t[bg])).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('the graphite ring, bars and checked mark (ink) are at least 3:1 on page, surface and raised', () => {
+    for (const bg of BACKGROUNDS) expect(contrast(t.ink, t[bg])).toBeGreaterThanOrEqual(3)
   })
 })
 
 describe('contrast()', () => {
   it('matches the WCAG reference values', () => {
-    expect(mix('#000000', '#ffffff', 0.5)).toBe('#808080')
     expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 5)
     expect(contrast('#777777', '#ffffff')).toBeCloseTo(4.48, 2)
   })

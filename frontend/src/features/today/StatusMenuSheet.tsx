@@ -6,8 +6,9 @@ import { STATUS_TEXT } from './targetKinds'
 import type { TodayDetail, TodayRow } from './todayData'
 
 const OPTIONS: { status: 'partial' | 'missed'; icon: IconName; on: string }[] = [
-  { status: 'partial', icon: 'half', on: 'border-warn! bg-warn/10! text-warn!' },
-  { status: 'missed', icon: 'cross', on: 'border-danger! bg-danger/10! text-danger!' },
+  // Pressed: the state color in the text and a stronger border, never a tinted fill.
+  { status: 'partial', icon: 'half', on: 'border-warn! text-warn!' },
+  { status: 'missed', icon: 'cross', on: 'border-danger! text-danger!' },
 ]
 
 /** Food → grams (item → dose): the name on the left, the amount right-aligned in tabular numbers. */

@@ -101,7 +101,7 @@ export function HistoryPage() {
                     </span>
                   }
                   value={formatVolume(volume)}
-                  trailing={session.endedAt === null ? <Chip tone="accent">em andamento</Chip> : undefined}
+                  trailing={session.endedAt === null ? <Chip>em andamento</Chip> : undefined}
                 />
               </li>
             ))}

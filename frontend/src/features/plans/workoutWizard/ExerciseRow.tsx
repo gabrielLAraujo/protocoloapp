@@ -34,7 +34,7 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, 
   const note = exercise.technique?.trim()
 
   return (
-    <li className={`grid gap-3 rounded-card border p-3 shadow-card ${errors.length > 0 ? 'border-danger bg-danger/5' : low ? 'border-warn bg-warn/5' : 'border-line bg-surface'}`} data-low={low ? 'true' : undefined}>
+    <li className={`grid gap-3 rounded-card border p-3 shadow-card ${errors.length > 0 ? 'border-danger bg-surface' : low ? 'border-warn bg-surface' : 'border-line bg-surface'}`} data-low={low ? 'true' : undefined}>
       <div className="flex items-start gap-3">
         {catalogId ? <ExerciseMedia catalogId={catalogId} name={name} size="thumb" /> : <GifPreview url={null} className="size-16" />}
         <button
@@ -64,7 +64,7 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, 
               type="button"
               aria-expanded={open === i}
               onClick={() => setOpen(open === i ? null : i)}
-              className="min-h-8 rounded-full bg-accent-soft px-3 text-xs font-semibold text-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+              className="min-h-8 rounded-full border border-control-line bg-surface px-3 text-xs font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
             >
               {techniqueLabel(t)}
             </button>
@@ -73,7 +73,7 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, 
         </div>
       )}
       {open !== null && techniques[open] && (
-        <p role="note" className="rounded-control border border-accent/25 bg-accent-soft px-3 py-2 text-sm text-ink">
+        <p role="note" className="rounded-control border border-line bg-raised px-3 py-2 text-sm text-ink">
           {techniqueExplanation(techniques[open]!)}
         </p>
       )}

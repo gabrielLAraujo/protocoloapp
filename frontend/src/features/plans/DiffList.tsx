@@ -21,7 +21,7 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
     <ul aria-label="Mudanças em relação à versão ativa" className="divide-y divide-line overflow-hidden rounded-control border border-line">
       {diff.added.map((path) => (
         <li key={`a-${path}`} className={row}>
-          <span aria-hidden="true" className={`${sign} bg-ok/10 text-ok`}>
+          <span aria-hidden="true" className={`${sign} bg-raised text-ok`}>
             +
           </span>
           <span className="sr-only">Adicionado:</span>
@@ -30,7 +30,7 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
       ))}
       {diff.removed.map((path) => (
         <li key={`r-${path}`} className={row}>
-          <span aria-hidden="true" className={`${sign} bg-danger/10 text-danger`}>
+          <span aria-hidden="true" className={`${sign} bg-raised text-danger`}>
             −
           </span>
           <span className="sr-only">Removido:</span>
@@ -39,7 +39,7 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
       ))}
       {diff.changed.map((change) => (
         <li key={`c-${change.path}`} className={row}>
-          <span aria-hidden="true" className={`${sign} bg-warn/10 text-warn`}>
+          <span aria-hidden="true" className={`${sign} bg-raised text-warn`}>
             ~
           </span>
           <span className="sr-only">Alterado:</span>

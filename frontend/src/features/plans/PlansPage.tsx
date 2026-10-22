@@ -14,12 +14,11 @@ import { createDeviceDraft, fileBytes, readOnDevice } from './importPlan'
 import { ImportError, OFFLINE_IMPORT_MESSAGE, uploadPdf, type UploadStage } from './uploadPdf'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { Chip } from '../../ui/Chip'
-import { Icon, type IconName } from '../../ui/Icon'
+import { Icon } from '../../ui/Icon'
 
 type Loaded = Record<PlanKind, { active: PlanVersionLocal | null; draft: PlanVersionLocal | null }>
 
 const KIND_TITLES: Record<PlanKind, string> = { protocol: 'Protocolo', workout: 'Treino' }
-const KIND_ICONS: Record<PlanKind, IconName> = { protocol: 'meal', workout: 'dumbbell' }
 
 async function load(data: NonNullable<ReturnType<typeof useData>>): Promise<Loaded> {
   const pick = async (kind: PlanKind) => {
@@ -118,73 +117,73 @@ export function PlansPage() {
           <span>{OFFLINE_IMPORT_MESSAGE}</span>
         </p>
       )}
-      {(['protocol', 'workout'] as const).map((kind) => {
-        const { active, draft } = loaded[kind]
-        const title = KIND_TITLES[kind]
-        const mine = busy?.kind === kind ? busy : null
-        return (
-          <section key={kind} aria-label={title} className={cardClasses({ className: 'grid gap-4' })}>
-            <div className="flex items-start gap-3">
-              <span className={`grid size-10 shrink-0 place-items-center rounded-control ${active ? 'bg-accent-soft text-accent' : 'bg-raised text-muted'}`}>
-                <Icon name={KIND_ICONS[kind]} />
-              </span>
-              <div className="grid min-w-0 flex-1 gap-1">
-                <h2 className="text-lg font-semibold text-ink">{title}</h2>
-                {active ? (
-                  <ul className="grid gap-1 text-sm text-muted">
-                    {describe(kind, active).map((line) =>
-                      line.startsWith('Ativo desde') ? (
-                        <li key={line} className="pt-1">
-                          <Chip tone="ok" icon="check">
+      {/* The protocol and the workout side by side on the desktop. */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        {(['protocol', 'workout'] as const).map((kind) => {
+          const { active, draft } = loaded[kind]
+          const title = KIND_TITLES[kind]
+          const mine = busy?.kind === kind ? busy : null
+          return (
+            <section key={kind} aria-label={title} className={cardClasses({ className: 'grid gap-4' })}>
+              <div className="flex items-start gap-3">
+                <div className="grid min-w-0 flex-1 gap-1">
+                  <h2 className="text-lg font-semibold text-ink">{title}</h2>
+                  {active ? (
+                    <ul className="grid gap-1 text-sm text-muted">
+                      {describe(kind, active).map((line) =>
+                        line.startsWith('Ativo desde') ? (
+                          <li key={line} className="pt-1">
+                            <Chip tone="ok" icon="check">
+                              {line}
+                            </Chip>
+                          </li>
+                        ) : (
+                          <li key={line} className="tabular-nums">
                             {line}
-                          </Chip>
-                        </li>
-                      ) : (
-                        <li key={line} className="tabular-nums">
-                          {line}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted">Nenhuma versão ativa.</p>
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted">Nenhuma versão ativa.</p>
+                  )}
+                </div>
+              </div>
+
+              {mine && (
+                <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium tabular-nums">
+                  {mine.stage === 'uploading' ? 'Enviando o PDF…' : 'Lendo o PDF…'}
+                </p>
+              )}
+              {error?.kind === kind && (
+                <p role="alert" className="text-sm text-danger">
+                  {error.message}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                <UploadButton disabled={busy !== null || !online} onPick={(file) => void send(kind, file)} />
+                {kind === 'protocol' && active && (
+                  <Link to="/planejamento/protocolo" className={linkButton}>
+                    Ver protocolo
+                  </Link>
+                )}
+                {kind === 'protocol' && active && (
+                  <button type="button" className={linkButton} aria-expanded={editingDates} onClick={() => setEditingDates((v) => !v)}>
+                    Editar datas
+                  </button>
+                )}
+                {draft && (
+                  <Link to={`/planejamento/revisao/${draft.id}`} className={linkButton}>
+                    Revisar rascunho
+                  </Link>
                 )}
               </div>
-            </div>
-
-            {mine && (
-              <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium tabular-nums">
-                {mine.stage === 'uploading' ? 'Enviando o PDF…' : 'Lendo o PDF…'}
-              </p>
-            )}
-            {error?.kind === kind && (
-              <p role="alert" className="text-sm text-danger">
-                {error.message}
-              </p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-              <UploadButton disabled={busy !== null || !online} onPick={(file) => void send(kind, file)} />
-              {kind === 'protocol' && active && (
-                <Link to="/planejamento/protocolo" className={linkButton}>
-                  Ver protocolo
-                </Link>
-              )}
-              {kind === 'protocol' && active && (
-                <button type="button" className={linkButton} aria-expanded={editingDates} onClick={() => setEditingDates((v) => !v)}>
-                  Editar datas
-                </button>
-              )}
-              {draft && (
-                <Link to={`/planejamento/revisao/${draft.id}`} className={linkButton}>
-                  Revisar rascunho
-                </Link>
-              )}
-            </div>
-            {kind === 'protocol' && active && editingDates && <ProtocolDates plan={active} onSaved={() => setEditingDates(false)} />}
-          </section>
-        )
-      })}
+              {kind === 'protocol' && active && editingDates && <ProtocolDates plan={active} onSaved={() => setEditingDates(false)} />}
+            </section>
+          )
+        })}
+      </div>
     </div>
   )
 }

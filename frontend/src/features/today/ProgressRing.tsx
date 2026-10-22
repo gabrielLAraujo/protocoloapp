@@ -18,7 +18,6 @@ const partialText = (n: number) => (n === 0 ? '' : ` · ${n} ${n === 1 ? 'parcia
 export function ProgressRing({ score, children }: { score: DayScore; children?: ReactNode }) {
   const percent = percentOf(score)
   const fraction = percent === null ? 0 : percent / 100
-  const complete = percent === 100
   return (
     <div
       role="progressbar"
@@ -39,12 +38,12 @@ export function ProgressRing({ score, children }: { score: DayScore; children?: 
             cy={SIZE / 2}
             r={R}
             fill="none"
-            stroke={complete ? 'var(--ok)' : 'var(--accent)'}
+            stroke="var(--ink)"
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={C}
             strokeDashoffset={C * (1 - fraction)}
-            className="transition-[stroke-dashoffset,stroke] duration-700 ease-out motion-reduce:transition-none"
+            className="transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
           />
         )}
       </svg>

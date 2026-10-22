@@ -3,7 +3,6 @@ import { useData } from '../../data/dataContext'
 import type { Medal, MedalKey } from '../../domain/progress'
 import { Card } from '../../ui/Card'
 import { Chip } from '../../ui/Chip'
-import { Icon } from '../../ui/Icon'
 import { SectionHeader } from '../../ui/SectionHeader'
 import { cardClasses } from '../../ui/styles'
 import { localDate } from '../checkin/localDate'
@@ -34,7 +33,7 @@ function EarnedMedal({ medal }: { medal: Medal }) {
       </div>
       {medal.count > 1 && (
         <span aria-label={`${medal.count} vezes`} className="shrink-0 tabular-nums">
-          <Chip tone="accent">{medal.count}×</Chip>
+          <Chip>{medal.count}×</Chip>
         </span>
       )}
     </li>
@@ -63,7 +62,7 @@ function LockedMedal({ medal }: { medal: Medal }) {
           <span className="shrink-0 text-sm text-muted tabular-nums">{target > 0 ? `${value} de ${target} ${PROGRESS_UNIT[medal.key]}` : '—'}</span>
         </div>
         <div aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-line">
-          <div data-bar-fill className="h-full rounded-full bg-accent" style={{ width: `${Math.round(fill * 1000) / 10}%` }} />
+          <div data-bar-fill className="h-full rounded-full bg-ink/60" style={{ width: `${Math.round(fill * 1000) / 10}%` }} />
         </div>
       </div>
     </li>
@@ -117,9 +116,6 @@ export function AchievementsPage() {
       </header>
 
       <Card as="section" aria-label="Sequência" tone={current > 0 ? 'accent' : 'default'} className="flex items-center gap-4">
-        <span className={`grid size-12 shrink-0 place-items-center rounded-control ${current > 0 ? 'bg-surface text-accent' : 'bg-raised text-muted'}`}>
-          <Icon name="streak" size={26} />
-        </span>
         <div className="grid flex-1 gap-0.5">
           <p className="text-lg font-semibold text-ink tabular-nums">{days(current)} na meta</p>
           <p className="text-sm text-muted">
