@@ -156,9 +156,11 @@ export function SummaryPage() {
       {/*
         Desktop: the cycle and its numbers (and strength) on the left; calendar, constância and weight on the right. On the
         phone both columns are `display: contents` and the order is the original one (strength last, via `order-1`).
+        The right column opens with a section header (44 px + 4 px gap), so the left one starts that much lower on the
+        desktop: the cycle card's top edge lines up with the calendar card's.
       */}
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
-        <div className="contents lg:grid lg:gap-6">
+        <div className="contents lg:grid lg:gap-6 lg:pt-12">
           <CycleTimeline
             cycle={summary.cycle}
             datesForm={
@@ -245,7 +247,7 @@ export function SummaryPage() {
 
           <section aria-labelledby="weight-title" className="grid gap-1">
             <SectionHeader id="weight-title" title="Peso" />
-            <Card padding="sm">
+            <Card>
               <WeightSparkline points={summary.weight} />
             </Card>
           </section>

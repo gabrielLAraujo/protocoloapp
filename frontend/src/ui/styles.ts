@@ -5,7 +5,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 const BASE =
-  'inline-flex items-center justify-center gap-2 rounded-control font-semibold select-none transition-colors ' +
+  'inline-flex items-center justify-center gap-2 rounded-control text-center font-semibold select-none transition-colors ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ' +
   'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50'
 
@@ -33,6 +33,20 @@ export function buttonClasses({
 }: { variant?: ButtonVariant; size?: ButtonSize; block?: boolean; className?: string } = {}): string {
   return `${BASE} ${VARIANTS[variant]} ${SIZES[size]}${block ? ' w-full' : ''}${className ? ` ${className}` : ''}`
 }
+
+/**
+ * A pair of buttons of one decision (confirm / cancel, add / remove): equal halves on the phone, so neither wraps alone
+ * onto a second row (a long label wraps inside its button), and their natural widths side by side on the desktop. An
+ * alert inside it takes the whole row.
+ */
+export const ACTION_ROW = 'grid grid-cols-2 gap-2 lg:flex lg:flex-wrap [&>[role=alert]]:col-span-2 lg:[&>[role=alert]]:basis-full'
+
+/**
+ * Section headings sit flush with the card edge (no inset of their own), on every screen. Two tiers:
+ * `SectionHeader` (17/24, 44 px tall so an action fits) over a card with `gap-1`, and this smaller group label (a period
+ * of the day, a muscle group, a timing group) over its card with `gap-2`; groups of such labels are `gap-5` apart.
+ */
+export const GROUP_LABEL = 'text-sm font-semibold text-muted'
 
 /** `list`: no padding, rows separated by dividers (for `ListRow`s). */
 export type CardTone = 'default' | 'ok' | 'warn' | 'danger' | 'accent' | 'list'

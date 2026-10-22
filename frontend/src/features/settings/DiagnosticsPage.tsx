@@ -75,8 +75,8 @@ export function DiagnosticsPage() {
   }
 
   return (
-    <section className="space-y-6">
-      <div>
+    <section className="grid gap-6">
+      <div className="grid gap-1">
         <Link to="/configuracoes" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
           <Icon name="chevronLeft" size={18} />
           Configurações
@@ -88,7 +88,7 @@ export function DiagnosticsPage() {
         Versão do app: <strong className="font-semibold text-ink tabular-nums">{version}</strong>
       </p>
 
-      <div className="space-y-2">
+      <div className="grid justify-items-start gap-2">
         <button type="button" className={BUTTON} onClick={() => void testNotification()}>
           Testar notificação
         </button>
@@ -99,7 +99,7 @@ export function DiagnosticsPage() {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="grid justify-items-start gap-2">
         <button type="button" className={BUTTON} onClick={() => void checkCamera()}>
           Permissão da câmera
         </button>
@@ -110,7 +110,7 @@ export function DiagnosticsPage() {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="grid justify-items-start gap-2">
         <button type="button" className={BUTTON} disabled={storageRunning} onClick={() => void checkStorage()}>
           {storageRunning ? 'Testando armazenamento…' : 'Testar armazenamento'}
         </button>

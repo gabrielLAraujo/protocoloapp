@@ -273,7 +273,7 @@ function NumberListField({
   }
   const bad = !valid(read(text))
   return (
-    <label className="grid gap-1.5 text-sm font-semibold text-muted">
+    <label className="grid gap-2 text-sm font-semibold text-muted">
       {label}
       <input
         type="text"

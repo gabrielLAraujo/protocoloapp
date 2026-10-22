@@ -78,11 +78,11 @@ export function CycleDatesForm({
         void save()
       }}
     >
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         <label htmlFor={`${uid}-update`} className="text-sm font-semibold text-muted">Próxima atualização</label>
         <input id={`${uid}-update`} type="date" className={inputClass} value={update} onChange={(e) => setUpdate(e.target.value)} />
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         <label htmlFor={`${uid}-billing`} className="text-sm font-semibold text-muted">Mensalidade</label>
         <input id={`${uid}-billing`} type="date" className={inputClass} value={billing} onChange={(e) => setBilling(e.target.value)} />
       </div>

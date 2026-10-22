@@ -6,6 +6,7 @@ import { formatKg, repsLabel } from './format'
 import { parseReps, parseWeight } from './setInput'
 import { Icon } from '../../ui/Icon'
 import { REST_PAUSE_SECONDS, SUB_SET_LABEL, type SubSetKind } from './subSets'
+import { ACTION_ROW } from '../../ui/styles'
 
 const KIND_OPTIONS: { value: SetKind; label: string }[] = [
   { value: 'normal', label: 'Normal' },
@@ -227,7 +228,7 @@ export function SetRow({ index, sub, hasSubSets = false, planned, logged, hint, 
       </label>
       )}
       {editing && (
-        <div className="flex flex-wrap gap-2">
+        <div className={ACTION_ROW}>
           <button type="button" className={buttonClass} disabled={busy} onClick={cancelEdit}>
             Cancelar
           </button>

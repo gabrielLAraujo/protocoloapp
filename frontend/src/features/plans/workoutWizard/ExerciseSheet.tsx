@@ -6,7 +6,7 @@ import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS, type MuscleGroup } from '../../../d
 import type { PlannedExercise, WorkoutDay, WorkoutDocument } from '../../../domain/planDocuments'
 import { ExerciseMedia } from '../../../ui/ExerciseMedia'
 import { Sheet } from '../../../ui/Sheet'
-import { buttonClasses } from '../../../ui/styles'
+import { ACTION_ROW, buttonClasses } from '../../../ui/styles'
 import { setIn } from '../docEdit'
 import { exerciseId as newExerciseId, type NewExercise } from '../newExercises'
 import { NumberField, SelectField, TextField } from '../fields'
@@ -188,7 +188,7 @@ export function ExerciseSheet(props: Props) {
             </div>
           </>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className={ACTION_ROW}>
             <button type="button" className={buttonClasses({ variant: 'primary', className: 'flex-1' })} onClick={done}>
               Concluído
             </button>

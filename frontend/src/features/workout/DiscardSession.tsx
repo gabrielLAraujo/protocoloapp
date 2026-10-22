@@ -3,7 +3,7 @@ import type { Data } from '../../data/dataContext'
 import { workoutRepo } from '../../data/workoutRepo'
 import { buttonClass, dangerButtonClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
-import { cardClasses } from '../../ui/styles'
+import { ACTION_ROW, cardClasses } from '../../ui/styles'
 
 /** "Descartar treino": drops an open session that has no sets (a workout started by mistake). */
 export function DiscardSession({ data, sessionId, onDiscarded }: { data: Data; sessionId: string; onDiscarded(): void }) {
@@ -31,7 +31,7 @@ export function DiscardSession({ data, sessionId, onDiscarded }: { data: Data; s
       {confirming ? (
         <div role="group" aria-label="Confirmar descarte" className={cardClasses({ className: 'grid gap-3' })}>
           <p className="font-medium">Descartar este treino? Nada foi registrado nele.</p>
-          <div className="flex flex-wrap gap-2">
+          <div className={ACTION_ROW}>
             <button type="button" className={dangerButtonClass} disabled={busy} onClick={() => void discard()}>
               Sim, descartar
             </button>

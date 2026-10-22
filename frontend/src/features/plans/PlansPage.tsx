@@ -113,7 +113,7 @@ export function PlansPage() {
       <h1 className="text-xl font-bold">Planejamento</h1>
       {!online && (
         <p className="flex items-start gap-2 text-sm text-muted">
-          <Icon name="offline" size={18} className="mt-px" />
+          <Icon name="offline" size={18} />
           <span>{OFFLINE_IMPORT_MESSAGE}</span>
         </p>
       )}
@@ -161,7 +161,11 @@ export function PlansPage() {
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+              {/*
+                Actions: the upload first, across the card; the others in equal halves below it (an odd one out takes the
+                whole row), so nothing wraps alone at any width. The same grid on the desktop, where the card is half wide.
+              */}
+              <div data-plan-actions className="grid grid-cols-2 gap-2 border-t border-line pt-4 [&>*:first-child]:col-span-2 [&>*:last-child:nth-child(even)]:col-span-2">
                 <UploadButton disabled={busy !== null || !online} onPick={(file) => void send(kind, file)} />
                 {kind === 'protocol' && active && (
                   <Link to="/planejamento/protocolo" className={linkButton}>

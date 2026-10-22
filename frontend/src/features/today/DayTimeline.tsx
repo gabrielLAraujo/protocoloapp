@@ -1,5 +1,5 @@
 import type { AdherenceStatus } from '../../data/adherenceRepo'
-import { cardClasses } from '../../ui/styles'
+import { cardClasses, GROUP_LABEL } from '../../ui/styles'
 import { TargetRow } from './TargetRow'
 import { groupByPeriod, isLate, PERIOD_LABELS, type TodayRow, type TodayView } from './todayData'
 
@@ -21,7 +21,7 @@ export function DayTimeline({
     <ul aria-label="Itens de hoje" className="grid gap-5">
       {groupByPeriod(view.rows).map(({ period, rows }) => (
         <li key={period} aria-labelledby={`period-${period}`} className="grid gap-2">
-          <h2 id={`period-${period}`} className="px-1 text-sm font-semibold text-muted">
+          <h2 id={`period-${period}`} className={GROUP_LABEL}>
             {PERIOD_LABELS[period]}
           </h2>
           <ul className={cardClasses({ tone: 'list' })}>

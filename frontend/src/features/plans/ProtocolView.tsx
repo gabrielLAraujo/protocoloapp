@@ -5,11 +5,14 @@ import { planRepo } from '../../data/planRepo'
 import { parseProtocolDocument, type ProtocolDocument } from '../../domain/planDocuments'
 import { useSync } from '../sync/syncContext'
 import { CATEGORY_LABELS, formatDayMonth, formatInstantDayMonth, scheduleSummary, TIMING_GROUPS, timingGroup, withMealText } from './labels'
-import { buttonClasses, cardClasses } from '../../ui/styles'
+import { buttonClasses, cardClasses, GROUP_LABEL } from '../../ui/styles'
 import { Chip } from '../../ui/Chip'
 import { SectionHeader } from '../../ui/SectionHeader'
 import { EmptyState } from '../../ui/EmptyState'
 import { Icon } from '../../ui/Icon'
+
+/** A one-line text row of a list card: the same insets as `ListRow` (16 px sides, 10 px top and bottom, 52 px tall). */
+const TEXT_ROW = 'flex min-h-13 items-center px-4 py-2.5 text-sm text-ink'
 
 type State = { status: 'loading' } | { status: 'none' } | { status: 'unreadable' } | { status: 'ok'; doc: ProtocolDocument; since: string | null }
 
@@ -86,7 +89,7 @@ export function ProtocolView() {
     : []
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6">
       <header className="grid gap-1">
         {back}
         <h1 className="text-xl font-bold tracking-tight">{doc.phaseName || 'Protocolo'}</h1>
@@ -94,76 +97,80 @@ export function ProtocolView() {
       </header>
 
       {/* Desktop: the meals on the left; supplements, cardio and guidelines on the right. */}
-      <div className="grid gap-5 lg:grid-cols-2 lg:items-start lg:gap-8">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
         {doc.meals.length > 0 && (
-          <section aria-labelledby="protocol-meals" className="grid gap-2">
+          <section aria-labelledby="protocol-meals" className="grid gap-1">
             <SectionHeader id="protocol-meals" title="Refeições" />
-            {doc.meals.map((meal) => {
-              const name = meal.label || meal.key
-              return (
-                <article key={meal.key} aria-label={name} className={cardClasses({ className: 'grid gap-2' })}>
-                  <h3 className="text-base font-semibold text-ink">{name}</h3>
-                  {meal.items.length > 0 && (
-                    <table aria-label={`Alimentos: ${name}`} className="w-full border-collapse text-sm">
-                      <thead className="sr-only">
-                        <tr>
-                          <th scope="col">Alimento</th>
-                          <th scope="col">Quantidade</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-line">
-                        {meal.items.map((item, i) => (
-                          <tr key={i}>
-                            <th scope="row" className="py-2 pr-3 text-left font-normal text-ink">
-                              {item.food}
-                            </th>
-                            <td className="py-2 text-right whitespace-nowrap text-ink tabular-nums">{item.grams != null ? `${item.grams} g` : null}</td>
+            <div className="grid gap-3">
+              {doc.meals.map((meal) => {
+                const name = meal.label || meal.key
+                return (
+                  <article key={meal.key} aria-label={name} className={cardClasses({ className: 'grid gap-2' })}>
+                    <h3 className="text-base font-semibold text-ink">{name}</h3>
+                    {meal.items.length > 0 && (
+                      <table aria-label={`Alimentos: ${name}`} className="w-full border-collapse text-sm">
+                        <thead className="sr-only">
+                          <tr>
+                            <th scope="col">Alimento</th>
+                            <th scope="col">Quantidade</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                  {meal.notes && <p className="text-xs text-muted">{meal.notes}</p>}
-                </article>
-              )
-            })}
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                          {meal.items.map((item, i) => (
+                            <tr key={i}>
+                              <th scope="row" className="py-2 pr-3 text-left font-normal text-ink">
+                                {item.food}
+                              </th>
+                              <td className="py-2 text-right whitespace-nowrap text-ink tabular-nums">{item.grams != null ? `${item.grams} g` : null}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {meal.notes && <p className="text-xs text-muted">{meal.notes}</p>}
+                  </article>
+                )
+              })}
+            </div>
           </section>
         )}
 
-        <div className="grid gap-5">
+        <div className="grid gap-6">
           {groups.length > 0 && (
-            <section aria-labelledby="protocol-items" className="grid gap-2">
+            <section aria-labelledby="protocol-items" className="grid gap-1">
               <SectionHeader id="protocol-items" title="Suplementos e compostos" />
-              {groups.map((g) => (
-                <section key={g.id} aria-label={g.label} className="grid gap-1">
-                  <h3 className="text-sm font-semibold text-muted">{g.label}</h3>
-                  <ul className={cardClasses({ tone: 'list' })}>
-                    {g.items.map((item) => (
-                      <li key={item.key} className="flex items-start justify-between gap-3 p-4">
-                        <div className="grid min-w-0 gap-0.5">
-                          <p className="text-base font-medium text-ink">{item.name}</p>
-                          <p className="text-xs text-muted">
-                            {[withMealText(item.timing, doc.meals), scheduleSummary(item.schedule)].filter(Boolean).join(' · ')}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
-                          {item.doseText && <span className="text-sm text-ink tabular-nums">{item.doseText}</span>}
-                          <Chip>{CATEGORY_LABELS[item.category] ?? item.category}</Chip>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
+              <div className="grid gap-5">
+                {groups.map((g) => (
+                  <section key={g.id} aria-label={g.label} className="grid gap-2">
+                    <h3 className={GROUP_LABEL}>{g.label}</h3>
+                    <ul className={cardClasses({ tone: 'list' })}>
+                      {g.items.map((item) => (
+                        <li key={item.key} className="flex min-h-13 items-baseline justify-between gap-3 px-4 py-2.5">
+                          <div className="grid min-w-0 gap-0.5">
+                            <p className="text-base font-medium text-ink">{item.name}</p>
+                            <p className="text-sm text-muted">
+                              {[withMealText(item.timing, doc.meals), scheduleSummary(item.schedule)].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            {item.doseText && <span className="text-sm text-ink tabular-nums">{item.doseText}</span>}
+                            <Chip>{CATEGORY_LABELS[item.category] ?? item.category}</Chip>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             </section>
           )}
 
           {cardio.length > 0 && (
-            <section aria-labelledby="protocol-cardio" className="grid gap-2">
+            <section aria-labelledby="protocol-cardio" className="grid gap-1">
               <SectionHeader id="protocol-cardio" title="Cardio" />
               <ul className={cardClasses({ tone: 'list' })}>
                 {cardio.map((c, i) => (
-                  <li key={i} className="p-4 text-sm text-ink">
+                  <li key={i} className={TEXT_ROW}>
                     {c}
                   </li>
                 ))}
@@ -172,15 +179,15 @@ export function ProtocolView() {
           )}
 
           {(doc.guidelines.length > 0 || doc.trainingSplitNote) && (
-            <section aria-labelledby="protocol-guidelines" className="grid gap-2">
+            <section aria-labelledby="protocol-guidelines" className="grid gap-1">
               <SectionHeader id="protocol-guidelines" title="Orientações" />
               <ul className={cardClasses({ tone: 'list' })}>
                 {doc.guidelines.map((g, i) => (
-                  <li key={i} className="p-4 text-sm text-ink">
+                  <li key={i} className={TEXT_ROW}>
                     {guidelineText(g)}
                   </li>
                 ))}
-                {doc.trainingSplitNote && <li className="p-4 text-xs text-muted">{doc.trainingSplitNote}</li>}
+                {doc.trainingSplitNote && <li className="px-4 py-2.5 text-xs text-muted">{doc.trainingSplitNote}</li>}
               </ul>
             </section>
           )}

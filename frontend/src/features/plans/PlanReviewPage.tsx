@@ -21,7 +21,7 @@ import { DiffList, type PlanDiff } from './DiffList'
 import { Section, TextField } from './fields'
 import { LowConfidenceContext } from './lowConfidence'
 import { buttonClass, dangerButtonClass } from './styles'
-import { buttonClasses, cardClasses } from '../../ui/styles'
+import { ACTION_ROW, buttonClasses, cardClasses } from '../../ui/styles'
 import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
 import { initialCatalogIds, initialGroups, newExerciseEntries } from './newExercises'
@@ -331,7 +331,7 @@ export function PlanReviewPage() {
           <div role="alertdialog" aria-label="Descartar alterações?" className="grid gap-3 rounded-card border border-danger/40 bg-surface p-4 shadow-card">
             <p className="text-lg font-semibold">Descartar alterações?</p>
             <p className="text-sm text-muted">Você editou este plano e não salvou.</p>
-            <div className="flex flex-wrap gap-2">
+            <div className={ACTION_ROW}>
               <button type="button" className={buttonClass} onClick={() => blocker.reset()}>
                 Continuar editando
               </button>
@@ -447,7 +447,7 @@ export function PlanReviewPage() {
                 </ul>
               )}
               {saved && <p role="status" className="text-sm text-ok">Rascunho salvo</p>}
-              <div className="flex flex-wrap gap-2">
+              <div className={ACTION_ROW}>
                 <button type="button" className={buttonClass} disabled={!online || working !== null || incomplete} onClick={() => void run('saving')}>
                   {working === 'saving' ? 'Salvando…' : 'Salvar rascunho'}
                 </button>
@@ -456,7 +456,7 @@ export function PlanReviewPage() {
                   disabled={blocked || working !== null}
                   aria-describedby={issues.length > 0 ? issuesId : undefined}
                   onClick={() => void run('activating')}
-                  className={buttonClasses({ variant: 'primary', className: 'px-6' })}
+                  className={buttonClasses({ variant: 'primary' })}
                 >
                   {working === 'activating' ? 'Ativando…' : 'Ativar'}
                 </button>

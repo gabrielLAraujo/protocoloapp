@@ -226,8 +226,9 @@ export function TodayPage() {
 
   return (
     <div className="grid gap-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      {/* The streak pill is centered on the title block (title + date line), not hung from the title's top. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight">Hoje</h1>
           <p className="text-sm text-muted">{headerText(view)}</p>
         </div>
@@ -237,9 +238,11 @@ export function TodayPage() {
       {/*
         Desktop: the day's list on the left, a sticky panel on the right with the ring, the next task and the week. On the
         phone both wrappers are `display: contents`, so the order stays hero, notices, list, week (the week is `order-1`).
+        On the desktop the panel starts one group label lower (its line, 18 px, plus the label's 8 px gap), so the hero's top
+        edge lines up with the first list card, not with the "Manhã" label above it.
       */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
-        <div data-today-panel className="contents lg:sticky lg:top-10 lg:col-start-2 lg:row-start-1 lg:grid lg:gap-6">
+        <div data-today-panel className="contents lg:sticky lg:top-10 lg:col-start-2 lg:row-start-1 lg:grid lg:gap-6 lg:pt-[1.625rem]">
           {view.rows.length > 0 && (
             <TodayHero
               score={score}
@@ -269,7 +272,7 @@ export function TodayPage() {
           )}
 
           {error && (
-            <p role="alert" className="rounded-control border border-danger/50 bg-surface px-3 py-2 text-sm font-medium text-danger">
+            <p role="alert" className="rounded-card border border-danger/50 bg-surface px-4 py-3 text-sm font-medium text-danger">
               Não foi possível salvar. Tente de novo.
             </p>
           )}

@@ -6,13 +6,18 @@ import { linkOf, STATUS_TEXT, STATUS_TONE } from './targetKinds'
 import { REASON_LABELS, type TodayRow } from './todayData'
 
 const FOCUS = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
+/** Both kinds of row: the same padding and height, the text column vertically centered with what is on the right. */
+const ROW = 'flex min-h-14 items-center gap-3 py-2.5 pl-4'
+/** The name line (a link row's text, or the name button). */
+const TITLE = 'block max-w-full text-base font-medium text-ink [overflow-wrap:anywhere]'
 
 /** Time, then the state: "Atrasado" while late and unmarked, else the mark (with its reason). */
 function Meta({ row, late, id }: { row: TodayRow; late: boolean; id?: string }) {
   const reason = row.reason ? REASON_LABELS[row.reason] : null
   const why = row.status && row.status !== 'done' ? [reason, row.note].filter(Boolean).join(' — ') : ''
   return (
-    <span id={id} className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+    // pointer-events-none: a tap on the time or chip reaches the row's target under it (the link, or the name's hit area).
+    <span id={id} className="pointer-events-none mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
       <span className="tabular-nums">{row.target.time ?? 'Sem horário'}</span>
       {late && (
         <Chip tone="danger" icon="clock">
@@ -56,37 +61,38 @@ export function TargetRow({
   if (link)
     return (
       <li aria-label={row.label}>
-        <Link
-          to={link}
-          aria-label={row.label}
-          aria-describedby={metaId}
-          className={`flex min-h-14 items-center gap-3 px-4 py-2.5 hover:bg-raised active:bg-raised ${FOCUS}`}
-        >
+        <Link to={link} aria-label={row.label} aria-describedby={metaId} className={`${ROW} pr-4 hover:bg-raised active:bg-raised ${FOCUS}`}>
           <span className="min-w-0 flex-1">
-            <span className="block text-base font-medium text-ink [overflow-wrap:anywhere]">{row.label}</span>
+            <span className={TITLE}>{row.label}</span>
             <Meta row={row} late={late} id={metaId} />
           </span>
-          <Icon name="chevronRight" size={18} className="text-muted" />
+          <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
         </Link>
       </li>
     )
 
   const done = row.status === 'done'
   return (
-    <li aria-label={row.label} className="flex min-h-14 items-center gap-3 py-1.5 pr-2 pl-4">
-      <span className="min-w-0 flex-1 py-1">
+    // `isolate`: the name's stretched hit area (its ::after, behind the text) stays inside the row.
+    <li aria-label={row.label} className={`relative isolate ${ROW} pr-1`}>
+      <span className="min-w-0 flex-1">
+        {/*
+          The name opens the item's sheet. Its ::after stretches over the whole row (the controls sit above it), so the
+          tap target is the row and the name line keeps its text height: title and meta stay stacked like the link rows.
+        */}
         <button
           type="button"
           aria-haspopup="dialog"
           disabled={busy}
           onClick={onOpen}
-          className={`-mx-1 flex min-h-11 items-center rounded-control px-1 text-left text-base font-medium text-ink [overflow-wrap:anywhere] hover:underline hover:underline-offset-4 disabled:opacity-50 ${FOCUS}`}
+          className={`${TITLE} text-left outline-none after:absolute after:inset-0 after:-z-10 hover:after:bg-raised active:after:bg-raised disabled:opacity-50 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-accent`}
         >
           {row.label}
         </button>
         <Meta row={row} late={late} />
       </span>
-      <div role="group" aria-label={`Marcar ${row.label}`} className="flex shrink-0 items-center">
+      {/* -my-1: the 44 px controls do not make this row taller than a link row (the text sets the height). */}
+      <div role="group" aria-label={`Marcar ${row.label}`} className="relative -my-1 flex shrink-0 items-center">
         <button
           type="button"
           aria-label="Feito"

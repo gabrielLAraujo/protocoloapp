@@ -90,7 +90,7 @@ export function PairPicker({ name, userExercises, allowUser, onPickUser, onPickC
 
   return (
     <div className="grid gap-3">
-      <label className="grid gap-1.5 text-sm font-semibold text-muted">
+      <label className="grid gap-2 text-sm font-semibold text-muted">
         Buscar exercício
         <input type="search" className={`${inputClass} font-normal`} value={query} onChange={(e) => setQuery(e.target.value)} />
       </label>

@@ -49,7 +49,7 @@ export function LoginPage() {
       </div>
 
       <form onSubmit={onSubmit} className="grid gap-4 rounded-card border border-line bg-surface p-4 shadow-card" noValidate>
-        <label className="grid gap-1.5 text-sm font-semibold text-muted">
+        <label className="grid gap-2 text-sm font-semibold text-muted">
           E-mail
           <input
             type="email"
@@ -63,7 +63,7 @@ export function LoginPage() {
           />
         </label>
 
-        <label className="grid gap-1.5 text-sm font-semibold text-muted">
+        <label className="grid gap-2 text-sm font-semibold text-muted">
           Senha
           <input
             type="password"

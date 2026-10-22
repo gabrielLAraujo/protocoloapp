@@ -110,7 +110,7 @@ export function FinishSummary({
           <SectionHeader title="Recordes" />
           <ul className="grid gap-2">
             {prs.map((pr) => (
-              <li key={`${pr.exerciseId}:${pr.kind}`} className={cardClasses({ tone: 'ok', padding: 'sm', className: 'flex items-start gap-3 font-medium' })}>
+              <li key={`${pr.exerciseId}:${pr.kind}`} className={cardClasses({ tone: 'ok', className: 'flex items-start gap-3 font-medium' })}>
                 <Icon name="trophy" className="mt-0.5 text-ok" />
                 {pr.kind === 'maxWeight'
                   ? `Novo recorde: ${name(pr.exerciseId)} — ${formatKg(pr.value)} kg`

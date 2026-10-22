@@ -24,7 +24,7 @@ export function Field({
   const id = useId()
   const low = useIsLow(path ?? '\u0000')
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-2">
       <div className="flex min-h-6 items-center gap-2">
         <label htmlFor={id} className="text-sm font-semibold text-muted">
           {label}
