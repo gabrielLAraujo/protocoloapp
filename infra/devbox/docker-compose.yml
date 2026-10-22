@@ -22,8 +22,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4"
-          memory: 8g
+          cpus: "1.5" # the VPS has 2 CPUs; leave room for production
+          memory: 3g
 
   dind:
     image: docker:27-dind

@@ -2,7 +2,7 @@
 # without waiting on GitHub Actions. Deployed on Coolify with docker-compose.yml next to this file.
 FROM node:24-bookworm-slim AS node
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0-bookworm-slim
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble
 
 ARG INSTALL_PLAYWRIGHT=true
 
@@ -16,8 +16,8 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git curl ca-certificates gnupg jq ripgrep postgresql-client python3 sudo \
  && install -m 0755 -d /etc/apt/keyrings \
- && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
- && echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+ && echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli.gpg \
  && echo "deb [signed-by=/etc/apt/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
  && apt-get update \
@@ -28,7 +28,7 @@ RUN apt-get update \
 RUN npm install -g @anthropic-ai/claude-code
 
 # Non-root user; its home is a volume (repos, NuGet/npm caches, CLI logins survive redeploys).
-RUN useradd -m -s /bin/bash dev && echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev
+RUN (userdel -r ubuntu 2>/dev/null || true) && useradd -m -s /bin/bash dev && echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev
 USER dev
 WORKDIR /home/dev
 ENV PATH="/home/dev/.dotnet/tools:${PATH}" \
