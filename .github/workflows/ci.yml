@@ -35,6 +35,8 @@ jobs:
 
   backend:
     name: Backend
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -145,24 +147,53 @@ jobs:
           text = pathlib.Path("frontend/openapi.json").read_text() if pathlib.Path("frontend/openapi.json").exists() else "(missing)"
           print("::error title=Generated frontend/openapi.json::" + text[:60000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
 
-  # hashFiles() is not available in a job-level `if`, so a tiny job tells whether the front exists yet.
-  detect-frontend:
-    name: Detect frontend
+  # Tells the heavy jobs whether to run. A change that only touches documentation (docs/**, *.md) skips them; Privacy (and
+  # GitGuardian, a GitHub App) still check it. No paths-ignore on the trigger: the run (and its Privacy check) always exists.
+  # Also tells whether the front exists yet (hashFiles() is not available in a job-level `if`).
+  changes:
+    name: Changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      present: ${{ steps.detect.outputs.present }}
+      code: ${{ steps.diff.outputs.code }}
+      frontend: ${{ steps.diff.outputs.frontend }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      - id: detect
-        run: echo "present=$([ -f frontend/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      # Anything unknown (manual run, new branch, rewritten history) counts as code: when in doubt, everything runs.
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          echo "frontend=$([ -f frontend/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          base=""
+          case "$EVENT" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+          esac
+          code=true
+          if [ -n "$base" ] && ! [[ "$base" =~ ^0+$ ]] && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            files="$(git diff --name-only "$base" HEAD)"
+            if [ -n "$files" ] && ! grep -qvE '^docs/|\.md$' <<< "$files"; then
+              code=false
+            fi
+            echo "Changed files:"; echo "$files" | head -n 50
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = false ]; then
+            echo "::notice title=Documentation only::Build, tests, image, E2E and APK skipped; Privacy still ran."
+          fi
 
   frontend:
     name: Frontend
     # The front does not exist until its task; the job is skipped while frontend/package.json is absent.
-    needs: detect-frontend
-    if: ${{ needs.detect-frontend.outputs.present == 'true' }}
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' && needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -191,27 +222,40 @@ jobs:
 
   image:
     name: Docker image
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The build-push action uploads a build record artifact by default; the job summary is enough here.
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
 
       # Same image Coolify builds on every push to main. Here we only check that it builds; nothing is published.
+      # Layers come from the Actions cache (the SDK, restore and npm ci layers rarely change); a failure shows the
+      # buildx error as an annotation.
       - name: Build the image
-        run: |
-          set -o pipefail
-          docker build --progress=plain -f backend/Dockerfile -t protocoloapp:ci . 2>&1 | tee docker.log
-
-      - name: Image build errors
-        if: ${{ failure() }}
-        run: |
-          tail -n 12 docker.log | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          tags: protocoloapp:ci
+          push: false
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,scope=image,mode=max
 
   # The offline-first promise end to end: the real API (published like the image, serving the built front) on a real Postgres,
   # and two browsers. Two small Node stubs (frontend/e2e/fixtures) stand in for the outside world: the Anthropic API (plan
   # import) and the R2 bucket (the PDF upload); the API reaches them through Anthropic__BaseUrl and R2__ServiceUrl.
   e2e:
     name: E2E smoke
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:
@@ -310,9 +354,26 @@ jobs:
           done
           echo "API did not start"; tail -n 30 "$RUNNER_TEMP/api.log"; exit 1
 
+      # The browser download is cached per Playwright version; the system libraries are always installed (apt).
+      - name: Playwright version
+        id: playwright
+        working-directory: frontend
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+
       - name: Install Playwright Chromium
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       - name: Playwright smoke
         working-directory: frontend

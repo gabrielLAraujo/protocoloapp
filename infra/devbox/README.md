@@ -42,37 +42,36 @@ cd ~/protocoloapp/frontend && npm ci && npm run gen:api                     # sc
 
 ## Paralelizar o desenvolvimento
 
-O que de fato limita a velocidade, medido nos últimos PRs:
+O que de fato limita a velocidade, medido nos runs de CI de 21 e 22/10/2026:
 
-- **O CI não é o gargalo.** Uma rodada completa leva cerca de 3,5 min:
-  - back-end 3 a 3,5 min, dos quais ~2,5 min são os testes;
-  - front ~1,3 min;
-  - imagem ~1,5 min.
+- **O CI não é o gargalo, mas o E2E é o caminho crítico.** Uma rodada leva ~3,5 min (mediana):
+  - E2E ~3,3 min (Playwright ~1,5 min, instalação do Chromium ~25 s, build do front, publish e migrations);
+  - back-end ~2 min, dos quais ~1,3 min são os testes;
+  - front ~1,6 min (os testes do Vitest levam ~1 min);
+  - imagem ~1,1 min, agora com cache de camadas (`type=gha`).
   
-  A fila é de 2 s. Um runner próprio economizaria pouco.
+  A fila é de segundos. Um runner próprio economizaria pouco. Mudanças só de documentação pulam o pipeline (só o
+  Privacy roda).
 - **Quanto tempo leva uma tarefa:** cada tarefa de agente leva de 7 a 20 min. São duas ou três rodadas de CI de ~4 min,
-  mais a escrita e a revisão. Testar dentro do dev box tira essas esperas.
+  mais a escrita e a revisão. O que tira essas esperas:
+  - **sessões na nuvem:** o hook de SessionStart instala o .NET (com os domínios liberados), então build e testes
+    unitários do back (`dotnet test tests/ProtocoloApp.UnitTests`) rodam ali mesmo;
+  - **dev box:** testes de integração (Docker), migrations e `gen:api`.
 - **Por que as tarefas rodam em fila:** os planos rodam uma tarefa por vez porque elas mexem nos mesmos arquivos. O que
   mais rende é planejar em **trilhas independentes**, por exemplo:
-  - back-end e front em paralelo, com o contrato da API definido antes;
+  - back-end e front em paralelo, com o contrato da API (`frontend/openapi.json`) definido antes;
   - ou features que não tocam os mesmos arquivos.
   
-  Cada trilha vira um agente numa worktree própria.
+  Cada trilha vira um agente numa worktree própria e abre o próprio PR; cada PR ganha uma prévia em
+  `<número do PR>.zsyne9rwmi9ojzerca9merr5.148.230.77.89.sslip.io` para conferir sem esperar o merge.
 - **Quanto paralelo aguenta:** o limite real de agentes simultâneos é a cota da conta Claude, não o servidor.
 
-## Ajustes sugeridos no CI (`.github/workflows/ci.yml`)
+## CI (`.github/workflows/ci.yml`)
 
-Opcionais; o workflow vive em `.github/workflows/ci.yml`.
+Ajustes já aplicados:
 
-- **Docs sem CI:** `paths-ignore` para que mudanças só de documentação não rodem o pipeline:
-  ```yaml
-  on:
-    pull_request:
-      paths-ignore: ['docs/**', '**/*.md']
-    push:
-      branches: [main]
-      paths-ignore: ['docs/**', '**/*.md']
-    workflow_dispatch:
-  ```
-- **Cache da imagem:** cache de camadas no job `imagem`, com `docker/build-push-action` e `cache-from`/`cache-to:
-  type=gha`. O build hoje leva ~1,5 min e quase não muda entre commits.
+- **Docs sem build:** o job `changes` compara com a base; se só mudaram `docs/**` ou `*.md`, back, front, imagem, E2E e
+  APK são pulados. O Privacy roda sempre (o workflow não usa `paths-ignore`, então nenhum check fica "pendente").
+- **Cache da imagem:** `docker/build-push-action` com `cache-from`/`cache-to: type=gha`.
+- **Cache do Chromium do Playwright** por versão; as bibliotecas do sistema continuam vindo do apt.
+- NuGet e npm já tinham cache; `concurrency` cancela o run anterior do mesmo branch (nunca na `main`).

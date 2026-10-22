@@ -25,7 +25,11 @@ Spec: `docs/superpowers/specs/2026-10-18-protocoloapp-design.md`. Plano: `docs/s
 - Node 24. `npm run lint` = `tsc -b && oxlint`; `npm test` = `vitest run`.
 - Cliente da API gerado por `npm run gen:api` a partir de `frontend/openapi.json`.
 
-## Ambiente na nuvem (limites)
+## Ambiente na nuvem
 
-- Sem `dotnet`, sem nuget.org e sem Docker no ambiente do agente: o código do back só é verificado no GitHub Actions (ou no dev box, `infra/devbox/`). Acompanhar o run com `gh api` (REST).
-- Migrations (`dotnet ef`) e `gen:api` rodam no PC ou no dev box.
+- **.NET nas sessões na nuvem:** o hook `.claude/hooks/session-start.sh` (SessionStart, só com `CLAUDE_CODE_REMOTE=true`) instala o SDK do `global.json` em `~/.dotnet`, põe no `PATH` e roda `dotnet restore`/`npm ci` só quando os arquivos mudaram. Depende dos domínios liberados no ambiente (`dot.net`, `builds.dotnet.microsoft.com`, `ci.dot.net`, `api.nuget.org`); sem eles o hook avisa numa linha e a sessão segue sem `dotnet`.
+- **Testes do back na nuvem:** `cd backend && dotnet test tests/ProtocoloApp.UnitTests` (unitários). Os de integração usam Docker/Testcontainers e rodam só no CI ou no dev box. `dotnet build` também regenera `frontend/openapi.json`: conferir o diff antes do commit.
+- **CI:** acompanhar o run com `gh api` (REST). Mudanças só em `docs/**` ou `*.md` rodam só o Privacy (o resto é pulado).
+- **Dev box** (`infra/devbox/`): .NET, Docker (dind), Postgres e Chromium; ali rodam os testes de integração, migrations (`dotnet ef`) e `gen:api`.
+- **Homologação:** https://zsyne9rwmi9ojzerca9merr5.148.230.77.89.sslip.io; prévia de cada PR em `<número do PR>.zsyne9rwmi9ojzerca9merr5.148.230.77.89.sslip.io`.
+- **Coolify** responde a partir das sessões na nuvem: a chave vai como segredo de rede do ambiente (o proxy injeta). Nunca imprimir, logar ou commitar segredos.
