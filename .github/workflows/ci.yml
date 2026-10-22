@@ -443,7 +443,9 @@ jobs:
   # Debug APK on every run (artifact to install and test). The signed release is a separate job below.
   android:
     name: Android APK
-    needs: frontend
+    # Runs alongside Frontend (same skip rule) instead of after it: the release job still waits for both.
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' && needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
