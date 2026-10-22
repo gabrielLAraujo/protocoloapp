@@ -12,7 +12,7 @@ test('the installed app shell opens offline with the saved evening check-in', as
 
   // "/" is the summary; the evening check-in is opened from Hoje ("Check-in da noite").
   await login(page)
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje' }).click()
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Hoje', exact: true }).click()
   await expect(page).toHaveURL(/\/hoje$/)
   await page.getByRole('link', { name: 'Check-in da noite', exact: true }).click()
   await expect(page).toHaveURL(/\/checkin\/noite$/)

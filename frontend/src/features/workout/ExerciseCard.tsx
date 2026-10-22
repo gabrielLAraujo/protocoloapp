@@ -99,11 +99,11 @@ export function ExerciseCard(props: Props) {
   }
 
   return (
-    <section aria-label={props.biset ? `Exercício ${props.biset.letter}: ${name}` : name} className={cardClasses({ className: `grid gap-4${props.biset?.next ? ' ring-2 ring-accent' : ''}` })}>
+    <section aria-label={props.biset ? `Exercício ${props.biset.letter}: ${name}` : name} className={cardClasses({ className: `grid gap-4${props.biset?.next ? ' ring-2 ring-ink/40' : ''}` })}>
       <header className="grid gap-1.5">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
           {props.biset && (
-            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-control bg-accent text-sm font-semibold text-on-accent">
+            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-control bg-raised text-sm font-semibold text-ink">
               {props.biset.letter}
             </span>
           )}

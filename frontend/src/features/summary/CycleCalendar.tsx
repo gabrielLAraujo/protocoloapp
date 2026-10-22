@@ -16,11 +16,11 @@ const LABEL: Record<DayState, string> = {
   today: 'hoje',
 }
 const STYLE: Record<DayState, string> = {
-  done: 'bg-ok/10 text-ok',
-  missed: 'bg-danger/10 text-danger',
+  done: 'bg-raised text-ok',
+  missed: 'bg-raised text-danger',
   rest: 'bg-raised text-muted',
   future: 'text-muted',
-  today: 'bg-surface text-ink font-semibold ring-2 ring-accent',
+  today: 'bg-surface text-ink font-semibold ring-2 ring-ink',
 }
 
 function describe(day: CalendarDay): string {
@@ -67,7 +67,7 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
                   <span aria-hidden="true" className="text-sm font-bold leading-none">
                     {day.state === 'today' ? (day.done ? '✓' : day.planned ? '•' : '') : SYMBOL[day.state]}
                   </span>
-                  {day.cardio && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-accent ring-2 ring-surface" />}
+                  {day.cardio && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-muted ring-2 ring-surface" />}
                 </span>
               )
             })}
@@ -79,7 +79,7 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
         <li><span aria-hidden="true" className="font-bold text-danger">✗</span> Treino não feito</li>
         <li><span aria-hidden="true" className="font-bold">–</span> Descanso</li>
         <li><span aria-hidden="true" className="font-bold">•</span> Hoje, treino previsto</li>
-        <li><span aria-hidden="true" className="inline-block size-2 rounded-full bg-accent" /> Cardio feito</li>
+        <li><span aria-hidden="true" className="inline-block size-2 rounded-full bg-muted" /> Cardio feito</li>
       </ul>
       </Card>
     </section>

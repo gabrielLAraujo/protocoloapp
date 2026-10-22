@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 're
 const FOCUSABLE = 'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]'
 
 /**
- * A bottom sheet (modal dialog). Escape or a tap on the backdrop calls `onCancel`. The focus moves to the first control
+ * A bottom sheet (modal dialog); on the desktop (lg) a centered dialog. Escape or a tap on the backdrop calls `onCancel`. The focus moves to the first control
  * inside when it opens (and again whenever `focusKey` changes), Tab wraps inside, and the focus goes back to whatever
  * had it when the sheet opened once it closes (when that element is still on screen).
  */
@@ -61,7 +61,7 @@ export function Sheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-scrim" onClick={onCancel}>
+    <div data-sheet-backdrop className="fixed inset-0 z-50 flex items-end bg-scrim lg:items-center lg:justify-center lg:p-6" onClick={onCancel}>
       <div
         ref={panel}
         role="dialog"
@@ -69,9 +69,9 @@ export function Sheet({
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="mx-auto grid max-h-[92dvh] w-full max-w-2xl gap-4 overflow-y-auto overscroll-contain rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised"
+        className="mx-auto grid max-h-[92dvh] w-full max-w-2xl gap-4 overflow-y-auto overscroll-contain rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised lg:max-h-[85dvh] lg:max-w-lg lg:rounded-sheet lg:border lg:p-6 lg:pb-6 lg:shadow-dialog"
       >
-        <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line" />
+        <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line lg:hidden" />
         <h2 id={titleId} ref={heading} tabIndex={-1} className="text-lg font-semibold text-ink outline-none">
           {title}
         </h2>

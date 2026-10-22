@@ -9,8 +9,8 @@ export function SettingsPage() {
       <h1 className="text-xl font-bold">Configurações</h1>
       <RemindersCard />
       <nav aria-label="Outras configurações" className={cardClasses({ tone: 'list' })}>
-        <ListRow to="/configuracoes/horarios" icon="clock" title="Horários" />
-        <ListRow to="/settings/diagnostics" icon="stethoscope" title="Diagnóstico" />
+        <ListRow to="/configuracoes/horarios" title="Horários" />
+        <ListRow to="/settings/diagnostics" title="Diagnóstico" />
       </nav>
     </section>
   )

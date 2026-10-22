@@ -146,13 +146,13 @@ export function SetRow({ index, sub, hasSubSets = false, planned, logged, hint, 
 
   const planText = sub ? SUB_SET_HINT[sub.kind] : planned ? repsLabel(planned.repsMin, planned.repsMax) : 'Série extra'
   const technique = !sub && planned?.technique ? ` + ${planned.technique}` : ''
-  const tone = done ? 'border-ok/40 bg-ok/10' : sub ? 'border-dashed border-accent/50 bg-surface' : 'border-line bg-raised'
+  const tone = done ? 'border-ok/50 bg-surface' : sub ? 'border-dashed border-control-line bg-surface' : 'border-line bg-raised'
 
   return (
     <li className={`grid gap-2 rounded-control border p-3 ${tone} ${sub ? 'ml-4 border-l-4' : ''}`}>
       <div className="flex items-center justify-between gap-2 text-sm">
         <span className="flex items-center gap-1.5 font-semibold text-ink tabular-nums">
-          {sub && <span aria-hidden="true" className="text-accent">↳</span>}
+          {sub && <span aria-hidden="true" className="text-muted">↳</span>}
           {title}
         </span>
         <span className="tabular-nums text-muted">
@@ -196,7 +196,7 @@ export function SetRow({ index, sub, hasSubSets = false, planned, logged, hint, 
           onClick={() => void submit()}
           disabled={busy}
           aria-label={locked ? `Editar ${name}` : editing ? `Salvar ${name}` : `Concluir ${name}`}
-          className={`grid size-12 place-items-center rounded-control border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ok bg-ok text-on-accent' : 'border-control-line bg-surface text-muted hover:text-ok'}`}
+          className={`grid size-12 place-items-center rounded-control border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${locked ? 'border-ink bg-ink text-surface' : 'border-control-line bg-surface text-muted hover:text-ink'}`}
         >
           <Icon name="check" size={24} strokeWidth={2.6} />
         </button>

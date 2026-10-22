@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { useAuth } from '../auth/authContext'
+import { BrandMark } from '../ui/BrandMark'
 import { Icon, type IconName } from '../ui/Icon'
+import { useIsDesktop } from '../ui/useMediaQuery'
 
 /** `also`: other paths that belong to the tab (the check-in is opened from Hoje). */
 const TABS: { to: string; label: string; end: boolean; also?: string[]; icon: IconName }[] = [
@@ -28,14 +30,89 @@ const TabIcon = ({ name, active }: { name: IconName; active: boolean }) => (
   </span>
 )
 
+/** What "Mais" holds on the phone; on the desktop sidebar these are direct items. */
+const MORE_LINKS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
+  { to: '/conquistas', label: 'Conquistas', icon: 'medal' },
+  { to: '/checkin', label: 'Check-in de hoje', icon: 'note', end: true },
+  { to: '/configuracoes', label: 'Configurações', icon: 'settings' },
+]
+
+const SIDE_ITEM =
+  'flex min-h-11 items-center gap-3 rounded-control px-3 text-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
+const sideClass = (active: boolean) =>
+  `${SIDE_ITEM} ${active ? 'bg-accent-soft font-semibold text-accent' : 'font-medium text-muted hover:bg-raised hover:text-ink'}`
+
+/** Width of the desktop sidebar: fixed elements (rest timer, toasts) start after it (`lg:left-60`). */
+const SIDEBAR_WIDTH_CLASS = 'w-60'
+
+/**
+ * The desktop navigation (≥ 1024 px): a fixed left sidebar with the mark, the same tabs (same names), the items that sit
+ * under "Mais" on the phone as direct entries, and `footer` (the sync state) at its foot.
+ */
+function SideNav({ footer }: { footer?: ReactNode }) {
+  const { logout } = useAuth()
+  const location = useLocation()
+  const isOn = (to: string) => location.pathname === to || location.pathname.startsWith(`${to}/`)
+  return (
+    <nav
+      aria-label="Navegação principal"
+      data-layout="sidebar"
+      className={`fixed inset-y-0 left-0 z-40 flex ${SIDEBAR_WIDTH_CLASS} flex-col border-r border-line bg-surface px-3 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))]`}
+    >
+      <div className="px-3 pb-6">
+        <BrandMark />
+      </div>
+      <div className="grid gap-0.5">
+        {TABS.map((tab) => {
+          const active = isTabActive(tab, location.pathname)
+          return (
+            <Link key={tab.to} to={tab.to} aria-current={active ? 'page' : undefined} className={sideClass(active)}>
+              <Icon name={tab.icon} size={20} strokeWidth={active ? 2.2 : 1.8} />
+              <span>{tab.label}</span>
+            </Link>
+          )
+        })}
+      </div>
+      <div className="mt-4 grid gap-0.5 border-t border-line pt-4">
+        {MORE_LINKS.map((item) => {
+          // The check-in already lights "Hoje" (its tab); only the screens of their own are marked here.
+          const active = item.to !== '/checkin' && (isOn(item.to) || (item.to === '/configuracoes' && isOn('/settings')))
+          return (
+            <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined} className={sideClass(active)}>
+              <Icon name={item.icon} size={20} />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+        <button type="button" onClick={() => void logout()} className={`${sideClass(false)} text-left`}>
+          <Icon name="logout" size={20} />
+          <span>Sair</span>
+        </button>
+      </div>
+      {footer && (
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-line pt-3 pl-3">
+          <span className="text-xs text-muted">Sincronização</span>
+          {footer}
+        </div>
+      )}
+    </nav>
+  )
+}
+
 const MENU_ITEM =
   'flex min-h-12 items-center gap-3 rounded-control px-3 text-base font-medium hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent'
 
 /**
- * Fixed bottom navigation. It publishes its height as `--bottom-nav-height` (the rest-timer bar sits above it) and owns the
- * safe-area padding at the bottom of the screen.
+ * The main navigation. On the phone, a fixed bottom bar: it publishes its height as `--bottom-nav-height` (the rest-timer
+ * bar sits above it) and owns the safe-area padding at the bottom of the screen. On the desktop, the sidebar above (only
+ * one of the two is on the page, so the names are never doubled).
  */
-export function BottomNav() {
+export function BottomNav({ footer }: { footer?: ReactNode } = {}) {
+  const desktop = useIsDesktop()
+  return desktop ? <SideNav footer={footer} /> : <PhoneNav />
+}
+
+function PhoneNav() {
   const { logout } = useAuth()
   const location = useLocation()
   // The menu is open for the path it was opened on: navigating closes it without an effect.
@@ -107,18 +184,12 @@ export function BottomNav() {
             onClick={(e) => e.stopPropagation()}
             className="absolute inset-x-0 bottom-[var(--bottom-nav-height,0px)] mx-auto grid max-w-2xl gap-1 rounded-t-sheet border-t border-line bg-surface p-3 shadow-raised"
           >
-            <NavLink to="/conquistas" className={MENU_ITEM}>
-              <Icon name="medal" className="text-muted" />
-              Conquistas
-            </NavLink>
-            <NavLink to="/checkin" end className={MENU_ITEM}>
-              <Icon name="note" className="text-muted" />
-              Check-in de hoje
-            </NavLink>
-            <NavLink to="/configuracoes" className={MENU_ITEM}>
-              <Icon name="settings" className="text-muted" />
-              Configurações
-            </NavLink>
+            {MORE_LINKS.map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.end} className={MENU_ITEM}>
+                <Icon name={item.icon} className="text-muted" />
+                {item.label}
+              </NavLink>
+            ))}
             <button
               type="button"
               onClick={() => void logout()}

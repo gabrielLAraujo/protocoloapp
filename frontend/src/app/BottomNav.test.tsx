@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, Outlet } from 'react-router'
@@ -8,14 +9,24 @@ import { BottomNav } from './BottomNav'
 
 const logout = vi.fn().mockResolvedValue(undefined)
 
-function setup(entry = '/') {
+/** The desktop layout (lg, ≥ 1024 px): `matchMedia` answers yes for the breakpoint query. */
+function stubDesktop() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(min-width: 64rem)',
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }))
+}
+
+function setup(entry = '/', footer?: ReactNode) {
   const router = createMemoryRouter(
     [
       {
         element: (
           <>
             <Outlet />
-            <BottomNav />
+            <BottomNav footer={footer} />
           </>
         ),
         children: ['/', '/hoje', '/treino', '/checkin', '/checkin/manha', '/checkin/noite', '/planejamento', '/configuracoes'].map((path) => ({ path, element: <p>{`tela ${path}`}</p> })),
@@ -123,5 +134,56 @@ describe('BottomNav', () => {
     await user.click(more)
     expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
     expect(more).toHaveFocus()
+  })
+
+  it('is the bottom bar on the phone (no matchMedia match)', () => {
+    setup()
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(nav).not.toHaveAttribute('data-layout', 'sidebar')
+    expect(nav).toHaveClass('bottom-0')
+  })
+})
+
+describe('BottomNav on the desktop (lg)', () => {
+  it('is a fixed left sidebar with the mark, the same tabs and the "Mais" items as direct entries', () => {
+    stubDesktop()
+    setup('/', <p>estado da sincronização</p>)
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(nav).toHaveAttribute('data-layout', 'sidebar')
+    expect(nav).toHaveClass('fixed', 'left-0', 'inset-y-0')
+    expect(within(nav).getByText('Protocolo')).toBeInTheDocument()
+    const names = within(nav).getAllByRole('link').map((l) => l.textContent)
+    expect(names).toEqual(['Resumo', 'Hoje', 'Treino', 'Planejamento', 'Conquistas', 'Check-in de hoje', 'Configurações'])
+    expect(within(nav).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('button', { name: 'Mais' })).not.toBeInTheDocument()
+    // The sync state sits at its foot.
+    expect(within(nav).getByText('estado da sincronização')).toBeInTheDocument()
+    // No bottom bar height: nothing sits above a bar that is not there.
+    expect(document.documentElement.style.getPropertyValue('--bottom-nav-height')).toBe('')
+  })
+
+  it('navigates and marks only the current item', async () => {
+    stubDesktop()
+    const user = userEvent.setup()
+    const router = setup()
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    for (const [name, path] of [['Hoje', '/hoje'], ['Configurações', '/configuracoes'], ['Treino', '/treino']] as const) {
+      await user.click(within(nav).getByRole('link', { name }))
+      expect(router.state.location.pathname).toBe(path)
+      expect(within(nav).getByRole('link', { name })).toHaveAttribute('aria-current', 'page')
+      expect(within(nav).getByRole('link', { name }).className).toContain('text-accent')
+      expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
+    }
+  })
+
+  it('"Hoje" stays current on the check-in, and "Sair" logs out', async () => {
+    stubDesktop()
+    const user = userEvent.setup()
+    setup('/checkin/manha')
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(within(nav).getByRole('link', { name: 'Hoje' })).toHaveAttribute('aria-current', 'page')
+    expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
+    await user.click(within(nav).getByRole('button', { name: 'Sair' }))
+    expect(logout).toHaveBeenCalled()
   })
 })

@@ -9,7 +9,7 @@ const MEAL = 'Refeicao 1'
 
 const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
+const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 
 /** Waits for the header to say "Sincronizado" with nothing pending (the label only shows after a complete, successful run). */
 async function expectSynced(page: Page) {

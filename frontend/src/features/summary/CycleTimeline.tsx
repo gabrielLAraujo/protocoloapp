@@ -35,15 +35,15 @@ export function CycleTimeline({ cycle, datesForm }: { cycle: CycleInfo; datesFor
               aria-valuemax={100}
               aria-valuenow={pct}
               aria-valuetext={`${pct}% do ciclo`}
-              className="relative h-2 rounded-full bg-accent/20"
+              className="relative h-2 rounded-full bg-line"
             >
-              <div className={`h-full rounded-full ${overdue ? 'bg-danger' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
+              <div className={`h-full rounded-full ${overdue ? 'bg-danger' : 'bg-ink/70'}`} style={{ width: `${pct}%` }} />
               <span className="absolute -top-5 -translate-x-1/2 text-xs font-semibold text-ink" style={{ left: `clamp(1rem, ${pct}%, calc(100% - 1rem))` }}>
                 Hoje
               </span>
               <span
                 aria-hidden="true"
-                className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-accent-soft bg-ink"
+                className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-ink"
                 style={{ left: `${pct}%` }}
               />
             </div>

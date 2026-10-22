@@ -59,10 +59,10 @@ export function E1rmChart({ points }: { points: E1rmPoint[] }) {
           </text>
         )}
         {points.length > 1 && (
-          <polyline fill="none" strokeWidth={2} strokeLinejoin="round" className="stroke-accent" points={points.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')} />
+          <polyline fill="none" strokeWidth={2} strokeLinejoin="round" className="stroke-ink" points={points.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')} />
         )}
         {points.map((p, i) => (
-          <circle key={`${p.date}:${i}`} cx={x(i)} cy={y(p.value)} r={3.5} className="fill-accent" />
+          <circle key={`${p.date}:${i}`} cx={x(i)} cy={y(p.value)} r={3.5} className="fill-ink" />
         ))}
       </svg>
       <figcaption className="text-xs text-muted">1RM estimado (kg) por sessão</figcaption>

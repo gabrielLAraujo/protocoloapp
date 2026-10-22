@@ -68,7 +68,7 @@ export function MedalArt({ medal, earned, size = 56 }: { medal: MedalKey; earned
       strokeWidth={2.6}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`shrink-0 ${earned ? 'text-accent' : 'text-muted'}`}
+      className={`shrink-0 ${earned ? 'text-ink' : 'text-muted'}`}
     >
       <path
         d={FRAMES[frame]}

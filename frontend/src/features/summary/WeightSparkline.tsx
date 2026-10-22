@@ -28,8 +28,8 @@ export function WeightSparkline({ points }: { points: WeightPoint[] }) {
   return (
     <figure className="grid gap-1">
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary} className="h-16 w-full overflow-visible">
-        <path d={path} fill="none" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="stroke-accent" />
-        <circle cx={x(points.length - 1)} cy={y(last)} r={3.5} className="fill-accent" />
+        <path d={path} fill="none" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="stroke-ink" />
+        <circle cx={x(points.length - 1)} cy={y(last)} r={3.5} className="fill-ink" />
       </svg>
       <figcaption className="text-sm tabular-nums text-muted">{summary}</figcaption>
     </figure>

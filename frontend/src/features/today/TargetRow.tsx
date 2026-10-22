@@ -1,22 +1,11 @@
 import { Link } from 'react-router'
 import type { AdherenceStatus } from '../../data/adherenceRepo'
-import type { AdherenceTargetType } from '../../domain/dayPlan'
 import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
-import { linkOf, STATUS_TEXT, STATUS_TONE, TYPE_ICON } from './targetKinds'
+import { linkOf, STATUS_TEXT, STATUS_TONE } from './targetKinds'
 import { REASON_LABELS, type TodayRow } from './todayData'
 
 const FOCUS = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
-
-/** The type icon in its soft square; a red dot on its corner when the target is late. */
-function TypeIcon({ type, late }: { type: AdherenceTargetType; late: boolean }) {
-  return (
-    <span aria-hidden="true" className="relative grid size-9 shrink-0 place-items-center rounded-control bg-raised text-muted">
-      <Icon name={TYPE_ICON[type]} size={20} />
-      {late && <span data-late-dot className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2 border-surface bg-danger" />}
-    </span>
-  )
-}
 
 /** Time, then the state: "Atrasado" while late and unmarked, else the mark (with its reason). */
 function Meta({ row, late, id }: { row: TodayRow; late: boolean; id?: string }) {
@@ -73,7 +62,6 @@ export function TargetRow({
           aria-describedby={metaId}
           className={`flex min-h-14 items-center gap-3 px-4 py-2.5 hover:bg-raised active:bg-raised ${FOCUS}`}
         >
-          <TypeIcon type={target.type} late={late} />
           <span className="min-w-0 flex-1">
             <span className="block text-base font-medium text-ink [overflow-wrap:anywhere]">{row.label}</span>
             <Meta row={row} late={late} id={metaId} />
@@ -86,14 +74,13 @@ export function TargetRow({
   const done = row.status === 'done'
   return (
     <li aria-label={row.label} className="flex min-h-14 items-center gap-3 py-1.5 pr-2 pl-4">
-      <TypeIcon type={target.type} late={late} />
       <span className="min-w-0 flex-1 py-1">
         <button
           type="button"
           aria-haspopup="dialog"
           disabled={busy}
           onClick={onOpen}
-          className={`-mx-1 flex min-h-11 items-center rounded-control px-1 text-left text-base font-medium text-ink [overflow-wrap:anywhere] hover:text-accent disabled:opacity-50 ${FOCUS}`}
+          className={`-mx-1 flex min-h-11 items-center rounded-control px-1 text-left text-base font-medium text-ink [overflow-wrap:anywhere] hover:underline hover:underline-offset-4 disabled:opacity-50 ${FOCUS}`}
         >
           {row.label}
         </button>
@@ -111,7 +98,7 @@ export function TargetRow({
           <span
             aria-hidden="true"
             className={`grid size-7 place-items-center rounded-full border-2 transition-colors motion-reduce:transition-none ${
-              done ? 'border-ok bg-ok text-on-accent' : 'border-control-line text-transparent hover:border-ok hover:text-ok/60'
+              done ? 'border-ink bg-ink text-surface' : 'border-control-line text-transparent hover:border-ink hover:text-muted'
             }`}
           >
             <Icon name="check" size={16} strokeWidth={2.8} />

@@ -46,7 +46,7 @@ async function expectSynced(page: Page) {
   await expect(page.locator('header').getByText(/pendente/)).toHaveCount(0)
 }
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
+const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 
 /** Sends a PDF in the card of `title`: the device reads it (pdf.js worker) and creates the draft; the review opens. */
 async function importOnDevice(page: Page, title: 'Protocolo' | 'Treino', file: { name: string; mimeType: string; buffer: Buffer }) {

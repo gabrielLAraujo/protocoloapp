@@ -234,38 +234,49 @@ export function TodayPage() {
         {liveStreak && <StreakLink current={liveStreak.current} />}
       </div>
 
-      {view.rows.length > 0 && (
-        <TodayHero
-          score={score}
-          counted={counted}
-          done={done}
-          total={total}
-          partial={partial}
-          complete={moments.complete}
-          onTarget={moments.onTarget}
-          celebration={moments.celebrating && <Celebration />}
-          next={next}
-          nextLate={next !== null && isLate(next, view.date, now)}
-          busy={busy}
-          onDone={(row) => choose(row, 'done')}
-        />
-      )}
+      {/*
+        Desktop: the day's list on the left, a sticky panel on the right with the ring, the next task and the week. On the
+        phone both wrappers are `display: contents`, so the order stays hero, notices, list, week (the week is `order-1`).
+      */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
+        <div data-today-panel className="contents lg:sticky lg:top-10 lg:col-start-2 lg:row-start-1 lg:grid lg:gap-6">
+          {view.rows.length > 0 && (
+            <TodayHero
+              score={score}
+              counted={counted}
+              done={done}
+              total={total}
+              partial={partial}
+              complete={moments.complete}
+              onTarget={moments.onTarget}
+              celebration={moments.celebrating && <Celebration />}
+              next={next}
+              nextLate={next !== null && isLate(next, view.date, now)}
+              busy={busy}
+              onDone={(row) => choose(row, 'done')}
+            />
+          )}
+          <div className="order-1 lg:order-none empty:hidden">
+            <WeekCard goals={weekGoals} />
+          </div>
+        </div>
 
-      {notice && (
-        <p role="status" className="rounded-card border border-ok/40 bg-ok/10 px-4 py-3 text-sm font-medium">
-          {notice}
-        </p>
-      )}
+        <div className="contents lg:col-start-1 lg:row-start-1 lg:grid lg:gap-6">
+          {notice && (
+            <p role="status" className="rounded-card border border-ink/20 bg-surface px-4 py-3 text-sm font-medium">
+              {notice}
+            </p>
+          )}
 
-      {error && (
-        <p role="alert" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
-          Não foi possível salvar. Tente de novo.
-        </p>
-      )}
+          {error && (
+            <p role="alert" className="rounded-control border border-danger/50 bg-surface px-3 py-2 text-sm font-medium text-danger">
+              Não foi possível salvar. Tente de novo.
+            </p>
+          )}
 
-      <DayTimeline view={view} now={now} busy={busy} onChoose={choose} onOpen={setMenuFor} />
-
-      <WeekCard goals={weekGoals} />
+          <DayTimeline view={view} now={now} busy={busy} onChoose={choose} onOpen={setMenuFor} />
+        </div>
+      </div>
 
       {moments.toast && <GoalToast onClose={moments.closeToast} />}
 

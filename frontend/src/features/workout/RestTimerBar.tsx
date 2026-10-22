@@ -13,17 +13,17 @@ export function RestTimerBar({ timer }: { timer: RestTimerControls }) {
     <div
       role="timer"
       aria-live="off"
-      className="fixed inset-x-0 bottom-[var(--bottom-nav-height,0px)] z-20 border-t border-line bg-surface px-4 py-3 shadow-raised"
+      className="fixed inset-x-0 bottom-[var(--bottom-nav-height,0px)] lg:left-60 z-20 border-t border-line bg-surface px-4 py-3 shadow-raised"
     >
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {/* Narrow phones (360 px and less): no icon and the 16 px size, so the time stays on one line next to the buttons. */}
-          <span className={`hidden size-10 shrink-0 place-items-center rounded-full min-[400px]:grid ${timer.finished ? 'bg-ok/15 text-ok' : 'bg-accent-soft text-accent'}`}>
+          <span className={`hidden size-10 shrink-0 place-items-center rounded-full min-[400px]:grid bg-raised text-ink`}>
             <Icon name={timer.finished ? 'check' : 'timer'} size={22} />
           </span>
           <div className="min-w-0">
             {timer.finished ? (
-              <p role="status" className="text-base font-bold whitespace-nowrap text-ok min-[400px]:text-lg">
+              <p role="status" className="text-base font-bold whitespace-nowrap text-ink min-[400px]:text-lg">
                 Descanso terminou
               </p>
             ) : (
