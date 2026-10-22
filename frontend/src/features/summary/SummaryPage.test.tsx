@@ -6,6 +6,7 @@ import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { dietDeviationRepo } from '../../data/dietDeviationRepo'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { json, mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
@@ -251,6 +252,37 @@ describe('SummaryPage', () => {
 
     const line = (await screen.findByText('Itens que acabaram')).closest('div')!
     expect(within(line).getByText('2 dias')).toBeInTheDocument()
+  })
+
+  it('"Desvios na dieta" counts the cycle\'s deviations, lowers Dieta and opens the list by day', async () => {
+    vi.setSystemTime(new Date(2026, 9, 23, 12, 0)) // cycle 20..23
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-12-05', meals: [{ key: '1', label: 'Café', items: [] }] })
+    const at = new Date(2026, 9, 23, 12)
+    for (const date of ['2026-10-20', '2026-10-21', '2026-10-22']) await adherenceRepo.mark(app.db, USER_A, { date, targetType: 'meal', targetKey: '1', status: 'done' }, at)
+    await dietDeviationRepo.add(app.db, { date: '2026-10-21', mealKey: '1', time: null, description: 'Biscoito', quantity: '3 unidades' }, at)
+    await dietDeviationRepo.add(app.db, { date: '2026-10-22', mealKey: null, time: '21:00', description: 'Pizza', quantity: null }, at)
+    const gone = await dietDeviationRepo.add(app.db, { date: '2026-10-22', mealKey: null, time: null, description: 'Apagado', quantity: null }, at)
+    await dietDeviationRepo.remove(app.db, gone, new Date(2026, 9, 23, 12, 1))
+    await dietDeviationRepo.add(app.db, { date: '2026-10-19', mealKey: '1', time: null, description: 'Antes do ciclo', quantity: null }, at)
+    app.view(<SummaryPage />)
+
+    // 3 done of 3 meals planned so far (the 23rd's untimed meal is not due yet) + 2 deviations: 60 %.
+    const diet = (await screen.findByText('Dieta')).parentElement!
+    expect(within(diet).getByText('60%')).toBeInTheDocument()
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    await user.click(screen.getByRole('button', { name: /Desvios na dieta.*2 no ciclo/ }))
+
+    const sheet = within(screen.getByRole('dialog', { name: 'Desvios na dieta' }))
+    const days = sheet.getAllByRole('listitem').filter((li) => li.hasAttribute('aria-labelledby'))
+    expect(days.map((d) => within(d).getByRole('heading').textContent)).toEqual(['quinta-feira, 22 de outubro', 'quarta-feira, 21 de outubro'])
+    expect(within(days[0]!).getByText('Pizza')).toBeInTheDocument()
+    expect(within(days[0]!).getByText('Fora do plano · 21:00')).toBeInTheDocument()
+    expect(within(days[1]!).getByText('Biscoito')).toBeInTheDocument()
+    expect(within(days[1]!).getByText('Café')).toBeInTheDocument()
+    expect(within(days[1]!).getByText('3 unidades')).toBeInTheDocument()
+    expect(sheet.queryByText('Apagado')).not.toBeInTheDocument()
+    expect(sheet.queryByText('Antes do ciclo')).not.toBeInTheDocument()
   })
 
   it('Cardio counts a day once whether it was done in the check-in or marked on Hoje', async () => {
