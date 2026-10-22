@@ -1,6 +1,8 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ProtocoloApp.Api.Features.ExerciseCatalog;
+using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.IntegrationTests.Infra;
 
@@ -17,7 +19,15 @@ internal static class CatalogData
         await db.AppSecrets.Where(s => s.Name == ExerciseCatalogSync.SyncedAtKey).ExecuteDeleteAsync();
     }
 
+    /// <summary>Catalog rows plus the mark of a complete sync: unknown ids are then really unknown.</summary>
     public static async Task SeedAsync(ApiFactory factory, DateTimeOffset syncedAt, params string[] ids)
+    {
+        await SeedRowsAsync(factory, syncedAt, ids);
+        await MarkSyncedAsync(factory, syncedAt);
+    }
+
+    /// <summary>Catalog rows without the mark: a sync that stopped halfway (first deploy, ExerciseDB failing).</summary>
+    public static async Task SeedRowsAsync(ApiFactory factory, DateTimeOffset syncedAt, params string[] ids)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -36,6 +46,19 @@ internal static class CatalogData
             });
         }
 
+        await db.SaveChangesAsync();
+    }
+
+    public static async Task MarkSyncedAsync(ApiFactory factory, DateTimeOffset syncedAt)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var value = syncedAt.ToString("O", CultureInfo.InvariantCulture);
+        var secret = await db.AppSecrets.SingleOrDefaultAsync(s => s.Name == ExerciseCatalogSync.SyncedAtKey);
+        if (secret is null)
+            db.AppSecrets.Add(new AppSecret { Name = ExerciseCatalogSync.SyncedAtKey, Value = value, CreatedAt = syncedAt });
+        else
+            secret.Value = value;
         await db.SaveChangesAsync();
     }
 }

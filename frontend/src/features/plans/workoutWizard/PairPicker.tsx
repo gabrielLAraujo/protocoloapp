@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCatalogItem } from './useCatalogItem'
 import { catalogRepo, type CatalogExercise } from '../../../data/catalogRepo'
 import { useData } from '../../../data/dataContext'
+import { useCatalogChanges } from '../../../data/useCatalogChanges'
 import type { ExerciseLocal } from '../../../data/exerciseRepo'
 import { EXERCISE_DICTIONARY } from '../../../domain/exerciseDictionary'
 import { matchExercise, normalizeExerciseName } from '../../../domain/exerciseMatch'
@@ -43,6 +44,8 @@ export function PairPicker({ name, userExercises, allowUser, onPickUser, onPickC
   const [results, setResults] = useState<CatalogExercise[]>([])
   const [searched, setSearched] = useState(false)
   const [suggestion, setSuggestion] = useState<CatalogExercise | null>(null)
+  // Suggestion and results are read again when the catalog download lands.
+  const catalogChanges = useCatalogChanges()
 
   const hint = useMemo(() => {
     const match = matchExercise(name, { userExercises, dictionary: EXERCISE_DICTIONARY })
@@ -59,7 +62,7 @@ export function PairPicker({ name, userExercises, allowUser, onPickUser, onPickC
     return () => {
       cancelled = true
     }
-  }, [db, hint])
+  }, [db, hint, catalogChanges])
 
   useEffect(() => {
     if (!db) return
@@ -78,7 +81,7 @@ export function PairPicker({ name, userExercises, allowUser, onPickUser, onPickC
       cancelled = true
       clearTimeout(timer)
     }
-  }, [db, query])
+  }, [db, query, catalogChanges])
 
   const words = normalizeExerciseName(query).split(' ').filter(Boolean)
   const mine = allowUser

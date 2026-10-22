@@ -164,6 +164,7 @@ public sealed class ExerciseEndpointTests(ApiFactory factory) : IClassFixture<Ap
     public async Task Put_catalog_with_an_unknown_catalog_id_is_a_400_problem_and_changes_nothing(string catalogId)
     {
         await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat_other");
         using var api = await PlanApi.CreateAsync(factory);
         await api.ActivateAsync((await api.ImportDraftAsync()).Id);
         var exercise = (await ListAsync(api.Client))[0];
@@ -174,5 +175,54 @@ public sealed class ExerciseEndpointTests(ApiFactory factory) : IClassFixture<Ap
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("catalogId", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Null((await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).CatalogId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Put_catalog_accepts_a_well_formed_unknown_id_while_the_catalog_is_not_synced(bool partialRows)
+    {
+        await CatalogData.ResetAsync(factory);
+        if (partialRows)
+            await CatalogData.SeedRowsAsync(factory, DateTimeOffset.UtcNow, "cat_partial");
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+
+        var response = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest("cat_pending"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("cat_pending", (await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).CatalogId);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("has space")]
+    [InlineData("semi;colon")]
+    public async Task Put_catalog_with_a_malformed_id_is_a_400_problem_even_while_the_catalog_is_not_synced(string catalogId)
+    {
+        await CatalogData.ResetAsync(factory);
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+
+        var response = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest(catalogId));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Null((await ListAsync(api.Client)).Single(e => e.Id == exercise.Id).CatalogId);
+    }
+
+    [Fact]
+    public async Task Put_catalog_with_a_too_long_id_is_a_400_problem_while_the_catalog_is_not_synced()
+    {
+        await CatalogData.ResetAsync(factory);
+        using var api = await PlanApi.CreateAsync(factory);
+        await api.ActivateAsync((await api.ImportDraftAsync()).Id);
+        var exercise = (await ListAsync(api.Client))[0];
+
+        var response = await PutCatalogAsync(api.Client, exercise.Id, new SetExerciseCatalogRequest(new string('a', 101)));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 }

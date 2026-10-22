@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { catalogRepo, type CatalogExercise } from '../data/catalogRepo'
 import { useData } from '../data/dataContext'
+import { useCatalogChanges } from '../data/useCatalogChanges'
 import { bodyPartLabel, muscleLabel, youtubeSearchUrl } from '../domain/catalogLabels'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
@@ -35,6 +36,8 @@ export function ExerciseMedia({ catalogId, name, size }: Props) {
   const [loaded, setLoaded] = useState<{ id: string; item: CatalogExercise | null } | null>(null)
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  // An exercise opened before the catalog arrived reads its item again when the download lands (no need to leave the screen).
+  const catalogChanges = useCatalogChanges()
 
   useEffect(() => {
     if (!db || !catalogId) return
@@ -51,7 +54,7 @@ export function ExerciseMedia({ catalogId, name, size }: Props) {
     return () => {
       cancelled = true
     }
-  }, [db, catalogId])
+  }, [db, catalogId, catalogChanges])
 
   const box = size === 'thumb' ? 'size-16' : 'aspect-[4/3] w-full max-w-xs'
   const settled = catalogId ? loaded?.id === catalogId : true

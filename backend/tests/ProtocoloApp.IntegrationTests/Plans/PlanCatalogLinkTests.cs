@@ -112,6 +112,45 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory) : IClassFixture<Api
         Assert.Null(suggestions.Single(s => s.Name == "Rosca X").CatalogId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Draft_keeps_a_well_formed_unknown_catalog_id_while_the_catalog_is_not_synced(bool partialRows)
+    {
+        // Not synced: an empty catalog (first deploy, fresh database) or rows of a sync that stopped halfway.
+        await CatalogData.ResetAsync(factory);
+        if (partialRows)
+            await CatalogData.SeedRowsAsync(factory, DateTimeOffset.UtcNow, "cat-partial");
+        using var api = await PlanApi.CreateAsync(factory);
+        var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
+
+        var id = await CreatedIdAsync(await api.CreateDraftAsync(
+            fileId, PlanKind.Workout, PlanSamples.Workout,
+            newExercises: [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "cat-later"), new NewExerciseSuggestion("Rosca X", MuscleGroup.Biceps, "not a valid id!")]));
+
+        var suggestions = (await api.GetAsync(id)).NewExercises;
+        Assert.Equal("cat-later", suggestions.Single(s => s.Name == "Remada Curvada").CatalogId);
+        Assert.Null(suggestions.Single(s => s.Name == "Rosca X").CatalogId);
+
+        Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(id)).StatusCode);
+        var created = await api.WithDbAsync(db => db.Exercises.AsNoTracking().SingleAsync(e => e.UserId == api.UserId && e.NormalizedName == "remada curvada"));
+        Assert.Equal("cat-later", created.CatalogId);
+    }
+
+    [Fact]
+    public async Task Put_keeps_a_planned_catalog_id_while_the_catalog_is_not_synced()
+    {
+        await CatalogData.ResetAsync(factory);
+        using var api = await PlanApi.CreateAsync(factory);
+        var exercise = await AddExerciseAsync(api, "Remada Baixa");
+        var draft = await api.ImportDraftAsync();
+
+        var response = await api.PutAsync(draft.Id, WorkoutWith("Remada Baixa", exercise, catalogId: "cat-pending"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("cat-pending", PlannedCatalogId(await api.GetAsync(draft.Id)).GetString());
+    }
+
     [Fact]
     public async Task Put_drops_unknown_catalog_ids_of_the_new_exercises_and_of_the_planned_exercises()
     {
@@ -219,7 +258,9 @@ public sealed class PlanCatalogLinkTests(ApiFactory factory) : IClassFixture<Api
         var fileId = await api.CreateFileAsync(FileKind.WorkoutPdf);
         var id = await CreatedIdAsync(await api.CreateDraftAsync(
             fileId, PlanKind.Workout, PlanSamples.Workout, newExercises: [new NewExerciseSuggestion("Remada Curvada", MuscleGroup.Back, "cat-gone")]));
+        // A later complete sync no longer has it.
         await CatalogData.ResetAsync(factory);
+        await CatalogData.SeedAsync(factory, DateTimeOffset.UtcNow, "cat-other");
 
         Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(id)).StatusCode);
 

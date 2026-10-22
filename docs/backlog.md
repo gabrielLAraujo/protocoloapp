@@ -6,3 +6,4 @@ Itens pedidos e ainda não especificados. Cada um vira spec + plano quando entra
 - **Item que acabou:** em manipulados, remédios e suplementos, registrar "não usado porque acabou". É um motivo próprio, separado de "não fiz", e pode sugerir reposição.
 - **Importar treino do Hevy:** importar o relatório do Hevy com o treino de hoje (exercícios, séries, cargas) para o registro do dia.
 - **Subprojeto 5:** questionário de atualização preenchido e fotos.
+- **Horário das refeições no protocolo:** o leitor do PDF guarda o horário de cada refeição.

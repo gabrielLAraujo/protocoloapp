@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { catalogRepo } from '../data/catalogRepo'
@@ -98,5 +98,25 @@ describe('ExerciseMedia', () => {
     renderWith(db, <ExerciseMedia catalogId="n1" name="Rosca fictícia" size="thumb" />)
 
     expect(await screen.findByTestId('media-placeholder')).toBeInTheDocument()
+  })
+
+  it('an exercise opened before the catalog arrived shows its GIF once the catalog loads, without leaving the screen', async () => {
+    const db = await newLocalDb()
+    renderWith(db, <ExerciseMedia catalogId="abc123" name="Rosca fictícia" size="card" />)
+
+    // Empty catalog: only the YouTube link.
+    expect(await screen.findByRole('link', { name: 'Ver no YouTube' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' })).not.toBeInTheDocument()
+
+    mockFetch({
+      'GET /api/exercise-catalog': () =>
+        json({ version: '1-1', items: [{ id: 'abc123', name: 'invented curl', bodyParts: [], targetMuscles: [], equipments: [], gifUrl: GIF }] }),
+    })
+    await act(async () => {
+      expect(await catalogRepo.refresh(db, newTestApi())).toBe('updated')
+    })
+
+    await screen.findByRole('button', { name: 'Ampliar demonstração de Rosca fictícia' })
+    expect(document.querySelector('img')).toHaveAttribute('src', GIF)
   })
 })

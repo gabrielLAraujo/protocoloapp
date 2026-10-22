@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Shared.Data;
 
@@ -13,7 +14,8 @@ public sealed record CatalogSyncResult(int Pages, int Upserted, bool Complete);
 /// than <see cref="ExerciseCatalogOptions.RefreshAfterDays"/>. Pages of 25 with the <c>after</c> cursor, a pause between pages;
 /// stops when there is no next page, when a page brings no new id (the API sometimes repeats pages) or after
 /// <see cref="MaxPages"/>. A failed run keeps what it got and is tried again at the next start. It never takes the host down
-/// and logs only counts and status codes.
+/// and logs only counts and status codes. After a complete sync (and at every start when no sync is due) the links that point
+/// to no catalog item are cleared (<see cref="CatalogLinkCleanup"/>): until the catalog is synced, links are kept unchecked.
 /// </summary>
 public sealed class ExerciseCatalogSync(
     IServiceScopeFactory scopes,
@@ -40,7 +42,11 @@ public sealed class ExerciseCatalogSync(
             // Hand control back at once: nothing here may delay the host's start (StartAsync runs this up to its first await).
             await Task.Yield();
             if (!await IsDueAsync(stoppingToken))
+            {
+                // A cleanup that failed after the last sync is tried again here; it is a no-op when nothing dangles.
+                await CleanLinksAsync(stoppingToken);
                 return;
+            }
 
             var result = await SyncAsync(stoppingToken);
             logger.LogInformation(
@@ -65,11 +71,8 @@ public sealed class ExerciseCatalogSync(
         if (!await db.CatalogExercises.AnyAsync(ct))
             return true;
 
-        var stored = await db.AppSecrets.AsNoTracking().Where(s => s.Name == SyncedAtKey).Select(s => s.Value).SingleOrDefaultAsync(ct);
-        if (stored is null || !DateTimeOffset.TryParse(stored, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var last))
-            return true;
-
-        return clock.GetUtcNow() - last > TimeSpan.FromDays(options.Value.RefreshAfterDays);
+        var last = await CatalogState.LastSyncedAtAsync(db, ct);
+        return last is null || clock.GetUtcNow() - last.Value > TimeSpan.FromDays(options.Value.RefreshAfterDays);
     }
 
     /// <summary>
@@ -91,7 +94,10 @@ public sealed class ExerciseCatalogSync(
 
             try
             {
-                return await DownloadAsync(ct);
+                var result = await DownloadAsync(ct);
+                if (result.Complete)
+                    await CleanLinksAsync(ct);
+                return result;
             }
             finally
             {
@@ -102,6 +108,21 @@ public sealed class ExerciseCatalogSync(
         {
             await db.Database.CloseConnectionAsync();
         }
+    }
+
+    /// <summary>Clears the links to ids the synced catalog does not have; logs only the counts.</summary>
+    public async Task<CatalogLinkCleanupResult> CleanLinksAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var result = await CatalogLinkCleanup.RunAsync(db, clock, ct);
+        if (result.Exercises > 0 || result.Drafts > 0)
+        {
+            logger.LogInformation(
+                "Exercise catalog links cleared: {Exercises} exercises, {Drafts} drafts.", result.Exercises, result.Drafts);
+        }
+
+        return result;
     }
 
     private static async Task<bool> ExecuteLockAsync(AppDbContext db, string function, CancellationToken ct)
