@@ -93,13 +93,15 @@ jobs:
         run: |
           grep -v '^\s*$' ef.log | tail -n 8 | while IFS= read -r line; do echo "::error::${line:0:900}"; done || true
 
-      # The integration tests start a Postgres in a container (Testcontainers); the runner already has Docker.
+      # The integration tests start a Postgres in a container (Testcontainers); the runner already has Docker. Skipped only on a
+      # pull request that changes nothing outside frontend/ (see the changes job); the build and the checks around it still run.
       - name: Tests
+        if: ${{ needs.changes.outputs.backend-tests == 'true' }}
         run: dotnet test --no-build --logger "trx" --results-directory TestResults
 
       # Counts and each failed test become job annotations, readable through the API without downloading the log.
       - name: Test summary
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.backend-tests == 'true' }}
         shell: python
         run: |
           import glob
@@ -150,6 +152,10 @@ jobs:
   # Tells the heavy jobs whether to run. A change that only touches documentation (docs/**, *.md) skips them; Privacy (and
   # GitGuardian, a GitHub App) still check it. No paths-ignore on the trigger: the run (and its Privacy check) always exists.
   # Also tells whether the front exists yet (hashFiles() is not available in a job-level `if`).
+  # On pull requests it also tells which side changed, to skip the other side's unit tests: `backend` is false only when
+  # every code file is under frontend/ (frontend/openapi.json counts as backend: the backend job checks it), `frontend` only
+  # when every code file is under backend/. Anything else (workflows, scripts, fixtures, root files) counts as both. The
+  # backend build, OpenAPI drift and EF checks, the image and E2E still run whenever any code changed.
   changes:
     name: Changes
     runs-on: ubuntu-latest
@@ -157,6 +163,8 @@ jobs:
     outputs:
       code: ${{ steps.diff.outputs.code }}
       frontend: ${{ steps.diff.outputs.frontend }}
+      backend-tests: ${{ steps.diff.outputs.backend_tests }}
+      frontend-tests: ${{ steps.diff.outputs.frontend_tests }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -177,16 +185,34 @@ jobs:
             push) base="$PUSH_BEFORE" ;;
           esac
           code=true
+          backend_tests=true
+          frontend_tests=true
           if [ -n "$base" ] && ! [[ "$base" =~ ^0+$ ]] && git cat-file -e "$base^{commit}" 2>/dev/null; then
             files="$(git diff --name-only "$base" HEAD)"
             if [ -n "$files" ] && ! grep -qvE '^docs/|\.md$' <<< "$files"; then
               code=false
             fi
             echo "Changed files:"; echo "$files" | head -n 50
+            # Only on pull requests: pushes (main above all, which publishes the release) always run everything.
+            code_files="$(grep -vE '^docs/|\.md$' <<< "$files" || true)"
+            if [ "$EVENT" = pull_request ] && [ -n "$code_files" ]; then
+              if ! grep -qvE '^frontend/' <<< "$code_files" && ! grep -qxF 'frontend/openapi.json' <<< "$code_files"; then
+                backend_tests=false
+              fi
+              if ! grep -qvE '^backend/' <<< "$code_files"; then
+                frontend_tests=false
+              fi
+            fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "backend_tests=$backend_tests" >> "$GITHUB_OUTPUT"
+          echo "frontend_tests=$frontend_tests" >> "$GITHUB_OUTPUT"
           if [ "$code" = false ]; then
             echo "::notice title=Documentation only::Build, tests, image, E2E and APK skipped; Privacy still ran."
+          elif [ "$backend_tests" = false ]; then
+            echo "::notice title=Frontend only::Backend tests skipped; the backend build, OpenAPI and EF checks, image and E2E still ran."
+          elif [ "$frontend_tests" = false ]; then
+            echo "::notice title=Backend only::Frontend unit tests skipped; lint, front build, image, E2E and APK still ran."
           fi
 
   frontend:
@@ -214,7 +240,9 @@ jobs:
       - name: Lint and types
         run: npm run lint
 
+      # Skipped only on a pull request that changes nothing outside backend/ (see the changes job).
       - name: Tests
+        if: ${{ needs.changes.outputs.frontend-tests == 'true' }}
         run: npm test
 
       - name: Build
