@@ -8,6 +8,9 @@ The `android` job in `.github/workflows/ci.yml` builds the APK.
 | Push to `main`, signing secrets set | Separate `release` job (after all other jobs): signed release APK published as GitHub Release `v0.1.<run number>` with the file `protocolo-0.1.<run number>.apk` |
 | Push to `main`, a secret missing | `release` job warns and does nothing; debug artifact still produced |
 
+A push or PR that only changes documentation (`docs/**`, `*.md`) skips every build job, the APK and the release included
+(the `changes` job decides; Privacy still runs).
+
 `versionCode` is the run number and `versionName` is `0.1.<run number>`, passed to Gradle with `-P`.
 
 ## Create the keystore (once)

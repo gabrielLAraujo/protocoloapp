@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { configDefaults, defineConfig } from 'vitest/config'
+import { jeepSqliteAtomicSave } from './build/jeepSqliteAtomicSave.ts'
 
 // Local API (the "http" launch profile). The browser only talks to Vite, so dev behaves like production, where the API
 // serves the front on the same origin.
@@ -9,6 +10,8 @@ const api = 'http://localhost:5190'
 
 export default defineConfig({
   plugins: [
+    // Before the bundler sees jeep-sqlite: its web save must not delete the stored database first (see the file).
+    { ...jeepSqliteAtomicSave(), enforce: 'pre' },
     react(),
     tailwindcss(),
     // Installable and offline: the whole app shell (including the sql.js WebAssembly) is precached. A new deploy waits for the
@@ -46,6 +49,8 @@ export default defineConfig({
       },
     }),
   ],
+  // Dev pre-bundles dependencies without the plugins above: same fix there.
+  optimizeDeps: { rolldownOptions: { plugins: [jeepSqliteAtomicSave()] } },
   server: {
     proxy: { '/api': api, '/openapi': api, '/scalar': api },
   },
