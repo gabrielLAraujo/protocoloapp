@@ -353,7 +353,7 @@ jobs:
         working-directory: backend
         run: |
           dotnet tool restore
-          dotnet ef database update --project src/ProtocoloApp.Api --startup-project src/ProtocoloApp.Api --connection "$ConnectionStrings__Db"
+          dotnet ef database update --project src/ProtocoloApp.Api --startup-project src/ProtocoloApp.Api --configuration Release --no-build --connection "$ConnectionStrings__Db"
 
       # The only way to get a user, as in production.
       - name: Create the user
