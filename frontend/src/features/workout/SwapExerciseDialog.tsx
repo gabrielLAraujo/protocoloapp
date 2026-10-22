@@ -3,6 +3,7 @@ import type { ExerciseLocal } from '../../data/exerciseRepo'
 import { normalizeExerciseName } from '../../domain/exerciseNames'
 import { muscleGroupLabel } from '../../domain/muscleGroups'
 import { buttonClass, inputClass } from '../plans/styles'
+import { cardClasses } from '../../ui/styles'
 
 /** Search the exercise catalog and pick the replacement. */
 export function SwapExerciseDialog({
@@ -30,8 +31,9 @@ export function SwapExerciseDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="grid max-h-[85dvh] w-full max-w-lg gap-3 overflow-y-auto rounded-t-sheet bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised sm:rounded-sheet"
+        className="grid max-h-[85dvh] w-full max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-t-sheet border-t border-line bg-surface p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-raised sm:rounded-sheet sm:border"
       >
+        <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line sm:hidden" />
         <h2 id={titleId} className="text-lg font-semibold">
           Trocar exercício
         </h2>
@@ -47,12 +49,16 @@ export function SwapExerciseDialog({
         {matches.length === 0 ? (
           <p className="text-sm text-muted">Nenhum exercício encontrado.</p>
         ) : (
-          <ul className="grid gap-2">
+          <ul className={cardClasses({ tone: 'list' })}>
             {matches.map((e) => (
               <li key={e.id}>
-                <button type="button" className={`${buttonClass} w-full justify-between! text-left`} onClick={() => onPick(e)}>
-                  <span className="font-medium">{e.name}</span>
-                  <span className="text-xs font-normal text-muted">{muscleGroupLabel(e.primaryMuscleGroup)}</span>
+                <button
+                  type="button"
+                  className="flex min-h-13 w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-raised active:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  onClick={() => onPick(e)}
+                >
+                  <span className="text-base font-medium text-ink">{e.name}</span>
+                  <span className="shrink-0 text-sm text-muted">{muscleGroupLabel(e.primaryMuscleGroup)}</span>
                 </button>
               </li>
             ))}

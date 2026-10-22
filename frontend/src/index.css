@@ -1,11 +1,14 @@
 @import 'tailwindcss';
 
 /*
- * Calm, athletic, legible at arm's length in the gym. Cool chalk-and-slate neutrals, one teal accent, and the semantic
- * colors (ok / warn / danger) reserved for the state of things. Follows the system theme. Components use only these tokens.
+ * "Clínico claro": a calm, legible health-report look. Ice-white page, white surfaces, graphite ink, one petrol-blue accent,
+ * and the semantic colors (ok / warn / danger) reserved for the state of things. Light is the main theme; dark follows the
+ * system with the same tokens. Components use only these tokens. src/ui/contrast.test.ts checks the pairs (AA) in both themes.
  *
- * Type scale (the only five sizes): xs 12 · sm 14 · base 16 · lg 20 · xl 28. Spacing: 4 · 8 · 12 · 16 · 24 (Tailwind 1/2/3/4/6).
- * Radii by hierarchy: control 10 (buttons, inputs, chips) · card 16 · sheet 24 (bottom sheets).
+ * Type scale (Inter, the only six sizes):
+ *   xs 12/16 caption · sm 13/18 label · base 15/22 body · lg 17/24 section title · xl 26/32 screen title · display 32/36 number.
+ * Spacing on a 4 px grid: screens use 16 px side margins and 24 px between sections.
+ * Radii by hierarchy: control 10 (buttons, inputs, chips) · card 12 · sheet 20 (bottom sheets).
  */
 @theme {
   --color-page: var(--page);
@@ -23,61 +26,73 @@
   --color-warn: var(--warn);
   --color-scrim: var(--scrim);
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.25rem;
-  --text-base: 1rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg: 1.25rem;
-  --text-lg--line-height: 1.75rem;
-  --text-xl: 1.75rem;
-  --text-xl--line-height: 2.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.625rem;
+  --text-xl--line-height: 2rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-display: 2rem;
+  --text-display--line-height: 2.25rem;
+  --text-display--letter-spacing: -0.01em;
 
   --radius-control: 10px;
-  --radius-card: 16px;
-  --radius-sheet: 24px;
+  --radius-card: 12px;
+  --radius-sheet: 20px;
 
   --shadow-card: var(--shadow-card-value);
   --shadow-raised: var(--shadow-raised-value);
 }
 
+/* Values are parsed by src/ui/contrast.test.ts: keep one `--token: #hex;` per line. */
 :root {
   color-scheme: light dark;
-  --page: #f1f4f3;
+  --page: #f6f7f9;
   --surface: #ffffff;
-  --raised: #f7f9f8;
-  --ink: #111816;
-  --muted: #55625d;
-  --line: #d6ddda;
-  /* Borders that identify a control (inputs, choices): 3:1 against surface and page. */
-  --control-line: #7a8984;
-  --accent: #0e6f68;
-  --accent-soft: #e2f3f0;
+  --raised: #f9fafb;
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: #e2e8f0;
+  /*
+   * Borders that identify a control (inputs, choices): 3:1 against page, surface and raised. The spec's #94a3b8 is 2.6:1 on
+   * white, so this is the nearest slate that passes.
+   */
+  --control-line: #7c8a9e;
+  --accent: #0b5e73;
+  --accent-soft: #e6f1f4;
   --on-accent: #ffffff;
-  --danger: #b42318;
-  --ok: #12703a;
-  --warn: #a14a0a;
-  --scrim: rgb(9 14 13 / 0.45);
-  --shadow-card-value: 0 1px 2px rgb(17 24 22 / 0.05), 0 1px 1px rgb(17 24 22 / 0.03);
-  --shadow-raised-value: 0 -6px 24px rgb(17 24 22 / 0.1);
+  --danger: #b91c1c;
+  /*
+   * ok / warn are a step darker than the spec's #15803d / #b45309, so their text also passes AA on their own 10 % tint
+   * (chips, the pressed "Parcial") over page, surface and raised.
+   */
+  --ok: #13773a;
+  --warn: #a54b08;
+  --scrim: rgb(15 23 42 / 0.45);
+  --shadow-card-value: 0 1px 1px rgb(15 23 42 / 0.04), 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-raised-value: 0 -4px 20px rgb(15 23 42 / 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: #0c1211;
-    --surface: #141c1a;
-    --raised: #1b2522;
-    --ink: #e7eeeb;
-    --muted: #9eaca6;
-    --line: #2a3632;
-    --control-line: #62736d;
-    --accent: #5eead4;
-    --accent-soft: #123430;
-    --on-accent: #062420;
-    --danger: #f97066;
+    --page: #0b1117;
+    --surface: #111a22;
+    --raised: #16212b;
+    --ink: #e5edf3;
+    --muted: #94a3b8;
+    --line: #223040;
+    --control-line: #64748b;
+    --accent: #5bb8cf;
+    --accent-soft: #0e2a33;
+    --on-accent: #06222b;
+    --danger: #f87171;
     --ok: #4ade80;
     --warn: #fbbf24;
     --scrim: rgb(0 0 0 / 0.6);
@@ -91,6 +106,9 @@ body {
   background: var(--page);
   color: var(--ink);
   font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   /* Landscape iPhone: keep content out of the notch (top and bottom are handled by the header, login and main). */
@@ -101,6 +119,7 @@ body {
 .tabular-nums,
 time {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
 }
 
 @media (prefers-reduced-motion: reduce) {

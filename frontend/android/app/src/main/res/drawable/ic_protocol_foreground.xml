@@ -3,9 +3,20 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- A white "P" inside the adaptive-icon safe zone (the central 66dp circle). -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillType="evenOdd"
-        android:pathData="M40,30 L40,78 L48,78 L48,60 L58,60 C67,60 72,55 72,45 C72,35 67,30 58,30 Z M48,37 L57,37 C62,37 64,40 64,45 C64,50 62,53 57,53 L48,53 Z" />
+    <!--
+      The petrol-blue "P" of public/favicon.svg and src/ui/BrandMark.tsx (32x32 box, centered at 15.5,16), scaled 2.5x
+      to about 40dp and centered, well inside the adaptive-icon safe zone (the central 66dp circle).
+    -->
+    <group
+        android:pivotX="15.5"
+        android:pivotY="16"
+        android:scaleX="2.5"
+        android:scaleY="2.5"
+        android:translateX="38.5"
+        android:translateY="38">
+        <path
+            android:fillColor="#0B5E73"
+            android:fillType="evenOdd"
+            android:pathData="M9,8h8a5,5 0,0 1,0 10h-4v6H9z M13,12v2h4a1,1 0,0 0,0 -2z" />
+    </group>
 </vector>

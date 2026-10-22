@@ -21,7 +21,7 @@ import { DiffList, type PlanDiff } from './DiffList'
 import { Section, TextField } from './fields'
 import { LowConfidenceContext } from './lowConfidence'
 import { buttonClass, dangerButtonClass } from './styles'
-import { buttonClasses } from '../../ui/styles'
+import { buttonClasses, cardClasses } from '../../ui/styles'
 import { ProtocolEditor } from './ProtocolEditor'
 import { describePath, validateProtocol, validateWorkout, type Issue } from './validation'
 import { initialCatalogIds, initialGroups, newExerciseEntries } from './newExercises'
@@ -329,7 +329,7 @@ export function PlanReviewPage() {
       <div className="grid gap-4 pb-4">
         {blocker.state === 'blocked' && (
           <div role="alertdialog" aria-label="Descartar alterações?" className="grid gap-3 rounded-card border border-danger/40 bg-surface p-4 shadow-card">
-            <p className="font-semibold">Descartar alterações?</p>
+            <p className="text-lg font-semibold">Descartar alterações?</p>
             <p className="text-sm text-muted">Você editou este plano e não salvou.</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={buttonClass} onClick={() => blocker.reset()}>
@@ -342,7 +342,7 @@ export function PlanReviewPage() {
           </div>
         )}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+          <h1 className="text-xl font-bold">{title}</h1>
           {aiAvailable && (
             <button type="button" className={buttonClasses({ variant: 'secondary' })} disabled={!online || aiReading || working !== null} onClick={() => void readAgainWithAi()}>
               {aiReading ? 'Lendo com IA…' : 'Ler com IA'}
@@ -350,7 +350,7 @@ export function PlanReviewPage() {
           )}
         </div>
         {aiReading && (
-          <p role="status" className="rounded-control bg-raised px-3 py-2 text-sm font-medium">
+          <p role="status" className="rounded-control border border-line bg-raised px-3 py-2 text-sm font-medium">
             Lendo o PDF com IA…
             <span className="block text-muted">Pode demorar até 90 segundos. Não feche esta tela.</span>
           </p>
@@ -362,7 +362,7 @@ export function PlanReviewPage() {
         )}
 
         {banner && (
-          <p role="alert" className="rounded-card border border-warn/40 bg-warn/10 px-4 py-3 text-sm font-medium">
+          <p role="alert" className={cardClasses({ tone: 'warn', className: 'text-sm font-medium' })}>
             {banner}
           </p>
         )}

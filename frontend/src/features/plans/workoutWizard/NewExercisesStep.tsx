@@ -25,11 +25,11 @@ export function NewExercisesStep({ newExercises, groupsDisabled, onGroupChange, 
       <p className="text-sm text-muted">Esses exercícios ainda não existem no seu catálogo. Confirme o grupo muscular e escolha o par com a demonstração.</p>
       <ul className="grid gap-2">
         {newExercises.map((ex) => (
-          <li key={ex.id} className="grid gap-3 rounded-card border border-line bg-surface p-3 shadow-card">
+          <li key={ex.id} className="grid gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
             <div className="flex items-center gap-3">
               {ex.catalogId ? <ExerciseMedia catalogId={ex.catalogId} name={ex.name} size="thumb" /> : <GifPreview url={null} className="size-16" />}
               <div className="grid min-w-0 gap-0.5">
-                <span className="font-semibold leading-snug">{ex.name}</span>
+                <span className="text-base font-semibold text-ink">{ex.name}</span>
                 <PairName catalogId={ex.catalogId ?? null} />
               </div>
             </div>

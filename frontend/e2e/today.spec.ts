@@ -49,7 +49,8 @@ test('marks a meal on Hoje offline, syncs it and sees the diet rate in the summa
   // Resumo: the cycle started today (activation), so the marked meal makes the diet rate positive.
   await nav(page, 'Resumo').click()
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
-  const diet = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Dieta$/ }) }).locator('dd')
+  // The figure is the first <dd> of the term; the caption is a second one.
+  const diet = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Dieta$/ }) }).locator('dd').first()
   await expect(diet).toHaveText(/^\d+%$/)
   await expect(diet).not.toHaveText(/^(0%|—)$/)
 

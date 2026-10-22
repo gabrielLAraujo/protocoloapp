@@ -17,7 +17,7 @@ const clampDrops = (v: number | undefined) => (v === undefined ? undefined : Mat
 export function SetsEditor({ exercise, base, set, errors, onRemoveSet }: Props) {
   return (
     <div className="grid gap-2">
-      <span className="text-sm font-medium">Séries (repetições)</span>
+      <span className="text-sm font-semibold text-muted">Séries (repetições)</span>
       {exercise.sets.map((s, k) => {
         const p = `${base}.sets[${k}]`
         return (

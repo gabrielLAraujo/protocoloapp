@@ -7,7 +7,10 @@ import { muscleGroupLabel } from '../../domain/muscleGroups'
 import { buttonClass } from '../plans/styles'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
+import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
+import { ListRow } from '../../ui/ListRow'
+import { SectionHeader } from '../../ui/SectionHeader'
 import { formatDate, formatVolume } from './format'
 import { loadWorkoutPlans } from './workoutPlans'
 
@@ -80,24 +83,26 @@ export function HistoryPage() {
           <Icon name="chevronLeft" size={18} />
           Voltar para o treino de hoje
         </Link>
-        <h1 className="text-xl font-bold tracking-tight">Histórico de treinos</h1>
+        <h1 className="text-xl font-bold">Histórico de treinos</h1>
       </div>
 
-      <section aria-label="Sessões" className="grid gap-2">
+      <section aria-label="Sessões" className="grid gap-3">
         {loaded.rows.length === 0 ? (
           <EmptyState icon="history">Nenhum treino registrado ainda.</EmptyState>
         ) : (
-          <ul className="grid gap-2">
+          <ul className={cardClasses({ tone: 'list' })}>
             {loaded.rows.map(({ session, setCount, volume }) => (
-              <li key={session.id} className={cardClasses({ padding: 'sm', className: 'flex items-center justify-between gap-3' })}>
-                <div>
-                  <p className="font-medium">{formatDate(session.date)}</p>
-                  <p className="text-sm text-muted">
-                    {loaded.dayNames.get(session.planVersionId)?.get(session.dayKey) ?? session.dayKey} · {setCount} {setCount === 1 ? 'série' : 'séries'}
-                    {session.endedAt === null ? ' · em andamento' : ''}
-                  </p>
-                </div>
-                <p className="shrink-0 font-semibold tabular-nums">{formatVolume(volume)}</p>
+              <li key={session.id}>
+                <ListRow
+                  title={<time dateTime={session.date}>{formatDate(session.date)}</time>}
+                  subtitle={
+                    <span className="tabular-nums">
+                      {loaded.dayNames.get(session.planVersionId)?.get(session.dayKey) ?? session.dayKey}, {setCount} {setCount === 1 ? 'série' : 'séries'}
+                    </span>
+                  }
+                  value={formatVolume(volume)}
+                  trailing={session.endedAt === null ? <Chip tone="accent">em andamento</Chip> : undefined}
+                />
               </li>
             ))}
           </ul>
@@ -110,21 +115,12 @@ export function HistoryPage() {
       </section>
 
       {loaded.exercises.length > 0 && (
-        <section aria-label="Exercícios" className="grid gap-2">
-          <h2 className="text-base font-semibold">Exercícios</h2>
-          <ul className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line overflow-hidden' })}>
+        <section aria-label="Exercícios" className="grid gap-1">
+          <SectionHeader title="Exercícios" />
+          <ul className={cardClasses({ tone: 'list' })}>
             {loaded.exercises.map((e) => (
               <li key={e.id}>
-                <Link
-                  to={`/treino/exercicio/${e.id}`}
-                  className="flex min-h-12 items-center justify-between gap-3 px-4 hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                >
-                  <span className="font-medium">{e.name}</span>
-                  <span className="flex items-center gap-1 text-xs text-muted">
-                    {muscleGroupLabel(e.primaryMuscleGroup)}
-                    <Icon name="chevronRight" size={16} />
-                  </span>
-                </Link>
+                <ListRow to={`/treino/exercicio/${e.id}`} title={e.name} subtitle={muscleGroupLabel(e.primaryMuscleGroup)} />
               </li>
             ))}
           </ul>

@@ -1,3 +1,5 @@
+// Inter, bundled (works offline and in the APK): variable weight axis, upright, latin + latin-ext only.
+import './ui/inter.css'
 import { StrictMode } from 'react'
 import { createBrowserRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'

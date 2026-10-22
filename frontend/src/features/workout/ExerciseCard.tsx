@@ -99,11 +99,11 @@ export function ExerciseCard(props: Props) {
   }
 
   return (
-    <section aria-label={props.biset ? `Exercício ${props.biset.letter}: ${name}` : name} className={cardClasses({ className: `grid gap-3${props.biset?.next ? ' ring-2 ring-accent' : ''}` })}>
-      <header className="grid gap-1">
-        <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+    <section aria-label={props.biset ? `Exercício ${props.biset.letter}: ${name}` : name} className={cardClasses({ className: `grid gap-4${props.biset?.next ? ' ring-2 ring-accent' : ''}` })}>
+      <header className="grid gap-1.5">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
           {props.biset && (
-            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-accent text-sm text-on-accent">
+            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-control bg-accent text-sm font-semibold text-on-accent">
               {props.biset.letter}
             </span>
           )}
@@ -114,7 +114,7 @@ export function ExerciseCard(props: Props) {
         {planned.technique && <p className="text-sm text-muted">{planned.technique}</p>}
         {props.pairEndedWith && <p className="text-sm text-muted">Bi-set com {props.pairEndedWith} desfeito: siga este exercício sozinho.</p>}
         <TechniqueChips techniques={planned.techniques ?? []} />
-        {rest && <p className="text-sm text-muted">{rest}</p>}
+        {rest && <p className="text-sm text-muted tabular-nums">{rest}</p>}
         {hints && hints.length > 0 && (
           <p className="text-sm text-muted">
             <Icon name="history" size={16} className="mr-1 inline-block align-[-3px]" />
@@ -127,7 +127,7 @@ export function ExerciseCard(props: Props) {
       {props.otherSets.map((group) => (
         <section key={group.exerciseName} aria-label={`Feitas em ${group.exerciseName}`} className="grid gap-1 rounded-control border border-line bg-raised p-3 text-sm">
           <h3 className="font-medium">Feitas em {group.exerciseName}</h3>
-          <ul className="grid gap-1 text-muted">
+          <ul className="grid gap-1 text-muted tabular-nums">
             {group.sets.map((s) => (
               <li key={s.id}>
                 Série {s.setIndex + 1}: {formatKg(s.weightKg)} kg × {s.reps}
@@ -211,7 +211,7 @@ export function ExerciseCard(props: Props) {
         </div>
       )}
 
-      <label className="grid gap-1 text-sm font-medium">
+      <label className="grid gap-1.5 text-sm font-semibold text-muted">
         Anotação
         <textarea
           className={`${inputClass} min-h-16`}
@@ -237,7 +237,7 @@ export function ExerciseCard(props: Props) {
 
       {skipping && (
         <div className="grid gap-3 rounded-control border border-line bg-raised p-3">
-          <label className="grid gap-1 text-sm font-medium">
+          <label className="grid gap-1.5 text-sm font-semibold text-muted">
             Motivo (opcional)
             <input className={inputClass} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>

@@ -70,7 +70,13 @@ async function render(items: string[] = ['a', 'b']) {
 }
 
 const row = (name: string) => within(screen.getByRole('listitem', { name }))
-const rowNames = () => within(screen.getByRole('list', { name: 'Itens de hoje' })).getAllByRole('listitem').filter((li) => li.parentElement?.getAttribute('aria-label') === 'Itens de hoje').map((li) => li.getAttribute('aria-label'))
+const items = () => screen.getByRole('list', { name: 'Itens de hoje' })
+/** The rows, in screen order (the outer list's items are the periods). */
+const rowNames = () => within(items()).getAllByRole('listitem').filter((li) => li.parentElement !== items()).map((li) => li.getAttribute('aria-label'))
+const period = (name: string) => within(items()).getByRole('listitem', { name })
+/** Opens a row's sheet through its "⋯" button. */
+const openMenu = (user: ReturnType<typeof userEvent.setup>, name: string) => user.click(row(name).getByRole('button', { name: `Mais opções para ${name}` }))
+const dialog = (name: string) => within(screen.getByRole('dialog', { name }))
 const today = (db: LocalDb) => adherenceRepo.between(db, TODAY, TODAY)
 
 describe('TodayPage', () => {
@@ -85,10 +91,10 @@ describe('TodayPage', () => {
     expect(row('REF 1').getByText('07:00')).toBeInTheDocument()
     expect(row('Vitamina D').getByText('Sem horário')).toBeInTheDocument()
 
-    expect(row('REF 1').getByText('Ovos — 100 g')).toBeInTheDocument()
-    expect(row('REF 1').getByText(/ou: Claras/)).toBeInTheDocument()
-    expect(row('Creatina').getByText('Creatina — 5 g')).toBeInTheDocument()
-    expect(row('Cardio').getByText('30 min · moderada')).toBeInTheDocument()
+    // By period (nothing falls in Tarde here: the bounds are in todayData.test.ts), the untimed ones last.
+    expect(within(items()).getAllByRole('heading').map((h) => h.textContent)).toEqual(['Manhã', 'Noite', 'Sem horário'])
+    expect(within(period('Manhã')).getAllByRole('listitem').map((li) => li.getAttribute('aria-label'))).toEqual(['Check-in da manhã', 'REF 1', 'Creatina', 'Cardio', 'REF 2'])
+    expect(within(period('Sem horário')).getAllByRole('listitem').map((li) => li.getAttribute('aria-label'))).toEqual(['Vitamina D'])
 
     expect(row('Treino A').getByRole('link', { name: 'Treino A' })).toHaveAttribute('href', '/treino')
     expect(row('Check-in da manhã').getByText('07:00')).toBeInTheDocument()
@@ -116,32 +122,90 @@ describe('TodayPage', () => {
     expect(await today(db)).toEqual([])
   })
 
-  it('½ and ✗ ask for the reason; "Outro" takes an optional note; Cancelar saves nothing', async () => {
+  it('"⋯" opens the item sheet; Parcial and Não fiz ask for the reason; "Outro" takes an optional note; Cancelar saves nothing', async () => {
     const { db, user } = await render()
 
-    await user.click(row('REF 1').getByRole('button', { name: 'Parcial' }))
-    let sheet = within(screen.getByRole('dialog', { name: 'Parcial — REF 1' }))
-    await user.click(sheet.getByRole('button', { name: 'Cancelar' }))
+    await openMenu(user, 'REF 1')
+    // The focus starts on the sheet's title, not on "Parcial" (one Enter would choose it).
+    expect(dialog('REF 1').getByRole('heading', { name: 'REF 1' })).toHaveFocus()
+    await user.click(dialog('REF 1').getByRole('button', { name: 'Parcial' }))
+    await user.click(dialog('Parcial — REF 1').getByRole('button', { name: 'Cancelar' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(await today(db)).toEqual([])
 
-    await user.click(row('REF 1').getByRole('button', { name: 'Parcial' }))
-    await user.click(within(screen.getByRole('dialog', { name: 'Parcial — REF 1' })).getByRole('button', { name: 'Sem fome' }))
-    await waitFor(() => expect(row('REF 1').getByRole('button', { name: 'Parcial' })).toHaveAttribute('aria-pressed', 'true'))
-    expect(row('REF 1').getByText('Parcial: Sem fome')).toBeInTheDocument()
+    await openMenu(user, 'REF 1')
+    await user.click(dialog('REF 1').getByRole('button', { name: 'Parcial' }))
+    await user.click(dialog('Parcial — REF 1').getByRole('button', { name: 'Sem fome' }))
+    await waitFor(() => expect(row('REF 1').getByText('Parcial: Sem fome')).toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('0 de 8 feitos · 1 parcial')
 
-    await user.click(row('Creatina').getByRole('button', { name: 'Não fiz' }))
-    sheet = within(screen.getByRole('dialog', { name: 'Não fiz — Creatina' }))
+    await openMenu(user, 'Creatina')
+    await user.click(dialog('Creatina').getByRole('button', { name: 'Não fiz' }))
+    const sheet = dialog('Não fiz — Creatina')
     await user.click(sheet.getByRole('button', { name: 'Outro' }))
     await user.type(sheet.getByLabelText('Observação (opcional)'), 'Acabou')
     await user.click(sheet.getByRole('button', { name: 'Salvar' }))
 
-    await waitFor(() => expect(row('Creatina').getByRole('button', { name: 'Não fiz' })).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(row('Creatina').getByText('Não fiz: Outro — Acabou')).toBeInTheDocument())
+    expect(row('Creatina').getByText('Não fiz', { exact: true })).toBeInTheDocument()
     expect(await today(db)).toMatchObject([
       { targetType: 'meal', targetKey: '1', status: 'partial', reason: 'no_appetite', note: null },
       { targetType: 'protocol_item', targetKey: 'creatina', status: 'missed', reason: 'other', note: 'Acabou' },
     ])
+
+    // The sheet shows the pressed mark; tapping it again clears it.
+    await openMenu(user, 'Creatina')
+    expect(dialog('Creatina').getByRole('button', { name: 'Não fiz' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(dialog('Creatina').getByRole('button', { name: 'Não fiz' }))
+    await waitFor(() => expect(row('Creatina').queryByText('Não fiz', { exact: true })).not.toBeInTheDocument())
+    expect(await today(db)).toMatchObject([{ targetKey: '1', status: 'partial' }])
+  })
+
+  it('the item sheet lists the foods with their grams, the alternatives and the dose', async () => {
+    const { user } = await render()
+
+    // Tapping the name opens it too.
+    await user.click(row('REF 1').getByRole('button', { name: 'REF 1' }))
+    const details = within(dialog('REF 1').getByRole('list', { name: 'Detalhes' }))
+    const food = details.getByText('Ovos').closest('li')!
+    expect(within(food).getByText('100 g')).toHaveClass('tabular-nums', 'text-right')
+    expect(details.getByText('ou: Claras')).toBeInTheDocument()
+    await user.click(dialog('REF 1').getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await openMenu(user, 'Creatina')
+    expect(within(dialog('Creatina').getByRole('list', { name: 'Detalhes' })).getByText('5 g')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await openMenu(user, 'Cardio')
+    const cardio = within(dialog('Cardio').getByRole('list', { name: 'Detalhes' }))
+    expect(cardio.getByText('30 min')).toBeInTheDocument()
+    expect(cardio.getByText('moderada')).toBeInTheDocument()
+  })
+
+  it('the hero shows the next open task and marks it done', async () => {
+    vi.setSystemTime(new Date(2026, 9, 20, 7, 10))
+    const { db, user } = await render()
+    const hero = within(screen.getByRole('region', { name: 'Resumo do dia' }))
+    const next = within(hero.getByRole('region', { name: 'Próxima tarefa' }))
+
+    // 07:00 is still on time at 07:10: the morning check-in (a link) comes first.
+    expect(next.getByText('Check-in da manhã')).toBeInTheDocument()
+    expect(next.getByRole('link', { name: 'Abrir Check-in da manhã' })).toHaveAttribute('href', '/checkin/manha')
+
+    vi.setSystemTime(new Date(2026, 9, 20, 7, 40))
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    // Both 07:00 rows are late now: the first one not late yet is Cardio (07:30).
+    expect(await next.findByText('Cardio')).toBeInTheDocument()
+
+    vi.setSystemTime(new Date(2026, 9, 20, 10, 0))
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    expect(await next.findByText('REF 2')).toBeInTheDocument()
+    await user.click(next.getByRole('button', { name: 'Marcar REF 2 como feito' }))
+    await waitFor(() => expect(row('REF 2').getByRole('button', { name: 'Feito' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(await today(db)).toMatchObject([{ targetType: 'meal', targetKey: '2', status: 'done' }])
+    expect(next.queryByText('REF 2')).not.toBeInTheDocument()
   })
 
   it('highlights an unmarked target more than 30 minutes past its time', async () => {
@@ -153,12 +217,54 @@ describe('TodayPage', () => {
     act(() => document.dispatchEvent(new Event('visibilitychange')))
 
     expect(await row('REF 1').findByText('Atrasado')).toBeInTheDocument()
+    // A red dot and the chip; the row itself is not tinted.
+    const late = screen.getByRole('listitem', { name: 'REF 1' })
+    expect(late.querySelector('[data-late-dot]')).not.toBeNull()
+    expect(late.className).not.toMatch(/danger/)
+    expect(screen.getByRole('listitem', { name: 'REF 2' }).querySelector('[data-late-dot]')).toBeNull()
     expect(row('Creatina').getByText('Atrasado')).toBeInTheDocument()
     expect(row('Cardio').queryByText('Atrasado')).not.toBeInTheDocument() // 07:30 + 30 min
     expect(row('Vitamina D').queryByText('Atrasado')).not.toBeInTheDocument() // no time
 
     await user.click(row('REF 1').getByRole('button', { name: 'Feito' }))
     await waitFor(() => expect(row('REF 1').queryByText('Atrasado')).not.toBeInTheDocument())
+  })
+
+  it('the item sheet closes for good when its row goes away (and does not come back with it)', async () => {
+    const app = await setupApp()
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'off']) // today (20th) "a", the 21st off
+    await planVersionSync.applyRemote(app.db, {
+      entity: 'plan_version',
+      id: '7d1f2a10-0000-5000-8000-0000000000d1',
+      version: 1,
+      payload: {
+        kind: 'protocol',
+        status: 'active',
+        document: { ...protocolDocument, items: [{ key: 'pre', category: 'supplement', name: 'Item de treino', timing: 'any', schedule: { type: 'training_days_only' } }] },
+        activated_at: new Date(2026, 9, 15, 12).toISOString(),
+        low_confidence: [],
+      },
+      deletedAt: null,
+      clientUpdatedAt: '2026-10-15T12:00:00.000000+00:00',
+    })
+    const user = userEvent.setup()
+    app.view(<TodayPage />)
+    await screen.findByRole('list', { name: 'Itens de hoje' })
+    await openMenu(user, 'Item de treino')
+    expect(screen.getByRole('dialog', { name: 'Item de treino' })).toBeInTheDocument()
+
+    // The next day is a rest day: the row, and with it the sheet, are gone.
+    vi.setSystemTime(new Date(2026, 9, 21, 12, 0))
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    expect(await screen.findByText('Quarta, 21/10 · Descanso')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Back on the training day the row returns, the sheet does not.
+    vi.setSystemTime(new Date(2026, 9, 20, 12, 0))
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    expect(await screen.findByRole('listitem', { name: 'Item de treino' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('a rest day has no workout row', async () => {
@@ -235,7 +341,9 @@ describe('TodayPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(await dailyCheckinRepo.get(db, TODAY)).toMatchObject({ cardioDone: true, cardioMinutes: 40 })
     expect(await today(db)).toMatchObject([{ targetType: 'cardio', status: 'done' }])
-    expect(row('Cardio').getByText('Feito: 40 min')).toBeInTheDocument()
+    await openMenu(user, 'Cardio')
+    const done = dialog('Cardio').getByText('Feito').closest('li')!
+    expect(within(done).getByText('40 min')).toBeInTheDocument()
   })
 
   it('Escape or Cancelar on "Quantos minutos?" marks nothing; ½ and ✗ on Cardio still ask for the reason', async () => {
@@ -253,9 +361,10 @@ describe('TodayPage', () => {
     expect(await today(db)).toEqual([])
     expect(await dailyCheckinRepo.get(db, TODAY)).toBeNull()
 
-    await user.click(row('Cardio').getByRole('button', { name: 'Não fiz' }))
-    await user.click(within(screen.getByRole('dialog', { name: 'Não fiz — Cardio' })).getByRole('button', { name: 'Sem tempo' }))
-    await waitFor(() => expect(row('Cardio').getByRole('button', { name: 'Não fiz' })).toHaveAttribute('aria-pressed', 'true'))
+    await openMenu(user, 'Cardio')
+    await user.click(dialog('Cardio').getByRole('button', { name: 'Não fiz' }))
+    await user.click(dialog('Não fiz — Cardio').getByRole('button', { name: 'Sem tempo' }))
+    await waitFor(() => expect(row('Cardio').getByText('Não fiz', { exact: true })).toBeInTheDocument())
     expect(await dailyCheckinRepo.get(db, TODAY)).toMatchObject({ cardioDone: false, cardioMinutes: null })
   })
 

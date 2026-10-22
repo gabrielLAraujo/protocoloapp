@@ -10,6 +10,8 @@ import { volumeByGroup, volumeOf } from './volume'
 import { Button } from '../../ui/Button'
 import { cardClasses } from '../../ui/styles'
 import { Icon } from '../../ui/Icon'
+import { ListRow } from '../../ui/ListRow'
+import { SectionHeader } from '../../ui/SectionHeader'
 
 interface Summary {
   session: SessionLocal
@@ -76,28 +78,27 @@ export function FinishSummary({
 
   return (
     <div className="grid gap-6">
-      <h1 className="text-xl font-bold tracking-tight">Treino finalizado</h1>
-      <dl className="grid grid-cols-2 gap-3">
-        <div className={cardClasses({ padding: 'sm', className: 'grid gap-1' })}>
-          <dt className="text-sm font-medium text-muted">Duração</dt>
-          <dd className="text-lg font-bold tabular-nums">{formatDuration(duration)}</dd>
+      <h1 className="text-xl font-bold">Treino finalizado</h1>
+      <dl className={cardClasses({ tone: 'accent', className: 'grid grid-cols-2 gap-4' })}>
+        <div className="grid content-start gap-1">
+          <dt className="text-sm font-semibold text-muted">Duração</dt>
+          <dd className="text-display font-semibold text-ink tabular-nums">{formatDuration(duration)}</dd>
         </div>
-        <div className={cardClasses({ padding: 'sm', className: 'grid gap-1' })}>
-          <dt className="text-sm font-medium text-muted">Volume total</dt>
-          <dd className="text-lg font-bold tabular-nums">{formatVolume(volumeOf(sets))}</dd>
+        <div className="grid content-start gap-1">
+          <dt className="text-sm font-semibold text-muted">Volume total</dt>
+          <dd className="text-display font-semibold text-ink tabular-nums">{formatVolume(volumeOf(sets))}</dd>
         </div>
       </dl>
 
-      <section aria-label="Volume por grupo" className="grid gap-2">
-        <h2 className="text-base font-semibold">Volume por grupo</h2>
+      <section aria-label="Volume por grupo" className="grid gap-1">
+        <SectionHeader title="Volume por grupo" />
         {groups.length === 0 ? (
           <p className="text-sm text-muted">Nenhuma série registrada.</p>
         ) : (
-          <ul className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line' })}>
+          <ul className={cardClasses({ tone: 'list' })}>
             {groups.map((g) => (
-              <li key={g.group} className="flex justify-between gap-3 px-4 py-3">
-                <span>{muscleGroupLabel(g.group)}</span>
-                <span className="tabular-nums">{formatVolume(g.volume)}</span>
+              <li key={g.group}>
+                <ListRow title={muscleGroupLabel(g.group)} value={formatVolume(g.volume)} />
               </li>
             ))}
           </ul>
@@ -105,8 +106,8 @@ export function FinishSummary({
       </section>
 
       {prs.length > 0 && (
-        <section aria-label="Recordes" className="grid gap-2">
-          <h2 className="text-base font-semibold">Recordes</h2>
+        <section aria-label="Recordes" className="grid gap-1">
+          <SectionHeader title="Recordes" />
           <ul className="grid gap-2">
             {prs.map((pr) => (
               <li key={`${pr.exerciseId}:${pr.kind}`} className={cardClasses({ tone: 'ok', padding: 'sm', className: 'flex items-start gap-3 font-medium' })}>

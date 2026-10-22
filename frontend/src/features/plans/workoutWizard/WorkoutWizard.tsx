@@ -146,10 +146,10 @@ export function WorkoutWizard(props: Props) {
       <div className="grid gap-1">
         <StepRail steps={railSteps} current={current} onJump={go} />
         <div className="px-1">
-          <p className="text-xs font-medium text-muted">
+          <p className="text-sm font-semibold text-muted tabular-nums">
             Etapa {current + 1} de {steps.length}
           </p>
-          <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold leading-snug outline-none">
+          <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold text-ink outline-none">
             {stepTitle(step, doc)}
           </h2>
         </div>
@@ -202,7 +202,7 @@ export function WorkoutWizard(props: Props) {
         />
       )}
 
-      <div className="sticky bottom-[var(--bottom-nav-height,0px)] z-20 -mx-4 grid gap-2 border-t border-line bg-surface/95 px-4 pt-3 pb-3 backdrop-blur-md">
+      <div className="sticky bottom-[var(--bottom-nav-height,0px)] z-20 -mx-4 grid gap-2 border-t border-line bg-surface/95 px-4 py-3 shadow-raised backdrop-blur-md">
         {actionErrors.length > 0 && (
           <ul role="alert" className="list-disc pl-5 text-sm text-danger">
             {actionErrors.map((message, i) => (

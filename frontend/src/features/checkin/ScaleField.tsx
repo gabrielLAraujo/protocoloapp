@@ -22,7 +22,7 @@ export function ChoiceField<V extends FieldValues, T extends string | number>({
       name={name}
       render={({ field, fieldState }) => (
         <div className="grid gap-2">
-          <span id={`${id}-legend`} className="text-sm font-medium">
+          <span id={`${id}-legend`} className="text-sm font-semibold text-muted">
             {legend}
           </span>
           <div

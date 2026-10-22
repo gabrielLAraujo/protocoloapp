@@ -1,6 +1,7 @@
 import { useState, type SyntheticEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { LoginError, useAuth } from '../../auth/authContext'
+import { BrandMark } from '../../ui/BrandMark'
 import { Button } from '../../ui/Button'
 import { inputClass } from '../plans/styles'
 
@@ -40,13 +41,15 @@ export function LoginPage() {
   return (
     <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-6 px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(2.5rem+env(safe-area-inset-top))]">
       <div className="grid gap-2">
-        <span aria-hidden="true" className="h-8 w-2 rounded-full bg-accent" />
-        <h1 className="text-xl font-bold tracking-tight">Protocolo</h1>
+        <span aria-hidden="true" className="mb-2 w-fit">
+          <BrandMark withName={false} size={48} />
+        </span>
+        <h1 className="text-xl font-bold">Protocolo</h1>
         <p className="text-sm text-muted">Seu protocolo, treino e check-ins num lugar só.</p>
       </div>
 
       <form onSubmit={onSubmit} className="grid gap-4 rounded-card border border-line bg-surface p-4 shadow-card" noValidate>
-        <label className="grid gap-2 text-sm font-medium">
+        <label className="grid gap-1.5 text-sm font-semibold text-muted">
           E-mail
           <input
             type="email"
@@ -60,7 +63,7 @@ export function LoginPage() {
           />
         </label>
 
-        <label className="grid gap-2 text-sm font-medium">
+        <label className="grid gap-1.5 text-sm font-semibold text-muted">
           Senha
           <input
             type="password"

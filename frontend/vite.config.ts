@@ -31,8 +31,8 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         // The dark page color (--page in index.css): the splash screen and the status bar tint.
-        theme_color: '#0f1115',
-        background_color: '#0f1115',
+        theme_color: '#f6f7f9',
+        background_color: '#f6f7f9',
         icons: [
           { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
@@ -40,7 +40,7 @@ export default defineConfig({
         ],
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest,woff2}'],
         // Workbox's default is 2 MiB; the sql.js binary is about 0.6 MiB, so 3 MiB covers it and still flags a surprise big file.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },

@@ -2,7 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useData } from '../../data/dataContext'
 import type { Medal, MedalKey } from '../../domain/progress'
 import { Card } from '../../ui/Card'
+import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
+import { SectionHeader } from '../../ui/SectionHeader'
+import { cardClasses } from '../../ui/styles'
 import { localDate } from '../checkin/localDate'
 import { loadProgress, type ProgressData } from '../progress/progressData'
 import { useSync } from '../sync/syncContext'
@@ -21,20 +24,20 @@ const days = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`
 
 function EarnedMedal({ medal }: { medal: Medal }) {
   return (
-    <Card as="li" aria-label={medal.label} padding="sm" className="flex items-center gap-3">
-      <MedalArt medal={medal.key} earned />
+    <li aria-label={medal.label} className="flex items-center gap-3 px-4 py-3">
+      <MedalArt medal={medal.key} earned size={48} />
       <div className="grid min-w-0 flex-1 gap-0.5">
-        <p className="text-base font-semibold">{medal.label}</p>
-        <p className="text-sm text-muted">
+        <p className="text-base font-semibold text-ink">{medal.label}</p>
+        <p className="text-sm text-muted tabular-nums">
           {medal.count > 1 ? `Última em ${shortDate(medal.earnedOn!)}` : `Conquistada em ${shortDate(medal.earnedOn!)}`}
         </p>
       </div>
       {medal.count > 1 && (
-        <span aria-label={`${medal.count} vezes`} className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 text-sm font-bold text-accent tabular-nums">
-          {medal.count}×
+        <span aria-label={`${medal.count} vezes`} className="shrink-0 tabular-nums">
+          <Chip tone="accent">{medal.count}×</Chip>
         </span>
       )}
-    </Card>
+    </li>
   )
 }
 
@@ -52,18 +55,18 @@ function LockedMedal({ medal }: { medal: Medal }) {
   const { value, target } = medal.progress
   const fill = target > 0 ? Math.min(1, value / target) : 0
   return (
-    <Card as="li" aria-label={medal.label} padding="sm" className="flex items-center gap-3">
-      <MedalArt medal={medal.key} earned={false} />
-      <div className="grid min-w-0 flex-1 gap-1.5">
+    <li aria-label={medal.label} className="flex items-center gap-3 px-4 py-3">
+      <MedalArt medal={medal.key} earned={false} size={48} />
+      <div className="grid min-w-0 flex-1 gap-2">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-base font-semibold">{medal.label}</p>
+          <p className="text-base font-semibold text-ink">{medal.label}</p>
           <span className="shrink-0 text-sm text-muted tabular-nums">{target > 0 ? `${value} de ${target} ${PROGRESS_UNIT[medal.key]}` : '—'}</span>
         </div>
-        <div aria-hidden="true" className="h-1.5 rounded-full bg-line">
+        <div aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-line">
           <div data-bar-fill className="h-full rounded-full bg-accent" style={{ width: `${Math.round(fill * 1000) / 10}%` }} />
         </div>
       </div>
-    </Card>
+    </li>
   )
 }
 
@@ -106,19 +109,19 @@ export function AchievementsPage() {
 
   return (
     <div className="grid gap-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Conquistas</h1>
-        <p className="text-sm text-muted">
+      <header className="grid gap-1">
+        <h1 className="text-xl font-bold">Conquistas</h1>
+        <p className="text-sm text-muted tabular-nums">
           {earned.length} de {progress.medals.length} medalhas
         </p>
-      </div>
+      </header>
 
-      <Card as="section" aria-label="Sequência" className="flex items-center gap-4">
-        <span className={`grid size-12 shrink-0 place-items-center rounded-full ${current > 0 ? 'bg-accent-soft text-accent' : 'bg-raised text-muted'}`}>
+      <Card as="section" aria-label="Sequência" tone={current > 0 ? 'accent' : 'default'} className="flex items-center gap-4">
+        <span className={`grid size-12 shrink-0 place-items-center rounded-control ${current > 0 ? 'bg-surface text-accent' : 'bg-raised text-muted'}`}>
           <Icon name="streak" size={26} />
         </span>
         <div className="grid flex-1 gap-0.5">
-          <p className="text-lg font-bold tabular-nums">{days(current)} na meta</p>
+          <p className="text-lg font-semibold text-ink tabular-nums">{days(current)} na meta</p>
           <p className="text-sm text-muted">
             Recorde: {days(best)}. Um dia conta quando chega a 90% do previsto.
           </p>
@@ -126,11 +129,9 @@ export function AchievementsPage() {
       </Card>
 
       {earned.length > 0 && (
-        <section aria-labelledby="earned-title" className="grid gap-3">
-          <h2 id="earned-title" className="text-base font-semibold">
-            Conquistadas
-          </h2>
-          <ul className="grid gap-2">
+        <section aria-labelledby="earned-title" className="grid gap-1">
+          <SectionHeader id="earned-title" title="Conquistadas" />
+          <ul className={cardClasses({ tone: 'list' })}>
             {earned.map((m) => (
               <EarnedMedal key={m.key} medal={m} />
             ))}
@@ -139,11 +140,9 @@ export function AchievementsPage() {
       )}
 
       {locked.length > 0 && (
-        <section aria-labelledby="locked-title" className="grid gap-3">
-          <h2 id="locked-title" className="text-base font-semibold">
-            A conquistar
-          </h2>
-          <ul className="grid gap-2">
+        <section aria-labelledby="locked-title" className="grid gap-1">
+          <SectionHeader id="locked-title" title="A conquistar" />
+          <ul className={cardClasses({ tone: 'list' })}>
             {locked.map((m) => (
               <LockedMedal key={m.key} medal={m} />
             ))}

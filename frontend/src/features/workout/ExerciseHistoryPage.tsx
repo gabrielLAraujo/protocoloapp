@@ -75,28 +75,28 @@ export function ExerciseHistoryPage() {
           <Icon name="chevronLeft" size={18} />
           Voltar para o histórico
         </Link>
-        <h1 className="text-xl font-bold tracking-tight">{exercise?.name ?? 'Exercício'}</h1>
+        <h1 className="text-xl font-bold">{exercise?.name ?? 'Exercício'}</h1>
         {exercise && <ExerciseMedia catalogId={exercise.catalogId} name={exercise.name} size="card" />}
       </div>
-      <div className={cardClasses({ padding: 'sm' })}>
+      <div className={cardClasses()}>
         <E1rmChart points={points} />
       </div>
 
       {rows.length === 0 ? (
         <EmptyState icon="dumbbell">Nenhuma série registrada neste exercício.</EmptyState>
       ) : (
-        <div className={cardClasses({ padding: 'sm', className: 'overflow-x-auto' })}>
-          <table className="w-full text-left text-sm">
-            <caption className="pb-2 text-left text-base font-semibold">Sessões</caption>
+        <div className={cardClasses({ className: 'overflow-x-auto' })}>
+          <table className="w-full text-left text-sm tabular-nums">
+            <caption className="pb-2 text-left text-lg font-semibold text-ink">Sessões</caption>
             <thead className="text-muted">
               <tr>
-                <th scope="col" className="py-1 pr-3 font-medium">
+                <th scope="col" className="py-1.5 pr-3 font-semibold">
                   Data
                 </th>
-                <th scope="col" className="py-1 pr-3 font-medium">
+                <th scope="col" className="py-1.5 pr-3 font-semibold">
                   Séries
                 </th>
-                <th scope="col" className="py-1 font-medium">
+                <th scope="col" className="py-1.5 text-right font-semibold">
                   1RM estimado
                 </th>
               </tr>
@@ -104,9 +104,9 @@ export function ExerciseHistoryPage() {
             <tbody>
               {[...rows].reverse().map((r) => (
                 <tr key={r.sessionId} className="border-t border-line align-top">
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{formatDate(r.date)}</td>
-                  <td className="py-1.5 pr-3">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}${s.parentSetId === null ? '' : s.kind === 'rest_pause' ? ' (rest-pause)' : ` (${s.kind === 'drop' ? 'drop' : s.kind})`}`).join(' · ')}</td>
-                  <td className="py-1.5 whitespace-nowrap tabular-nums">{r.best === null ? '—' : `${formatKg(Math.round(r.best * 10) / 10)} kg`}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{formatDate(r.date)}</td>
+                  <td className="py-2 pr-3 text-muted">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}${s.parentSetId === null ? '' : s.kind === 'rest_pause' ? ' (rest-pause)' : ` (${s.kind === 'drop' ? 'drop' : s.kind})`}`).join(' · ')}</td>
+                  <td className="py-2 text-right font-medium whitespace-nowrap">{r.best === null ? '—' : `${formatKg(Math.round(r.best * 10) / 10)} kg`}</td>
                 </tr>
               ))}
             </tbody>

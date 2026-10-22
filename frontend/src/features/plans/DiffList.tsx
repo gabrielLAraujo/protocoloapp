@@ -8,7 +8,8 @@ const show = (value: unknown): string => {
   return JSON.stringify(value)
 }
 
-const row = 'flex items-start gap-2 rounded-control border px-3 py-2 text-sm'
+const row = 'flex items-start gap-3 px-4 py-3 text-sm'
+const sign = 'grid size-6 shrink-0 place-items-center rounded-control font-bold'
 
 /** What changes against the active version: added (+), removed (−), changed (~). Not only color: the sign and a hidden word say it too. */
 export function DiffList({ diff }: { diff: PlanDiff | null }) {
@@ -17,10 +18,10 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
     return <p className="text-sm text-muted">Sem diferenças em relação à versão ativa.</p>
   }
   return (
-    <ul aria-label="Mudanças em relação à versão ativa" className="grid gap-2">
+    <ul aria-label="Mudanças em relação à versão ativa" className="divide-y divide-line overflow-hidden rounded-control border border-line">
       {diff.added.map((path) => (
-        <li key={`a-${path}`} className={`${row} border-ok/40 bg-ok/10`}>
-          <span aria-hidden="true" className="font-bold text-ok">
+        <li key={`a-${path}`} className={row}>
+          <span aria-hidden="true" className={`${sign} bg-ok/10 text-ok`}>
             +
           </span>
           <span className="sr-only">Adicionado:</span>
@@ -28,8 +29,8 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
         </li>
       ))}
       {diff.removed.map((path) => (
-        <li key={`r-${path}`} className={`${row} border-danger/40 bg-danger/10`}>
-          <span aria-hidden="true" className="font-bold text-danger">
+        <li key={`r-${path}`} className={row}>
+          <span aria-hidden="true" className={`${sign} bg-danger/10 text-danger`}>
             −
           </span>
           <span className="sr-only">Removido:</span>
@@ -37,8 +38,8 @@ export function DiffList({ diff }: { diff: PlanDiff | null }) {
         </li>
       ))}
       {diff.changed.map((change) => (
-        <li key={`c-${change.path}`} className={`${row} border-warn/40 bg-warn/10`}>
-          <span aria-hidden="true" className="font-bold text-warn">
+        <li key={`c-${change.path}`} className={row}>
+          <span aria-hidden="true" className={`${sign} bg-warn/10 text-warn`}>
             ~
           </span>
           <span className="sr-only">Alterado:</span>

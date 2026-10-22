@@ -81,11 +81,11 @@ export function DiagnosticsPage() {
           <Icon name="chevronLeft" size={18} />
           Configurações
         </Link>
-        <h1 className="text-xl font-bold tracking-tight">Diagnóstico</h1>
+        <h1 className="text-xl font-bold">Diagnóstico</h1>
       </div>
 
-      <p className="text-sm">
-        Versão do app: <strong>{version}</strong>
+      <p className="text-sm text-muted">
+        Versão do app: <strong className="font-semibold text-ink tabular-nums">{version}</strong>
       </p>
 
       <div className="space-y-2">

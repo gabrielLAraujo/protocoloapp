@@ -151,7 +151,7 @@ export function SetRow({ index, sub, hasSubSets = false, planned, logged, hint, 
   return (
     <li className={`grid gap-2 rounded-control border p-3 ${tone} ${sub ? 'ml-4 border-l-4' : ''}`}>
       <div className="flex items-center justify-between gap-2 text-sm">
-        <span className="flex items-center gap-1.5 font-semibold">
+        <span className="flex items-center gap-1.5 font-semibold text-ink tabular-nums">
           {sub && <span aria-hidden="true" className="text-accent">↳</span>}
           {title}
         </span>

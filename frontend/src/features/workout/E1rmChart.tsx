@@ -10,7 +10,7 @@ export interface E1rmPoint {
 
 const W = 320
 const H = 160
-const PAD = { left: 40, right: 12, top: 12, bottom: 24 }
+const PAD = { left: 44, right: 12, top: 12, bottom: 26 }
 
 /**
  * The e1RM of each session as a small line chart (no chart library). Points are evenly spaced, oldest on the left.
@@ -44,17 +44,17 @@ export function E1rmChart({ points }: { points: E1rmPoint[] }) {
         <desc id={descId}>{description}</desc>
         <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} className="stroke-line" />
         <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} className="stroke-line" />
-        <text x={PAD.left - 4} y={PAD.top + 4} textAnchor="end" className="fill-muted text-[10px]">
+        <text x={PAD.left - 6} y={PAD.top + 4} textAnchor="end" className="fill-muted text-xs tabular-nums">
           {formatKg(Math.round(max * 10) / 10)}
         </text>
-        <text x={PAD.left - 4} y={H - PAD.bottom} textAnchor="end" className="fill-muted text-[10px]">
+        <text x={PAD.left - 6} y={H - PAD.bottom} textAnchor="end" className="fill-muted text-xs tabular-nums">
           {formatKg(Math.round(min * 10) / 10)}
         </text>
-        <text x={PAD.left} y={H - 8} textAnchor="start" className="fill-muted text-[10px]">
+        <text x={PAD.left} y={H - 6} textAnchor="start" className="fill-muted text-xs tabular-nums">
           {formatShortDate(first.date)}
         </text>
         {points.length > 1 && (
-          <text x={W - PAD.right} y={H - 8} textAnchor="end" className="fill-muted text-[10px]">
+          <text x={W - PAD.right} y={H - 6} textAnchor="end" className="fill-muted text-xs tabular-nums">
             {formatShortDate(last.date)}
           </text>
         )}

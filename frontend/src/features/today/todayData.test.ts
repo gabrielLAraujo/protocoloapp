@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AdherenceLogLocal } from '../../data/adherenceRepo'
-import { buildTodayView, type TodaySources } from './todayData'
+import { buildTodayView, groupByPeriod, isLate, nextRow, type TodayRow, type TodaySources } from './todayData'
 
 const DATE = '2026-10-20'
 
@@ -58,5 +58,52 @@ describe('buildTodayView cardio from the check-in', () => {
     expect(cardioStatus(sources({ protocol, cardioDone: false }))).toBeNull()
     const partial: AdherenceLogLocal = { ...log('cardio', 'partial'), targetType: 'cardio' }
     expect(cardioStatus(sources({ protocol, cardioDone: true, logs: [partial] }))).toBe('partial')
+  })
+})
+
+describe('groupByPeriod', () => {
+  const at = (time: string | null, key = time ?? 'none') => ({ target: { time, key }, status: null })
+
+  it('cuts at 12:00 and 18:00 and puts untimed rows last, keeping the order inside each period', () => {
+    const rows = [at('06:30'), at('11:59'), at('12:00'), at('17:59'), at('18:00'), at('23:00'), at(null)]
+    expect(groupByPeriod(rows).map((g) => [g.period, g.rows.map((r) => r.target.key)])).toEqual([
+      ['morning', ['06:30', '11:59']],
+      ['afternoon', ['12:00', '17:59']],
+      ['evening', ['18:00', '23:00']],
+      ['anytime', ['none']],
+    ])
+  })
+
+  it('leaves empty periods out', () => {
+    expect(groupByPeriod([at('19:00'), at(null)]).map((g) => g.period)).toEqual(['evening', 'anytime'])
+    expect(groupByPeriod([])).toEqual([])
+  })
+})
+
+describe('nextRow', () => {
+  const at = (key: string, time: string | null, status: AdherenceLogLocal['status'] | null = null) => ({ target: { key, time }, status })
+  const now = (h: number, m: number) => new Date(2026, 9, 20, h, m)
+  const rows = [at('a', '07:00'), at('b', '10:00'), at('c', '13:00', 'done'), at('d', '18:00'), at('e', null)]
+
+  it('is the first open row whose time is ahead, or still within the late margin', () => {
+    expect(nextRow(rows, now(6, 0))?.target.key).toBe('a')
+    expect(nextRow(rows, now(7, 30))?.target.key).toBe('a') // 07:00 + 30 min: not late yet
+    expect(nextRow(rows, now(7, 31))?.target.key).toBe('b')
+    expect(nextRow(rows, now(12, 0))?.target.key).toBe('d') // c is marked
+  })
+
+  it('agrees with isLate to the second: once a row is late it is no longer the on-time pick', () => {
+    const lateNow = new Date(2026, 9, 20, 7, 30, 15) // 15 s past 07:00 + 30 min
+    const row = { target: { type: 'meal', key: 'a', label: 'REF 1', slot: null, time: '07:00', reminderEnabled: false }, label: 'REF 1', status: null, reason: null, note: null, details: [] } as TodayRow
+    expect(isLate(row, DATE, lateNow)).toBe(true)
+    expect(nextRow([row, { ...row, target: { ...row.target, key: 'b', time: '10:00' } }], lateNow)?.target.key).toBe('b')
+    expect(isLate(row, DATE, new Date(2026, 9, 20, 7, 30, 0))).toBe(false)
+    expect(nextRow([row], new Date(2026, 9, 20, 7, 30, 0))?.target.key).toBe('a')
+  })
+
+  it('falls back to the first late row, then to an untimed one; null when everything is marked', () => {
+    expect(nextRow(rows, now(20, 0))?.target.key).toBe('a')
+    expect(nextRow([at('a', '07:00', 'partial'), at('e', null)], now(20, 0))?.target.key).toBe('e')
+    expect(nextRow([at('a', '07:00', 'done'), at('e', null, 'missed')], now(8, 0))).toBeNull()
   })
 })

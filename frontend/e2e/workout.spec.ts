@@ -191,7 +191,10 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   await nav(page, 'Resumo').click()
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
   await expect(page.getByText(/Faltam \d+ dias para a atualização/)).toBeVisible()
-  await expect(page.getByText('1 de 1', { exact: true })).toBeVisible()
+  // "Treinos": the figure (first <dd>) is the count done, the caption says how many were planned.
+  const workouts = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Treinos$/ }) }).locator('dd')
+  await expect(workouts.first()).toHaveText('1')
+  await expect(workouts.nth(1)).toHaveText('de 1 previsto')
   await expect(page.locator('[aria-label*="hoje, treino feito"]')).toBeVisible()
 
   await context.close()

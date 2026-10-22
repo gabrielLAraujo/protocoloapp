@@ -4,6 +4,7 @@ import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '../../../domain/muscleGro
 import type { PlannedExercise } from '../../../domain/planDocuments'
 import { techniqueExplanation, techniqueLabel } from '../../../domain/techniques'
 import { ExerciseMedia } from '../../../ui/ExerciseMedia'
+import { Chip } from '../../../ui/Chip'
 import { Icon } from '../../../ui/Icon'
 import { ConfiraBadge } from '../fields'
 import { LowConfidenceContext, useIsLow } from '../lowConfidence'
@@ -33,7 +34,7 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, 
   const note = exercise.technique?.trim()
 
   return (
-    <li className={`grid gap-2 rounded-card border p-3 shadow-card ${errors.length > 0 ? 'border-danger bg-danger/5' : low ? 'border-warn bg-warn/5' : 'border-line bg-surface'}`} data-low={low ? 'true' : undefined}>
+    <li className={`grid gap-3 rounded-card border p-3 shadow-card ${errors.length > 0 ? 'border-danger bg-danger/5' : low ? 'border-warn bg-warn/5' : 'border-line bg-surface'}`} data-low={low ? 'true' : undefined}>
       <div className="flex items-start gap-3">
         {catalogId ? <ExerciseMedia catalogId={catalogId} name={name} size="thumb" /> : <GifPreview url={null} className="size-16" />}
         <button
@@ -43,15 +44,15 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, 
           className="-m-1 grid min-h-11 min-w-0 flex-1 gap-0.5 rounded-control p-1 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         >
           <span className="flex items-start justify-between gap-2">
-            <span className="min-w-0 font-semibold leading-snug">{name}</span>
+            <span className="min-w-0 text-base font-semibold text-ink">{name}</span>
             <Icon name="chevronRight" size={18} className="mt-0.5 shrink-0 text-muted" />
           </span>
           <span className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
-            {group && <span className="rounded-full bg-raised px-2 py-0.5 text-xs font-medium text-ink">{MUSCLE_GROUP_LABELS[group]}</span>}
+            {group && <Chip>{MUSCLE_GROUP_LABELS[group]}</Chip>}
             {linked && linked.name !== exercise.name.trim() && <span className="text-xs">no app: {linked.name}</span>}
           </span>
-          <span className="text-sm font-medium tabular-nums">{setsSummary(exercise.sets)}</span>
-          {typeof exercise.restSeconds === 'number' && <span className="text-xs text-muted">descanso {exercise.restSeconds} s</span>}
+          <span className="pt-0.5 text-sm font-medium text-ink tabular-nums">{setsSummary(exercise.sets)}</span>
+          {typeof exercise.restSeconds === 'number' && <span className="text-xs text-muted tabular-nums">descanso {exercise.restSeconds} s</span>}
         </button>
       </div>
 
@@ -72,13 +73,13 @@ export function ExerciseRow({ exercise, base, catalogId, group, linked, errors, 
         </div>
       )}
       {open !== null && techniques[open] && (
-        <p role="note" className="rounded-control bg-raised px-3 py-2 text-sm">
+        <p role="note" className="rounded-control border border-accent/25 bg-accent-soft px-3 py-2 text-sm text-ink">
           {techniqueExplanation(techniques[open]!)}
         </p>
       )}
       {errors.length > 0 && (
         <p className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full bg-danger/15 px-2 py-0.5 text-xs font-semibold text-danger">Corrigir</span>
+          <Chip tone="danger">Corrigir</Chip>
           <span className="text-danger">{errors[0]}</span>
         </p>
       )}

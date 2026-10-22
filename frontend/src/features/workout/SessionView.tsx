@@ -175,16 +175,16 @@ export function SessionView({
 
   return (
     <div className="grid gap-4" style={timer.visible ? { paddingBottom: '6rem' } : undefined}>
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">
+      <header className="grid gap-1 pb-2">
+        <h1 className="text-xl font-bold">
           {day.name}
           {day.notes ? ` — ${day.notes}` : ''}
         </h1>
-        <p className="flex items-center gap-2 text-sm font-medium text-accent">
+        <p className="flex items-center gap-2 text-sm font-semibold text-accent">
           <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
           Treino em andamento
         </p>
-      </div>
+      </header>
 
       {dayBlocks(day, active.changes, (p) => effective(p, active).exercise !== null).map((block) => {
         if (block.type === 'single') return card(block.planned, { pairEndedWith: block.endedWith })
@@ -196,14 +196,14 @@ export function SessionView({
           <section
             key={`${block.a.key}+${block.b.key}`}
             aria-label={`Bi-set: ${a.name} + ${b.name}`}
-            className="grid gap-3 rounded-card border-2 border-accent/40 bg-accent-soft p-2"
+            className="grid gap-3 rounded-card border border-accent/30 bg-accent-soft p-2"
           >
-            <header className="grid gap-0.5 px-2 pt-1">
-              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wide text-accent uppercase">
+            <header className="grid gap-1 px-2 pt-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-accent">
                 <Icon name="swap" size={16} />
                 Bi-set
               </h2>
-              <p role="status" className="text-sm font-medium">
+              <p role="status" className="text-base font-medium text-ink">
                 {next
                   ? `Próximo: ${next.which.toUpperCase()} · ${nextName} — ${
                       next.slot ? `${next.slot.kind === 'drop' ? 'drop' : 'rest-pause'} ${next.slot.ordinal} da série ${next.setNumber}` : `série ${next.setNumber}`
@@ -225,7 +225,7 @@ export function SessionView({
       )}
       {confirming ? (
         <div role="group" aria-label="Confirmar finalização" className={cardClasses({ className: 'grid gap-3' })}>
-          <p className="font-semibold">Finalizar o treino agora?</p>
+          <p className="text-lg font-semibold">Finalizar o treino agora?</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" loading={finishing} onClick={() => void finish()}>
               Sim, finalizar

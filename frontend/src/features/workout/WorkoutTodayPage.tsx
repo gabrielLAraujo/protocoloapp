@@ -13,6 +13,8 @@ import { Button } from '../../ui/Button'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
 import { Icon } from '../../ui/Icon'
+import { ListRow } from '../../ui/ListRow'
+import { SectionHeader } from '../../ui/SectionHeader'
 import { formatShortDate, repsLabel } from './format'
 import { DiscardSession } from './DiscardSession'
 import { FinishSummary } from './FinishSummary'
@@ -32,6 +34,10 @@ interface Loaded {
 }
 
 const primaryClass = buttonClasses({ variant: 'primary', size: 'lg' })
+/** One choice of the "Trocar o treino de hoje" list: a full-width row of a list card. */
+const optionClass =
+  'flex min-h-13 w-full items-center px-4 py-2.5 text-left text-base hover:bg-raised active:bg-raised disabled:opacity-50 ' +
+  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
 
 const now = () => new Date()
 
@@ -146,9 +152,9 @@ export function WorkoutTodayPage() {
   }
   if (open) {
     return (
-      <div className="grid gap-3">
-        <h1 className="text-xl font-bold tracking-tight">Treino</h1>
-        <p role="alert" className={cardClasses({ tone: 'warn', padding: 'sm', className: 'font-medium' })}>
+      <div className="grid gap-4">
+        <h1 className="text-xl font-bold">Treino</h1>
+        <p role="alert" className={cardClasses({ tone: 'warn', className: 'font-medium' })}>
           Você tem um treino aberto de {formatShortDate(open.date)}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -214,8 +220,8 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
 
   if (loaded.plans.length === 0 || resolved.kind === 'none') {
     return (
-      <div className="grid gap-4">
-        <h1 className="text-xl font-bold tracking-tight">Treino</h1>
+      <div className="grid gap-6">
+        <h1 className="text-xl font-bold">Treino</h1>
         <EmptyState
           icon="dumbbell"
           action={
@@ -263,41 +269,51 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
   }
 
   return (
-    <div className="grid gap-4">
-      {resolved.kind === 'off' ? (
-        <h1 className="text-xl font-bold tracking-tight">Hoje é descanso</h1>
-      ) : (
-        <h1 className="text-xl font-bold tracking-tight">
-          {day ? day.name : resolved.dayKey}
-          {day?.notes ? ` — ${day.notes}` : ''}
-        </h1>
-      )}
-      {loaded.doneToday && (
-        <p className="flex items-center gap-2 text-sm font-medium text-ok">
-          <Icon name="check" size={18} strokeWidth={2.4} />
-          Você já concluiu um treino hoje.
-        </p>
-      )}
+    <div className="grid gap-6">
+      <header className="grid gap-1">
+        {resolved.kind === 'off' ? (
+          <h1 className="text-xl font-bold">Hoje é descanso</h1>
+        ) : (
+          <h1 className="text-xl font-bold">
+            {day ? day.name : resolved.dayKey}
+            {day?.notes ? ` — ${day.notes}` : ''}
+          </h1>
+        )}
+        {resolved.kind === 'workout' && day && (
+          <p className="text-sm text-muted tabular-nums">
+            {day.exercises.length} {day.exercises.length === 1 ? 'exercício' : 'exercícios'},{' '}
+            {day.exercises.reduce((n, e) => n + e.sets.length, 0)} séries
+          </p>
+        )}
+        {loaded.doneToday && (
+          <p className="flex items-center gap-2 pt-1 text-sm font-medium text-ok">
+            <Icon name="check" size={18} strokeWidth={2.4} />
+            Você já concluiu um treino hoje.
+          </p>
+        )}
+      </header>
 
       {resolved.kind === 'workout' && day && (
-        <>
-          <ol aria-label="Exercícios do dia" className={cardClasses({ padding: 'none', className: 'grid divide-y divide-line' })}>
+        <div className="grid gap-4">
+          <ol aria-label="Exercícios do dia" className={cardClasses({ tone: 'list' })}>
             {day.exercises.map((e, i) => (
-              <li key={e.key} className="flex items-center gap-3 px-4 py-3">
-                <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-raised text-xs font-bold tabular-nums text-muted">
-                  {i + 1}
-                </span>
-                <span className="min-w-0 flex-1 font-medium">{e.name}</span>
-                <span className="shrink-0 text-sm tabular-nums text-muted">
-                  {e.sets.length} × {e.sets[0] ? repsLabel(e.sets[0].repsMin, e.sets[0].repsMax) : '—'}
-                </span>
+              <li key={e.key}>
+                <ListRow
+                  icon={<span className="text-sm font-semibold tabular-nums">{i + 1}</span>}
+                  title={e.name}
+                  value={
+                    <span className="text-sm text-muted">
+                      {e.sets.length} × {e.sets[0] ? repsLabel(e.sets[0].repsMin, e.sets[0].repsMax) : '—'}
+                    </span>
+                  }
+                />
               </li>
             ))}
           </ol>
           <Button variant="primary" size="lg" icon="dumbbell" disabled={busy} onClick={() => void start()}>
             Começar treino
           </Button>
-        </>
+        </div>
       )}
       {resolved.kind === 'workout' && !day && <p role="alert">Este treino não existe mais na ficha. Troque o treino de hoje.</p>}
 
@@ -308,24 +324,24 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
       )}
 
       {swapping && plan ? (
-        <section aria-label="Trocar o treino de hoje" className={cardClasses({ className: 'grid gap-3' })}>
-          <h2 className="text-base font-semibold">Trocar o treino de hoje</h2>
-          <ul className="grid gap-2">
+        <section aria-label="Trocar o treino de hoje" className="grid gap-1">
+          <SectionHeader title="Trocar o treino de hoje" />
+          <ul className={cardClasses({ tone: 'list' })}>
             {plan.document.days.map((d) => (
               <li key={d.key}>
-                <button type="button" className={`${buttonClass} w-full justify-start! text-left`} disabled={busy} onClick={() => void choose(d.key)}>
-                  {d.name}
-                  {d.notes ? ` — ${d.notes}` : ''}
+                <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(d.key)}>
+                  <span className="font-medium text-ink">{d.name}</span>
+                  {d.notes ? <span className="text-muted">{` — ${d.notes}`}</span> : null}
                 </button>
               </li>
             ))}
             <li>
-              <button type="button" className={`${buttonClass} w-full justify-start! text-left`} disabled={busy} onClick={() => void choose(OFF)}>
-                Descanso
+              <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(OFF)}>
+                <span className="font-medium text-ink">Descanso</span>
               </button>
             </li>
           </ul>
-          <Button variant="ghost" onClick={() => setSwapping(false)}>
+          <Button variant="ghost" className="mt-2" onClick={() => setSwapping(false)}>
             Cancelar
           </Button>
         </section>
