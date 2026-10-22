@@ -10,7 +10,7 @@ import { login } from './support/auth.ts'
 const OUT = 'e2e-screenshots'
 const HIDE_NAV = 'nav[aria-label="Navegação principal"] { display: none !important; }'
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
+const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 
 async function shoot(page: Page, name: string) {
   // Let late renders (sync results) settle, then the same screen in both themes.

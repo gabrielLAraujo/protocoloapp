@@ -48,7 +48,7 @@ async function expectSynced(page: Page, seen: string[]) {
   }
 }
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name })
+const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 const ring = (page: Page) => page.getByRole('progressbar', { name: 'Progresso do dia' })
 const hojeRow = (page: Page, name: string) => page.getByRole('listitem', { name })
 
