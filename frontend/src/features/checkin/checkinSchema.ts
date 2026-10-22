@@ -4,6 +4,9 @@ const CHOOSE = 'Escolha uma opção'
 const NUMBER = /^\d+([.,]\d+)?$/
 const toNumber = (value: string) => Number(value.replace(',', '.'))
 
+/** The most water a day the check-in accepts (liters); the server has the same limit. */
+export const WATER_MAX_L = 15
+
 const scale = z.number({ error: CHOOSE }).int(CHOOSE).min(1, CHOOSE).max(5, CHOOSE)
 
 /** The morning part as typed (weight is text, so "82,4" works); the output is what saveMorning stores. */
@@ -28,7 +31,7 @@ export const eveningSchema = z.object({
     .trim()
     .min(1, 'Informe a água em litros')
     .refine((v) => NUMBER.test(v), 'Informe um número válido')
-    .refine((v) => !NUMBER.test(v) || toNumber(v) <= 15, 'Máximo 15 L')
+    .refine((v) => !NUMBER.test(v) || toNumber(v) <= WATER_MAX_L, `Máximo ${WATER_MAX_L} L`)
     .transform(toNumber),
   note: z
     .string()

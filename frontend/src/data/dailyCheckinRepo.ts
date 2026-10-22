@@ -293,6 +293,21 @@ export const dailyCheckinRepo = {
   },
 
   /**
+   * Changes the day's water only (Hoje's water card), keeping every other field, the rest of the evening part included.
+   * `change` gets the water stored right now (0 when none), inside the transaction, so changes in a row add up. It is
+   * queued as the evening part (the same field as the evening check-in), which stays incomplete until that check-in is
+   * saved. Returns the stored liters.
+   */
+  async changeWater(db: LocalDb, userId: string, date: string, change: (currentL: number) => number, now: Date): Promise<number> {
+    let stored = 0
+    await saveParts(db, userId, date, ['evening'], (current) => {
+      stored = change(current.waterL ?? 0)
+      return { ...current, waterL: stored }
+    }, now)
+    return stored
+  },
+
+  /**
    * Sets (or clears, with `done: null`) the day's cardio, keeping both parts; creates a row with both parts null when
    * there is none.
    */

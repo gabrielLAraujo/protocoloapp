@@ -15,6 +15,7 @@ const sources = (over: Partial<TodaySources> = {}): TodaySources => ({
   checkinParts: { morning: false, evening: false },
   cardioDone: false,
   cardioMinutes: null,
+  waterL: null,
   ...over,
 })
 

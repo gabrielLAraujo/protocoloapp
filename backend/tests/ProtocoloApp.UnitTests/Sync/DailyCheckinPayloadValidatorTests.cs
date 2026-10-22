@@ -112,6 +112,28 @@ public sealed class DailyCheckinPayloadValidatorTests
     }
 
     [Fact]
+    public void Evening_may_carry_water_or_a_note_without_the_scores()
+    {
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], WaterL = 1.5m }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], WaterL = 0m, Note = "Exemplo." }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], Note = "Exemplo." }));
+        // The range still applies to water alone.
+        Assert.Equal(new[] { "water_l" }, Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], WaterL = 15.5m }));
+    }
+
+    [Fact]
+    public void Evening_scores_come_together_and_with_the_water()
+    {
+        var energyOnly = new DailyCheckinPayload { Date = Date, Parts = ["evening"], EnergyDay = 4, WaterL = 2m };
+        var anxietyOnly = new DailyCheckinPayload { Date = Date, Parts = ["evening"], Anxiety = 2, WaterL = 2m };
+        var scoresWithoutWater = new DailyCheckinPayload { Date = Date, Parts = ["evening"], EnergyDay = 4, Anxiety = 2 };
+
+        Assert.Equal(new[] { "anxiety" }, Errors(energyOnly));
+        Assert.Equal(new[] { "energy_day" }, Errors(anxietyOnly));
+        Assert.Equal(new[] { "water_l" }, Errors(scoresWithoutWater));
+    }
+
+    [Fact]
     public void Fields_of_parts_not_written_are_not_required()
     {
         Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Parts = ["evening"], SleepQuality = 4, EnergyDay = 4, Anxiety = 2, WaterL = 3m }));

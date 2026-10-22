@@ -19,6 +19,7 @@ import { StatusMenuSheet } from './StatusMenuSheet'
 import { StreakLink } from './StreakLink'
 import { TodayHero } from './TodayHero'
 import { buildTodayView, dueScore, headerText, isLate, loadTodaySources, nextRow, wholeDayScore, type TodayRow, type TodayView } from './todayData'
+import { WaterCard } from './WaterCard'
 import { WeekCard } from './WeekCard'
 
 const CLOCK_MS = 30_000
@@ -236,8 +237,9 @@ export function TodayPage() {
       </div>
 
       {/*
-        Desktop: the day's list on the left, a sticky panel on the right with the ring, the next task and the week. On the
-        phone both wrappers are `display: contents`, so the order stays hero, notices, list, week (the week is `order-1`).
+        Desktop: the day's list on the left, a sticky panel on the right with the ring, the next task, the water and the week.
+        On the phone both wrappers are `display: contents`, so the order stays hero, water, notices, list, week (the week is
+        `order-1`).
         On the desktop the panel starts one group label lower (its line, 18 px, plus the label's 8 px gap), so the hero's top
         edge lines up with the first list card, not with the "Manhã" label above it.
       */}
@@ -259,6 +261,17 @@ export function TodayPage() {
               onDone={(row) => choose(row, 'done')}
             />
           )}
+          <WaterCard
+            db={data.db}
+            userId={data.userId}
+            date={view.date}
+            totalL={view.water.totalL}
+            targetL={view.water.targetL}
+            onSaved={() => {
+              setReload((n) => n + 1)
+              void syncNow()
+            }}
+          />
           <div className="order-1 lg:order-none empty:hidden">
             <WeekCard goals={weekGoals} />
           </div>

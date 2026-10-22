@@ -8,7 +8,7 @@ import { workoutRepo } from '../../data/workoutRepo'
 import { weekdayOf, type Weekday } from '../../domain/calendarDate'
 import { buildDay, type DayKind, type DayTarget, type DayWorkoutPlan } from '../../domain/dayPlan'
 import type { ProtocolDocument } from '../../domain/planDocuments'
-import { dayScore, type DayScore } from '../../domain/progress'
+import { dayScore, waterMinL, type DayScore } from '../../domain/progress'
 import { resolveTargetStatus, targetId } from '../../domain/targetStatus'
 import { localDate } from '../checkin/localDate'
 import { loadWorkoutPlans, type WorkoutPlanEntry } from '../workout/workoutPlans'
@@ -51,6 +51,8 @@ export interface TodayView {
   rows: TodayRow[]
   /** The protocol asks for N cardio sessions a week (not daily): an unmarked cardio does not count in the day's score. */
   cardioOptional: boolean
+  /** The day's water so far (the evening check-in's field, 0 when none) and the protocol's minimum (null without one). */
+  water: { totalL: number; targetL: number | null }
 }
 
 export interface TodaySources {
@@ -68,6 +70,8 @@ export interface TodaySources {
   cardioDone: boolean
   /** Minutes of the day's cardio as saved on the check-in (only when cardio is done there). */
   cardioMinutes: number | null
+  /** Water of the day's check-in, null when none. */
+  waterL: number | null
 }
 
 /** Reads everything the Hoje screen needs for `date` from the device. */
@@ -96,6 +100,7 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
     checkinParts: checkin ? checkinParts(checkin) : { morning: false, evening: false },
     cardioDone: checkin?.cardioDone === true,
     cardioMinutes: checkin?.cardioDone === true ? checkin.cardioMinutes : null,
+    waterL: checkin?.waterL ?? null,
   }
 }
 
@@ -167,6 +172,7 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
     workoutName: workoutTitle === null ? null : workoutTitle.replace(/^treino\s+/i, '') || workoutTitle,
     rows,
     cardioOptional: src.protocol?.cardio != null && src.protocol.cardio.daily !== true,
+    water: { totalL: src.waterL ?? 0, targetL: waterMinL(src.protocol) },
   }
 }
 

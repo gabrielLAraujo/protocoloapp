@@ -87,6 +87,47 @@ public sealed class CheckinPartsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Water_alone_in_the_evening_part_persists_and_the_full_evening_keeps_it()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        // Water logged on Hoje during the day: the evening part with no scores yet.
+        var water = await SyncApi.PushOneAsync(client, Upsert(id, At(60), ["evening"],
+            ("energy_day", null), ("anxiety", null), ("water_l", 1.5m), ("note", null)));
+
+        Assert.Equal(SyncResultStatus.Applied, water.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        Assert.Equal(1.5m, row.WaterL);
+        Assert.Null(row.EnergyDay);
+        Assert.Null(row.Anxiety);
+
+        // The evening check-in later sends the whole part with the water as it stands on the device.
+        var evening = await SyncApi.PushOneAsync(client, Upsert(id, At(10), ["evening"],
+            ("energy_day", 4), ("anxiety", 2), ("water_l", 1.5m), ("note", "Dia leve.")));
+
+        Assert.Equal(SyncResultStatus.Applied, evening.Status);
+        row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        Assert.Equal(1.5m, row.WaterL);
+        Assert.Equal(4, row.EnergyDay);
+        Assert.Equal(2, row.Anxiety);
+        Assert.Equal("Dia leve.", row.Note);
+    }
+
+    [Fact]
+    public async Task Evening_score_without_the_other_is_rejected()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        var result = await SyncApi.PushOneAsync(client, Upsert(id, At(5), ["evening"], ("energy_day", 4), ("water_l", 2m)));
+
+        Assert.Equal(SyncResultStatus.Rejected, result.Status);
+        Assert.Equal(new[] { "invalid_payload:anxiety" }, result.Errors!);
+        Assert.Empty(await SyncApi.RowsAsync(factory, id));
+    }
+
+    [Fact]
     public async Task Morning_saved_offline_earlier_but_pushed_after_a_newer_evening_keeps_both()
     {
         using var client = await NewUserAsync();
