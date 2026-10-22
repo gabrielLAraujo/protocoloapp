@@ -6,5 +6,6 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
-  localStorage.clear()
+  // pdfText.test.ts runs in the node environment, which has no DOM storage.
+  if (typeof window !== 'undefined') localStorage.clear()
 })

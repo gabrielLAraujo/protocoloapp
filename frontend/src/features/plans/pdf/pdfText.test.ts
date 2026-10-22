@@ -1,3 +1,5 @@
+// @vitest-environment node
+// pdf.js streams the text through ReadableStream, which the jsdom globals of the vmThreads pool do not have.
 import { beforeAll, describe, expect, it } from 'vitest'
 import { extractPdfLines, groupTextItems, type TextPiece } from './pdfText'
 
