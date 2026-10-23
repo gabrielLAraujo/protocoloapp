@@ -23,8 +23,8 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
 
     private static DateOnly Today() => DateOnly.ParseExact(UpdateApi.LocalToday(), "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private static string Protocol(DateOnly updateDate) => $$"""
-        {"phaseName":"Fase de exemplo","updateDate":"{{Iso(updateDate)}}",
+    private static string Protocol(DateOnly updateDate) => $$$"""
+        {"phaseName":"Fase de exemplo","updateDate":"{{{Iso(updateDate)}}}",
          "meals":[
            {"key":"m1","label":"Refeição 1","items":[{"food":"Arroz","grams":100,"alternatives":[]}]},
            {"key":"m2","label":"Refeição 2","items":[{"food":"Feijão","grams":80,"alternatives":[]}]}],
