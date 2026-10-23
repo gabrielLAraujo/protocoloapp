@@ -242,6 +242,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("evening_client_updated_at");
 
+                    b.Property<int?>("Mood")
+                        .HasColumnType("integer")
+                        .HasColumnName("mood");
+
                     b.Property<DateTimeOffset?>("MorningClientUpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("morning_client_updated_at");
@@ -254,6 +258,10 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                     b.Property<int?>("SleepQuality")
                         .HasColumnType("integer")
                         .HasColumnName("sleep_quality");
+
+                    b.Property<int?>("Stress")
+                        .HasColumnType("integer")
+                        .HasColumnName("stress");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -301,7 +309,11 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
 
                             t.HasCheckConstraint("ck_daily_checkins_energy_wake", "energy_wake BETWEEN 1 AND 5");
 
+                            t.HasCheckConstraint("ck_daily_checkins_mood", "mood BETWEEN 1 AND 5");
+
                             t.HasCheckConstraint("ck_daily_checkins_sleep_quality", "sleep_quality BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_daily_checkins_stress", "stress BETWEEN 0 AND 10");
 
                             t.HasCheckConstraint("ck_daily_checkins_water_l", "water_l BETWEEN 0 AND 15");
 
