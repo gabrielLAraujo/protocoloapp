@@ -14,6 +14,7 @@ import { PlansPage } from './features/plans/PlansPage'
 import { ProtocolView } from './features/plans/ProtocolView'
 import { LoginPage } from './features/login/LoginPage'
 import { DiagnosticsPage } from './features/settings/DiagnosticsPage'
+import { QuestionnaireTemplatePage } from './features/settings/QuestionnaireTemplatePage'
 import { SchedulePage } from './features/settings/SchedulePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { AttentionList } from './features/sync/AttentionList'
@@ -42,6 +43,7 @@ export const routes: RouteObject[] = [
           { path: '/sync', element: <AttentionList /> },
           { path: '/configuracoes', element: <SettingsPage /> },
           { path: '/configuracoes/horarios', element: <SchedulePage /> },
+          { path: '/configuracoes/questionario', element: <QuestionnaireTemplatePage /> },
           { path: '/settings/diagnostics', element: <DiagnosticsPage /> },
         ],
       },

@@ -17,11 +17,12 @@ async function open(support: push.PushSupport, subscribed = false) {
 }
 
 describe('SettingsPage', () => {
-  it('links to Horários and Diagnóstico', async () => {
+  it('links to Horários, Questionário de atualização and Diagnóstico', async () => {
     await open('default')
 
     expect(screen.getByRole('heading', { name: 'Configurações' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Horários/ })).toHaveAttribute('href', '/configuracoes/horarios')
+    expect(screen.getByRole('link', { name: /Questionário de atualização/ })).toHaveAttribute('href', '/configuracoes/questionario')
     expect(screen.getByRole('link', { name: /Diagnóstico/ })).toHaveAttribute('href', '/settings/diagnostics')
   })
 
