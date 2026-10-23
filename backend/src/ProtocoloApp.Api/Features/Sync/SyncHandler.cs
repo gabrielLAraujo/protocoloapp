@@ -60,6 +60,12 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
     protected abstract TPayload CreatePayload(TEntity entity);
 
     /// <summary>
+    /// Whether clients may create rows (an upsert of an unknown id) and delete them. Default true. When false the server
+    /// creates the rows and clients only edit them: an upsert of an unknown id and every delete are <c>read_only</c>.
+    /// </summary>
+    protected virtual bool ClientCreatesAndDeletes => true;
+
+    /// <summary>
     /// Cross-row references the payload carries (session, exercise, plan version...): each must exist, belong to
     /// <paramref name="userId"/> and not be soft-deleted. Checked after <see cref="Apply"/>, before <see cref="FindConflictAsync"/>.
     /// Returns an error code (<see cref="SyncErrors.InvalidReference"/>) or null. References are resolved against the stored
@@ -86,6 +92,8 @@ public abstract class SyncHandler<TEntity, TPayload>(AppDbContext db, TimeProvid
         var existing = await db.Set<TEntity>().FindAsync(new object?[] { change.Id }, ct);
         if (existing is not null && existing.UserId != userId)
             return SyncChangeResult.Rejected(change.Id, SyncErrors.Forbidden);
+        if (!ClientCreatesAndDeletes && (existing is null || change.Op == SyncOp.Delete))
+            return SyncChangeResult.Rejected(change.Id, SyncErrors.ReadOnly);
         if (existing is not null && IsStale(existing, change))
             return SyncChangeResult.Stale(change.Id);
 

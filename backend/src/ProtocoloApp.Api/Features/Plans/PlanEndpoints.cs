@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using ProtocoloApp.Api.Features.Auth;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans.Extraction;
+using ProtocoloApp.Api.Features.Updates;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Storage;
 
@@ -411,6 +412,8 @@ public static class PlanEndpoints
         db.Entry(plan).Property(p => p.Document).IsModified = true;
         await SyncWrites.StampAsync(db, plan, userId, clock, ct);
         await db.SaveChangesAsync(ct);
+        // The cycle follows the update date (a null date keeps the cycle's end).
+        await UpdateCycles.ApplyDatesAsync(db, plan, request.UpdateDate, clock, ct);
         await transaction.CommitAsync(ct);
 
         return TypedResults.Ok(PlanMapping.ToResponse(plan, null));
