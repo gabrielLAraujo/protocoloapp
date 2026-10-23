@@ -14,6 +14,7 @@ using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Features.Sync;
 using ProtocoloApp.Api.Features.Today;
+using ProtocoloApp.Api.Features.Updates;
 using ProtocoloApp.Api.Features.Workouts;
 using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.Api.Shared.Http;
@@ -75,7 +76,9 @@ builder.Services.AddSync()
     .AddSyncHandler<RotationOverrideSyncHandler>()
     .AddSyncHandler<ScheduleSlotSyncHandler>()
     .AddSyncHandler<AdherenceLogSyncHandler>()
-    .AddSyncHandler<DietDeviationSyncHandler>();
+    .AddSyncHandler<DietDeviationSyncHandler>()
+    .AddSyncHandler<QuestionnaireTemplateSyncHandler>()
+    .AddSyncHandler<UpdateCycleSyncHandler>();
 
 builder.Services.AddFiles(builder.Configuration);
 builder.Services.AddPlanExtraction(builder.Configuration);
@@ -141,6 +144,7 @@ api.MapPlans();
 api.MapApp();
 api.MapPush();
 api.MapExerciseCatalog();
+api.MapUpdates();
 
 app.MapSpaFallback();
 

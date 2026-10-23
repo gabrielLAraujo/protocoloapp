@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Plans.Extraction;
+using ProtocoloApp.Api.Features.Updates;
 using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Plans;
@@ -110,6 +111,10 @@ public static class PlanActivation
         plan.ActivatedAt = ActivationInstant(cycleStart, clock.GetUtcNow());
         await SyncWrites.StampAsync(db, plan, userId, clock, ct);
         await db.SaveChangesAsync(ct);
+
+        // A protocol with an update date opens its update cycle (same transaction).
+        if (plan.Kind == PlanKind.Protocol)
+            await UpdateCycles.EnsureForActiveProtocolAsync(db, userId, clock, ct);
 
         await transaction.CommitAsync(ct);
         return ActivationResult.Of(ActivationOutcome.Activated, plan);

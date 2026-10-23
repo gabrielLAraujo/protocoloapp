@@ -911,6 +911,138 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Updates.QuestionnaireTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<JsonDocument>("Document")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_questionnaire_templates");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_questionnaire_templates_user_id")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_questionnaire_templates_user_id_version");
+
+                    b.ToTable("questionnaire_templates", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Updates.UpdateCycle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<JsonDocument>("Answers")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("answers");
+
+                    b.Property<DateTimeOffset>("ClientUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_updated_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start");
+
+                    b.Property<JsonDocument>("Photos")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("photos");
+
+                    b.Property<Guid>("ProtocolVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("protocol_version_id");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_update_cycles");
+
+                    b.HasIndex("ProtocolVersionId")
+                        .HasDatabaseName("ix_update_cycles_protocol_version_id");
+
+                    b.HasIndex("UserId", "ProtocolVersionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_update_cycles_user_id_protocol_version_id");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_update_cycles_user_id_version");
+
+                    b.ToTable("update_cycles", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_update_cycles_status", "status IN ('collecting', 'draft', 'sent')");
+                        });
+                });
+
             modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.ExerciseChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1507,6 +1639,33 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_schedule_slots_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Updates.QuestionnaireTemplate", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_questionnaire_templates_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Updates.UpdateCycle", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Features.Plans.PlanVersion", null)
+                        .WithMany()
+                        .HasForeignKey("ProtocolVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_update_cycles_plan_versions_protocol_version_id");
+
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_update_cycles_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Features.Workouts.ExerciseChange", b =>

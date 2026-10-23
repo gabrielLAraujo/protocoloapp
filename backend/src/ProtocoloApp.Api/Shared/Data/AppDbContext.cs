@@ -8,6 +8,7 @@ using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Features.Today;
+using ProtocoloApp.Api.Features.Updates;
 using ProtocoloApp.Api.Features.Workouts;
 
 namespace ProtocoloApp.Api.Shared.Data;
@@ -47,6 +48,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
 
     public DbSet<CatalogExercise> CatalogExercises => Set<CatalogExercise>();
+
+    public DbSet<QuestionnaireTemplate> QuestionnaireTemplates => Set<QuestionnaireTemplate>();
+
+    public DbSet<UpdateCycle> UpdateCycles => Set<UpdateCycle>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

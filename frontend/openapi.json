@@ -979,6 +979,28 @@
           }
         }
       }
+    },
+    "/api/update-cycles/ensure": {
+      "post": {
+        "tags": [
+          "Updates"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsureUpdateCycleResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1148,6 +1170,18 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "EnsureUpdateCycleResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -1939,6 +1973,9 @@
     },
     {
       "name": "ExerciseCatalog"
+    },
+    {
+      "name": "Updates"
     }
   ]
 }
