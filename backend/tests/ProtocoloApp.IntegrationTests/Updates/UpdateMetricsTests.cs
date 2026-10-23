@@ -16,7 +16,7 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
     private static readonly string[] TopLevel =
     [
         "cycleId", "from", "to", "computedAt", "dietErrorPct", "dietWrongMeals", "dietDeviations", "missedWorkouts", "missedCardio",
-        "itemsMissed", "strengthChanges", "trainingChanges", "weight", "waterAvg", "sleepAvg", "energyAvg", "anxietyAvg", "checkinNotes",
+        "itemsMissed", "itemsUsed", "strengthChanges", "trainingChanges", "weight", "waterAvg", "sleepAvg", "energyAvg", "anxietyAvg", "checkinNotes",
     ];
 
     private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -109,6 +109,9 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         }
 
         changes.Add(Deviation(start.AddDays(2)));
+        // Creatine: done on the first day only; the other five past days are unmarked.
+        changes.Add(Upsert("adherence_log", Json(
+            ("date", Iso(start)), ("target_type", "protocol_item"), ("target_key", "creatine"), ("status", "done"), ("reason", null), ("note", null))));
 
         // Day a on start and start+3: e1RM 60 × (1 + 10/30) = 80, then 70 × (1 + 10/30) = 93.33. The warm-up is ignored.
         var first = Guid.NewGuid();
@@ -157,21 +160,37 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
 
         // Training days before today: start, +1, +3, +4 (today is not counted without a workout).
         var workouts = metrics.GetProperty("missedWorkouts");
-        AssertProperties(workouts, "planned", "done", "missedDates");
+        AssertProperties(workouts, "planned", "done", "missedDates", "weeks");
         Assert.Equal(4, workouts.GetProperty("planned").GetInt32());
         Assert.Equal(2, workouts.GetProperty("done").GetInt32());
         Assert.Equal(
             new[] { Iso(start.AddDays(1)), Iso(start.AddDays(4)) },
             workouts.GetProperty("missedDates").EnumerateArray().Select(d => d.GetString()));
+        var workoutWeek = Assert.Single(workouts.GetProperty("weeks").EnumerateArray());
+        AssertProperties(workoutWeek, "week", "from", "to", "planned", "done", "missedDates");
+        Assert.Equal(1, workoutWeek.GetProperty("week").GetInt32());
+        Assert.Equal(4, workoutWeek.GetProperty("planned").GetInt32());
+        Assert.Equal(2, workoutWeek.GetProperty("missedDates").GetArrayLength());
 
         var cardio = metrics.GetProperty("missedCardio");
-        AssertProperties(cardio, "planned", "done");
+        AssertProperties(cardio, "planned", "done", "weeks");
         Assert.Equal(0, cardio.GetProperty("planned").GetInt32());
+        Assert.Empty(cardio.GetProperty("weeks").EnumerateArray());
 
         var item = Assert.Single(metrics.GetProperty("itemsMissed").EnumerateArray());
-        AssertProperties(item, "key", "name", "missed", "reasons");
+        AssertProperties(item, "key", "name", "category", "missed", "reasons");
         Assert.Equal("creatine", item.GetProperty("key").GetString());
-        Assert.Equal(6, item.GetProperty("missed").GetInt32());
+        Assert.Equal("supplement", item.GetProperty("category").GetString());
+        Assert.Equal(5, item.GetProperty("missed").GetInt32());
+
+        var used = Assert.Single(metrics.GetProperty("itemsUsed").EnumerateArray());
+        AssertProperties(used, "key", "name", "category", "done", "partial", "planned");
+        Assert.Equal("creatine", used.GetProperty("key").GetString());
+        Assert.Equal("Creatina", used.GetProperty("name").GetString());
+        Assert.Equal("supplement", used.GetProperty("category").GetString());
+        Assert.Equal(1, used.GetProperty("done").GetInt32());
+        Assert.Equal(0, used.GetProperty("partial").GetInt32());
+        Assert.Equal(6, used.GetProperty("planned").GetInt32());
 
         var group = Assert.Single(metrics.GetProperty("strengthChanges").EnumerateArray());
         AssertProperties(group, "group", "best", "worst");
@@ -229,9 +248,11 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Equal(0, rate.GetProperty("planned").GetInt32());
         Assert.Equal(JsonValueKind.Null, rate.GetProperty("errorPct").ValueKind);
         Assert.Empty(metrics.GetProperty("dietErrorPct").GetProperty("weeks").EnumerateArray());
-        foreach (var list in new[] { "dietWrongMeals", "dietDeviations", "itemsMissed", "strengthChanges", "trainingChanges", "checkinNotes" })
+        foreach (var list in new[] { "dietWrongMeals", "dietDeviations", "itemsMissed", "itemsUsed", "strengthChanges", "trainingChanges", "checkinNotes" })
             Assert.Empty(metrics.GetProperty(list).EnumerateArray());
         Assert.Equal(0, metrics.GetProperty("missedWorkouts").GetProperty("planned").GetInt32());
+        Assert.Empty(metrics.GetProperty("missedWorkouts").GetProperty("weeks").EnumerateArray());
+        Assert.Empty(metrics.GetProperty("missedCardio").GetProperty("weeks").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("weight").GetProperty("start").ValueKind);
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("weight").GetProperty("deltaKg").ValueKind);
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("waterAvg").GetProperty("avgL").ValueKind);
