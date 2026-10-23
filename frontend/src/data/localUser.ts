@@ -1,7 +1,11 @@
 import type { ApiClient } from './apiClient'
 import type { LocalDb } from './localDb'
+import { PHOTO_THUMBS_TABLE } from './photoThumbRepo'
 import { syncEntities } from './registry'
 import { syncState } from './syncState'
+
+/** Local-only tables that hold the user's data and go with it (not synced, so not in `syncEntities`). */
+const LOCAL_USER_TABLES = [PHOTO_THUMBS_TABLE]
 
 /**
  * Makes `userId` the owner of the local database. When it holds another user's data (another account signed in on this
@@ -12,7 +16,7 @@ export async function bindLocalUser(db: LocalDb, userId: string, tables: readonl
     const current = await syncState.get(tx, 'user_id')
     if (current === userId) return
     if (current !== null) {
-      for (const table of [...tables, 'outbox', 'sync_unknown', 'sync_state']) await tx.execute(`DELETE FROM ${table}`)
+      for (const table of [...tables, ...LOCAL_USER_TABLES, 'outbox', 'sync_unknown', 'sync_state']) await tx.execute(`DELETE FROM ${table}`)
     }
     await syncState.set(tx, 'user_id', userId)
   })
