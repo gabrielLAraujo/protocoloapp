@@ -78,6 +78,9 @@ public static class SyncErrors
     /// <summary>A referenced row (session, exercise, plan version, parent set) is missing, deleted or belongs to another user.</summary>
     public const string InvalidReference = "invalid_reference";
 
+    /// <summary>questionnaire_template: the user already has another live template (one per user).</summary>
+    public const string TemplateConflict = "template_conflict";
+
     /// <summary>The database refused the row (a constraint the validation did not anticipate).</summary>
     public const string ConstraintViolation = "constraint_violation";
 

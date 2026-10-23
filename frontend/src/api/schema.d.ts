@@ -1175,6 +1175,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/update-cycles/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EnsureUpdateCycleResponse"];
+                    };
+                };
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/update-cycles/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UpdateMetricsResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1182,6 +1268,12 @@ export interface components {
         ActivatePlanRequest: {
             /** Format: date */
             cycleStart: null | string;
+        };
+        CardioMisses: {
+            /** Format: int32 */
+            planned: number;
+            /** Format: int32 */
+            done: number;
         };
         CatalogItemResponse: {
             id: string;
@@ -1194,6 +1286,11 @@ export interface components {
         CatalogResponse: {
             version: string;
             items: components["schemas"]["CatalogItemResponse"][];
+        };
+        CheckinNote: {
+            /** Format: date */
+            date: string;
+            note: string;
         };
         CreateDraftRequest: {
             /** Format: uuid */
@@ -1213,11 +1310,39 @@ export interface components {
             /** Format: date */
             billingDate: null | string;
         };
+        DatedWeight: {
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            kg: number;
+        };
+        DietDeviationEntry: {
+            /** Format: date */
+            date: string;
+            mealKey: null | string;
+            mealLabel: null | string;
+            /** Format: time */
+            time: null | string;
+            description: string;
+            quantity: null | string;
+        };
+        DietErrorRate: {
+            cycle: components["schemas"]["Rate"];
+            weeks: components["schemas"]["WeekRate"][];
+        };
         DownloadUrlResponse: {
             /** Format: uri */
             url: string;
             /** Format: date-time */
             expiresAt: string;
+        };
+        EnergyAverage: {
+            wake: components["schemas"]["ScoreAverage"];
+            day: components["schemas"]["ScoreAverage"];
+        };
+        EnsureUpdateCycleResponse: {
+            /** Format: uuid */
+            id: string;
         };
         ExerciseResponse: {
             /** Format: uuid */
@@ -1229,6 +1354,11 @@ export interface components {
         };
         /** @enum {unknown} */
         FileKind: "protocolPdf" | "workoutPdf" | "photo" | "questionnairePdf" | "photosZip" | "test";
+        GroupStrength: {
+            group: components["schemas"]["MuscleGroup"];
+            best: components["schemas"]["StrengthTrend"][];
+            worst: components["schemas"]["StrengthTrend"][];
+        };
         HttpValidationProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -1244,6 +1374,13 @@ export interface components {
             /** Format: uuid */
             fileId: string;
             kind: components["schemas"]["PlanKind"];
+        };
+        ItemMisses: {
+            key: string;
+            name: string;
+            /** Format: int32 */
+            missed: number;
+            reasons: components["schemas"]["ReasonCount"][];
         };
         JsonElement: unknown;
         LatestReleaseResponse: {
@@ -1318,11 +1455,43 @@ export interface components {
         PublicKeyResponse: {
             publicKey: string;
         };
+        Rate: {
+            /** Format: int32 */
+            planned: number;
+            /** Format: int32 */
+            done: number;
+            /** Format: int32 */
+            errorPct: null | number;
+        };
+        ReasonCount: {
+            reason: string;
+            /** Format: int32 */
+            count: number;
+        };
         RefreshRequest: {
             refreshToken: string;
         };
+        ScoreAverage: {
+            /** Format: double */
+            avg: null | number;
+            /** Format: int32 */
+            days: number;
+        };
         SetExerciseCatalogRequest: {
             catalogId: null | string;
+        };
+        StrengthTrend: {
+            /** Format: uuid */
+            exerciseId: string;
+            name: string;
+            /** Format: double */
+            firstE1rm: number;
+            /** Format: double */
+            lastE1rm: number;
+            /** Format: double */
+            delta: number;
+            /** Format: int32 */
+            sessions: number;
         };
         SubscribeRequest: {
             endpoint: string;
@@ -1382,12 +1551,43 @@ export interface components {
             /** Format: int32 */
             removed: number;
         };
+        TrainingChange: {
+            /** Format: date */
+            date: string;
+            kind: string;
+            exerciseName: null | string;
+            replacementName: null | string;
+        };
         UnsubscribeRequest: {
             endpoint: string;
         };
         UpdateExerciseRequest: {
             group: components["schemas"]["MuscleGroup"];
             aliases: string[];
+        };
+        UpdateMetricsResponse: {
+            /** Format: uuid */
+            cycleId: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: date-time */
+            computedAt: string;
+            dietErrorPct: components["schemas"]["DietErrorRate"];
+            dietWrongMeals: components["schemas"]["WeekWrongMeals"][];
+            dietDeviations: components["schemas"]["DietDeviationEntry"][];
+            missedWorkouts: components["schemas"]["WorkoutMisses"];
+            missedCardio: components["schemas"]["CardioMisses"];
+            itemsMissed: components["schemas"]["ItemMisses"][];
+            strengthChanges: components["schemas"]["GroupStrength"][];
+            trainingChanges: components["schemas"]["TrainingChange"][];
+            weight: components["schemas"]["WeightChange"];
+            waterAvg: components["schemas"]["WaterAverage"];
+            sleepAvg: components["schemas"]["ScoreAverage"];
+            energyAvg: components["schemas"]["EnergyAverage"];
+            anxietyAvg: components["schemas"]["ScoreAverage"];
+            checkinNotes: components["schemas"]["CheckinNote"][];
         };
         UpdatePlanRequest: {
             document: components["schemas"]["JsonElement"];
@@ -1406,6 +1606,52 @@ export interface components {
             uploadUrl: string;
             /** Format: date-time */
             expiresAt: string;
+        };
+        WaterAverage: {
+            /** Format: double */
+            avgL: null | number;
+            /** Format: double */
+            targetL: null | number;
+            /** Format: int32 */
+            days: number;
+        };
+        WeekRate: {
+            /** Format: int32 */
+            week: number;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            planned: number;
+            /** Format: int32 */
+            done: number;
+            /** Format: int32 */
+            errorPct: null | number;
+        };
+        WeekWrongMeals: {
+            /** Format: int32 */
+            week: number;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            count: number;
+            reasons: components["schemas"]["ReasonCount"][];
+        };
+        WeightChange: {
+            start: null | components["schemas"]["DatedWeight"];
+            end: null | components["schemas"]["DatedWeight"];
+            /** Format: double */
+            deltaKg: null | number;
+        };
+        WorkoutMisses: {
+            /** Format: int32 */
+            planned: number;
+            /** Format: int32 */
+            done: number;
+            missedDates: string[];
         };
     };
     responses: never;

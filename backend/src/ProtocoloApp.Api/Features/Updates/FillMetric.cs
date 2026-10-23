@@ -1,0 +1,43 @@
+namespace ProtocoloApp.Api.Features.Updates;
+
+/// <summary>
+/// The metrics a questionnaire question can be filled from (<c>fill</c>). A closed list, the same as the front's
+/// <c>FILL_METRICS</c>; the server computes them over the update cycle.
+/// </summary>
+public static class FillMetric
+{
+    public const string DietErrorPct = "diet_error_pct";
+    public const string DietWrongMeals = "diet_wrong_meals";
+    public const string DietDeviations = "diet_deviations";
+    public const string MissedWorkouts = "missed_workouts";
+    public const string MissedCardio = "missed_cardio";
+    public const string ItemsMissed = "items_missed";
+    public const string StrengthChanges = "strength_changes";
+    public const string TrainingChanges = "training_changes";
+    public const string Weight = "weight";
+    public const string WaterAvg = "water_avg";
+    public const string SleepAvg = "sleep_avg";
+    public const string EnergyAvg = "energy_avg";
+    public const string AnxietyAvg = "anxiety_avg";
+    public const string CheckinNotes = "checkin_notes";
+
+    public static IReadOnlyList<string> All { get; } =
+    [
+        DietErrorPct,
+        DietWrongMeals,
+        DietDeviations,
+        MissedWorkouts,
+        MissedCardio,
+        ItemsMissed,
+        StrengthChanges,
+        TrainingChanges,
+        Weight,
+        WaterAvg,
+        SleepAvg,
+        EnergyAvg,
+        AnxietyAvg,
+        CheckinNotes,
+    ];
+
+    public static bool IsKnown(string? metric) => metric is not null && All.Contains(metric, StringComparer.Ordinal);
+}

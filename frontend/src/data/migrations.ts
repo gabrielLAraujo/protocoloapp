@@ -231,6 +231,44 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'CREATE INDEX ix_diet_deviations_date ON diet_deviations (date)',
     ],
   },
+  {
+    // The update (questionnaire and photos). Additive only.
+    version: 8,
+    statements: [
+      // document: the template as JSON text (camelCase keys inside). One live per user.
+      `CREATE TABLE questionnaire_templates (
+        id TEXT PRIMARY KEY,
+        document TEXT NOT NULL,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      // Created by the server; answers (JSON object key -> text) and photos (JSON array) are the device's part.
+      `CREATE TABLE update_cycles (
+        id TEXT PRIMARY KEY,
+        protocol_version_id TEXT NOT NULL,
+        period_start TEXT NOT NULL,
+        period_end TEXT NOT NULL,
+        status TEXT NOT NULL,
+        answers TEXT NOT NULL DEFAULT '{}',
+        photos TEXT NOT NULL DEFAULT '[]',
+        sent_at TEXT,
+        client_updated_at TEXT NOT NULL,
+        version INTEGER,
+        deleted_at TEXT
+      )`,
+      'CREATE INDEX ix_update_cycles_period_start ON update_cycles (period_start)',
+      // Local only (never synced): a small thumbnail per photo sent, so the device never keeps the full image.
+      `CREATE TABLE update_photo_thumbs (
+        file_id TEXT PRIMARY KEY,
+        cycle_id TEXT NOT NULL,
+        pose TEXT NOT NULL,
+        data_url TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      'CREATE INDEX ix_update_photo_thumbs_cycle ON update_photo_thumbs (cycle_id, pose)',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

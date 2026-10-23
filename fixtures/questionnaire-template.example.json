@@ -1,0 +1,33 @@
+{
+  "title": "Questionário de exemplo",
+  "sections": [
+    {
+      "title": "Dieta de exemplo",
+      "questions": [
+        { "key": "diet_errors", "text": "Qual foi o percentual de erro na dieta de exemplo?", "kind": "long_text", "fill": "diet_error_pct" },
+        { "key": "diet_hunger", "text": "Como foi a fome na semana de exemplo?", "kind": "choice", "options": ["Pouca", "Normal", "Muita"] }
+      ]
+    },
+    {
+      "title": "Treino de exemplo",
+      "questions": [
+        { "key": "missed_workouts", "text": "Quantos treinos de exemplo foram perdidos?", "kind": "text", "fill": "missed_workouts" },
+        { "key": "workout_rating", "text": "De 0 a 10, que nota você dá ao treino de exemplo?", "kind": "number" }
+      ]
+    },
+    {
+      "title": "Geral de exemplo",
+      "questions": [
+        { "key": "weight", "text": "Qual foi a variação de peso no ciclo de exemplo?", "kind": "text", "fill": "weight" },
+        { "key": "week_notes", "text": "Como foi sua semana de exemplo?", "kind": "long_text", "fill": "checkin_notes" }
+      ]
+    }
+  ],
+  "poses": [
+    { "key": "front", "label": "Frente" },
+    { "key": "back", "label": "Costas" },
+    { "key": "right_side", "label": "Lado direito" },
+    { "key": "left_side", "label": "Lado esquerdo" },
+    { "key": "abs", "label": "Abdômen" }
+  ]
+}

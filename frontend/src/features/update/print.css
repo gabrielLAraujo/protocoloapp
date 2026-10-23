@@ -1,0 +1,72 @@
+/* The questionnaire sheet (QuestionnairePrint): hidden on screen, the only thing printed. */
+
+@media screen {
+  [data-print-root] {
+    display: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 18mm 16mm;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  [data-print-root],
+  [data-print-root] * {
+    visibility: visible;
+  }
+
+  [data-print-root] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #000;
+    background: #fff;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  [data-print-root] h1 {
+    margin: 0 0 4pt;
+    font-size: 16pt;
+    font-weight: 700;
+  }
+
+  [data-print-period] {
+    margin: 0 0 14pt;
+    color: #333;
+  }
+
+  [data-print-section] {
+    margin-top: 14pt;
+  }
+
+  [data-print-root] h2 {
+    margin: 0 0 8pt;
+    padding-bottom: 2pt;
+    border-bottom: 1px solid #999;
+    font-size: 13pt;
+    font-weight: 700;
+    break-after: avoid;
+  }
+
+  [data-print-question] {
+    margin-bottom: 10pt;
+    break-inside: avoid;
+  }
+
+  [data-print-question] strong {
+    display: block;
+    font-weight: 700;
+  }
+
+  [data-print-answer] {
+    margin: 2pt 0 0;
+    white-space: pre-line;
+  }
+}

@@ -26,6 +26,7 @@ import { buildTodayView, dueScore, headerText, isLate, loadTodaySources, nextRow
 import { WaterCard } from './WaterCard'
 import { WeekCard } from './WeekCard'
 import { Button } from '../../ui/Button'
+import { UpdateCard } from '../update/UpdateCard'
 
 const CLOCK_MS = 30_000
 
@@ -307,6 +308,7 @@ export function TodayPage() {
               onDone={(row) => choose(row, 'done')}
             />
           )}
+          <UpdateCard today={view.date} />
           <WaterCard
             db={data.db}
             userId={data.userId}

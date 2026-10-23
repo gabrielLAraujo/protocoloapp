@@ -2,7 +2,7 @@ import { RemindersCard } from './RemindersCard'
 import { cardClasses } from '../../ui/styles'
 import { ListRow } from '../../ui/ListRow'
 
-/** Configurações (menu "Mais"): reminders, their times and the diagnostics. */
+/** Configurações (menu "Mais"): reminders, their times, the update questionnaire and the diagnostics. */
 export function SettingsPage() {
   return (
     <section className="grid gap-6">
@@ -10,6 +10,7 @@ export function SettingsPage() {
       <RemindersCard />
       <nav aria-label="Outras configurações" className={cardClasses({ tone: 'list' })}>
         <ListRow to="/configuracoes/horarios" title="Horários" />
+        <ListRow to="/configuracoes/questionario" title="Questionário de atualização" />
         <ListRow to="/settings/diagnostics" title="Diagnóstico" />
       </nav>
     </section>

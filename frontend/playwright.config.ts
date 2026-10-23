@@ -16,9 +16,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /(screens|smoke|today)\.spec\.ts$/ },
-    // Hoje's marks, the day ring and Resumo's counts need the protocol that workout.spec.ts activates.
-    { name: 'today', use: { ...devices['Desktop Chrome'] }, testMatch: /(smoke|today)\.spec\.ts$/, dependencies: ['chromium'] },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /(screens|smoke|today|update)\.spec\.ts$/ },
+    // Hoje's marks, the day ring, Resumo's counts and the update cycle (Atualização) need the protocol that
+    // workout.spec.ts activates.
+    { name: 'today', use: { ...devices['Desktop Chrome'] }, testMatch: /(smoke|today|update)\.spec\.ts$/, dependencies: ['chromium'] },
     // Screenshots for review (CI artifact), after the flows above have created the fictitious data.
     { name: 'screenshots', use: { ...devices['Desktop Chrome'] }, testMatch: /screens\.spec\.ts$/, dependencies: ['chromium', 'today'] },
   ],

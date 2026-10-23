@@ -180,3 +180,30 @@ describe('local migration 6', () => {
     ])
   })
 })
+
+describe('local migration 8', () => {
+  it('adds the update tables without touching the data of a device on version 7', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 7)
+    await db.execute(
+      `INSERT INTO diet_deviations (id, date, meal_key, time, description, quantity, client_updated_at, version, deleted_at)
+       VALUES ('d1', '2026-10-19', '1', NULL, 'Exemplo', NULL, '2026-10-19T10:00:00.000Z', 3, NULL)`,
+    )
+    await db.execute(
+      "INSERT INTO outbox (entity, id, op, payload, client_updated_at, next_attempt_at) VALUES ('diet_deviation', 'd1', 'upsert', '{}', '2026-10-19T10:00:00.000Z', '1970-01-01T00:00:00.000Z')",
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT id, description, version FROM diet_deviations')).toEqual([{ id: 'd1', description: 'Exemplo', version: 3 }])
+    expect(await db.query('SELECT id FROM outbox')).toEqual([{ id: 'd1' }])
+    const tables = await db.query<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('questionnaire_templates', 'update_cycles', 'update_photo_thumbs')",
+    )
+    expect(tables.map((t) => t.name).sort()).toEqual(['questionnaire_templates', 'update_cycles', 'update_photo_thumbs'])
+    await db.execute(
+      "INSERT INTO update_cycles (id, protocol_version_id, period_start, period_end, status, client_updated_at) VALUES ('u1', 'p1', '2026-10-05', '2026-10-26', 'collecting', '2026-10-19T10:00:00.000Z')",
+    )
+    expect(await db.query('SELECT answers, photos, sent_at FROM update_cycles')).toEqual([{ answers: '{}', photos: '[]', sent_at: null }])
+  })
+})

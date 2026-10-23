@@ -93,6 +93,39 @@ A ficha de treino é lida com mais estrutura e a revisão e o treino do dia apro
   nova. Uma versão antiga que abrir e salvar um rascunho novo descarta as técnicas e os pares do catálogo, e conta as
   sub-séries como séries normais nos recordes.
 
+## Atualização (questionário e fotos)
+
+Em **Mais → Atualização** (e no cartão de Hoje a partir de 3 dias antes da data), a atualização do ciclo em três etapas:
+
+- **Fotos:** uma por pose (Frente, Costas, Lado direito, Lado esquerdo, Abdômen, ou as do modelo), com a mesma pose do ciclo
+  anterior por cima da câmera para repetir o enquadramento, temporizador de 5 s e troca de câmera. Sem câmera, escolhe-se um
+  arquivo. A foto fica numa fila no aparelho (funciona offline) e sobe para o **R2** quando há rede; o aparelho guarda só a
+  miniatura. "Baixar fotos (.zip)" monta o zip no próprio aparelho.
+- **Questionário:** montado a partir do **modelo** importado em Configurações. Perguntas ligadas a uma métrica (adesão da
+  dieta, treinos perdidos, peso, médias do check-in, notas do ciclo...) chegam respondidas com o selo **Calculado** pelo
+  servidor e podem ser editadas (a edição vale) ou recalculadas; as demais são livres, com "Ver notas do ciclo" à mão. O
+  rascunho salva a cada mudança e sincroniza.
+- **Revisar e enviar:** "Gerar PDF" (impressão do navegador; não aparece no APK), "Copiar texto", "Baixar fotos (.zip)" e
+  "Marcar como enviada".
+
+Tudo calculado por regras fixas: **nada vai para uma IA**.
+
+### Carregar o seu questionário
+
+O modelo real (as perguntas do seu coach) **nunca entra no repositório**: fica só no seu banco, sincronizado entre os
+aparelhos. Para carregá-lo:
+
+1. Monte um JSON no formato de [`fixtures/questionnaire-template.example.json`](fixtures/questionnaire-template.example.json)
+   (perguntas fictícias): `title`, `sections[].questions[]` com `key`, `text`, `kind` (`text`, `long_text`, `number`,
+   `choice` com `options`) e, se quiser o cálculo, `fill` (uma das métricas, ex.: `diet_error_pct`, `missed_workouts`,
+   `weight`, `checkin_notes`); `poses` opcional.
+2. No app, **Configurações → Questionário de atualização → Importar JSON** e escolha o arquivo. Um arquivo inválido é
+   recusado com a mensagem do erro e o modelo atual fica intacto; importar de novo pede "Substituir o modelo atual?".
+3. Ajuste perguntas, "Preencher com" e poses ali mesmo; "Exportar JSON" guarda uma cópia.
+
+Guarde o arquivo **fora do repositório** (nunca o commite). O `npm run privacy` e o `.gitignore` não sabem reconhecer um
+JSON de perguntas reais: o cuidado é seu.
+
 ## Documentação
 
 | O quê | Onde |
@@ -102,6 +135,8 @@ A ficha de treino é lida com mais estrutura e a revisão e o treino do dia apro
 | Spec de Hoje e lembretes | [docs/superpowers/specs/2026-10-19-hoje-lembretes-design.md](docs/superpowers/specs/2026-10-19-hoje-lembretes-design.md) |
 | Spec de Check-in em partes e gamificação | [docs/superpowers/specs/2026-10-19-checkin-gamificacao-design.md](docs/superpowers/specs/2026-10-19-checkin-gamificacao-design.md) |
 | Spec do Treino inteligente | [docs/superpowers/specs/2026-10-20-treino-inteligente-design.md](docs/superpowers/specs/2026-10-20-treino-inteligente-design.md) |
+| Spec da Atualização (questionário e fotos) | [docs/superpowers/specs/2026-10-23-atualizacao-design.md](docs/superpowers/specs/2026-10-23-atualizacao-design.md) |
+| Plano da Atualização | [docs/superpowers/plans/2026-10-23-atualizacao.md](docs/superpowers/plans/2026-10-23-atualizacao.md) |
 | Plano da Fundação | [docs/superpowers/plans/2026-10-18-fundacao.md](docs/superpowers/plans/2026-10-18-fundacao.md) |
 | Deploy no Coolify (passo a passo) | [docs/runbooks/deploy-coolify.md](docs/runbooks/deploy-coolify.md) |
 | CI, APK e release | [docs/ci/README.md](docs/ci/README.md) |

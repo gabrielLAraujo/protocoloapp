@@ -81,6 +81,24 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
   await expect(page.getByRole('heading', { name: 'Configurações' })).toBeVisible()
   await shoot(page, '5-configuracoes')
 
+  await page.getByRole('link', { name: /Questionário de atualização/ }).click()
+  await expect(page.getByRole('heading', { name: 'Questionário de atualização' })).toBeVisible()
+  await shoot(page, '5b-questionario-modelo')
+
+  // Atualização (update.spec.ts imported the example template, sent a generated photo and marked it as sent).
+  await page.getByRole('button', { name: 'Mais' }).click()
+  await page.getByRole('dialog', { name: 'Mais' }).getByRole('link', { name: 'Atualização' }).click()
+  await expect(page.getByRole('heading', { name: 'Atualização', level: 1 })).toBeVisible()
+  // A fresh device: the photo is on the server, its thumbnail only on the device that took it.
+  await expect(page.getByRole('listitem', { name: 'Frente' }).getByText('Enviada', { exact: true })).toBeVisible()
+  await shoot(page, '6-atualizacao-fotos')
+  await page.getByRole('tab', { name: /Questionário/ }).click()
+  await expect(page.getByRole('heading', { name: 'Dieta de exemplo' })).toBeVisible()
+  await shoot(page, '6b-atualizacao-questionario')
+  await page.getByRole('tab', { name: /Revisar e enviar/ }).click()
+  await expect(page.getByRole('button', { name: 'Copiar texto' })).toBeVisible()
+  await shoot(page, '6c-atualizacao-revisar')
+
   // Desktop: the same session, resized past the lg breakpoint (the sidebar replaces the header and the bottom bar).
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.emulateMedia({ colorScheme: 'light' })
@@ -105,6 +123,14 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
   await expect(page).toHaveURL(/\/planejamento\/protocolo$/)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   await shootDesktop(page, '4c-protocolo')
+
+  await nav(page, 'Atualização').click()
+  await expect(page.getByRole('heading', { name: 'Atualização', level: 1 })).toBeVisible()
+  await expect(page.getByRole('listitem', { name: 'Frente' }).getByText('Enviada', { exact: true })).toBeVisible()
+  await shootDesktop(page, '6-atualizacao-fotos')
+  await page.getByRole('tab', { name: /Questionário/ }).click()
+  await expect(page.getByRole('heading', { name: 'Dieta de exemplo' })).toBeVisible()
+  await shootDesktop(page, '6b-atualizacao-questionario')
 
   await context.close()
 })
