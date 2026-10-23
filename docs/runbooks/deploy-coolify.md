@@ -348,6 +348,13 @@ Critérios do spec (seção 9.1). Marque um a um.
   enquanto elas existirem. Depois do deploy,
   **atualize todos os aparelhos** (web/PWA: "Atualizar" no aviso de nova versão; Android: o APK novo) antes de usar o
   check-in em partes; um aparelho antigo para de sincronizar (sem perder nada) ao receber uma linha só com uma parte.
+- **Atualização (migration `UpdateCycles`):** aditiva (tabelas `questionnaire_templates` e `update_cycles`); aplica sozinha
+  no deploy. O ciclo do protocolo já ativo é criado na primeira abertura de Mais → Atualização. As fotos usam o mesmo bucket e
+  a mesma regra de CORS (`PUT` no envio, `GET` no zip baixado pelo aparelho). Depois do deploy, **atualize todos os
+  aparelhos** antes de usar a Atualização.
+- **Carregar o questionário real:** no app, Configurações → Questionário de atualização → **Importar JSON** (formato de
+  `fixtures/questionnaire-template.example.json`). O arquivo real fica fora do repositório; nunca o commite. Para trocar,
+  importe de novo e confirme "Substituir o modelo atual?" (as respostas já dadas continuam).
 - **Trocar uma chave do R2:** crie outro token no escopo do bucket, atualize `R2__AccessKeyId` e `R2__SecretAccessKey`,
   redeploy e só então revogue o antigo.
 - **Trocar `Auth__SigningKey`:** invalida os tokens de acesso (duram 15 min); os aparelhos renovam com o refresh token, sem novo login.
