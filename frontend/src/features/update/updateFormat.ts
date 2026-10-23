@@ -15,7 +15,7 @@ export const periodText = (cycle: Pick<UpdateCycleLocal, 'periodStart' | 'period
 
 /**
  * How far the cycle is: photos of the template's poses, and the questions answered (a stored text, or a question the
- * metrics fill while no edit replaced it).
+ * metrics fill or with a default while no edit replaced it).
  */
 export function cycleProgress(cycle: UpdateCycleLocal, template: QuestionnaireTemplate | null) {
   const poses = posesOf(template)
@@ -23,7 +23,7 @@ export function cycleProgress(cycle: UpdateCycleLocal, template: QuestionnaireTe
   const questions = template?.sections.flatMap((s) => s.questions) ?? []
   const answered = questions.filter((q) => {
     const stored = Object.hasOwn(cycle.answers, q.key) ? cycle.answers[q.key] : undefined
-    return stored === undefined ? !!q.fill : stored.trim() !== ''
+    return stored === undefined ? !!q.fill || !!q.default?.trim() : stored.trim() !== ''
   }).length
   return { photos, poses: poses.length, answered, questions: questions.length }
 }

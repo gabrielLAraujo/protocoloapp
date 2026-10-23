@@ -145,11 +145,11 @@ describe('UpdatePage', () => {
     await user.click(tab('Questionário'))
     const field = await screen.findByRole('textbox', { name: MISSED })
     await waitFor(() => expect(field).toHaveValue(MISSED_TEXT))
-    expect(screen.getAllByText('Calculado')).toHaveLength(4)
+    expect(screen.getAllByText('Calculado')).toHaveLength(9)
 
     await user.clear(field)
     await user.type(field, 'Nenhum de exemplo')
-    expect(screen.getAllByText('Calculado')).toHaveLength(3)
+    expect(screen.getAllByText('Calculado')).toHaveLength(8)
     await waitFor(async () => expect((await updateCycleRepo.byId(app.db, CYCLE_ID))?.answers.missed_workouts).toBe('Nenhum de exemplo'), {
       timeout: 2000,
     })
@@ -159,12 +159,12 @@ describe('UpdatePage', () => {
     app.view(<UpdatePage />)
     await user.click(await screen.findByRole('tab', { name: /Questionário/ }))
     expect(await screen.findByRole('textbox', { name: MISSED })).toHaveValue('Nenhum de exemplo')
-    await waitFor(() => expect(screen.getAllByText('Calculado')).toHaveLength(3))
+    await waitFor(() => expect(screen.getAllByText('Calculado')).toHaveLength(8))
 
     const block = screen.getByRole('textbox', { name: MISSED }).closest('div')!
     await user.click(within(block).getByRole('button', { name: 'Recalcular' }))
     await waitFor(() => expect(screen.getByRole('textbox', { name: MISSED })).toHaveValue(MISSED_TEXT))
-    expect(screen.getAllByText('Calculado')).toHaveLength(4)
+    expect(screen.getAllByText('Calculado')).toHaveLength(9)
     expect(Object.hasOwn((await updateCycleRepo.byId(app.db, CYCLE_ID))!.answers, 'missed_workouts')).toBe(false)
   })
 

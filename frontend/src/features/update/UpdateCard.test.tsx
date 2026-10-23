@@ -41,8 +41,8 @@ describe('UpdateCard', () => {
       photos: [{ pose: 'front', file_id: '00000000-0000-0000-0000-0000000000f1', taken_at: '2026-10-19T10:00:00Z' }],
     })
     expect(await screen.findByRole('heading', { name: 'Atualização em 3 dias' })).toBeInTheDocument()
-    // 4 fill questions count as answered, plus the hunger one; the blank rating does not.
-    expect(screen.getByText('Fotos 1 de 5 · Respostas 5 de 6')).toBeInTheDocument()
+    // 9 fill questions and the one with a default count as answered, plus the hunger one; the blank rating does not.
+    expect(screen.getByText('Fotos 1 de 5 · Respostas 11 de 12')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Abrir atualização' })).toHaveAttribute('href', '/atualizacao')
   })
 
