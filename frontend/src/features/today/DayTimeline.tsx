@@ -13,6 +13,7 @@ export function DayTimeline({
   view,
   now,
   busy,
+  past = false,
   onChoose,
   onOpen,
   onOpenExtra,
@@ -20,6 +21,8 @@ export function DayTimeline({
   view: TodayView
   now: Date
   busy: boolean
+  /** A day before today: the check-in and workout links open that date. */
+  past?: boolean
   onChoose(row: TodayRow, status: AdherenceStatus): void
   onOpen(row: TodayRow): void
   onOpenExtra(deviation: DietDeviationLocal): void
@@ -39,6 +42,7 @@ export function DayTimeline({
                   row={item.row}
                   late={isLate(item.row, view.date, now)}
                   busy={busy}
+                  day={past ? view.date : undefined}
                   onChoose={(status) => onChoose(item.row, status)}
                   onOpen={() => onOpen(item.row)}
                 />
