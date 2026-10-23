@@ -15,8 +15,8 @@ const NUMBER_QUESTION = 'De 0 a 10, que nota você dá ao treino de exemplo?'
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 
 /**
- * Waits for "Sincronizado" with nothing pending. A save made while a sync run is already past its push joins that run
- * and would wait for the next timer (60 s): "Sincronizar agora" sends it, as a user would.
+ * Waits for "Sincronizado" with nothing pending. A save made during a sync run goes out in the follow-up run the engine
+ * schedules; "Sincronizar agora" stays as a harmless nudge, as a user would press it.
  */
 async function expectSynced(page: Page) {
   const synced = page.getByRole('status').filter({ hasText: /^Sincronizado$/ })

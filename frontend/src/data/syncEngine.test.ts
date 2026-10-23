@@ -387,23 +387,60 @@ describe('SyncEngine', () => {
     expect(await syncState.get(db, 'last_since')).toBe('9')
   })
 
-  it('only one run at a time', async () => {
+  it('only one run at a time: calls during a run share one follow-up run after it', async () => {
     const db = await newLocalDb()
     const { clock } = testClock()
     await seed(db, ['2026-10-18'], clock())
+    let inFlight = 0
+    let overlapped = false
     const calls = mockFetch({
       'POST /api/sync/push': async (call) => {
+        overlapped ||= ++inFlight > 1
         await new Promise((resolve) => setTimeout(resolve, 20))
+        inFlight--
         return json({ results: changesOf(call).map((c) => ({ id: c.id, status: 'applied', errors: null })) })
       },
       'GET /api/sync/pull': emptyPull,
     })
     const engine = new SyncEngine(db, newTestApi(), clock)
 
-    const [a, b] = await Promise.all([engine.runOnce(), engine.runOnce()])
+    const [a, b, c] = await Promise.all([engine.runOnce(), engine.runOnce(), engine.runOnce({ ignoreBackoff: true })])
 
+    expect(overlapped).toBe(false)
     expect(pushes(calls)).toHaveLength(1)
-    expect(a).toEqual(b)
+    // The first run and a single follow-up (the second and third calls coalesce).
+    expect(pulls(calls)).toHaveLength(2)
+    expect(a).toMatchObject({ pushed: 1 })
+    expect(b).toBe(c)
+    expect(b).toMatchObject({ pushed: 0 })
+  })
+
+  it('a change saved after the run in flight already pushed goes out in the follow-up run, not with the timer', async () => {
+    const db = await newLocalDb()
+    const { clock } = testClock()
+    await seed(db, ['2026-10-18'], clock())
+    let releasePull: () => void = () => undefined
+    let pulled = 0
+    const calls = mockFetch({
+      'POST /api/sync/push': (call) => json({ results: changesOf(call).map((c) => ({ id: c.id, status: 'applied', errors: null })) }),
+      'GET /api/sync/pull': async () => {
+        // The first run waits in its pull (its push is over) while the user saves another change.
+        if (pulled++ === 0) await new Promise<void>((resolve) => (releasePull = resolve))
+        return emptyPull()
+      },
+    })
+    const engine = new SyncEngine(db, newTestApi(), clock)
+
+    const first = engine.runOnce()
+    await vi.waitFor(() => expect(pulls(calls)).toHaveLength(1))
+    await seed(db, ['2026-10-19'], clock())
+    const second = engine.runOnce({ ignoreBackoff: true })
+    releasePull()
+    await first
+    await second
+
+    expect(pushes(calls)).toHaveLength(2)
+    expect(await outbox.pendingCount(db)).toBe(0)
   })
 
   it('stops on 401 without backoff and without pulling', async () => {

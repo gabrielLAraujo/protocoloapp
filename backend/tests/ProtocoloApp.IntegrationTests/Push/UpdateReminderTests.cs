@@ -51,6 +51,10 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
         return (api, await PushApi.AddSubscriptionAsync(api));
     }
 
+    // The morning slot's own reminder (check-in) may go at the same minute: only the photos reminder counts here.
+    private List<PushMessage> UpdatePushes(string endpoint) =>
+        factory.Push.SentTo(endpoint).Where(m => m.Tag == ReminderScheduler.UpdatePhotosSlot).ToList();
+
     private Task RunAsync(DateTimeOffset now) =>
         factory.Services.GetRequiredService<ReminderScheduler>().RunOnceAsync(now, CancellationToken.None);
 
@@ -62,7 +66,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
 
         await RunAsync(Local("07:00"));
 
-        Assert.Empty(factory.Push.SentTo(endpoint));
+        Assert.Empty(UpdatePushes(endpoint));
     }
 
     [Fact]
@@ -72,13 +76,13 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
         using var _ = api;
 
         await RunAsync(Local("06:59"));
-        Assert.Empty(factory.Push.SentTo(endpoint));
+        Assert.Empty(UpdatePushes(endpoint));
 
         await RunAsync(Local("07:00"));
         await RunAsync(Local("07:00"));
         await RunAsync(Local("07:01"));
 
-        var message = Assert.Single(factory.Push.SentTo(endpoint));
+        var message = Assert.Single(UpdatePushes(endpoint));
         Assert.Equal("Protocolo", message.Title);
         Assert.Equal("Atualização em 3 dias: hora das fotos", message.Body);
         Assert.Equal("/atualizacao", message.Url);
@@ -95,7 +99,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
 
         await RunAsync(Local("07:00"));
 
-        Assert.Equal(body, Assert.Single(factory.Push.SentTo(endpoint)).Body);
+        Assert.Equal(body, Assert.Single(UpdatePushes(endpoint)).Body);
     }
 
     [Fact]
@@ -106,7 +110,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
 
         await RunAsync(Local("07:00"));
 
-        Assert.Empty(factory.Push.SentTo(endpoint));
+        Assert.Empty(UpdatePushes(endpoint));
     }
 
     [Fact]
@@ -117,7 +121,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
 
         await RunAsync(Local("07:00"));
 
-        Assert.Empty(factory.Push.SentTo(endpoint));
+        Assert.Empty(UpdatePushes(endpoint));
     }
 
     [Fact]
@@ -127,10 +131,10 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
         using var _ = api;
 
         await RunAsync(Local("08:59"));
-        Assert.Empty(factory.Push.SentTo(endpoint));
+        Assert.Empty(UpdatePushes(endpoint));
 
         await RunAsync(Local("09:00"));
-        Assert.Equal("Atualização em 2 dias: hora das fotos", Assert.Single(factory.Push.SentTo(endpoint)).Body);
+        Assert.Equal("Atualização em 2 dias: hora das fotos", Assert.Single(UpdatePushes(endpoint)).Body);
     }
 
     [Fact]
@@ -141,7 +145,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
 
         await RunAsync(Local("09:00"));
 
-        var message = Assert.Single(factory.Push.SentTo(endpoint));
+        var message = Assert.Single(UpdatePushes(endpoint));
         Assert.DoesNotContain("REF 1", message.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("Fase 1", message.Body, StringComparison.Ordinal);
     }
@@ -155,7 +159,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
         await RunAsync(Local("07:00"));
         await RunAsync(Local("09:00"));
 
-        Assert.Empty(factory.Push.SentTo(endpoint));
+        Assert.Empty(UpdatePushes(endpoint));
     }
 
     [Fact]
@@ -175,7 +179,7 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
         var cycle = await api.WithDbAsync(db => db.UpdateCycles.AsNoTracking().SingleAsync(c => c.UserId == api.UserId));
         Assert.Equal(draft.Id, cycle.ProtocolVersionId);
         Assert.Equal(new DateOnly(2026, 3, 12), cycle.PeriodEnd);
-        Assert.Equal("Atualização em 2 dias: hora das fotos", Assert.Single(factory.Push.SentTo(endpoint)).Body);
+        Assert.Equal("Atualização em 2 dias: hora das fotos", Assert.Single(UpdatePushes(endpoint)).Body);
 
         // Idempotent: the next tick makes no second cycle.
         await RunAsync(Local("09:01"));

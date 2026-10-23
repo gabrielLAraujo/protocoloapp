@@ -47,7 +47,8 @@ class StopRun extends Error {
  *   never retried. Network failure or 5xx → the batch stays, with backoff. 401 (after the api client's own refresh)
  *   → the run stops without backoff; the client's auth:logout handles the session.
  * - The pull applies each page and advances `last_since` in one transaction, so a crash never skips records.
- * - One run at a time: a call while a run is in flight gets that run's result.
+ * - One run at a time: a call while a run is in flight schedules one follow-up run right after it (every call made
+ *   meanwhile shares that follow-up), so a change saved after the run already pushed goes out at once, not with the timer.
  */
 export class SyncEngine {
   private readonly db: LocalDb
@@ -56,6 +57,9 @@ export class SyncEngine {
   private readonly adapters: Map<string, SyncEntityAdapter>
   private readonly listeners = new Set<(status: SyncStatus) => void>()
   private current: Promise<SyncRunResult> | null = null
+  /** The run that starts right after `current`, shared by every call made while `current` was in flight. */
+  private next: Promise<SyncRunResult> | null = null
+  private nextIgnoreBackoff = false
   private publishing: Promise<void> = Promise.resolve()
   private status: SyncStatus = { pending: 0, rejected: 0, running: false, lastError: null, dataVersion: 0 }
   private dataVersion = 0
@@ -73,11 +77,28 @@ export class SyncEngine {
    * sends them at once.
    */
   runOnce(options: { ignoreBackoff?: boolean } = {}): Promise<SyncRunResult> {
+    const ignoreBackoff = options.ignoreBackoff === true
+    if (!this.current) return this.startRun(ignoreBackoff)
+    // In flight: its push may be over already, so whatever the caller just saved would wait for the timer. One follow-up
+    // run after it covers every call made meanwhile (the strongest option wins).
+    this.nextIgnoreBackoff ||= ignoreBackoff
+    this.next ??= this.current
+      .catch(() => undefined)
+      .then(() => {
+        const followUpIgnoresBackoff = this.nextIgnoreBackoff
+        this.next = null
+        this.nextIgnoreBackoff = false
+        return this.startRun(followUpIgnoresBackoff)
+      })
+    return this.next
+  }
+
+  private startRun(ignoreBackoff: boolean): Promise<SyncRunResult> {
     this.current ??= (async () => {
       // Anything but a complete run counts as a failure; an unexpected error is the server's (or ours).
       let lastError: SyncError | null = 'server'
       try {
-        const result = await this.run(options.ignoreBackoff === true)
+        const result = await this.run(ignoreBackoff)
         lastError = result.error
         return result.run
       } finally {
@@ -90,7 +111,7 @@ export class SyncEngine {
 
   /** Resolves when no run is in flight. */
   async whenIdle(): Promise<void> {
-    while (this.current) await this.current.catch(() => undefined)
+    for (let run = this.current ?? this.next; run; run = this.current ?? this.next) await run.catch(() => undefined)
   }
 
   /**
