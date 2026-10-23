@@ -34,6 +34,10 @@ export interface DailyCheckinFields {
   waterL: number | null
   /** Evening (optional). */
   note: string | null
+  /** Evening (optional), stressors of the day 0–10. */
+  stress: number | null
+  /** Evening (optional), emotional state 1–5. */
+  mood: number | null
   /** Cardio. Null: not answered. */
   cardioDone: boolean | null
   /** Cardio, 0–300; only with cardioDone === true, else null. */
@@ -48,12 +52,14 @@ export interface MorningFields {
   weightKg: number | null
 }
 
-/** What the evening screen saves. An empty note is stored (and sent) as null. */
+/** What the evening screen saves. An empty note is stored (and sent) as null; stress and mood omitted are null (not answered). */
 export interface EveningFields {
   energyDay: number
   anxiety: number
   waterL: number
   note: string | null
+  stress?: number | null
+  mood?: number | null
 }
 
 /** What the Cardio item of Hoje saves. `done: null` clears cardio; minutes only count with `done === true`. */
@@ -80,7 +86,7 @@ type PartFields = {
 
 /**
  * Morning = sleep quality, energy on waking and bowel all set; evening = energy during the day, anxiety and water all
- * set. A full check-in saved before the split counts as both; a row created only by cardio as neither.
+ * set (stress and mood are optional). A full check-in saved before the split counts as both; a row created only by cardio as neither.
  */
 export function checkinParts(row: PartFields): CheckinParts {
   return {
@@ -113,6 +119,8 @@ export interface DailyCheckinPayload {
   water_l: number | null
   weight_kg: number | null
   note: string | null
+  stress: number | null
+  mood: number | null
   cardio_done: boolean | null
   cardio_minutes: number | null
 }
@@ -128,6 +136,8 @@ type Row = {
   water_l: number | null
   weight_kg: number | null
   note: string | null
+  stress: number | null
+  mood: number | null
   cardio_done: number | null
   cardio_minutes: number | null
   client_updated_at: string
@@ -137,7 +147,7 @@ type Row = {
 
 const EMPTY: DailyCheckinFields = {
   sleepQuality: null, bowel: null, energyWake: null, weightKg: null,
-  energyDay: null, anxiety: null, waterL: null, note: null,
+  energyDay: null, anxiety: null, waterL: null, note: null, stress: null, mood: null,
   cardioDone: null, cardioMinutes: null,
 }
 
@@ -159,11 +169,13 @@ const toPayload = (date: string, f: DailyCheckinFields, parts?: readonly Checkin
   water_l: f.waterL,
   weight_kg: f.weightKg,
   note: f.note,
+  stress: f.stress,
+  mood: f.mood,
   cardio_done: f.cardioDone,
   cardio_minutes: f.cardioDone === true ? f.cardioMinutes : null,
 })
 
-/** A pulled (or older) payload: fields missing from it read as null (clients before cardio lack the two cardio fields). */
+/** A pulled (or older) payload: fields missing from it read as null (clients before cardio or the meters lack those fields). */
 const fromPayload = (p: Partial<DailyCheckinPayload>): DailyCheckinFields => ({
   sleepQuality: p.sleep_quality ?? null,
   bowel: p.bowel ?? null,
@@ -173,6 +185,8 @@ const fromPayload = (p: Partial<DailyCheckinPayload>): DailyCheckinFields => ({
   anxiety: p.anxiety ?? null,
   waterL: p.water_l ?? null,
   note: p.note ?? null,
+  stress: p.stress ?? null,
+  mood: p.mood ?? null,
   cardioDone: p.cardio_done ?? null,
   cardioMinutes: p.cardio_minutes ?? null,
 })
@@ -186,6 +200,8 @@ const fieldsOf = (row: Row): DailyCheckinFields => ({
   anxiety: row.anxiety,
   waterL: row.water_l,
   note: row.note,
+  stress: row.stress,
+  mood: row.mood,
   cardioDone: row.cardio_done == null ? null : row.cardio_done !== 0,
   cardioMinutes: row.cardio_minutes,
 })
@@ -198,7 +214,9 @@ function withPart(into: DailyCheckinFields, from: DailyCheckinFields, part: Chec
     case 'morning':
       return { ...into, sleepQuality: from.sleepQuality, energyWake: from.energyWake, bowel: from.bowel, weightKg: from.weightKg }
     case 'evening':
-      return { ...into, energyDay: from.energyDay, anxiety: from.anxiety, waterL: from.waterL, note: from.note }
+      return {
+        ...into, energyDay: from.energyDay, anxiety: from.anxiety, waterL: from.waterL, note: from.note, stress: from.stress, mood: from.mood,
+      }
     case 'cardio':
       return { ...into, cardioDone: from.cardioDone, cardioMinutes: from.cardioMinutes }
   }
@@ -211,16 +229,17 @@ const byId = async (db: LocalDb, id: string) =>
 async function writeRow(db: LocalDb, id: string, date: string, f: DailyCheckinFields, clientUpdatedAt: string, version: number | null) {
   await db.execute(
     `INSERT INTO daily_checkins
-       (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, cardio_done, cardio_minutes, client_updated_at, version, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+       (id, date, sleep_quality, bowel, energy_wake, energy_day, anxiety, water_l, weight_kg, note, stress, mood, cardio_done, cardio_minutes, client_updated_at, version, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT (id) DO UPDATE SET
        date = excluded.date, sleep_quality = excluded.sleep_quality, bowel = excluded.bowel,
        energy_wake = excluded.energy_wake, energy_day = excluded.energy_day, anxiety = excluded.anxiety,
        water_l = excluded.water_l, weight_kg = excluded.weight_kg, note = excluded.note,
+       stress = excluded.stress, mood = excluded.mood,
        cardio_done = excluded.cardio_done, cardio_minutes = excluded.cardio_minutes,
        client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, daily_checkins.version),
        deleted_at = NULL`,
-    [id, date, f.sleepQuality, f.bowel, f.energyWake, f.energyDay, f.anxiety, f.waterL, f.weightKg, f.note,
+    [id, date, f.sleepQuality, f.bowel, f.energyWake, f.energyDay, f.anxiety, f.waterL, f.weightKg, f.note, f.stress, f.mood,
       f.cardioDone == null ? null : f.cardioDone ? 1 : 0, f.cardioDone === true ? f.cardioMinutes : null, clientUpdatedAt, version],
   )
 }
@@ -289,7 +308,7 @@ export const dailyCheckinRepo = {
 
   /** Saves the evening part, keeping the morning and cardio of the day; creates the row when there is none. */
   saveEvening(db: LocalDb, userId: string, date: string, fields: EveningFields, now: Date): Promise<string> {
-    return saveParts(db, userId, date, ['evening'], (current) => ({ ...current, ...fields }), now)
+    return saveParts(db, userId, date, ['evening'], (current) => ({ ...current, ...fields, stress: fields.stress ?? null, mood: fields.mood ?? null }), now)
   },
 
   /**

@@ -40,6 +40,8 @@ const serverResponse = `{
   "sleepAvg": { "avg": 4, "days": 2 },
   "energyAvg": { "wake": { "avg": 3, "days": 2 }, "day": { "avg": 4, "days": 2 } },
   "anxietyAvg": { "avg": 2, "days": 2 },
+  "stressAvg": { "avg": 2.5, "days": 2 },
+  "moodAvg": { "avg": 4, "days": 1 },
   "checkinNotes": [{ "date": "2026-10-17", "note": "Nota de exemplo." }]
 }`
 
@@ -61,6 +63,8 @@ const emptyServerResponse = `{
   "sleepAvg": { "avg": null, "days": 0 },
   "energyAvg": { "wake": { "avg": null, "days": 0 }, "day": { "avg": null, "days": 0 } },
   "anxietyAvg": { "avg": null, "days": 0 },
+  "stressAvg": { "avg": null, "days": 0 },
+  "moodAvg": { "avg": null, "days": 0 },
   "checkinNotes": []
 }`
 
@@ -69,6 +73,21 @@ describe('updateMetricsSchema against the server shape', () => {
     const parsed = updateMetricsSchema.safeParse(JSON.parse(serverResponse))
     expect(parsed.error).toBeUndefined()
     expect(parsed.data?.trainingChanges[0].exerciseName).toBe('Treino A / Treino B')
+  })
+
+  it('reads stressAvg and moodAvg', () => {
+    const parsed = updateMetricsSchema.parse(JSON.parse(serverResponse))
+    expect(parsed.stressAvg).toEqual({ avg: 2.5, days: 2 })
+    expect(parsed.moodAvg).toEqual({ avg: 4, days: 1 })
+  })
+
+  it('reads metrics cached before the meters as no data', () => {
+    const old = JSON.parse(serverResponse) as Record<string, unknown>
+    delete old.stressAvg
+    delete old.moodAvg
+    const parsed = updateMetricsSchema.parse(old)
+    expect(parsed.stressAvg).toEqual({ avg: null, days: 0 })
+    expect(parsed.moodAvg).toEqual({ avg: null, days: 0 })
   })
 
   it('parses the response of a cycle without any record', () => {

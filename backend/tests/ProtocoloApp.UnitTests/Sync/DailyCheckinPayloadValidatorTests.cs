@@ -64,6 +64,59 @@ public sealed class DailyCheckinPayloadValidatorTests
     private static readonly DateOnly Date = new(2026, 2, 3);
 
     [Fact]
+    public void Stress_accepts_0_to_10()
+    {
+        Assert.Empty(Errors(Valid with { Stress = 0 }));
+        Assert.Empty(Errors(Valid with { Stress = 10 }));
+        Assert.Equal(new[] { "stress" }, Errors(Valid with { Stress = -1 }));
+        Assert.Equal(new[] { "stress" }, Errors(Valid with { Stress = 11 }));
+    }
+
+    [Fact]
+    public void Mood_accepts_1_to_5()
+    {
+        Assert.Empty(Errors(Valid with { Mood = 1 }));
+        Assert.Empty(Errors(Valid with { Mood = 5 }));
+        Assert.Equal(new[] { "mood" }, Errors(Valid with { Mood = 0 }));
+        Assert.Equal(new[] { "mood" }, Errors(Valid with { Mood = 6 }));
+    }
+
+    [Fact]
+    public void Stress_and_mood_are_optional_in_a_complete_evening()
+    {
+        var evening = new DailyCheckinPayload { Date = Date, Parts = ["evening"], EnergyDay = 4, Anxiety = 2, WaterL = 3m };
+
+        Assert.Empty(Errors(evening));
+        Assert.Empty(Errors(evening with { Stress = 3, Mood = 4 }));
+        Assert.Empty(Errors(evening with { Mood = 4 }));
+    }
+
+    [Fact]
+    public void Stress_alone_counts_as_data_without_parts()
+    {
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Stress = 0 }));
+        Assert.Empty(Errors(new DailyCheckinPayload { Date = Date, Mood = 3 }));
+    }
+
+    [Fact]
+    public void Read_parses_stress_and_mood_and_older_payloads_leave_them_null()
+    {
+        var withMeters = JsonDocument.Parse("""{"date":"2026-02-03","parts":["evening"],"energy_day":3,"anxiety":1,"water_l":2,"stress":7,"mood":2}""").RootElement;
+        var older = JsonDocument.Parse("""{"date":"2026-02-03","parts":["evening"],"energy_day":3,"anxiety":1,"water_l":2}""").RootElement;
+
+        var payload = SyncPayload.Read(withMeters, Validator, out var errors);
+        var old = SyncPayload.Read(older, Validator, out var oldErrors);
+
+        Assert.Empty(errors);
+        Assert.Equal(7, payload!.Stress);
+        Assert.Equal(2, payload.Mood);
+        Assert.Empty(oldErrors);
+        Assert.Null(old!.Stress);
+        Assert.Null(old.Mood);
+    }
+
+
+    [Fact]
     public void Date_is_required_and_a_date_only_payload_needs_parts()
     {
         var empty = new DailyCheckinPayload();

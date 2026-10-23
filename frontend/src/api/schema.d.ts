@@ -1587,6 +1587,8 @@ export interface components {
             sleepAvg: components["schemas"]["ScoreAverage"];
             energyAvg: components["schemas"]["EnergyAverage"];
             anxietyAvg: components["schemas"]["ScoreAverage"];
+            stressAvg: components["schemas"]["ScoreAverage"];
+            moodAvg: components["schemas"]["ScoreAverage"];
             checkinNotes: components["schemas"]["CheckinNote"][];
         };
         UpdatePlanRequest: {

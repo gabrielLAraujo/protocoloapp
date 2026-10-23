@@ -99,7 +99,7 @@ describe('local migration 2', () => {
       {
         id: 'c1', date: '2026-10-01', sleep_quality: 4, bowel: 'normal', energy_wake: 3, energy_day: 4, anxiety: 2,
         water_l: 2.5, weight_kg: 80.4, note: 'ok', client_updated_at: '2026-10-01T10:00:00.000Z', version: 7, deleted_at: null,
-        cardio_done: null, cardio_minutes: null,
+        cardio_done: null, cardio_minutes: null, stress: null, mood: null,
       },
     ])
     expect(await db.query('SELECT id FROM outbox')).toEqual([{ id: 'c1' }])
@@ -141,12 +141,12 @@ describe('local migration 5', () => {
       {
         id: 'c1', date: '2026-10-01', sleep_quality: 4, bowel: 'normal', energy_wake: 3, energy_day: 4, anxiety: 2,
         water_l: 2.5, weight_kg: 80.4, note: 'ok', client_updated_at: '2026-10-01T10:00:00.000Z', version: 7, deleted_at: null,
-        cardio_done: 1, cardio_minutes: 30,
+        cardio_done: 1, cardio_minutes: 30, stress: null, mood: null,
       },
       {
         id: 'c2', date: '2026-10-02', sleep_quality: 2, bowel: 'loose', energy_wake: 2, energy_day: 3, anxiety: 4,
         water_l: 1, weight_kg: null, note: null, client_updated_at: '2026-10-02T10:00:00.000Z', version: null,
-        deleted_at: '2026-10-02T11:00:00.000Z', cardio_done: null, cardio_minutes: null,
+        deleted_at: '2026-10-02T11:00:00.000Z', cardio_done: null, cardio_minutes: null, stress: null, mood: null,
       },
     ])
     // A row with the parts empty (cardio only) now fits.
@@ -205,5 +205,20 @@ describe('local migration 8', () => {
       "INSERT INTO update_cycles (id, protocol_version_id, period_start, period_end, status, client_updated_at) VALUES ('u1', 'p1', '2026-10-05', '2026-10-26', 'collecting', '2026-10-19T10:00:00.000Z')",
     )
     expect(await db.query('SELECT answers, photos, sent_at FROM update_cycles')).toEqual([{ answers: '{}', photos: '[]', sent_at: null }])
+  })
+
+  it('adds stress and mood (null) to the check-ins of a device on version 8', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 8)
+    await db.execute(
+      `INSERT INTO daily_checkins (id, date, energy_day, anxiety, water_l, client_updated_at, version)
+       VALUES ('c1', '2026-10-20', 4, 2, 2.5, '2026-10-20T21:00:00.000Z', 5)`,
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT id, anxiety, stress, mood, version FROM daily_checkins')).toEqual([
+      { id: 'c1', anxiety: 2, stress: null, mood: null, version: 5 },
+    ])
   })
 })

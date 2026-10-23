@@ -22,4 +22,6 @@ public sealed record UpdateMetricsResponse(
     ScoreAverage SleepAvg,
     EnergyAverage EnergyAvg,
     ScoreAverage AnxietyAvg,
+    ScoreAverage StressAvg,
+    ScoreAverage MoodAvg,
     IReadOnlyList<CheckinNote> CheckinNotes);
