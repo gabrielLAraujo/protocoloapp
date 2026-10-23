@@ -37,12 +37,155 @@ public sealed class QuestionnaireTemplateValidatorTests
             ["choice", "long_text", "number", "text"],
             questions.Select(q => q!["kind"]!.GetValue<string>()).Distinct().Order(StringComparer.Ordinal).ToList());
         Assert.Equal(
-            ["checkin_notes", "diet_error_pct", "missed_workouts", "weight"],
+            ["checkin_notes", "diet_error_pct", "diet_wrong_meals", "items_missed", "items_used", "missed_workouts", "missed_workouts", "strength_changes", "weight"],
             questions.Where(q => q!["fill"] is not null).Select(q => q!["fill"]!.GetValue<string>()).Order(StringComparer.Ordinal).ToList());
         Assert.Equal(
             ["front", "back", "right_side", "left_side", "abs"],
             document["poses"]!.AsArray().Select(p => p!["key"]!.GetValue<string>()).ToList());
         Assert.All(questions.Select(q => q!["fill"]?.GetValue<string>()).OfType<string>(), fill => Assert.Contains(fill, FillMetric.All));
+    }
+
+    [Fact]
+    public void The_fixture_has_a_default_and_every_fill_option()
+    {
+        var questions = Fixture()["sections"]!.AsArray().SelectMany(s => s!["questions"]!.AsArray()).Select(q => q!.AsObject()).ToList();
+
+        Assert.Contains(questions, q => q["default"] is not null);
+        var options = questions.Select(q => q["fillOptions"]).OfType<JsonNode>().ToList();
+        Assert.Contains(options, o => o["week"] is not null);
+        Assert.Contains(options, o => o["categories"] is not null);
+        Assert.Contains(options, o => o["groups"] is not null);
+    }
+
+    [Theory]
+    [InlineData("diet_error_pct")]
+    [InlineData("diet_wrong_meals")]
+    [InlineData("diet_deviations")]
+    [InlineData("missed_workouts")]
+    [InlineData("missed_cardio")]
+    public void A_week_from_1_to_6_is_fine_with_a_weekly_metric(string fill)
+    {
+        var document = Fixture();
+        Question(document, 0, 0)["fill"] = fill;
+        Question(document, 0, 0)["fillOptions"] = new JsonObject { ["week"] = 1 };
+        Question(document, 1, 0)["fill"] = fill;
+        Question(document, 1, 0)["fillOptions"] = new JsonObject { ["week"] = 6 };
+
+        Assert.Empty(Errors(document));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7)]
+    public void A_week_out_of_range_is_an_error(int week)
+    {
+        var document = Fixture();
+        Question(document, 0, 0)["fillOptions"] = new JsonObject { ["week"] = week };
+
+        Assert.Equal(["document.sections[0].questions[0].fillOptions.week"], Errors(document));
+    }
+
+    [Fact]
+    public void Options_the_metric_does_not_accept_are_errors()
+    {
+        var document = Fixture();
+        // diet_error_pct: no categories, no groups.
+        Question(document, 0, 0)["fillOptions"] = new JsonObject
+        {
+            ["categories"] = new JsonArray("supplement"), ["groups"] = new JsonArray("chest"),
+        };
+        // weight: no week.
+        Question(document, 2, 0)["fillOptions"] = new JsonObject { ["week"] = 1 };
+        // No fill at all.
+        Question(document, 0, 1)["fillOptions"] = new JsonObject { ["week"] = 1 };
+
+        var errors = Errors(document);
+
+        Assert.Equal(
+            [
+                "document.sections[0].questions[0].fillOptions.categories",
+                "document.sections[0].questions[0].fillOptions.groups",
+                "document.sections[0].questions[1].fillOptions.week",
+                "document.sections[2].questions[0].fillOptions.week",
+            ],
+            errors.Order(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("items_missed")]
+    [InlineData("items_used")]
+    public void Known_categories_are_fine_with_an_item_metric(string fill)
+    {
+        var document = Fixture();
+        Question(document, 0, 0)["fill"] = fill;
+        Question(document, 0, 0)["fillOptions"] = new JsonObject
+        {
+            ["categories"] = new JsonArray("supplement", "compound", "hormone", "thermogenic", "sleep_optional"),
+        };
+
+        Assert.Empty(Errors(document));
+    }
+
+    [Fact]
+    public void Unknown_repeated_or_no_categories_are_errors()
+    {
+        var unknown = Fixture();
+        Question(unknown, 0, 0)["fill"] = "items_missed";
+        Question(unknown, 0, 0)["fillOptions"] = new JsonObject { ["categories"] = new JsonArray("vitamin") };
+        var repeated = Fixture();
+        Question(repeated, 0, 0)["fill"] = "items_used";
+        Question(repeated, 0, 0)["fillOptions"] = new JsonObject { ["categories"] = new JsonArray("hormone", "hormone") };
+        var empty = Fixture();
+        Question(empty, 0, 0)["fill"] = "items_used";
+        Question(empty, 0, 0)["fillOptions"] = new JsonObject { ["categories"] = new JsonArray() };
+
+        string[] expected = ["document.sections[0].questions[0].fillOptions.categories"];
+        Assert.Equal(expected, Errors(unknown));
+        Assert.Equal(expected, Errors(repeated));
+        Assert.Equal(expected, Errors(empty));
+    }
+
+    [Fact]
+    public void Groups_are_snake_case_muscle_groups()
+    {
+        var known = Fixture();
+        Question(known, 0, 0)["fill"] = "strength_changes";
+        Question(known, 0, 0)["fillOptions"] = new JsonObject { ["groups"] = new JsonArray("lower_back", "quads") };
+        var camel = Fixture();
+        Question(camel, 0, 0)["fill"] = "strength_changes";
+        Question(camel, 0, 0)["fillOptions"] = new JsonObject { ["groups"] = new JsonArray("lowerBack") };
+
+        Assert.Empty(Errors(known));
+        Assert.Equal(["document.sections[0].questions[0].fillOptions.groups"], Errors(camel));
+    }
+
+    [Fact]
+    public void Empty_or_null_fill_options_are_fine()
+    {
+        var document = Fixture();
+        Question(document, 0, 0)["fillOptions"] = new JsonObject();
+        Question(document, 1, 0)["fillOptions"] = null;
+
+        Assert.Empty(Errors(document));
+    }
+
+    [Fact]
+    public void A_default_of_up_to_4000_characters_is_fine_and_longer_is_an_error()
+    {
+        var document = Fixture();
+        Question(document, 0, 0)["default"] = new string('a', 4000);
+        Question(document, 0, 1)["default"] = new string('a', 4001);
+
+        Assert.Equal(["document.sections[0].questions[1].default"], Errors(document));
+    }
+
+    [Fact]
+    public void A_week_that_is_not_a_number_is_unreadable()
+    {
+        var document = Fixture();
+        Question(document, 0, 0)["fillOptions"] = new JsonObject { ["week"] = "dois" };
+
+        Assert.Equal(["document.sections[0].questions[0].fillOptions.week"], Errors(document));
     }
 
     [Fact]

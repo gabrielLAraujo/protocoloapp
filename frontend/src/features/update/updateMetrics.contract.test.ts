@@ -21,9 +21,13 @@ const serverResponse = `{
     { "date": "2026-10-19", "mealKey": "m2", "mealLabel": "Refeição 2", "time": null, "description": "Biscoito de exemplo", "quantity": "2 unidades" },
     { "date": "2026-10-20", "mealKey": null, "mealLabel": null, "time": "15:30:00", "description": "Lanche de exemplo", "quantity": null }
   ],
-  "missedWorkouts": { "planned": 4, "done": 2, "missedDates": ["2026-10-18", "2026-10-21"] },
-  "missedCardio": { "planned": 0, "done": 0 },
-  "itemsMissed": [{ "key": "creatine", "name": "Creatina", "missed": 6, "reasons": [{ "reason": "unmarked", "count": 6 }] }],
+  "missedWorkouts": {
+    "planned": 4, "done": 2, "missedDates": ["2026-10-18", "2026-10-21"],
+    "weeks": [{ "week": 1, "from": "2026-10-17", "to": "2026-10-23", "planned": 4, "done": 2, "missedDates": ["2026-10-18", "2026-10-21"] }]
+  },
+  "missedCardio": { "planned": 0, "done": 0, "weeks": [] },
+  "itemsMissed": [{ "key": "creatine", "name": "Creatina", "category": "supplement", "missed": 5, "reasons": [{ "reason": "unmarked", "count": 5 }] }],
+  "itemsUsed": [{ "key": "creatine", "name": "Creatina", "category": "supplement", "done": 1, "partial": 0, "planned": 6 }],
   "strengthChanges": [
     { "group": "biceps",
       "best": [{ "exerciseId": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "name": "Exercício de exemplo", "firstE1rm": 80, "lastE1rm": 93.33, "delta": 13.33, "sessions": 2 }],
@@ -53,9 +57,10 @@ const emptyServerResponse = `{
   "dietErrorPct": { "cycle": { "planned": 0, "done": 0, "errorPct": null }, "weeks": [] },
   "dietWrongMeals": [],
   "dietDeviations": [],
-  "missedWorkouts": { "planned": 0, "done": 0, "missedDates": [] },
-  "missedCardio": { "planned": 0, "done": 0 },
+  "missedWorkouts": { "planned": 0, "done": 0, "missedDates": [], "weeks": [] },
+  "missedCardio": { "planned": 0, "done": 0, "weeks": [] },
   "itemsMissed": [],
+  "itemsUsed": [],
   "strengthChanges": [],
   "trainingChanges": [],
   "weight": { "start": null, "end": null, "deltaKg": null },
@@ -73,6 +78,27 @@ describe('updateMetricsSchema against the server shape', () => {
     const parsed = updateMetricsSchema.safeParse(JSON.parse(serverResponse))
     expect(parsed.error).toBeUndefined()
     expect(parsed.data?.trainingChanges[0].exerciseName).toBe('Treino A / Treino B')
+    expect(parsed.data?.missedWorkouts.weeks[0].missedDates).toEqual(['2026-10-18', '2026-10-21'])
+    expect(parsed.data?.itemsMissed[0].category).toBe('supplement')
+    expect(parsed.data?.itemsUsed).toEqual([{ key: 'creatine', name: 'Creatina', category: 'supplement', done: 1, partial: 0, planned: 6 }])
+  })
+
+  it('reads metrics cached before the weeks, categories and items used existed', () => {
+    const old = JSON.parse(serverResponse) as Record<string, unknown> & {
+      missedWorkouts: Record<string, unknown>
+      missedCardio: Record<string, unknown>
+      itemsMissed: Record<string, unknown>[]
+    }
+    delete old.itemsUsed
+    delete old.missedWorkouts.weeks
+    delete old.missedCardio.weeks
+    delete old.itemsMissed[0].category
+    const parsed = updateMetricsSchema.safeParse(old)
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.data?.itemsUsed).toEqual([])
+    expect(parsed.data?.missedWorkouts.weeks).toEqual([])
+    expect(parsed.data?.missedCardio.weeks).toEqual([])
+    expect(parsed.data?.itemsMissed[0].category).toBeNull()
   })
 
   it('reads stressAvg and moodAvg', () => {

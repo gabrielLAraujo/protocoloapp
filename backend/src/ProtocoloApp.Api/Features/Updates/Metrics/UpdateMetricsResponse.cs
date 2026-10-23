@@ -15,6 +15,7 @@ public sealed record UpdateMetricsResponse(
     WorkoutMisses MissedWorkouts,
     CardioMisses MissedCardio,
     IReadOnlyList<ItemMisses> ItemsMissed,
+    IReadOnlyList<ItemUse> ItemsUsed,
     IReadOnlyList<GroupStrength> StrengthChanges,
     IReadOnlyList<TrainingChange> TrainingChanges,
     WeightChange Weight,

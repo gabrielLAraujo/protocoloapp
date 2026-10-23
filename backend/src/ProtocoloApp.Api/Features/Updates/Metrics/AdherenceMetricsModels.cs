@@ -7,7 +7,8 @@ namespace ProtocoloApp.Api.Features.Updates.Metrics;
 
 /// <summary>
 /// What the adherence metrics read. <c>Days</c> are the cycle days (<c>period_start</c>..<c>min(period_end, today)</c>) with
-/// their plan; the first one anchors the weeks. <c>MealLabels</c> maps a protocol meal key to its label.
+/// their plan; the first one anchors the weeks. <c>MealLabels</c> maps a protocol meal key to its label and
+/// <c>ItemCategories</c> a protocol item key to its category (<c>supplement</c>, <c>compound</c>…).
 /// </summary>
 public sealed record AdherenceInput(
     IReadOnlyList<(DateOnly Date, DayPlan Plan)> Days,
@@ -17,7 +18,8 @@ public sealed record AdherenceInput(
     IReadOnlyList<DailyCheckin> Checkins,
     ISet<DateOnly> WorkedOutDates,
     CardioPlanDto? Cardio,
-    IReadOnlyDictionary<string, string> MealLabels);
+    IReadOnlyDictionary<string, string> MealLabels,
+    IReadOnlyDictionary<string, string>? ItemCategories = null);
 
 /// <summary>Planned versus done; <c>ErrorPct</c> = round(100 × (planned − done) / planned), null when nothing was planned.</summary>
 public sealed record Rate(int Planned, int Done, int? ErrorPct);
@@ -35,11 +37,24 @@ public sealed record WeekWrongMeals(int Week, DateOnly From, DateOnly To, int Co
 public sealed record DietDeviationEntry(
     DateOnly Date, string? MealKey, string? MealLabel, TimeOnly? Time, string Description, string? Quantity);
 
-public sealed record WorkoutMisses(int Planned, int Done, IReadOnlyList<DateOnly> MissedDates);
+public sealed record WeekWorkoutMisses(int Week, DateOnly From, DateOnly To, int Planned, int Done, IReadOnlyList<DateOnly> MissedDates);
 
-public sealed record CardioMisses(int Planned, int Done);
+/// <summary>The cycle's workouts; <c>Weeks</c> only has the weeks with a planned workout.</summary>
+public sealed record WorkoutMisses(int Planned, int Done, IReadOnlyList<DateOnly> MissedDates, IReadOnlyList<WeekWorkoutMisses> Weeks);
 
-public sealed record ItemMisses(string Key, string Name, int Missed, IReadOnlyList<ReasonCount> Reasons);
+public sealed record WeekCardioMisses(int Week, DateOnly From, DateOnly To, int Planned, int Done);
+
+/// <summary>The cycle's cardio; <c>Weeks</c> only has the weeks with a planned session.</summary>
+public sealed record CardioMisses(int Planned, int Done, IReadOnlyList<WeekCardioMisses> Weeks);
+
+/// <summary><c>Category</c>: the protocol item's category, null when the item is no longer in the protocol.</summary>
+public sealed record ItemMisses(string Key, string Name, string? Category, int Missed, IReadOnlyList<ReasonCount> Reasons);
+
+/// <summary>
+/// A protocol item used in the cycle (at least one day done or partial): <c>Planned</c> days with the item (today only when
+/// marked), of which <c>Done</c> done and <c>Partial</c> partial.
+/// </summary>
+public sealed record ItemUse(string Key, string Name, string? Category, int Done, int Partial, int Planned);
 
 public sealed record AdherenceResult(
     DietErrorRate DietErrorPct,
@@ -47,4 +62,5 @@ public sealed record AdherenceResult(
     IReadOnlyList<DietDeviationEntry> DietDeviations,
     WorkoutMisses MissedWorkouts,
     CardioMisses MissedCardio,
-    IReadOnlyList<ItemMisses> ItemsMissed);
+    IReadOnlyList<ItemMisses> ItemsMissed,
+    IReadOnlyList<ItemUse> ItemsUsed);

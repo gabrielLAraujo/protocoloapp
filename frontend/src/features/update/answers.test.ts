@@ -44,6 +44,38 @@ describe('resolveAnswer', () => {
   })
 })
 
+describe('resolveAnswer with default and fillOptions', () => {
+  const named = { key: 'athlete', text: 'Nome de exemplo?', default: 'Atleta de exemplo' }
+
+  it('uses the default when there is neither an edit nor a calculation', () => {
+    expect(resolveAnswer(named, undefined, sampleMetrics())).toEqual({ text: 'Atleta de exemplo', source: 'default' })
+    expect(resolveAnswer({ ...dietPct, default: 'Inicial' }, undefined, null)).toEqual({ text: 'Inicial', source: 'default' })
+  })
+
+  it('an edit (even empty) and a calculation win over the default', () => {
+    expect(resolveAnswer(named, 'Outro nome', null)).toEqual({ text: 'Outro nome', source: 'edited' })
+    expect(resolveAnswer(named, '', null)).toEqual({ text: '', source: 'edited' })
+    expect(resolveAnswer({ ...dietPct, default: 'Inicial' }, undefined, sampleMetrics()).source).toBe('calculated')
+  })
+
+  it('an empty default is no default', () => {
+    expect(resolveAnswer({ ...named, default: '' }, undefined, null)).toEqual({ text: '', source: 'empty' })
+    expect(resolveAnswer({ ...named, default: null }, undefined, null)).toEqual({ text: '', source: 'empty' })
+  })
+
+  it('passes the fillOptions to the calculation', () => {
+    expect(resolveAnswer({ ...dietPct, fillOptions: { week: 2 } }, undefined, sampleMetrics())).toEqual({
+      text: 'Semana 2: 50% de erro (3 de 6 refeições certas).',
+      source: 'calculated',
+    })
+  })
+
+  it('answersAsText uses the default too', () => {
+    const t: TemplateLike = { title: 'Modelo de exemplo', sections: [{ title: 'Geral', questions: [named] }] }
+    expect(answersAsText(t, {}, null)).toContain('Nome de exemplo?\nAtleta de exemplo')
+  })
+})
+
 describe('answersAsText', () => {
   it('follows the template order, sections in upper case and an empty answer as a dash', () => {
     const text = answersAsText(template, { week_feel: 'Semana tranquila de exemplo', body_weight: 'Peso editado' }, sampleMetrics())

@@ -5,7 +5,7 @@ namespace ProtocoloApp.Api.Features.Updates.Metrics;
 
 /// <summary>
 /// The adherence fill metrics of an update cycle (<c>diet_error_pct</c>, <c>diet_wrong_meals</c>, <c>diet_deviations</c>,
-/// <c>missed_workouts</c>, <c>missed_cardio</c>, <c>items_missed</c>). Pure: reads only <see cref="AdherenceInput"/>.
+/// <c>missed_workouts</c>, <c>missed_cardio</c>, <c>items_missed</c>, <c>items_used</c>). Pure: reads only <see cref="AdherenceInput"/>.
 /// A past day counts every target; today counts only the marked ones; later days are ignored.
 /// </summary>
 public static class AdherenceMetrics
@@ -48,7 +48,9 @@ public static class AdherenceMetrics
         var wrongReasons = weeks.Select(_ => new Dictionary<string, int>(StringComparer.Ordinal)).ToArray();
         var items = new Dictionary<string, (string Name, int Missed, Dictionary<string, int> Reasons)>(StringComparer.Ordinal);
         var itemOrder = new List<string>();
-        var workoutPlanned = 0;
+        var uses = new Dictionary<string, (string Name, int Done, int Partial, int Planned)>(StringComparer.Ordinal);
+        var useOrder = new List<string>();
+        var workoutPlannedPerWeek = new int[weeks.Count];
         var missedWorkoutDates = new List<DateOnly>();
         var cardioDaysPerWeek = new int[weeks.Count];
         var cardioDonePerWeek = new int[weeks.Count];
@@ -86,6 +88,17 @@ public static class AdherenceMetrics
                         break;
 
                     case AdherenceTargetType.ProtocolItem:
+                        if (!uses.TryGetValue(target.Key, out var use))
+                        {
+                            use = (target.Label, 0, 0, 0);
+                            useOrder.Add(target.Key);
+                        }
+
+                        uses[target.Key] = (
+                            target.Label,
+                            use.Done + (log?.Status == AdherenceStatus.Done ? 1 : 0),
+                            use.Partial + (log?.Status == AdherenceStatus.Partial ? 1 : 0),
+                            use.Planned + 1);
                         if (log is not null && log.Status != AdherenceStatus.Missed)
                             break;
                         if (!items.TryGetValue(target.Key, out var item))
@@ -105,7 +118,7 @@ public static class AdherenceMetrics
                 var worked = input.WorkedOutDates.Contains(date);
                 if (today && !worked)
                     continue;
-                workoutPlanned++;
+                workoutPlannedPerWeek[w]++;
                 if (!worked)
                     missedWorkoutDates.Add(date);
             }
@@ -142,36 +155,60 @@ public static class AdherenceMetrics
                 d.Quantity))
             .ToList();
 
+        string? CategoryOf(string key) => input.ItemCategories?.GetValueOrDefault(key);
+
         var itemsMissed = itemOrder
             .Select(key => (Key: key, Item: items[key]))
             .OrderByDescending(x => x.Item.Missed)
             .ThenBy(x => x.Key, StringComparer.Ordinal)
-            .Select(x => new ItemMisses(x.Key, x.Item.Name, x.Item.Missed, Sorted(x.Item.Reasons)))
+            .Select(x => new ItemMisses(x.Key, x.Item.Name, CategoryOf(x.Key), x.Item.Missed, Sorted(x.Item.Reasons)))
             .ToList();
+
+        var itemsUsed = useOrder
+            .Select(key => (Key: key, Use: uses[key]))
+            .Where(x => x.Use.Done + x.Use.Partial > 0)
+            .Select(x => new ItemUse(x.Key, x.Use.Name, CategoryOf(x.Key), x.Use.Done, x.Use.Partial, x.Use.Planned))
+            .ToList();
+
+        var workoutWeeks = new List<WeekWorkoutMisses>();
+        for (var i = 0; i < weeks.Count; i++)
+        {
+            if (workoutPlannedPerWeek[i] == 0)
+                continue;
+            var (week, from, to) = weeks[i];
+            var missedInWeek = missedWorkoutDates.Where(d => d >= from && d <= to).ToList();
+            workoutWeeks.Add(new WeekWorkoutMisses(
+                week, from, to, workoutPlannedPerWeek[i], workoutPlannedPerWeek[i] - missedInWeek.Count, missedInWeek));
+        }
+
+        var workoutPlanned = workoutPlannedPerWeek.Sum();
 
         return new AdherenceResult(
             new DietErrorRate(new Rate(plannedTotal, doneTotal, ErrorPct(plannedTotal, doneTotal)), weekRates),
             wrongMeals,
             dietDeviations,
-            new WorkoutMisses(workoutPlanned, workoutPlanned - missedWorkoutDates.Count, missedWorkoutDates),
-            CardioOf(input.Cardio, cardioDaysPerWeek, cardioDonePerWeek),
-            itemsMissed);
+            new WorkoutMisses(workoutPlanned, workoutPlanned - missedWorkoutDates.Count, missedWorkoutDates, workoutWeeks),
+            CardioOf(input.Cardio, weeks, cardioDaysPerWeek, cardioDonePerWeek),
+            itemsMissed,
+            itemsUsed);
     }
 
     /// <summary>Daily cardio: every day with the target. Otherwise per week <c>min(sessionsPerWeek, days with the target)</c>.</summary>
-    private static CardioMisses CardioOf(CardioPlanDto? cardio, int[] daysPerWeek, int[] donePerWeek)
+    private static CardioMisses CardioOf(
+        CardioPlanDto? cardio, IReadOnlyList<(int Week, DateOnly From, DateOnly To)> weeks, int[] daysPerWeek, int[] donePerWeek)
     {
         var weekly = cardio is { Daily: not true, SessionsPerWeek: { } perWeek } ? perWeek : (int?)null;
-        var planned = 0;
-        var done = 0;
+        var byWeek = new List<WeekCardioMisses>();
         for (var i = 0; i < daysPerWeek.Length; i++)
         {
             var p = weekly is { } n ? Math.Min(Math.Max(n, 0), daysPerWeek[i]) : daysPerWeek[i];
-            planned += p;
-            done += Math.Min(donePerWeek[i], p);
+            if (p == 0)
+                continue;
+            var (week, from, to) = weeks[i];
+            byWeek.Add(new WeekCardioMisses(week, from, to, p, Math.Min(donePerWeek[i], p)));
         }
 
-        return new CardioMisses(planned, done);
+        return new CardioMisses(byWeek.Sum(w => w.Planned), byWeek.Sum(w => w.Done), byWeek);
     }
 
     private static string ReasonOf(AdherenceLog? log) => log is null ? Unmarked : string.IsNullOrEmpty(log.Reason) ? NoReason : log.Reason;
