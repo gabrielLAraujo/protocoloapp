@@ -16,9 +16,10 @@ public sealed class DailyCheckinConfiguration : IEntityTypeConfiguration<DailyCh
 
         builder.ToTable(table =>
         {
-            foreach (var column in new[] { "sleep_quality", "energy_wake", "energy_day", "anxiety" })
+            foreach (var column in new[] { "sleep_quality", "energy_wake", "energy_day", "anxiety", "mood" })
                 table.HasCheckConstraint($"ck_daily_checkins_{column}", $"{column} BETWEEN {DailyCheckin.MinScore} AND {DailyCheckin.MaxScore}");
 
+            table.HasCheckConstraint("ck_daily_checkins_stress", $"stress BETWEEN {DailyCheckin.MinStress} AND {DailyCheckin.MaxStress}");
             table.HasCheckConstraint(
                 "ck_daily_checkins_bowel",
                 $"bowel IN ('{BowelText.Normal}', '{BowelText.Loose}', '{BowelText.Constipated}')");

@@ -15,6 +15,7 @@ public sealed record UpdateMetricsResponse(
     WorkoutMisses MissedWorkouts,
     CardioMisses MissedCardio,
     IReadOnlyList<ItemMisses> ItemsMissed,
+    IReadOnlyList<ItemUse> ItemsUsed,
     IReadOnlyList<GroupStrength> StrengthChanges,
     IReadOnlyList<TrainingChange> TrainingChanges,
     WeightChange Weight,
@@ -22,4 +23,6 @@ public sealed record UpdateMetricsResponse(
     ScoreAverage SleepAvg,
     EnergyAverage EnergyAvg,
     ScoreAverage AnxietyAvg,
+    ScoreAverage StressAvg,
+    ScoreAverage MoodAvg,
     IReadOnlyList<CheckinNote> CheckinNotes);

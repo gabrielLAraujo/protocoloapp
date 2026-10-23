@@ -61,6 +61,9 @@ export interface SummaryData {
   energyWake: number | null
   energyDay: number | null
   anxiety: number | null
+  /** Stress 0–10 and mood 1–5: optional meters of the evening. */
+  stress: number | null
+  mood: number | null
   water: number | null
   waterTarget: number | null
   /** Days in the cycle so far with both parts of the check-in saved. */
@@ -93,7 +96,7 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
   if (!protocol) {
     return {
       cycle: null, calendar: [], workouts: { done: 0, planned: 0 }, cardio: { done: 0, planned: 0 },
-      sleep: null, energyWake: null, energyDay: null, anxiety: null, water: null, waterTarget: null,
+      sleep: null, energyWake: null, energyDay: null, anxiety: null, stress: null, mood: null, water: null, waterTarget: null,
       checkinCount: 0, weight: [], strength: null,
     }
   }
@@ -144,6 +147,8 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
     energyWake: average(inRange.map((c) => c.energyWake)),
     energyDay: average(inRange.map((c) => c.energyDay)),
     anxiety: average(inRange.map((c) => c.anxiety)),
+    stress: average(inRange.map((c) => c.stress)),
+    mood: average(inRange.map((c) => c.mood)),
     water: average(inRange.map((c) => c.waterL)),
     waterTarget: guideline?.value ?? null,
     // A check-in counts once both parts were saved (a full check-in from before the split has both).

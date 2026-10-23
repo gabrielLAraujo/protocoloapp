@@ -8,6 +8,12 @@ const toNumber = (value: string) => Number(value.replace(',', '.'))
 export const WATER_MAX_L = 15
 
 const scale = z.number({ error: CHOOSE }).int(CHOOSE).min(1, CHOOSE).max(5, CHOOSE)
+/** An optional meter: not chosen is null. */
+const meter = (min: number, max: number) =>
+  z.number().int(CHOOSE).min(min, CHOOSE).max(max, CHOOSE).nullish().transform((v) => v ?? null)
+
+/** The stress meter of the evening (stressors of the day); the server has the same range. */
+export const STRESS_MAX = 10
 
 /** The morning part as typed (weight is text, so "82,4" works); the output is what saveMorning stores. */
 export const morningSchema = z.object({
@@ -37,6 +43,8 @@ export const eveningSchema = z.object({
     .string()
     .max(2000, 'Máximo 2000 caracteres')
     .transform((v) => (v.trim() === '' ? null : v.trim())),
+  stress: meter(0, STRESS_MAX),
+  mood: meter(1, 5),
 })
 
 export type MorningFormInput = z.input<typeof morningSchema>

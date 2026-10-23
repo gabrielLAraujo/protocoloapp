@@ -143,6 +143,34 @@ describe('/checkin/noite', () => {
     expect(await outbox.pendingCount(db)).toBeGreaterThanOrEqual(2)
   })
 
+  it('saves stress (0 to 10) and mood (1 to 5), shown with their hints, and prefills them', async () => {
+    const { db, user, mount } = await open('/checkin/noite')
+    mount()
+    await screen.findByRole('heading', { name: 'Check-in da noite' })
+    const stress = screen.getByRole('radiogroup', { name: 'Estresse (0 a 10)' })
+    expect(within(stress).getAllByRole('radio').map((r) => r.getAttribute('value'))).toEqual(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+    expect(stress).toHaveAccessibleDescription('Quantos causadores de estresse apareceram hoje')
+    const mood = screen.getByRole('radiogroup', { name: 'Psicológico (1 a 5)' })
+    expect(within(mood).getAllByRole('radio')).toHaveLength(5)
+    expect(mood).toHaveAccessibleDescription('Como está o lado emocional')
+
+    await fillEvening(user)
+    await pick(user, 'Estresse (0 a 10)', '0')
+    await pick(user, 'Psicológico (1 a 5)', '4')
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(async () => expect(await dailyCheckinRepo.get(db, DAY)).toMatchObject({ energyDay: 5, stress: 0, mood: 4 }))
+  })
+
+  it('prefills the saved stress and mood', async () => {
+    const { db, mount } = await open('/checkin/noite')
+    await dailyCheckinRepo.saveEvening(db, USER_A, DAY, { energyDay: 3, anxiety: 2, waterL: 3, note: null, stress: 7, mood: 2 }, new Date())
+    mount()
+
+    await waitFor(() => expect(checked('Estresse (0 a 10)', '7')).toBeChecked())
+    expect(checked('Psicológico (1 a 5)', '2')).toBeChecked()
+  })
+
   it('validates water and the note', async () => {
     const { db, user, mount } = await open('/checkin/noite')
     mount()

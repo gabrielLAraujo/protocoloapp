@@ -113,6 +113,8 @@ public sealed class DailyCheckinSyncHandler(AppDbContext db, TimeProvider clock)
         entity.Anxiety = payload.Anxiety;
         entity.WaterL = payload.WaterL;
         entity.Note = payload.Note;
+        entity.Stress = payload.Stress;
+        entity.Mood = payload.Mood;
     }
 
     private static void WriteCardio(DailyCheckinPayload payload, DailyCheckin entity)
@@ -146,6 +148,8 @@ public sealed class DailyCheckinSyncHandler(AppDbContext db, TimeProvider clock)
             WaterL = entity.WaterL,
             WeightKg = entity.WeightKg,
             Note = entity.Note,
+            Stress = entity.Stress,
+            Mood = entity.Mood,
             CardioDone = entity.CardioDone,
             CardioMinutes = entity.CardioMinutes,
         };

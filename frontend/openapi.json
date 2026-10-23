@@ -1056,7 +1056,8 @@
       "CardioMisses": {
         "required": [
           "planned",
-          "done"
+          "done",
+          "weeks"
         ],
         "type": "object",
         "properties": {
@@ -1067,6 +1068,12 @@
           "done": {
             "type": "integer",
             "format": "int32"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeekCardioMisses"
+            }
           }
         }
       },
@@ -1479,6 +1486,7 @@
         "required": [
           "key",
           "name",
+          "category",
           "missed",
           "reasons"
         ],
@@ -1490,6 +1498,12 @@
           "name": {
             "type": "string"
           },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "missed": {
             "type": "integer",
             "format": "int32"
@@ -1499,6 +1513,43 @@
             "items": {
               "$ref": "#/components/schemas/ReasonCount"
             }
+          }
+        }
+      },
+      "ItemUse": {
+        "required": [
+          "key",
+          "name",
+          "category",
+          "done",
+          "partial",
+          "planned"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "done": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "partial": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "planned": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -2236,6 +2287,7 @@
           "missedWorkouts",
           "missedCardio",
           "itemsMissed",
+          "itemsUsed",
           "strengthChanges",
           "trainingChanges",
           "weight",
@@ -2243,6 +2295,8 @@
           "sleepAvg",
           "energyAvg",
           "anxietyAvg",
+          "stressAvg",
+          "moodAvg",
           "checkinNotes"
         ],
         "type": "object",
@@ -2290,6 +2344,12 @@
               "$ref": "#/components/schemas/ItemMisses"
             }
           },
+          "itemsUsed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemUse"
+            }
+          },
           "strengthChanges": {
             "type": "array",
             "items": {
@@ -2315,6 +2375,12 @@
             "$ref": "#/components/schemas/EnergyAverage"
           },
           "anxietyAvg": {
+            "$ref": "#/components/schemas/ScoreAverage"
+          },
+          "stressAvg": {
+            "$ref": "#/components/schemas/ScoreAverage"
+          },
+          "moodAvg": {
             "$ref": "#/components/schemas/ScoreAverage"
           },
           "checkinNotes": {
@@ -2416,6 +2482,38 @@
           }
         }
       },
+      "WeekCardioMisses": {
+        "required": [
+          "week",
+          "from",
+          "to",
+          "planned",
+          "done"
+        ],
+        "type": "object",
+        "properties": {
+          "week": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "planned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "done": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "WeekRate": {
         "required": [
           "week",
@@ -2453,6 +2551,46 @@
               "integer"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "WeekWorkoutMisses": {
+        "required": [
+          "week",
+          "from",
+          "to",
+          "planned",
+          "done",
+          "missedDates"
+        ],
+        "type": "object",
+        "properties": {
+          "week": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "planned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "done": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedDates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
           }
         }
       },
@@ -2531,7 +2669,8 @@
         "required": [
           "planned",
           "done",
-          "missedDates"
+          "missedDates",
+          "weeks"
         ],
         "type": "object",
         "properties": {
@@ -2548,6 +2687,12 @@
             "items": {
               "type": "string",
               "format": "date"
+            }
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeekWorkoutMisses"
             }
           }
         }

@@ -27,7 +27,7 @@ public sealed record WeightChange(DatedWeight? Start, DatedWeight? End, decimal?
 /// <summary>Average liters (two decimals) over the <see cref="Days"/> days with a value; null when there are none.</summary>
 public sealed record WaterAverage(decimal? AvgL, decimal? TargetL, int Days);
 
-/// <summary>Average 1–5 score (one decimal) over the <see cref="Days"/> days with a value; null when there are none.</summary>
+/// <summary>Average score (one decimal: 1–5, or 0–10 for stress) over the <see cref="Days"/> days with a value; null when there are none.</summary>
 public sealed record ScoreAverage(decimal? Avg, int Days);
 
 public sealed record EnergyAverage(ScoreAverage Wake, ScoreAverage Day);
@@ -40,4 +40,6 @@ public sealed record CheckinResult(
     ScoreAverage SleepAvg,
     EnergyAverage EnergyAvg,
     ScoreAverage AnxietyAvg,
+    ScoreAverage StressAvg,
+    ScoreAverage MoodAvg,
     IReadOnlyList<CheckinNote> CheckinNotes);

@@ -114,6 +114,45 @@ public sealed class CheckinPartsTests(ApiFactory factory) : IClassFixture<ApiFac
     }
 
     [Fact]
+    public async Task Evening_meters_round_trip_and_the_water_card_keeps_them()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        await SyncApi.PushOneAsync(client, Upsert(id, At(60), ["evening"],
+            ("energy_day", 4), ("anxiety", 2), ("water_l", 2m), ("note", null), ("stress", 0), ("mood", 4)));
+        // Hoje's water card later sends the whole evening part as it stands on the device, meters included.
+        var water = await SyncApi.PushOneAsync(client, Upsert(id, At(10), ["evening"],
+            ("energy_day", 4), ("anxiety", 2), ("water_l", 2.5m), ("note", null), ("stress", 0), ("mood", 4)));
+
+        Assert.Equal(SyncResultStatus.Applied, water.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        Assert.Equal(0, row.Stress);
+        Assert.Equal(4, row.Mood);
+        Assert.Equal(2.5m, row.WaterL);
+        var payload = (await PulledAsync(client, id)).Payload!.Value;
+        Assert.Equal(0, payload.GetProperty("stress").GetInt32());
+        Assert.Equal(4, payload.GetProperty("mood").GetInt32());
+    }
+
+    [Fact]
+    public async Task Evening_without_meters_is_complete_and_pulls_them_as_null()
+    {
+        using var client = await NewUserAsync();
+        var id = Guid.NewGuid();
+
+        var result = await SyncApi.PushOneAsync(client, Evening(id, At(10)));
+
+        Assert.Equal(SyncResultStatus.Applied, result.Status);
+        var row = Assert.Single(await SyncApi.RowsAsync(factory, id));
+        Assert.Null(row.Stress);
+        Assert.Null(row.Mood);
+        var payload = (await PulledAsync(client, id)).Payload!.Value;
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("stress").ValueKind);
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("mood").ValueKind);
+    }
+
+    [Fact]
     public async Task Evening_score_without_the_other_is_rejected()
     {
         using var client = await NewUserAsync();
@@ -218,7 +257,7 @@ public sealed class CheckinPartsTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Equal(25, row.CardioMinutes);
         Assert.Null(row.MorningClientUpdatedAt);
         var payload = (await PulledAsync(client, id)).Payload!.Value;
-        foreach (var field in new[] { "sleep_quality", "bowel", "energy_wake", "energy_day", "anxiety", "water_l", "weight_kg", "note" })
+        foreach (var field in new[] { "sleep_quality", "bowel", "energy_wake", "energy_day", "anxiety", "water_l", "weight_kg", "note", "stress", "mood" })
             Assert.Equal(JsonValueKind.Null, payload.GetProperty(field).ValueKind);
         Assert.Equal(25, payload.GetProperty("cardio_minutes").GetInt32());
     }
@@ -301,6 +340,10 @@ public sealed class CheckinPartsTests(ApiFactory factory) : IClassFixture<ApiFac
     [InlineData("energy_day", 0)]
     [InlineData("anxiety", 6)]
     [InlineData("water_l", 16)]
+    [InlineData("stress", 11)]
+    [InlineData("stress", -1)]
+    [InlineData("mood", 0)]
+    [InlineData("mood", 6)]
     public async Task Out_of_range_part_field_is_rejected(string field, int value)
     {
         using var client = await NewUserAsync();

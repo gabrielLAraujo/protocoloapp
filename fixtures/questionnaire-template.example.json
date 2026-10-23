@@ -5,21 +5,27 @@
       "title": "Dieta de exemplo",
       "questions": [
         { "key": "diet_errors", "text": "Qual foi o percentual de erro na dieta de exemplo?", "kind": "long_text", "fill": "diet_error_pct" },
-        { "key": "diet_hunger", "text": "Como foi a fome na semana de exemplo?", "kind": "choice", "options": ["Pouca", "Normal", "Muita"] }
+        { "key": "diet_hunger", "text": "Como foi a fome na semana de exemplo?", "kind": "choice", "options": ["Pouca", "Normal", "Muita"] },
+        { "key": "diet_wrong_week_2", "text": "Quantas refeições de exemplo saíram do plano na semana 2?", "kind": "long_text", "fill": "diet_wrong_meals", "fillOptions": { "week": 2 } }
       ]
     },
     {
       "title": "Treino de exemplo",
       "questions": [
         { "key": "missed_workouts", "text": "Quantos treinos de exemplo foram perdidos?", "kind": "text", "fill": "missed_workouts" },
-        { "key": "workout_rating", "text": "De 0 a 10, que nota você dá ao treino de exemplo?", "kind": "number" }
+        { "key": "workout_rating", "text": "De 0 a 10, que nota você dá ao treino de exemplo?", "kind": "number" },
+        { "key": "missed_workouts_week_2", "text": "Quantos treinos de exemplo foram perdidos na semana 2?", "kind": "text", "fill": "missed_workouts", "fillOptions": { "week": 2 } },
+        { "key": "chest_strength", "text": "Como evoluiu a força de exemplo no peito e na lombar?", "kind": "long_text", "fill": "strength_changes", "fillOptions": { "groups": ["chest", "lower_back"] } }
       ]
     },
     {
       "title": "Geral de exemplo",
       "questions": [
         { "key": "weight", "text": "Qual foi a variação de peso no ciclo de exemplo?", "kind": "text", "fill": "weight" },
-        { "key": "week_notes", "text": "Como foi sua semana de exemplo?", "kind": "long_text", "fill": "checkin_notes" }
+        { "key": "week_notes", "text": "Como foi sua semana de exemplo?", "kind": "long_text", "fill": "checkin_notes" },
+        { "key": "athlete_name", "text": "Nome do atleta de exemplo", "kind": "text", "default": "Atleta de exemplo" },
+        { "key": "hormones_missed", "text": "Quais hormônios de exemplo deixaram de ser usados?", "kind": "long_text", "fill": "items_missed", "fillOptions": { "categories": ["hormone"] } },
+        { "key": "supplements_used", "text": "Quais suplementos de exemplo foram usados?", "kind": "long_text", "fill": "items_used", "fillOptions": { "categories": ["supplement", "compound"] } }
       ]
     }
   ],

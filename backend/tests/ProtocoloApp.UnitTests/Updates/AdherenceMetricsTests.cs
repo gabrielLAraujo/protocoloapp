@@ -48,8 +48,11 @@ public sealed class AdherenceMetricsTests
         Assert.Equal(0, result.MissedWorkouts.Planned);
         Assert.Equal(0, result.MissedWorkouts.Done);
         Assert.Empty(result.MissedWorkouts.MissedDates);
-        Assert.Equal(new CardioMisses(0, 0), result.MissedCardio);
+        AssertCardio(result, 0, 0);
         Assert.Empty(result.ItemsMissed);
+        Assert.Empty(result.ItemsUsed);
+        Assert.Empty(result.MissedWorkouts.Weeks);
+        Assert.Empty(result.MissedCardio.Weeks);
     }
 
     [Fact]
@@ -59,7 +62,7 @@ public sealed class AdherenceMetricsTests
 
         Assert.Equal(new Rate(0, 0, null), result.DietErrorPct.Cycle);
         Assert.Empty(result.DietWrongMeals);
-        Assert.Equal(new CardioMisses(0, 0), result.MissedCardio);
+        AssertCardio(result, 0, 0);
     }
 
     [Fact]
@@ -200,6 +203,86 @@ public sealed class AdherenceMetricsTests
     }
 
     [Fact]
+    public void Items_carry_their_category_and_used_items_count_done_partial_and_planned_days()
+    {
+        var plan = Plan(DayKind.Off, Item("vit_c", "Vitamina C"), Item("omega", "Ômega 3"), Item("zinc", "Zinco"), Item("gone", "Antigo"));
+        AdherenceLog[] logs =
+        [
+            Log(Start, AdherenceTargetType.ProtocolItem, "vit_c", AdherenceStatus.Done),
+            Log(Start.AddDays(1), AdherenceTargetType.ProtocolItem, "vit_c", AdherenceStatus.Partial, "no_time"),
+            Log(Start.AddDays(2), AdherenceTargetType.ProtocolItem, "vit_c", AdherenceStatus.Done),
+            Log(Start, AdherenceTargetType.ProtocolItem, "zinc", AdherenceStatus.Partial),
+            Log(Start.AddDays(1), AdherenceTargetType.ProtocolItem, "gone", AdherenceStatus.Done),
+            // omega: never marked on the past days; today (Start+2) only vit_c is marked.
+        ];
+        var categories = new Dictionary<string, string> { ["vit_c"] = "supplement", ["omega"] = "compound", ["zinc"] = "hormone" };
+
+        var result = AdherenceMetrics.Compute(Input(
+            [(Start, plan), (Start.AddDays(1), plan), (Start.AddDays(2), plan)],
+            today: Start.AddDays(2),
+            logs: logs,
+            itemCategories: categories));
+
+        Assert.Equal(
+            new[]
+            {
+                new ItemUse("vit_c", "Vitamina C", "supplement", 2, 1, 3),
+                new ItemUse("zinc", "Zinco", "hormone", 0, 1, 2),
+                new ItemUse("gone", "Antigo", null, 1, 0, 2),
+            },
+            result.ItemsUsed);
+        Assert.Equal(new[] { "omega", "gone", "zinc" }, result.ItemsMissed.Select(i => i.Key));
+        Assert.Equal(new string?[] { "compound", null, "hormone" }, result.ItemsMissed.Select(i => i.Category));
+    }
+
+    [Fact]
+    public void Without_categories_items_have_none()
+    {
+        var plan = Plan(DayKind.Off, Item("vit_c"));
+        AdherenceLog[] logs = [Log(Start, AdherenceTargetType.ProtocolItem, "vit_c", AdherenceStatus.Done)];
+
+        var result = AdherenceMetrics.Compute(Input([(Start, plan), (Start.AddDays(1), plan)], today: Start.AddDays(2), logs: logs));
+
+        Assert.Null(Assert.Single(result.ItemsUsed).Category);
+        Assert.Null(Assert.Single(result.ItemsMissed).Category);
+    }
+
+    [Fact]
+    public void Missed_workouts_are_split_by_week_without_empty_weeks()
+    {
+        // Week 1: training on Start and Start+2 (one missed); week 2: no training day; week 3: Start+14 missed.
+        var days = Enumerable.Range(0, 15)
+            .Select(i => (Start.AddDays(i), Plan(i is 0 or 2 or 14 ? DayKind.Training : DayKind.Off)))
+            .ToList();
+
+        var result = AdherenceMetrics.Compute(Input(days, today: Start.AddDays(15), workedOut: [Start]));
+
+        Assert.Equal(3, result.MissedWorkouts.Planned);
+        Assert.Equal(1, result.MissedWorkouts.Done);
+        var weeks = result.MissedWorkouts.Weeks;
+        Assert.Equal(new[] { 1, 3 }, weeks.Select(w => w.Week));
+        Assert.Equal((Start, Start.AddDays(6), 2, 1), (weeks[0].From, weeks[0].To, weeks[0].Planned, weeks[0].Done));
+        Assert.Equal(new[] { Start.AddDays(2) }, weeks[0].MissedDates);
+        Assert.Equal((Start.AddDays(14), Start.AddDays(14), 1, 0), (weeks[1].From, weeks[1].To, weeks[1].Planned, weeks[1].Done));
+        Assert.Equal(new[] { Start.AddDays(14) }, weeks[1].MissedDates);
+    }
+
+    [Fact]
+    public void Weekly_cardio_has_a_line_per_week_that_adds_up_to_the_cycle()
+    {
+        // Same as below: week 1, 7 days, 1 done; week 2, 2 days, none done; 3 sessions a week.
+        var days = Enumerable.Range(0, 9).Select(i => (Start.AddDays(i), Plan(DayKind.Off, Cardio()))).ToList();
+        AdherenceLog[] logs = [Log(Start, AdherenceTargetType.Cardio, DayPlanner.CardioKey, AdherenceStatus.Done)];
+
+        var result = AdherenceMetrics.Compute(Input(
+            days, today: Start.AddDays(9), logs: logs, cardio: new CardioPlanDto { SessionsPerWeek = 3 }));
+
+        Assert.Equal(
+            new[] { new WeekCardioMisses(1, Start, Start.AddDays(6), 3, 1), new WeekCardioMisses(2, Start.AddDays(7), Start.AddDays(8), 2, 0) },
+            result.MissedCardio.Weeks);
+    }
+
+    [Fact]
     public void Weekly_cardio_caps_done_at_the_sessions_per_week()
     {
         // 7 days with the cardio target, 3 sessions a week: 5 done (3 by the mark, 2 by the check-in).
@@ -212,7 +295,7 @@ public sealed class AdherenceMetricsTests
         var result = AdherenceMetrics.Compute(Input(
             days, today: Start.AddDays(7), logs: logs, checkins: checkins, cardio: new CardioPlanDto { SessionsPerWeek = 3 }));
 
-        Assert.Equal(new CardioMisses(3, 3), result.MissedCardio);
+        AssertCardio(result, 3, 3);
     }
 
     [Fact]
@@ -225,7 +308,7 @@ public sealed class AdherenceMetricsTests
         var result = AdherenceMetrics.Compute(Input(
             days, today: Start.AddDays(9), logs: logs, cardio: new CardioPlanDto { SessionsPerWeek = 3 }));
 
-        Assert.Equal(new CardioMisses(5, 1), result.MissedCardio);
+        AssertCardio(result, 5, 1);
     }
 
     [Fact]
@@ -244,7 +327,7 @@ public sealed class AdherenceMetricsTests
             today: Start.AddDays(3), logs: logs, checkins: checkins, cardio: new CardioPlanDto { Daily = true }));
 
         // Today counts because it is done (by the check-in).
-        Assert.Equal(new CardioMisses(4, 2), result.MissedCardio);
+        AssertCardio(result, 4, 2);
     }
 
     [Fact]
@@ -269,8 +352,12 @@ public sealed class AdherenceMetricsTests
         IReadOnlyList<DietDeviation>? deviations = null,
         IReadOnlyList<DailyCheckin>? checkins = null,
         IEnumerable<DateOnly>? workedOut = null,
-        CardioPlanDto? cardio = null) =>
-        new(days, today, logs ?? [], deviations ?? [], checkins ?? [], (workedOut ?? []).ToHashSet(), cardio, Labels);
+        CardioPlanDto? cardio = null,
+        IReadOnlyDictionary<string, string>? itemCategories = null) =>
+        new(days, today, logs ?? [], deviations ?? [], checkins ?? [], (workedOut ?? []).ToHashSet(), cardio, Labels, itemCategories);
+
+    private static void AssertCardio(AdherenceResult result, int planned, int done) =>
+        Assert.Equal((planned, done), (result.MissedCardio.Planned, result.MissedCardio.Done));
 
     private static DayPlan Plan(DayKind kind, params DayTarget[] targets) =>
         new(kind, kind == DayKind.Training ? "A" : null, targets);

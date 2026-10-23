@@ -16,7 +16,8 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
     private static readonly string[] TopLevel =
     [
         "cycleId", "from", "to", "computedAt", "dietErrorPct", "dietWrongMeals", "dietDeviations", "missedWorkouts", "missedCardio",
-        "itemsMissed", "strengthChanges", "trainingChanges", "weight", "waterAvg", "sleepAvg", "energyAvg", "anxietyAvg", "checkinNotes",
+        "itemsMissed", "itemsUsed", "strengthChanges", "trainingChanges", "weight", "waterAvg", "sleepAvg", "energyAvg", "anxietyAvg",
+        "stressAvg", "moodAvg", "checkinNotes",
     ];
 
     private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -109,6 +110,9 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         }
 
         changes.Add(Deviation(start.AddDays(2)));
+        // Creatine: done on the first day only; the other five past days are unmarked.
+        changes.Add(Upsert("adherence_log", Json(
+            ("date", Iso(start)), ("target_type", "protocol_item"), ("target_key", "creatine"), ("status", "done"), ("reason", null), ("note", null))));
 
         // Day a on start and start+3: e1RM 60 × (1 + 10/30) = 80, then 70 × (1 + 10/30) = 93.33. The warm-up is ignored.
         var first = Guid.NewGuid();
@@ -119,8 +123,8 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         changes.Add(Session(second, start.AddDays(3), workout.Id, "a"));
         changes.Add(Set(second, bench.Id, 0, 70m, 10));
 
-        changes.Add(SyncApi.Checkin(Guid.NewGuid(), start, SyncApi.Past(60), weightKg: 80.4m, note: "Nota de exemplo."));
-        changes.Add(SyncApi.Checkin(Guid.NewGuid(), start.AddDays(5), SyncApi.Past(60), weightKg: 79.9m, note: null));
+        changes.Add(SyncApi.Checkin(Guid.NewGuid(), start, SyncApi.Past(60), weightKg: 80.4m, note: "Nota de exemplo.", stress: 0, mood: 4));
+        changes.Add(SyncApi.Checkin(Guid.NewGuid(), start.AddDays(5), SyncApi.Past(60), weightKg: 79.9m, note: null, stress: 5));
 
         var results = await SyncApi.PushAsync(api.Client, [.. changes]);
         Assert.All(results, r => Assert.Equal(SyncResultStatus.Applied, r.Status));
@@ -157,21 +161,37 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
 
         // Training days before today: start, +1, +3, +4 (today is not counted without a workout).
         var workouts = metrics.GetProperty("missedWorkouts");
-        AssertProperties(workouts, "planned", "done", "missedDates");
+        AssertProperties(workouts, "planned", "done", "missedDates", "weeks");
         Assert.Equal(4, workouts.GetProperty("planned").GetInt32());
         Assert.Equal(2, workouts.GetProperty("done").GetInt32());
         Assert.Equal(
             new[] { Iso(start.AddDays(1)), Iso(start.AddDays(4)) },
             workouts.GetProperty("missedDates").EnumerateArray().Select(d => d.GetString()));
+        var workoutWeek = Assert.Single(workouts.GetProperty("weeks").EnumerateArray());
+        AssertProperties(workoutWeek, "week", "from", "to", "planned", "done", "missedDates");
+        Assert.Equal(1, workoutWeek.GetProperty("week").GetInt32());
+        Assert.Equal(4, workoutWeek.GetProperty("planned").GetInt32());
+        Assert.Equal(2, workoutWeek.GetProperty("missedDates").GetArrayLength());
 
         var cardio = metrics.GetProperty("missedCardio");
-        AssertProperties(cardio, "planned", "done");
+        AssertProperties(cardio, "planned", "done", "weeks");
         Assert.Equal(0, cardio.GetProperty("planned").GetInt32());
+        Assert.Empty(cardio.GetProperty("weeks").EnumerateArray());
 
         var item = Assert.Single(metrics.GetProperty("itemsMissed").EnumerateArray());
-        AssertProperties(item, "key", "name", "missed", "reasons");
+        AssertProperties(item, "key", "name", "category", "missed", "reasons");
         Assert.Equal("creatine", item.GetProperty("key").GetString());
-        Assert.Equal(6, item.GetProperty("missed").GetInt32());
+        Assert.Equal("supplement", item.GetProperty("category").GetString());
+        Assert.Equal(5, item.GetProperty("missed").GetInt32());
+
+        var used = Assert.Single(metrics.GetProperty("itemsUsed").EnumerateArray());
+        AssertProperties(used, "key", "name", "category", "done", "partial", "planned");
+        Assert.Equal("creatine", used.GetProperty("key").GetString());
+        Assert.Equal("Creatina", used.GetProperty("name").GetString());
+        Assert.Equal("supplement", used.GetProperty("category").GetString());
+        Assert.Equal(1, used.GetProperty("done").GetInt32());
+        Assert.Equal(0, used.GetProperty("partial").GetInt32());
+        Assert.Equal(6, used.GetProperty("planned").GetInt32());
 
         var group = Assert.Single(metrics.GetProperty("strengthChanges").EnumerateArray());
         AssertProperties(group, "group", "best", "worst");
@@ -208,6 +228,12 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         AssertProperties(metrics.GetProperty("energyAvg"), "wake", "day");
         Assert.Equal(3m, metrics.GetProperty("energyAvg").GetProperty("wake").GetProperty("avg").GetDecimal());
         Assert.Equal(2m, metrics.GetProperty("anxietyAvg").GetProperty("avg").GetDecimal());
+        AssertProperties(metrics.GetProperty("stressAvg"), "avg", "days");
+        Assert.Equal(2.5m, metrics.GetProperty("stressAvg").GetProperty("avg").GetDecimal());
+        Assert.Equal(2, metrics.GetProperty("stressAvg").GetProperty("days").GetInt32());
+        AssertProperties(metrics.GetProperty("moodAvg"), "avg", "days");
+        Assert.Equal(4m, metrics.GetProperty("moodAvg").GetProperty("avg").GetDecimal());
+        Assert.Equal(1, metrics.GetProperty("moodAvg").GetProperty("days").GetInt32());
 
         var note = Assert.Single(metrics.GetProperty("checkinNotes").EnumerateArray());
         AssertProperties(note, "date", "note");
@@ -229,9 +255,11 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Equal(0, rate.GetProperty("planned").GetInt32());
         Assert.Equal(JsonValueKind.Null, rate.GetProperty("errorPct").ValueKind);
         Assert.Empty(metrics.GetProperty("dietErrorPct").GetProperty("weeks").EnumerateArray());
-        foreach (var list in new[] { "dietWrongMeals", "dietDeviations", "itemsMissed", "strengthChanges", "trainingChanges", "checkinNotes" })
+        foreach (var list in new[] { "dietWrongMeals", "dietDeviations", "itemsMissed", "itemsUsed", "strengthChanges", "trainingChanges", "checkinNotes" })
             Assert.Empty(metrics.GetProperty(list).EnumerateArray());
         Assert.Equal(0, metrics.GetProperty("missedWorkouts").GetProperty("planned").GetInt32());
+        Assert.Empty(metrics.GetProperty("missedWorkouts").GetProperty("weeks").EnumerateArray());
+        Assert.Empty(metrics.GetProperty("missedCardio").GetProperty("weeks").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("weight").GetProperty("start").ValueKind);
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("weight").GetProperty("deltaKg").ValueKind);
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("waterAvg").GetProperty("avgL").ValueKind);
@@ -239,6 +267,8 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Equal(0, metrics.GetProperty("sleepAvg").GetProperty("days").GetInt32());
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("energyAvg").GetProperty("day").GetProperty("avg").ValueKind);
         Assert.Equal(JsonValueKind.Null, metrics.GetProperty("anxietyAvg").GetProperty("avg").ValueKind);
+        Assert.Equal(JsonValueKind.Null, metrics.GetProperty("stressAvg").GetProperty("avg").ValueKind);
+        Assert.Equal(0, metrics.GetProperty("moodAvg").GetProperty("days").GetInt32());
     }
 
     [Fact]

@@ -7,6 +7,8 @@ public sealed class DailyCheckin : ISyncEntity
 {
     public const int MinScore = 1;
     public const int MaxScore = 5;
+    public const int MinStress = 0;
+    public const int MaxStress = 10;
     public const int MaxWaterL = 15;
     public const int MinWeightKg = 30;
     public const int MaxWeightKg = 300;
@@ -35,7 +37,7 @@ public sealed class DailyCheckin : ISyncEntity
     /// <summary>Clock of the morning part (sleep_quality, energy_wake, bowel, weight_kg).</summary>
     public DateTimeOffset? MorningClientUpdatedAt { get; set; }
 
-    /// <summary>Clock of the evening part (energy_day, anxiety, water_l, note).</summary>
+    /// <summary>Clock of the evening part (energy_day, anxiety, water_l, note, stress, mood).</summary>
     public DateTimeOffset? EveningClientUpdatedAt { get; set; }
 
     /// <summary>Clock of the cardio part (cardio_done, cardio_minutes).</summary>
@@ -58,6 +60,12 @@ public sealed class DailyCheckin : ISyncEntity
 
     /// <summary>1–5. Evening part.</summary>
     public int? Anxiety { get; set; }
+
+    /// <summary>Stressors that showed up in the day, 0–10. Evening part, optional (not needed for a complete evening).</summary>
+    public int? Stress { get; set; }
+
+    /// <summary>Emotional state, 1–5. Evening part, optional (not needed for a complete evening).</summary>
+    public int? Mood { get; set; }
 
     /// <summary>Liters, 0–15, two decimals. Evening part.</summary>
     public decimal? WaterL { get; set; }

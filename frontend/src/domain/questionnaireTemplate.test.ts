@@ -27,12 +27,23 @@ describe('questionnaireTemplateSchema', () => {
     const parsed = questionnaireTemplateSchema.parse(fixture)
     expect(parsed.sections).toHaveLength(3)
     expect(new Set(parsed.sections.flatMap((s) => s.questions.map((q) => q.kind)))).toEqual(new Set(['text', 'long_text', 'number', 'choice']))
-    expect(parsed.sections.flatMap((s) => s.questions).filter((q) => q.fill).map((q) => q.fill)).toEqual([
+    const questions = parsed.sections.flatMap((s) => s.questions)
+    expect(questions.filter((q) => q.fill).map((q) => q.fill)).toEqual([
       'diet_error_pct',
+      'diet_wrong_meals',
       'missed_workouts',
+      'missed_workouts',
+      'strength_changes',
       'weight',
       'checkin_notes',
+      'items_missed',
+      'items_used',
     ])
+    expect(questions.some((q) => q.default)).toBe(true)
+    const options = questions.map((q) => q.fillOptions).filter((o) => o != null)
+    expect(options.some((o) => o.week != null)).toBe(true)
+    expect(options.some((o) => o.categories != null)).toBe(true)
+    expect(options.some((o) => o.groups != null)).toBe(true)
     expect(parsed.poses).toEqual(DEFAULT_POSES)
   })
 
@@ -118,6 +129,56 @@ describe('questionnaireTemplateSchema', () => {
   })
 })
 
+describe('default and fillOptions (same rules as the server)', () => {
+  const withQuestion = (q: Record<string, unknown>) => {
+    const t = base()
+    ;(t.sections[0]!.questions as unknown[])[0] = { key: 'a1', text: 'Pergunta de exemplo?', kind: 'long_text', ...q }
+    return t
+  }
+  const at = (field: string) => `sections.0.questions.0.${field}`
+
+  it('accepts a default of up to 4000 characters', () => {
+    expect(errorPaths(withQuestion({ default: 'x'.repeat(4000) }))).toEqual([])
+    expect(errorPaths(withQuestion({ default: 'x'.repeat(4001) }))).toEqual([at('default')])
+    expect(errorPaths(withQuestion({ default: null }))).toEqual([])
+  })
+
+  it.each(['diet_error_pct', 'diet_wrong_meals', 'diet_deviations', 'missed_workouts', 'missed_cardio'])('accepts week 1 to 6 with %s', (fill) => {
+    expect(errorPaths(withQuestion({ fill, fillOptions: { week: 1 } }))).toEqual([])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { week: 6 } }))).toEqual([])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { week: 0 } }))).toEqual([at('fillOptions.week')])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { week: 7 } }))).toEqual([at('fillOptions.week')])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { week: 1.5 } }))).toEqual([at('fillOptions.week')])
+  })
+
+  it('refuses options the metric does not accept, and options without a fill', () => {
+    expect(errorPaths(withQuestion({ fill: 'diet_error_pct', fillOptions: { categories: ['supplement'], groups: ['chest'] } })).sort()).toEqual([
+      at('fillOptions.categories'),
+      at('fillOptions.groups'),
+    ])
+    expect(errorPaths(withQuestion({ fill: 'weight', fillOptions: { week: 1 } }))).toEqual([at('fillOptions.week')])
+    expect(errorPaths(withQuestion({ fillOptions: { week: 1 } }))).toEqual([at('fillOptions.week')])
+  })
+
+  it.each(['items_missed', 'items_used'])('accepts known categories with %s, never unknown, repeated or none', (fill) => {
+    expect(errorPaths(withQuestion({ fill, fillOptions: { categories: ['supplement', 'compound', 'hormone', 'thermogenic', 'sleep_optional'] } }))).toEqual([])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { categories: ['vitamin'] } }))).toEqual([at('fillOptions.categories.0')])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { categories: ['hormone', 'hormone'] } }))).toEqual([at('fillOptions.categories')])
+    expect(errorPaths(withQuestion({ fill, fillOptions: { categories: [] } }))).toEqual([at('fillOptions.categories')])
+  })
+
+  it('takes groups in snake_case, like the plan documents', () => {
+    expect(errorPaths(withQuestion({ fill: 'strength_changes', fillOptions: { groups: ['lower_back', 'quads'] } }))).toEqual([])
+    expect(errorPaths(withQuestion({ fill: 'strength_changes', fillOptions: { groups: ['lowerBack'] } }))).toEqual([at('fillOptions.groups.0')])
+    expect(errorPaths(withQuestion({ fill: 'strength_changes', fillOptions: { groups: ['chest', 'chest'] } }))).toEqual([at('fillOptions.groups')])
+  })
+
+  it('accepts empty or null fillOptions', () => {
+    expect(errorPaths(withQuestion({ fill: 'weight', fillOptions: {} }))).toEqual([])
+    expect(errorPaths(withQuestion({ fillOptions: null }))).toEqual([])
+  })
+})
+
 describe('parseTemplateJson', () => {
   it('parses a valid template', () => {
     const result = parseTemplateJson(JSON.stringify(fixture))
@@ -156,7 +217,10 @@ describe('posesOf', () => {
   })
 
   it('FILL_METRICS keeps the contract order', () => {
-    expect(FILL_METRICS).toHaveLength(14)
+    expect(FILL_METRICS).toHaveLength(17)
+    expect(new Set(FILL_METRICS).size).toBe(FILL_METRICS.length)
+    expect(FILL_METRICS.indexOf('items_used')).toBe(FILL_METRICS.indexOf('items_missed') + 1)
+    expect(FILL_METRICS.slice(-4)).toEqual(['anxiety_avg', 'stress_avg', 'mood_avg', 'checkin_notes'])
     expect(FILL_METRICS[0]).toBe('diet_error_pct')
     expect(FILL_METRICS.at(-1)).toBe('checkin_notes')
   })

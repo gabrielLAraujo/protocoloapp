@@ -1274,6 +1274,7 @@ export interface components {
             planned: number;
             /** Format: int32 */
             done: number;
+            weeks: components["schemas"]["WeekCardioMisses"][];
         };
         CatalogItemResponse: {
             id: string;
@@ -1378,9 +1379,21 @@ export interface components {
         ItemMisses: {
             key: string;
             name: string;
+            category: null | string;
             /** Format: int32 */
             missed: number;
             reasons: components["schemas"]["ReasonCount"][];
+        };
+        ItemUse: {
+            key: string;
+            name: string;
+            category: null | string;
+            /** Format: int32 */
+            done: number;
+            /** Format: int32 */
+            partial: number;
+            /** Format: int32 */
+            planned: number;
         };
         JsonElement: unknown;
         LatestReleaseResponse: {
@@ -1580,6 +1593,7 @@ export interface components {
             missedWorkouts: components["schemas"]["WorkoutMisses"];
             missedCardio: components["schemas"]["CardioMisses"];
             itemsMissed: components["schemas"]["ItemMisses"][];
+            itemsUsed: components["schemas"]["ItemUse"][];
             strengthChanges: components["schemas"]["GroupStrength"][];
             trainingChanges: components["schemas"]["TrainingChange"][];
             weight: components["schemas"]["WeightChange"];
@@ -1587,6 +1601,8 @@ export interface components {
             sleepAvg: components["schemas"]["ScoreAverage"];
             energyAvg: components["schemas"]["EnergyAverage"];
             anxietyAvg: components["schemas"]["ScoreAverage"];
+            stressAvg: components["schemas"]["ScoreAverage"];
+            moodAvg: components["schemas"]["ScoreAverage"];
             checkinNotes: components["schemas"]["CheckinNote"][];
         };
         UpdatePlanRequest: {
@@ -1615,6 +1631,18 @@ export interface components {
             /** Format: int32 */
             days: number;
         };
+        WeekCardioMisses: {
+            /** Format: int32 */
+            week: number;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            planned: number;
+            /** Format: int32 */
+            done: number;
+        };
         WeekRate: {
             /** Format: int32 */
             week: number;
@@ -1628,6 +1656,19 @@ export interface components {
             done: number;
             /** Format: int32 */
             errorPct: null | number;
+        };
+        WeekWorkoutMisses: {
+            /** Format: int32 */
+            week: number;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            planned: number;
+            /** Format: int32 */
+            done: number;
+            missedDates: string[];
         };
         WeekWrongMeals: {
             /** Format: int32 */
@@ -1652,6 +1693,7 @@ export interface components {
             /** Format: int32 */
             done: number;
             missedDates: string[];
+            weeks: components["schemas"]["WeekWorkoutMisses"][];
         };
     };
     responses: never;

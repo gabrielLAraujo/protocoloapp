@@ -126,8 +126,12 @@ public static class UpdateMetricsLoader
         for (var i = 0; i < meals.Count; i++)
             mealLabels.TryAdd(meals[i].Key, string.IsNullOrWhiteSpace(meals[i].Label) ? $"REF {i + 1}" : meals[i].Label);
 
+        var itemCategories = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in protocol?.Items ?? [])
+            itemCategories.TryAdd(item.Key, item.Category);
+
         var adherence = AdherenceMetrics.Compute(new AdherenceInput(
-            days, today, logs, deviations, checkins, workedOut, protocol?.Cardio, mealLabels));
+            days, today, logs, deviations, checkins, workedOut, protocol?.Cardio, mealLabels, itemCategories));
 
         var sessionById = sessions.ToDictionary(s => s.Id);
         var changeRows = changes
@@ -154,6 +158,7 @@ public static class UpdateMetricsLoader
             adherence.MissedWorkouts,
             adherence.MissedCardio,
             adherence.ItemsMissed,
+            adherence.ItemsUsed,
             TrainingMetrics.StrengthChanges(sessions, sets, exercises),
             WithPlanNames(TrainingMetrics.Changes(activations, changeRows), activations, workoutDocuments),
             checkin.Weight,
@@ -161,6 +166,8 @@ public static class UpdateMetricsLoader
             checkin.SleepAvg,
             checkin.EnergyAvg,
             checkin.AnxietyAvg,
+            checkin.StressAvg,
+            checkin.MoodAvg,
             checkin.CheckinNotes);
     }
 

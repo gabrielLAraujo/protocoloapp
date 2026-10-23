@@ -2,7 +2,7 @@ using ProtocoloApp.Api.Features.DailyCheckins;
 
 namespace ProtocoloApp.Api.Features.Updates.Metrics;
 
-/// <summary>Check-in metrics of an update cycle (<c>weight</c>, <c>water_avg</c>, <c>sleep_avg</c>, <c>energy_avg</c>, <c>anxiety_avg</c>, <c>checkin_notes</c>). Pure: the caller loads the check-ins of the cycle.</summary>
+/// <summary>Check-in metrics of an update cycle (<c>weight</c>, <c>water_avg</c>, <c>sleep_avg</c>, <c>energy_avg</c>, <c>anxiety_avg</c>, <c>stress_avg</c>, <c>mood_avg</c>, <c>checkin_notes</c>). Pure: the caller loads the check-ins of the cycle.</summary>
 public static class CheckinMetrics
 {
     /// <summary>
@@ -35,6 +35,8 @@ public static class CheckinMetrics
             Score(live.Select(c => c.SleepQuality)),
             new EnergyAverage(Score(live.Select(c => c.EnergyWake)), Score(live.Select(c => c.EnergyDay))),
             Score(live.Select(c => c.Anxiety)),
+            Score(live.Select(c => c.Stress)),
+            Score(live.Select(c => c.Mood)),
             notes);
     }
 
