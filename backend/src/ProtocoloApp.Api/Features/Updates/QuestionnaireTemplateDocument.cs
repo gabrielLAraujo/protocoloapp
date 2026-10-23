@@ -7,7 +7,7 @@ namespace ProtocoloApp.Api.Features.Updates;
 
 /// <summary>
 /// The questionnaire template (<c>questionnaire_template.document</c>), camelCase JSON like the plan documents:
-/// <c>{ title, sections: [{ title, questions: [{ key, text, kind, options?, fill? }] }], poses: [{ key, label }] }</c>.
+/// <c>{ title, sections: [{ title, questions: [{ key, text, kind, options?, fill?, default?, fillOptions? }] }], poses: [{ key, label }] }</c>.
 /// Its texts are the coach's content: they never go to the logs or to the repository.
 /// </summary>
 public sealed record QuestionnaireTemplateDocument
@@ -40,6 +40,26 @@ public sealed record QuestionnaireQuestionDto
 
     /// <summary>Null or one of <see cref="FillMetric.All"/>.</summary>
     public string? Fill { get; init; }
+
+    /// <summary>The answer's initial text (up to 4000), used when there is neither an edit nor a calculation.</summary>
+    public string? Default { get; init; }
+
+    /// <summary>Parameters of the <see cref="Fill"/> calculation; only with a fill that accepts each one.</summary>
+    public QuestionnaireFillOptionsDto? FillOptions { get; init; }
+}
+
+/// <summary>
+/// <c>week</c> (1 to 6, <see cref="FillMetric.WeekMetrics"/>), <c>categories</c> (protocol item categories,
+/// <see cref="FillMetric.CategoryMetrics"/>) and <c>groups</c> (<see cref="MuscleGroup"/> in snake_case,
+/// <see cref="FillMetric.GroupMetrics"/>).
+/// </summary>
+public sealed record QuestionnaireFillOptionsDto
+{
+    public int? Week { get; init; }
+
+    public IReadOnlyList<string?>? Categories { get; init; }
+
+    public IReadOnlyList<string?>? Groups { get; init; }
 }
 
 public sealed record QuestionnairePoseDto
@@ -62,6 +82,9 @@ internal static partial class QuestionnaireRules
     public const int MaxPoses = 12;
     public const int MaxPoseLabelLength = 40;
     public const int MaxAnswerLength = 4000;
+    public const int MaxDefaultLength = MaxAnswerLength;
+    public const int MinWeek = 1;
+    public const int MaxWeek = 6;
 
     public static readonly string[] Kinds = ["text", "long_text", "number", "choice"];
 
@@ -162,7 +185,48 @@ internal static partial class QuestionnaireRules
 
         if (question.Fill is not null && !FillMetric.IsKnown(question.Fill))
             fail($"{path}.fill", "Métrica desconhecida.");
+
+        if (question.Default is { Length: > MaxDefaultLength })
+            fail($"{path}.default", $"Informe um valor inicial de até {MaxDefaultLength} caracteres.");
+
+        if (question.FillOptions is { } options)
+            ValidateFillOptions(options, question.Fill, $"{path}.fillOptions", fail);
     }
+
+    private static void ValidateFillOptions(QuestionnaireFillOptionsDto options, string? fill, string path, Action<string, string> fail)
+    {
+        bool Accepts(IReadOnlyList<string> metrics) => fill is not null && metrics.Contains(fill, StringComparer.Ordinal);
+
+        if (options.Week is { } week)
+        {
+            if (!Accepts(FillMetric.WeekMetrics))
+                fail($"{path}.week", "Essa métrica não aceita semana.");
+            else if (week is < MinWeek or > MaxWeek)
+                fail($"{path}.week", $"Informe uma semana de {MinWeek} a {MaxWeek}.");
+        }
+
+        if (options.Categories is { } categories)
+        {
+            if (!Accepts(FillMetric.CategoryMetrics))
+                fail($"{path}.categories", "Essa métrica não aceita categorias.");
+            else if (!IsSubset(categories, PlanDocumentRules.ItemCategories))
+                fail($"{path}.categories", "Informe categorias conhecidas, sem repetir.");
+        }
+
+        if (options.Groups is { } groups)
+        {
+            if (!Accepts(FillMetric.GroupMetrics))
+                fail($"{path}.groups", "Essa métrica não aceita grupos.");
+            else if (!IsSubset(groups, EnumText.Values<MuscleGroup>()))
+                fail($"{path}.groups", "Informe grupos musculares conhecidos, sem repetir.");
+        }
+    }
+
+    /// <summary>At least one value, every one in <paramref name="known"/>, none repeated.</summary>
+    private static bool IsSubset(IReadOnlyList<string?> values, IReadOnlyList<string> known) =>
+        values.Count > 0
+        && values.All(v => v is not null && known.Contains(v, StringComparer.Ordinal))
+        && values.Distinct(StringComparer.Ordinal).Count() == values.Count;
 }
 
 /// <summary><c>questionnaire_template</c>: <c>{document}</c>, a <see cref="QuestionnaireTemplateDocument"/>.</summary>

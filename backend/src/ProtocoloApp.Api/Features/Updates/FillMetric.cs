@@ -12,6 +12,7 @@ public static class FillMetric
     public const string MissedWorkouts = "missed_workouts";
     public const string MissedCardio = "missed_cardio";
     public const string ItemsMissed = "items_missed";
+    public const string ItemsUsed = "items_used";
     public const string StrengthChanges = "strength_changes";
     public const string TrainingChanges = "training_changes";
     public const string Weight = "weight";
@@ -29,6 +30,7 @@ public static class FillMetric
         MissedWorkouts,
         MissedCardio,
         ItemsMissed,
+        ItemsUsed,
         StrengthChanges,
         TrainingChanges,
         Weight,
@@ -38,6 +40,15 @@ public static class FillMetric
         AnxietyAvg,
         CheckinNotes,
     ];
+
+    /// <summary>The metrics that accept <c>fillOptions.week</c> (one week of the cycle).</summary>
+    public static IReadOnlyList<string> WeekMetrics { get; } = [DietErrorPct, DietWrongMeals, DietDeviations, MissedWorkouts, MissedCardio];
+
+    /// <summary>The metrics that accept <c>fillOptions.categories</c> (protocol item categories).</summary>
+    public static IReadOnlyList<string> CategoryMetrics { get; } = [ItemsMissed, ItemsUsed];
+
+    /// <summary>The metrics that accept <c>fillOptions.groups</c> (muscle groups).</summary>
+    public static IReadOnlyList<string> GroupMetrics { get; } = [StrengthChanges];
 
     public static bool IsKnown(string? metric) => metric is not null && All.Contains(metric, StringComparer.Ordinal);
 }
