@@ -24,6 +24,7 @@ describe('fillText', () => {
     ['missed_workouts', '2 de 10 treinos perdidos (03/10, 12/10).'],
     ['missed_cardio', 'Nenhum cardio perdido (6 de 6 feitos).'],
     ['items_missed', 'Item A: 3 vezes (Acabou 2, Sem registro 1)'],
+    ['items_used', 'Item A: 10 de 14 dias (1 parcial)\nItem B: 14 de 14 dias'],
     ['strength_changes', 'Grupo X: melhores Exercício 1 +5,0 kg (100,0 → 105,0); piores Exercício 2 −2,5 kg (60,0 → 57,5)'],
     ['training_changes', '02/10: nova ficha Ficha B\n05/10: Exercício 1 trocado por Exercício 3\n06/10: Exercício 2 pulado'],
     ['weight', 'Início 80,00 kg · fim 78,50 kg (−1,50 kg)'],
@@ -45,6 +46,7 @@ describe('fillText', () => {
     ['missed_workouts', 'Sem dados no ciclo.'],
     ['missed_cardio', 'Sem dados no ciclo.'],
     ['items_missed', 'Nenhum item deixado de usar.'],
+    ['items_used', 'Nenhum item usado.'],
     ['strength_changes', 'Sem dados suficientes.'],
     ['training_changes', 'Nenhuma mudança no treino.'],
     ['weight', 'Sem dados no ciclo.'],
@@ -77,7 +79,7 @@ describe('fillText', () => {
 
   it('no missed workout and a gain in weight', () => {
     const m = sampleMetrics()
-    m.missedWorkouts = { planned: 4, done: 4, missedDates: [] }
+    m.missedWorkouts = { planned: 4, done: 4, missedDates: [], weeks: [] }
     m.weight = { start: { date: '2026-10-01', kg: 80 }, end: { date: '2026-10-14', kg: 80.5 }, deltaKg: 0.5 }
     expect(fillText('missed_workouts', m)).toBe('Nenhum treino perdido (4 de 4 feitos).')
     expect(fillText('weight', m)).toBe('Início 80,00 kg · fim 80,50 kg (+0,50 kg)')
@@ -112,6 +114,79 @@ describe('fillText', () => {
   })
 
   it('an unknown metric gives an empty text', () => {
+    expect(fillText('not_a_metric', sampleMetrics(), { week: 1 })).toBe('')
     expect(fillText('not_a_metric', sampleMetrics())).toBe('')
+  })
+})
+
+describe('fillText with fillOptions', () => {
+  const NO_WEEK = 'Sem dados nessa semana.'
+
+  it.each<[string, number, string]>([
+    ['diet_error_pct', 2, 'Semana 2: 50% de erro (3 de 6 refeições certas).'],
+    ['diet_wrong_meals', 1, 'Semana 1: 1 refeição errada (Sem fome 1)'],
+    ['diet_deviations', 2, '09/10 13:30 · Refeição 2: Lanche de exemplo (1 unidade)\n11/10: Doce de exemplo'],
+    ['missed_workouts', 1, '1 de 5 treinos perdido (03/10).'],
+    ['missed_cardio', 2, 'Nenhum cardio perdido (3 de 3 feitos).'],
+  ])('%s restricted to week %i', (metric, week, text) => {
+    expect(fillText(metric, sampleMetrics(), { week })).toBe(text)
+  })
+
+  it.each(['diet_error_pct', 'diet_wrong_meals', 'diet_deviations', 'missed_workouts', 'missed_cardio'])(
+    '%s: a week after the end of the cycle has no data',
+    (metric) => {
+      expect(fillText(metric, sampleMetrics(), { week: 3 })).toBe(NO_WEEK)
+      expect(fillText(metric, emptyMetrics(), { week: 1 })).toBe(metric === 'diet_deviations' ? 'Nenhum desvio nessa semana.' : NO_WEEK)
+    },
+  )
+
+  it('a week inside the cycle with nothing planned has no data', () => {
+    const m = sampleMetrics()
+    m.dietErrorPct.weeks = [m.dietErrorPct.weeks[0]!]
+    m.dietWrongMeals = [m.dietWrongMeals[0]!]
+    m.missedWorkouts.weeks = [m.missedWorkouts.weeks[0]!]
+    m.missedCardio.weeks = []
+    for (const metric of ['diet_error_pct', 'diet_wrong_meals', 'missed_workouts', 'missed_cardio']) expect(fillText(metric, m, { week: 2 })).toBe(NO_WEEK)
+    m.dietErrorPct.weeks[0] = { ...m.dietErrorPct.weeks[0]!, errorPct: null }
+    expect(fillText('diet_error_pct', m, { week: 1 })).toBe(NO_WEEK)
+  })
+
+  it('a week without deviations says so', () => {
+    expect(fillText('diet_deviations', sampleMetrics(), { week: 1 })).toBe('Nenhum desvio nessa semana.')
+  })
+
+  it('categories filter the items missed and used', () => {
+    const m = sampleMetrics()
+    expect(fillText('items_used', m, { categories: ['hormone'] })).toBe('Item B: 14 de 14 dias')
+    expect(fillText('items_used', m, { categories: ['supplement', 'hormone'] })).toBe('Item A: 10 de 14 dias (1 parcial)\nItem B: 14 de 14 dias')
+    expect(fillText('items_missed', m, { categories: ['supplement'] })).toBe('Item A: 3 vezes (Acabou 2, Sem registro 1)')
+    expect(fillText('items_missed', m, { categories: ['hormone'] })).toBe('Nenhum item deixado de usar.')
+    expect(fillText('items_used', m, { categories: ['thermogenic'] })).toBe('Nenhum item usado.')
+  })
+
+  it('an item without a category is left out by any category filter', () => {
+    const m = sampleMetrics()
+    m.itemsUsed = [{ key: 'old', name: 'Item antigo', category: null, done: 1, partial: 2, planned: 3 }]
+    expect(fillText('items_used', m)).toBe('Item antigo: 1 de 3 dias (2 parciais)')
+    expect(fillText('items_used', m, { categories: ['supplement'] })).toBe('Nenhum item usado.')
+  })
+
+  it('groups (snake_case) filter the strength changes, whatever case the server sends', () => {
+    const m = sampleMetrics()
+    const trend = m.strengthChanges[0]!.best
+    m.strengthChanges = [
+      { group: 'lowerBack', best: trend, worst: [] },
+      { group: 'chest', best: trend, worst: [] },
+      { group: 'quads', best: trend, worst: [] },
+    ]
+    const groupsOf = (text: string) => text.split('\n').map((l) => l.split(':')[0])
+    expect(groupsOf(fillText('strength_changes', m, { groups: ['lower_back', 'chest'] }))).toEqual(['Lombar', 'Peito'])
+    expect(fillText('strength_changes', m, { groups: ['calves'] })).toBe('Sem dados suficientes.')
+  })
+
+  it('options a metric does not take are ignored, and null options are no filter', () => {
+    const m = sampleMetrics()
+    expect(fillText('weight', m, { week: 1, categories: ['hormone'] })).toBe(fillText('weight', m))
+    expect(fillText('missed_workouts', m, { week: null, categories: null, groups: null })).toBe(fillText('missed_workouts', m))
   })
 })

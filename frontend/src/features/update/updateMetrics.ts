@@ -18,6 +18,10 @@ const trend = z.object({
 })
 const avg = z.object({ avg: z.number().nullable(), days: count })
 const weighIn = z.object({ date, kg: z.number() }).nullable()
+/** Item category (`supplement`, `compound`…); null when the item left the protocol. */
+const category = z.string().nullable().default(null)
+// Fields added later default to empty, so metrics cached by an older version still read offline.
+const weeks = <T extends z.ZodType>(item: T) => z.array(item).default([])
 
 export const updateMetricsSchema = z.object({
   cycleId: z.string(),
@@ -36,9 +40,15 @@ export const updateMetricsSchema = z.object({
       quantity: z.string().nullable(),
     }),
   ),
-  missedWorkouts: z.object({ planned: count, done: count, missedDates: z.array(date) }),
-  missedCardio: z.object({ planned: count, done: count }),
-  itemsMissed: z.array(z.object({ key: z.string(), name: z.string(), missed: count, reasons: z.array(reasonCount) })),
+  missedWorkouts: z.object({
+    planned: count,
+    done: count,
+    missedDates: z.array(date),
+    weeks: weeks(z.object({ ...weekRange, planned: count, done: count, missedDates: z.array(date) })),
+  }),
+  missedCardio: z.object({ planned: count, done: count, weeks: weeks(z.object({ ...weekRange, planned: count, done: count })) }),
+  itemsMissed: z.array(z.object({ key: z.string(), name: z.string(), category, missed: count, reasons: z.array(reasonCount) })),
+  itemsUsed: z.array(z.object({ key: z.string(), name: z.string(), category, done: count, partial: count, planned: count })).default([]),
   strengthChanges: z.array(z.object({ group: z.string(), best: z.array(trend), worst: z.array(trend) })),
   trainingChanges: z.array(
     z.object({
@@ -59,3 +69,4 @@ export const updateMetricsSchema = z.object({
 export type UpdateMetrics = z.infer<typeof updateMetricsSchema>
 export type MetricsAvg = z.infer<typeof avg>
 export type MetricsTrend = z.infer<typeof trend>
+export type MetricsItemUse = UpdateMetrics['itemsUsed'][number]

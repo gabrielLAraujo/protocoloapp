@@ -10,9 +10,10 @@ export function emptyMetrics(): UpdateMetrics {
     dietErrorPct: { cycle: { planned: 0, done: 0, errorPct: null }, weeks: [] },
     dietWrongMeals: [],
     dietDeviations: [],
-    missedWorkouts: { planned: 0, done: 0, missedDates: [] },
-    missedCardio: { planned: 0, done: 0 },
+    missedWorkouts: { planned: 0, done: 0, missedDates: [], weeks: [] },
+    missedCardio: { planned: 0, done: 0, weeks: [] },
     itemsMissed: [],
+    itemsUsed: [],
     strengthChanges: [],
     trainingChanges: [],
     weight: { start: null, end: null, deltaKg: null },
@@ -54,12 +55,32 @@ export function sampleMetrics(): UpdateMetrics {
       { date: '2026-10-09', mealKey: 'meal_2', mealLabel: 'Refeição 2', time: '13:30', description: 'Lanche de exemplo', quantity: '1 unidade' },
       { date: '2026-10-11', mealKey: null, mealLabel: null, time: null, description: 'Doce de exemplo', quantity: null },
     ],
-    missedWorkouts: { planned: 10, done: 8, missedDates: ['2026-10-03', '2026-10-12'] },
-    missedCardio: { planned: 6, done: 6 },
+    missedWorkouts: {
+      planned: 10,
+      done: 8,
+      missedDates: ['2026-10-03', '2026-10-12'],
+      weeks: [
+        { week: 1, from: '2026-10-01', to: '2026-10-07', planned: 5, done: 4, missedDates: ['2026-10-03'] },
+        { week: 2, from: '2026-10-08', to: '2026-10-14', planned: 5, done: 4, missedDates: ['2026-10-12'] },
+      ],
+    },
+    missedCardio: {
+      planned: 6,
+      done: 6,
+      weeks: [
+        { week: 1, from: '2026-10-01', to: '2026-10-07', planned: 3, done: 3 },
+        { week: 2, from: '2026-10-08', to: '2026-10-14', planned: 3, done: 3 },
+      ],
+    },
+    itemsUsed: [
+      { key: 'item_a', name: 'Item A', category: 'supplement', done: 10, partial: 1, planned: 14 },
+      { key: 'item_b', name: 'Item B', category: 'hormone', done: 14, partial: 0, planned: 14 },
+    ],
     itemsMissed: [
       {
         key: 'item_a',
         name: 'Item A',
+        category: 'supplement',
         missed: 3,
         reasons: [
           { reason: 'ran_out', count: 2 },

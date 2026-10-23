@@ -9,6 +9,7 @@ export const FILL_LABELS: Record<FillMetric, string> = {
   missed_workouts: 'Treinos perdidos',
   missed_cardio: 'Cardios perdidos',
   items_missed: 'Itens do protocolo perdidos',
+  items_used: 'Itens do protocolo usados',
   strength_changes: 'Evolução de força',
   training_changes: 'Mudanças no treino',
   weight: 'Variação de peso',
