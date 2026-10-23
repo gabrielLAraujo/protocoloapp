@@ -8,6 +8,7 @@ import { workoutRepo, type SessionLocal } from '../../data/workoutRepo'
 import { OFF, type WorkoutDay } from '../../domain/planDocuments'
 import { activePlanAt, resolveDay } from '../../domain/rotation'
 import { useSync } from '../sync/syncContext'
+import { useChosenDay, type ChosenDay } from '../today/dayParam'
 import { buttonClass } from '../plans/styles'
 import { Button } from '../../ui/Button'
 import { ACTION_ROW, buttonClasses, cardClasses } from '../../ui/styles'
@@ -18,6 +19,8 @@ import { SectionHeader } from '../../ui/SectionHeader'
 import { formatShortDate, repsLabel } from './format'
 import { DiscardSession } from './DiscardSession'
 import { FinishSummary } from './FinishSummary'
+import { isLoggedSession, loggedStart } from './logDay'
+import { LogOtherDay } from './LogOtherDay'
 import { SessionView } from './SessionView'
 import { useToday } from './useToday'
 import { loadWorkoutPlans, type WorkoutPlanEntry } from './workoutPlans'
@@ -61,11 +64,16 @@ async function load(db: Data['db'], today: string): Promise<Loaded> {
   return { plans, overrides, catalog, open, doneToday, openHasSets: openSets.length > 0 }
 }
 
-/** `/treino`: today's workout (or rest), the session in progress and the finish summary. */
+/**
+ * `/treino`: today's workout (or rest), the session in progress and the finish summary; "Registrar treino de outro dia"
+ * logs a forgotten workout (`?dia=` from Hoje opens it on that day).
+ */
 export function WorkoutTodayPage() {
   const data = useData()
   const { dataVersion } = useSync()
   const today = useToday()
+  const chosen = useChosenDay()
+  const [notice, setNotice] = useState<string | null>(null)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [summary, setSummary] = useState<{ sessionId: string; date: string } | null>(null)
@@ -123,6 +131,8 @@ export function WorkoutTodayPage() {
   const { open } = loaded
   if (open && (open.date === today || resumeOld || open.id === liveSessionId)) {
     const day = loaded.plans.find((p) => p.id === open.planVersionId)?.document.days.find((d) => d.key === open.dayKey)
+    // A workout logged for an earlier day (never one that was live on this screen, even past midnight).
+    const logged = open.id !== liveSessionId && open.date !== today && isLoggedSession(open)
     if (!day) {
       return (
         <div className="grid gap-3">
@@ -139,6 +149,7 @@ export function WorkoutTodayPage() {
           session={open}
           day={day}
           catalog={loaded.catalog}
+          mode={logged ? 'log' : 'live'}
           onDiscarded={() => {
             setResumeOld(false)
             setLiveSessionId(null)
@@ -147,7 +158,9 @@ export function WorkoutTodayPage() {
           onFinished={() => {
             setResumeOld(false)
             setLiveSessionId(null)
-            setSummary({ sessionId: open.id, date: open.date })
+            // A logged workout has no live summary (its times are made up): back to /treino with a confirmation.
+            if (logged) setNotice(`Treino de ${formatShortDate(open.date)} salvo`)
+            else setSummary({ sessionId: open.id, date: open.date })
             void reload()
           }}
         />
@@ -172,7 +185,22 @@ export function WorkoutTodayPage() {
     )
   }
 
-  return <TodayPlan data={data} today={today} loaded={loaded} onChanged={reload} onStarted={reload} />
+  return (
+    <TodayPlan
+      data={data}
+      today={today}
+      loaded={loaded}
+      chosen={chosen}
+      notice={notice}
+      onChanged={reload}
+      onStarted={reload}
+      onLogStarted={async () => {
+        setNotice(null)
+        setResumeOld(true)
+        await reload()
+      }}
+    />
+  )
 }
 
 /** "Encerrar": finishes an open session at its last set (or its start when it has no sets). */
@@ -212,9 +240,29 @@ function EndOpenSession({ data, session, onEnded }: { data: Data; session: Sessi
 /** The session and its summary are one column on the desktop too (/treino itself is a wide screen). */
 const NARROW = 'lg:mx-auto lg:max-w-[760px]'
 
-function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; today: string; loaded: Loaded; onChanged(): Promise<void>; onStarted(): Promise<void> }) {
+function TodayPlan({
+  data,
+  today,
+  loaded,
+  chosen,
+  notice,
+  onChanged,
+  onStarted,
+  onLogStarted,
+}: {
+  data: Data
+  today: string
+  loaded: Loaded
+  chosen: ChosenDay | null
+  notice: string | null
+  onChanged(): Promise<void>
+  onStarted(): Promise<void>
+  onLogStarted(): Promise<void>
+}) {
   const { syncNow } = useSync()
   const [swapping, setSwapping] = useState(false)
+  const askedDay = chosen?.isPast ? chosen.date : null
+  const [logging, setLogging] = useState(askedDay !== null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const resolved = resolveDay(
@@ -260,6 +308,20 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
     }
   }
 
+  async function startLog(date: string, planVersionId: string, dayKey: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await workoutRepo.startSession(data.db, data.userId, { date, planVersionId, dayKey, startedAt: loggedStart(date) }, now())
+      void syncNow()
+      await onLogStarted()
+    } catch (e) {
+      console.error('could not start the logged session', e)
+      setError('Não foi possível registrar o treino.')
+      setBusy(false)
+    }
+  }
+
   async function start() {
     if (resolved.kind !== 'workout') return
     setBusy(true)
@@ -290,6 +352,12 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
           <p className="text-sm text-muted tabular-nums">
             {day.exercises.length} {day.exercises.length === 1 ? 'exercício' : 'exercícios'},{' '}
             {day.exercises.reduce((n, e) => n + e.sets.length, 0)} séries
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="flex items-center gap-2 pt-1 text-sm font-medium text-ink">
+            <Icon name="check" size={18} strokeWidth={2.4} />
+            {notice}
           </p>
         )}
         {loaded.doneToday && (
@@ -359,6 +427,21 @@ function TodayPlan({ data, today, loaded, onChanged, onStarted }: { data: Data; 
           ) : (
             <Button icon="swap" onClick={() => setSwapping(true)}>
               Trocar o treino de hoje
+            </Button>
+          )}
+          {logging && chosen?.limits ? (
+            <LogOtherDay
+              plans={loaded.plans}
+              today={today}
+              limits={chosen.limits}
+              initialDate={askedDay}
+              busy={busy}
+              onStart={(date, planVersionId, dayKey) => void startLog(date, planVersionId, dayKey)}
+              onCancel={() => setLogging(false)}
+            />
+          ) : (
+            <Button icon="calendar" disabled={!chosen?.limits} onClick={() => setLogging(true)}>
+              Registrar treino de outro dia
             </Button>
           )}
           <HistoryLink />

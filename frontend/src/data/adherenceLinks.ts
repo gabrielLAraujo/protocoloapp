@@ -28,6 +28,34 @@ export async function finishSessionAndMark(db: LocalDb, userId: string, sessionI
   })
 }
 
+/**
+ * "Salvar treino" of a workout logged afterwards or corrected from the history: ends an open session at its last set
+ * (or its start without sets), then keeps the day's workout mark in step with the sets. With a working set the workout of
+ * its date is done; without one, a "done" mark is cleared unless another finished session of that date has working sets.
+ */
+export async function saveLoggedSession(db: LocalDb, userId: string, sessionId: string, now: Date): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [session] = await tx.query<{ date: string; started_at: string; ended_at: string | null }>(
+      'SELECT date, started_at, ended_at FROM workout_sessions WHERE id = ? AND deleted_at IS NULL',
+      [sessionId],
+    )
+    if (!session) throw new Error('Session not found.')
+    if (session.ended_at === null) {
+      const [last] = await tx.query<{ at: string | null }>('SELECT MAX(completed_at) AS at FROM set_logs WHERE session_id = ? AND deleted_at IS NULL', [
+        sessionId,
+      ])
+      await workoutRepo.finishSession(tx, userId, sessionId, new Date(last?.at ?? session.started_at))
+    }
+    const target = { date: session.date, targetType: 'workout' as const, targetKey: WORKOUT_KEY }
+    if ((await workoutRepo.workedOutDates(tx, session.date, session.date)).length > 0) {
+      await adherenceRepo.mark(tx, userId, { ...target, status: 'done' }, now)
+      return
+    }
+    const [mark] = (await adherenceRepo.between(tx, session.date, session.date)).filter((l) => l.targetType === 'workout' && l.targetKey === WORKOUT_KEY)
+    if (mark?.status === 'done') await adherenceRepo.clear(tx, userId, target, now)
+  })
+}
+
 export interface CardioMark {
   /** Null clears the mark. */
   status: AdherenceStatus | null

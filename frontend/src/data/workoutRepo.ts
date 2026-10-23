@@ -72,6 +72,8 @@ export interface SetInput {
   reps: number
   kind: SetKind
   parentSetId?: string | null
+  /** When the set was done; `now` when omitted (a logged earlier day passes a time of that day). */
+  completedAt?: Date
 }
 
 export type SetPatch = Partial<Pick<SetInput, 'weightKg' | 'reps' | 'kind' | 'setIndex'>>
@@ -248,11 +250,11 @@ async function deleteChildren(tx: LocalDb, parentId: string, now: Date) {
  * precedes its sets in the outbox (the server requires the session to exist); later edits queue new entries after.
  */
 export const workoutRepo = {
-  /** Starts a session now and returns its id. */
+  /** Starts a session now (or at `startedAt`, for an earlier day logged afterwards) and returns its id. */
   async startSession(
     db: LocalDb,
     _userId: string,
-    input: { date: string; planVersionId: string; dayKey: string },
+    input: { date: string; planVersionId: string; dayKey: string; startedAt?: Date },
     now: Date,
   ): Promise<string> {
     const id = newId()
@@ -260,7 +262,7 @@ export const workoutRepo = {
       date: input.date,
       plan_version_id: input.planVersionId,
       workout_day_key: input.dayKey,
-      started_at: now.toISOString(),
+      started_at: (input.startedAt ?? now).toISOString(),
       ended_at: null,
       note: null,
       notes: null,
@@ -369,7 +371,7 @@ export const workoutRepo = {
       reps: input.reps,
       kind: input.kind,
       parent_set_id: input.parentSetId ?? null,
-      completed_at: now.toISOString(),
+      completed_at: (input.completedAt ?? now).toISOString(),
     }
     const clientUpdatedAt = now.toISOString()
     await db.transaction(async (tx) => {
@@ -387,7 +389,7 @@ export const workoutRepo = {
   async logSubSet(
     db: LocalDb,
     _userId: string,
-    input: { parentSetId: string; kind: 'drop' | 'rest_pause'; ordinal: number; weightKg: number; reps: number },
+    input: { parentSetId: string; kind: 'drop' | 'rest_pause'; ordinal: number; weightKg: number; reps: number; completedAt?: Date },
     now: Date,
   ): Promise<string> {
     return db.transaction(async (tx) => {
@@ -415,7 +417,7 @@ export const workoutRepo = {
         kind: input.kind,
         parent_set_id: parent.id,
         // After the parent and the sub-sets already done, even if the clock went backwards: the order they were done is kept.
-        completed_at: new Date(Math.max(now.getTime(), after + 1)).toISOString(),
+        completed_at: new Date(Math.max((input.completedAt ?? now).getTime(), after + 1)).toISOString(),
       }
       const clientUpdatedAt = now.toISOString()
       await writeSet(tx, id, payload, clientUpdatedAt, null)

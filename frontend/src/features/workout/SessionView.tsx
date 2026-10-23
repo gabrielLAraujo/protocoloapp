@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { saveLoggedSession } from '../../data/adherenceLinks'
 import type { Data } from '../../data/dataContext'
 import type { ExerciseLocal } from '../../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../../data/workoutRepo'
@@ -13,6 +14,7 @@ import { useActiveSession } from './useActiveSession'
 import { useRestTimer } from './useRestTimer'
 import { bisetNext, dayBlocks, restAfterSet, type FlowExercise, type RestDecision } from './sessionFlow'
 import { findExercise } from './workoutPlans'
+import { formatShortDate } from './format'
 
 const DISMISSED_KEY = 'protocolo.dismissedSubSets'
 
@@ -35,12 +37,17 @@ function saveDismissed(sessionId: string, keys: ReadonlySet<string>) {
   }
 }
 
-/** The workout in progress: planned exercises with their set rows, the rest timer bar and "Finalizar treino". */
+/**
+ * The workout in progress: planned exercises with their set rows, the rest timer bar and "Finalizar treino". In `log`
+ * mode (a workout of an earlier day, or one corrected from the history) there is no rest timer: the sets are typed in,
+ * edited or removed, and "Salvar treino" ends the session on its day (saveLoggedSession).
+ */
 export function SessionView({
   data,
   session,
   day,
   catalog,
+  mode = 'live',
   onFinished,
   onDiscarded,
 }: {
@@ -48,6 +55,7 @@ export function SessionView({
   session: SessionLocal
   day: WorkoutDay
   catalog: ExerciseLocal[]
+  mode?: 'live' | 'log'
   onFinished(): void
   /** The empty session was discarded. */
   onDiscarded(): void
@@ -67,10 +75,12 @@ export function SessionView({
     return { change, exercise: findExercise(catalog, planned) }
   }
 
+  const logging = mode === 'log'
   const active = useActiveSession(
     data,
     session.id,
     day.exercises.map((p) => findExercise(catalog, p)?.id).filter((id): id is string => !!id),
+    logging ? session.startedAt : undefined,
   )
 
   /** The exercise being done for a planned one, with its sets in this session. */
@@ -84,6 +94,7 @@ export function SessionView({
   }
 
   function applyRest(decision: RestDecision) {
+    if (logging) return
     if (decision.kind === 'rest') timer.start(decision.durations, decision.index, decision.label)
     else if (decision.kind === 'skip') timer.skip()
   }
@@ -158,6 +169,19 @@ export function SessionView({
   if (active.failed) return <p role="alert">Não foi possível abrir o treino no aparelho.</p>
   if (!active.ready) return <p className="text-muted">Carregando o treino…</p>
 
+  async function saveLog() {
+    setFinishing(true)
+    setError(null)
+    try {
+      await saveLoggedSession(data.db, data.userId, session.id, new Date())
+      onFinished()
+    } catch (e) {
+      console.error('could not save the logged session', e)
+      setError('Não foi possível salvar o treino.')
+      setFinishing(false)
+    }
+  }
+
   async function finish() {
     setFinishing(true)
     setError(null)
@@ -173,16 +197,20 @@ export function SessionView({
   }
 
   return (
-    <div className="grid gap-4" style={timer.visible ? { paddingBottom: '6rem' } : undefined}>
+    <div className="grid gap-4" style={timer.visible && !logging ? { paddingBottom: '6rem' } : undefined}>
       <header className="grid gap-1 pb-2">
         <h1 className="text-xl font-bold">
           {day.name}
           {day.notes ? ` — ${day.notes}` : ''}
         </h1>
-        <p className="flex items-center gap-2 text-sm font-semibold text-muted">
-          <span aria-hidden="true" className="size-2 rounded-full bg-ink" />
-          Treino em andamento
-        </p>
+        {logging ? (
+          <p className="text-sm font-semibold text-muted tabular-nums">Registro do treino de {formatShortDate(session.date)}</p>
+        ) : (
+          <p className="flex items-center gap-2 text-sm font-semibold text-muted">
+            <span aria-hidden="true" className="size-2 rounded-full bg-ink" />
+            Treino em andamento
+          </p>
+        )}
       </header>
 
       {dayBlocks(day, active.changes, (p) => effective(p, active).exercise !== null).map((block) => {
@@ -221,7 +249,11 @@ export function SessionView({
           {error}
         </p>
       )}
-      {confirming ? (
+      {logging ? (
+        <Button variant="primary" size="lg" icon="check" loading={finishing} onClick={() => void saveLog()}>
+          Salvar treino
+        </Button>
+      ) : confirming ? (
         <div role="group" aria-label="Confirmar finalização" className={cardClasses({ className: 'grid gap-3' })}>
           <p className="text-lg font-semibold">Finalizar o treino agora?</p>
           <div className={ACTION_ROW}>
@@ -241,7 +273,7 @@ export function SessionView({
 
       {active.sets.length === 0 && <DiscardSession data={data} sessionId={session.id} onDiscarded={onDiscarded} />}
 
-      <RestTimerBar timer={timer} />
+      {!logging && <RestTimerBar timer={timer} />}
     </div>
   )
 }
