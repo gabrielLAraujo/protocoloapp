@@ -16,6 +16,21 @@ public static class ReminderCopy
     public static PushMessage For(string slotKey, TimeOnly time, string? mealLabel) =>
         new(Title, Body(slotKey, time, mealLabel), TodayUrl, slotKey);
 
+    public const string UpdateUrl = "/atualizacao";
+
+    /// <summary>The photos reminder for the update date <paramref name="daysLeft"/> days away (0 = today).</summary>
+    public static PushMessage Update(int daysLeft)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(daysLeft);
+        var body = daysLeft switch
+        {
+            0 => "Atualização hoje: hora das fotos",
+            1 => "Atualização amanhã: hora das fotos",
+            _ => $"Atualização em {daysLeft} dias: hora das fotos",
+        };
+        return new PushMessage(Title, body, UpdateUrl, ReminderScheduler.UpdatePhotosSlot);
+    }
+
     public static string Body(string slotKey, TimeOnly time, string? mealLabel)
     {
         ArgumentNullException.ThrowIfNull(slotKey);
