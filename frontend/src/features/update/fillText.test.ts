@@ -32,6 +32,8 @@ describe('fillText', () => {
     ['sleep_avg', 'Média 3,5 de 5 em 12 dias.'],
     ['energy_avg', 'Ao acordar: 4,0 de 5 em 12 dias · Durante o dia: 3,2 de 5 em 1 dia'],
     ['anxiety_avg', 'Média 2,0 de 5 em 11 dias.'],
+    ['stress_avg', 'Média 3,0 de 10 em 4 dias.'],
+    ['mood_avg', 'Média 4,5 de 5 em 2 dias.'],
     ['checkin_notes', '02/10: Nota de exemplo um\n09/10: Nota de exemplo dois'],
   ]
 
@@ -54,6 +56,8 @@ describe('fillText', () => {
     ['sleep_avg', 'Sem dados no ciclo.'],
     ['energy_avg', 'Sem dados no ciclo.'],
     ['anxiety_avg', 'Sem dados no ciclo.'],
+    ['stress_avg', 'Sem dados no ciclo.'],
+    ['mood_avg', 'Sem dados no ciclo.'],
     ['checkin_notes', 'Nenhuma nota no ciclo.'],
   ]
 

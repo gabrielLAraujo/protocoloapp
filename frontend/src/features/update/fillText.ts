@@ -24,7 +24,7 @@ const groupLabel = (group: string) => {
   return known ? muscleGroupLabel(known) : group
 }
 const days = (n: number) => plural(n, 'dia', 'dias')
-const scale = (a: MetricsAvg) => (a.avg === null ? 'sem dados' : `${decimal(a.avg, 1)} de 5 em ${days(a.days)}`)
+const scale = (a: MetricsAvg, max = 5) => (a.avg === null ? 'sem dados' : `${decimal(a.avg, 1)} de ${max} em ${days(a.days)}`)
 const trendText = (t: MetricsTrend) => `${t.name} ${signed(t.delta, 1)} kg (${decimal(t.firstE1rm, 1)} → ${decimal(t.lastE1rm, 1)})`
 
 /** yyyy-MM-dd plus `n` days. */
@@ -162,6 +162,8 @@ const writers: Record<string, Writer> = {
   energy_avg: ({ energyAvg: { wake, day } }) =>
     wake.avg === null && day.avg === null ? NO_DATA : `Ao acordar: ${scale(wake)} · Durante o dia: ${scale(day)}`,
   anxiety_avg: ({ anxietyAvg }) => (anxietyAvg.avg === null ? NO_DATA : `Média ${scale(anxietyAvg)}.`),
+  stress_avg: ({ stressAvg }) => (stressAvg.avg === null ? NO_DATA : `Média ${scale(stressAvg, 10)}.`),
+  mood_avg: ({ moodAvg }) => (moodAvg.avg === null ? NO_DATA : `Média ${scale(moodAvg)}.`),
   checkin_notes: ({ checkinNotes }) =>
     checkinNotes.length === 0 ? 'Nenhuma nota no ciclo.' : checkinNotes.map((n) => `${dayMonth(n.date)}: ${n.note}`).join('\n'),
 }

@@ -53,9 +53,9 @@ describe('QuestionnaireTemplatePage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Chave repetida: diet_errors')
 
     const unknownFill = fixture() as unknown as { sections: { questions: { fill?: string }[] }[] }
-    unknownFill.sections[0]!.questions[0]!.fill = 'mood_avg'
+    unknownFill.sections[0]!.questions[0]!.fill = 'humor_avg'
     await userEvent.upload(screen.getByLabelText('Importar JSON'), new File([JSON.stringify(unknownFill)], 'x.json'))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Métrica desconhecida: mood_avg')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Métrica desconhecida: humor_avg')
 
     await userEvent.upload(screen.getByLabelText('Importar JSON'), new File(['{ não é json'], 'x.json'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Arquivo não é um JSON válido.')

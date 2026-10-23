@@ -111,7 +111,7 @@ describe('SummaryPage', () => {
     await seedPastSession(app.db, '2026-10-25', BENCH, [[70, 10]])
     const at = new Date(2026, 9, 26, 8)
     await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-26', { sleepQuality: 4, bowel: 'normal', energyWake: 3, weightKg: 82.4 }, at)
-    await dailyCheckinRepo.saveEvening(app.db, USER_A, '2026-10-26', { energyDay: 4, anxiety: 2, waterL: 2.5, note: null }, at)
+    await dailyCheckinRepo.saveEvening(app.db, USER_A, '2026-10-26', { energyDay: 4, anxiety: 2, waterL: 2.5, note: null, stress: 3, mood: 4 }, at)
     await dailyCheckinRepo.setCardio(app.db, USER_A, '2026-10-26', { done: true, minutes: 30 }, at)
     await dailyCheckinRepo.saveMorning(app.db, USER_A, '2026-10-25', { sleepQuality: 3, bowel: 'normal', energyWake: 3, weightKg: 83.1 }, at)
     app.view(<SummaryPage />)
@@ -137,6 +137,9 @@ describe('SummaryPage', () => {
     expect(valueOf('Água')).toHaveTextContent(/^2,5 L$/)
     expect(valueOf('Check-ins')).toHaveTextContent(/^1$/)
     expect(valueOf('Sono')).toHaveTextContent(/^3,5$/)
+    expect(valueOf('Estresse')).toHaveTextContent(/^3$/)
+    expect(within(stats).getByText('média, 0–10')).toBeInTheDocument()
+    expect(valueOf('Psicológico')).toHaveTextContent(/^4$/)
 
     const calendar = screen.getByRole('table', { name: 'Calendário do ciclo' })
     expect(within(calendar).getByRole('cell', { name: /21\/10, treino feito/ })).toHaveTextContent('✓')

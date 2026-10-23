@@ -21,6 +21,8 @@ export function emptyMetrics(): UpdateMetrics {
     sleepAvg: { avg: null, days: 0 },
     energyAvg: { wake: { avg: null, days: 0 }, day: { avg: null, days: 0 } },
     anxietyAvg: { avg: null, days: 0 },
+    stressAvg: { avg: null, days: 0 },
+    moodAvg: { avg: null, days: 0 },
     checkinNotes: [],
   }
 }
@@ -105,6 +107,8 @@ export function sampleMetrics(): UpdateMetrics {
     sleepAvg: { avg: 3.5, days: 12 },
     energyAvg: { wake: { avg: 4, days: 12 }, day: { avg: 3.2, days: 1 } },
     anxietyAvg: { avg: 2, days: 11 },
+    stressAvg: { avg: 3, days: 4 },
+    moodAvg: { avg: 4.5, days: 2 },
     checkinNotes: [
       { date: '2026-10-02', note: 'Nota de exemplo um' },
       { date: '2026-10-09', note: 'Nota de exemplo dois' },

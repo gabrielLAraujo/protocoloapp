@@ -269,6 +269,11 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       'CREATE INDEX ix_update_photo_thumbs_cycle ON update_photo_thumbs (cycle_id, pose)',
     ],
   },
+  {
+    // Evening meters: stress (0–10) and mood (1–5), optional. Additive only.
+    version: 9,
+    statements: ['ALTER TABLE daily_checkins ADD COLUMN stress INTEGER', 'ALTER TABLE daily_checkins ADD COLUMN mood INTEGER'],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

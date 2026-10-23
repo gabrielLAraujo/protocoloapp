@@ -71,15 +71,18 @@ internal static class SyncApi
         string bowel = "normal",
         decimal waterL = 2.5m,
         decimal? weightKg = 80.4m,
-        string? note = "Dia tranquilo.") =>
-        new(Entity, id, SyncOp.Upsert, Payload(date, sleepQuality, bowel, waterL, weightKg, note), clientUpdatedAt);
+        string? note = "Dia tranquilo.",
+        int? stress = null,
+        int? mood = null) =>
+        new(Entity, id, SyncOp.Upsert, Payload(date, sleepQuality, bowel, waterL, weightKg, note, stress, mood), clientUpdatedAt);
 
     public static SyncChange Delete(Guid id, DateTimeOffset clientUpdatedAt) =>
         new(Entity, id, SyncOp.Delete, null, clientUpdatedAt);
 
     public static JsonElement Payload(DateOnly date, int sleepQuality = 4, string bowel = "normal", decimal waterL = 2.5m,
-        decimal? weightKg = 80.4m, string? note = "Dia tranquilo.") =>
-        JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+        decimal? weightKg = 80.4m, string? note = "Dia tranquilo.", int? stress = null, int? mood = null)
+    {
+        var payload = new Dictionary<string, object?>
         {
             ["date"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["sleep_quality"] = sleepQuality,
@@ -90,7 +93,14 @@ internal static class SyncApi
             ["water_l"] = waterL,
             ["weight_kg"] = weightKg,
             ["note"] = note,
-        });
+        };
+        // Left out when null: what an app version before the meters sends.
+        if (stress is not null)
+            payload["stress"] = stress;
+        if (mood is not null)
+            payload["mood"] = mood;
+        return JsonSerializer.SerializeToElement(payload);
+    }
 
     public static async Task<List<DailyCheckin>> RowsAsync(ApiFactory factory, Guid id)
     {

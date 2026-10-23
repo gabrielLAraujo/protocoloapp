@@ -2295,6 +2295,8 @@
           "sleepAvg",
           "energyAvg",
           "anxietyAvg",
+          "stressAvg",
+          "moodAvg",
           "checkinNotes"
         ],
         "type": "object",
@@ -2373,6 +2375,12 @@
             "$ref": "#/components/schemas/EnergyAverage"
           },
           "anxietyAvg": {
+            "$ref": "#/components/schemas/ScoreAverage"
+          },
+          "stressAvg": {
+            "$ref": "#/components/schemas/ScoreAverage"
+          },
+          "moodAvg": {
             "$ref": "#/components/schemas/ScoreAverage"
           },
           "checkinNotes": {

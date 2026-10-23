@@ -217,8 +217,10 @@ describe('posesOf', () => {
   })
 
   it('FILL_METRICS keeps the contract order', () => {
+    expect(FILL_METRICS).toHaveLength(17)
     expect(new Set(FILL_METRICS).size).toBe(FILL_METRICS.length)
     expect(FILL_METRICS.indexOf('items_used')).toBe(FILL_METRICS.indexOf('items_missed') + 1)
+    expect(FILL_METRICS.slice(-4)).toEqual(['anxiety_avg', 'stress_avg', 'mood_avg', 'checkin_notes'])
     expect(FILL_METRICS[0]).toBe('diet_error_pct')
     expect(FILL_METRICS.at(-1)).toBe('checkin_notes')
   })

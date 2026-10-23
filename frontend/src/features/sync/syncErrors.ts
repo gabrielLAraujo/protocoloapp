@@ -5,6 +5,8 @@ const FIELDS: Record<string, string> = {
   energy_wake: 'Disposição ao acordar',
   energy_day: 'Disposição no dia',
   anxiety: 'Ansiedade',
+  stress: 'Estresse',
+  mood: 'Psicológico',
   water_l: 'Água',
   weight_kg: 'Peso',
   note: 'Observações',

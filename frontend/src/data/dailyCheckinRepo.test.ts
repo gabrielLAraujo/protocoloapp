@@ -49,7 +49,8 @@ describe('dailyCheckinRepo', () => {
     await dailyCheckinRepo.saveMorning(db, USER_A, DATE, morning, T0)
 
     expect(await dailyCheckinRepo.get(db, DATE)).toEqual({
-      id: ID, date: DATE, ...morning, energyDay: null, anxiety: null, waterL: null, note: null, cardioDone: null, cardioMinutes: null,
+      id: ID, date: DATE, ...morning, energyDay: null, anxiety: null, waterL: null, note: null, stress: null, mood: null,
+      cardioDone: null, cardioMinutes: null,
       clientUpdatedAt: T0.toISOString(),
     })
     const [entry] = await outbox.due(db, T0, 500)
@@ -88,6 +89,16 @@ describe('dailyCheckinRepo', () => {
       ['upsert', expect.any(String)],
       ['delete', null],
     ])
+  })
+
+  it('applyRemote reads stress and mood, and a payload without them (older server) as null', async () => {
+    const db = await newLocalDb()
+
+    await dailyCheckinRepo.applyRemote(db, remote())
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ stress: null, mood: null })
+    await dailyCheckinRepo.applyRemote(db, remote({ version: 11, payload: { ...remote().payload, stress: 6, mood: 3 } }))
+
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ stress: 6, mood: 3, anxiety: 4 })
   })
 
   it('applyRemote inserts and updates from the server', async () => {
@@ -172,7 +183,7 @@ describe('dailyCheckinRepo parts', () => {
     const [first, second] = await payloads(db)
     expect(first).toEqual({
       date: DATE, parts: ['morning'], sleep_quality: 4, energy_wake: 3, bowel: 'normal', weight_kg: 80.4,
-      energy_day: null, anxiety: null, water_l: null, note: null, cardio_done: null, cardio_minutes: null,
+      energy_day: null, anxiety: null, water_l: null, note: null, stress: null, mood: null, cardio_done: null, cardio_minutes: null,
     })
     // The whole local row goes along; the server applies only the listed part.
     expect(second).toMatchObject({ parts: ['evening'], sleep_quality: 4, energy_day: 4, anxiety: 2, water_l: 2.5, note: 'Dia de teste' })
@@ -185,6 +196,37 @@ describe('dailyCheckinRepo parts', () => {
     await dailyCheckinRepo.saveMorning(db, USER_A, DATE, { ...morning, weightKg: null }, new Date('2026-10-18T12:01:00.000Z'))
 
     expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ ...evening, sleepQuality: 4, weightKg: null })
+  })
+
+  it('the evening stores and sends stress and mood; omitted they are null', async () => {
+    const db = await newLocalDb()
+
+    await dailyCheckinRepo.saveEvening(db, USER_A, DATE, { ...evening, stress: 0, mood: 4 }, T0)
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ stress: 0, mood: 4 })
+    await dailyCheckinRepo.saveEvening(db, USER_A, DATE, evening, new Date('2026-10-18T12:01:00.000Z'))
+
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ stress: null, mood: null })
+    const [first, second] = await payloads(db)
+    expect(first).toMatchObject({ parts: ['evening'], stress: 0, mood: 4 })
+    expect(second).toMatchObject({ parts: ['evening'], stress: null, mood: null })
+  })
+
+  it('the water card keeps the meters (the whole evening part goes along)', async () => {
+    const db = await newLocalDb()
+    await dailyCheckinRepo.saveEvening(db, USER_A, DATE, { ...evening, stress: 7, mood: 2 }, T0)
+
+    await dailyCheckinRepo.changeWater(db, USER_A, DATE, (l) => l + 0.5, new Date('2026-10-18T12:01:00.000Z'))
+
+    expect(await dailyCheckinRepo.get(db, DATE)).toMatchObject({ waterL: 3, stress: 7, mood: 2 })
+    expect((await payloads(db))[1]).toMatchObject({ parts: ['evening'], water_l: 3, stress: 7, mood: 2 })
+  })
+
+  it('a check-in without stress and mood still has its evening part', async () => {
+    const db = await newLocalDb()
+
+    await dailyCheckinRepo.saveEvening(db, USER_A, DATE, evening, T0)
+
+    expect(checkinParts((await dailyCheckinRepo.get(db, DATE))!).evening).toBe(true)
   })
 
   it('an empty note is stored and sent as null', async () => {

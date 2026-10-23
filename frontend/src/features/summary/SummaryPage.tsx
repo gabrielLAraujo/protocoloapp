@@ -228,6 +228,8 @@ export function SummaryPage() {
                 <ListRow term title="Disposição ao acordar" subtitle="média, 1–5" value={fmt(summary.energyWake)} />
                 <ListRow term title="Disposição no dia" subtitle="média, 1–5" value={fmt(summary.energyDay)} />
                 <ListRow term title="Ansiedade" subtitle="média, 1–5" value={fmt(summary.anxiety)} />
+                <ListRow term title="Estresse" subtitle="média, 0–10" value={fmt(summary.stress)} />
+                <ListRow term title="Psicológico" subtitle="média, 1–5" value={fmt(summary.mood)} />
                 <ListRow term title="Check-ins" subtitle="no ciclo" value={String(summary.checkinCount)} />
               </Card>
             </div>

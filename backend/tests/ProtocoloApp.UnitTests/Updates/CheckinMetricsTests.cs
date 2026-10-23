@@ -17,6 +17,8 @@ public sealed class CheckinMetricsTests
         Assert.Equal(new ScoreAverage(null, 0), result.SleepAvg);
         Assert.Equal(new EnergyAverage(new ScoreAverage(null, 0), new ScoreAverage(null, 0)), result.EnergyAvg);
         Assert.Equal(new ScoreAverage(null, 0), result.AnxietyAvg);
+        Assert.Equal(new ScoreAverage(null, 0), result.StressAvg);
+        Assert.Equal(new ScoreAverage(null, 0), result.MoodAvg);
         Assert.Empty(result.CheckinNotes);
     }
 
@@ -68,6 +70,28 @@ public sealed class CheckinMetricsTests
         Assert.Equal(new EnergyAverage(new ScoreAverage(3m, 1), new ScoreAverage(2m, 1)), result.EnergyAvg);
         Assert.Equal(new ScoreAverage(1m, 1), result.AnxietyAvg);
         Assert.Equal(new WaterAverage(2.58m, 3m, 3), result.WaterAvg);
+    }
+
+    [Fact]
+    public void Stress_and_mood_average_the_days_with_a_value_and_a_zero_stress_counts()
+    {
+        var a = Day(20);
+        a.Stress = 0;
+        a.Mood = 4;
+        var b = Day(21);
+        b.Stress = 7;
+        var c = Day(22);
+        c.Stress = 2;
+        c.Mood = 3;
+        var deleted = Day(23);
+        deleted.Stress = 10;
+        deleted.Mood = 1;
+        deleted.DeletedAt = DateTimeOffset.UnixEpoch;
+
+        var result = CheckinMetrics.Compute([a, b, c, deleted, Day(24)], null);
+
+        Assert.Equal(new ScoreAverage(3m, 3), result.StressAvg);
+        Assert.Equal(new ScoreAverage(3.5m, 2), result.MoodAvg);
     }
 
     [Fact]
