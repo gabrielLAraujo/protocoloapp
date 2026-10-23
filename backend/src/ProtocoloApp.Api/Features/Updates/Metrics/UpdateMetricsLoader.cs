@@ -161,6 +161,8 @@ public static class UpdateMetricsLoader
             checkin.SleepAvg,
             checkin.EnergyAvg,
             checkin.AnxietyAvg,
+            checkin.StressAvg,
+            checkin.MoodAvg,
             checkin.CheckinNotes);
     }
 

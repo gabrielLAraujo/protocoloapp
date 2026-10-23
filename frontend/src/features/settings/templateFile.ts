@@ -16,6 +16,8 @@ export const FILL_LABELS: Record<FillMetric, string> = {
   sleep_avg: 'Média de sono',
   energy_avg: 'Média de energia',
   anxiety_avg: 'Média de ansiedade',
+  stress_avg: 'Média de estresse',
+  mood_avg: 'Média do psicológico',
   checkin_notes: 'Notas do ciclo',
 }
 

@@ -16,6 +16,8 @@ export const FILL_METRICS = [
   'sleep_avg',
   'energy_avg',
   'anxiety_avg',
+  'stress_avg',
+  'mood_avg',
   'checkin_notes',
 ] as const
 

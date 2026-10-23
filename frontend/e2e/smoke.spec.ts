@@ -127,6 +127,9 @@ test('offline checkin, morning then evening, syncs to a second browser', async (
   await openPart(a, 'Check-in da noite', /\/checkin\/noite$/)
   await choose(a, 'Disposição no dia (1–5)', '4')
   await choose(a, 'Ansiedade (1–5)', '2')
+  // The optional meters of the evening.
+  await choose(a, 'Estresse (0 a 10)', '3')
+  await choose(a, 'Psicológico (1 a 5)', '4')
   await a.getByLabel('Água (litros)').fill('2,5')
   await a.getByLabel('Observações').fill('Check-in do teste e2e')
   await a.getByRole('button', { name: 'Salvar' }).click()
@@ -172,6 +175,8 @@ test('offline checkin, morning then evening, syncs to a second browser', async (
   await openPart(b, 'Check-in da noite', /\/checkin\/noite$/)
   await expect(option(b, 'Disposição no dia (1–5)', '4')).toBeChecked()
   await expect(option(b, 'Ansiedade (1–5)', '2')).toBeChecked()
+  await expect(option(b, 'Estresse (0 a 10)', '3')).toBeChecked()
+  await expect(option(b, 'Psicológico (1 a 5)', '4')).toBeChecked()
   await expect(b.getByLabel('Água (litros)')).toHaveValue('2.5')
   await expect(b.getByLabel('Observações')).toHaveValue('Check-in do teste e2e')
 

@@ -17,6 +17,8 @@ const trend = z.object({
   sessions: count,
 })
 const avg = z.object({ avg: z.number().nullable(), days: count })
+/** Absent in metrics cached before the stress and mood meters existed: read as no data. */
+const noAvg = () => ({ avg: null, days: 0 })
 const weighIn = z.object({ date, kg: z.number() }).nullable()
 
 export const updateMetricsSchema = z.object({
@@ -53,6 +55,8 @@ export const updateMetricsSchema = z.object({
   sleepAvg: avg,
   energyAvg: z.object({ wake: avg, day: avg }),
   anxietyAvg: avg,
+  stressAvg: avg.default(noAvg),
+  moodAvg: avg.default(noAvg),
   checkinNotes: z.array(z.object({ date, note: z.string() })),
 })
 

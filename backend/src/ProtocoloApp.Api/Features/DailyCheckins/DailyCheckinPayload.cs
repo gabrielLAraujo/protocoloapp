@@ -17,6 +17,8 @@ namespace ProtocoloApp.Api.Features.DailyCheckins;
 ///   "anxiety": 2,                // evening, integer 1–5
 ///   "water_l": 2.5,              // evening, liters 0–15, at most 2 decimals
 ///   "note": "...",               // evening (optional), up to 2000 characters
+///   "stress": 3,                 // evening (optional), integer 0–10
+///   "mood": 4,                   // evening (optional), integer 1–5
 ///   "cardio_done": true,         // cardio (null = not answered)
 ///   "cardio_minutes": 30         // cardio, integer 0–300, only with cardio_done == true
 /// }
@@ -24,7 +26,7 @@ namespace ProtocoloApp.Api.Features.DailyCheckins;
 /// Each listed part replaces all of its fields, null included (null clears); parts not listed keep their stored values and
 /// their fields in the payload are ignored. A listed morning part is either complete (its required fields non-null; weight
 /// stays optional) or entirely null (clears the part). A listed evening part is complete (energy_day, anxiety and water_l;
-/// note optional), or carries no scores: water_l and/or note alone (the water logged during the day), or nothing (clears
+/// note, stress and mood optional), or carries no scores: water_l and/or note alone (the water logged during the day), or nothing (clears
 /// the part). energy_day and anxiety come together. Without <c>parts</c> the payload must carry
 /// some data (a date-only payload is <c>invalid_payload:parts</c>). Each part has its own last-write-wins clock (see
 /// <see cref="DailyCheckinSyncHandler"/>). Unknown properties are ignored. Pull writes every field (null when not stored)
@@ -49,6 +51,10 @@ public sealed record DailyCheckinPayload
 
     public decimal? WaterL { get; init; }
 
+    public int? Stress { get; init; }
+
+    public int? Mood { get; init; }
+
     public decimal? WeightKg { get; init; }
 
     public string? Note { get; init; }
@@ -62,7 +68,8 @@ public sealed record DailyCheckinPayload
 
     internal bool HasMorningData => SleepQuality is not null || EnergyWake is not null || Bowel is not null || WeightKg is not null;
 
-    internal bool HasEveningData => EnergyDay is not null || Anxiety is not null || WaterL is not null || Note is not null;
+    internal bool HasEveningData =>
+        EnergyDay is not null || Anxiety is not null || WaterL is not null || Note is not null || Stress is not null || Mood is not null;
 
     internal bool HasCardioData => CardioDone is not null || CardioMinutes is not null;
 }
@@ -88,6 +95,8 @@ public sealed class DailyCheckinPayloadValidator : AbstractValidator<DailyChecki
         RuleFor(p => p.EnergyWake).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_wake");
         RuleFor(p => p.EnergyDay).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("energy_day");
         RuleFor(p => p.Anxiety).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("anxiety");
+        RuleFor(p => p.Stress).InclusiveBetween(DailyCheckin.MinStress, DailyCheckin.MaxStress).OverridePropertyName("stress");
+        RuleFor(p => p.Mood).InclusiveBetween(DailyCheckin.MinScore, DailyCheckin.MaxScore).OverridePropertyName("mood");
         RuleFor(p => p.WaterL).InclusiveBetween(0m, (decimal)DailyCheckin.MaxWaterL).PrecisionScale(4, 2, true).OverridePropertyName("water_l");
         RuleFor(p => p.WeightKg).InclusiveBetween((decimal)DailyCheckin.MinWeightKg, (decimal)DailyCheckin.MaxWeightKg).PrecisionScale(5, 2, true).OverridePropertyName("weight_kg");
         RuleFor(p => p.Note).MaximumLength(DailyCheckin.MaxNoteLength).OverridePropertyName("note");

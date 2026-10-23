@@ -19,6 +19,8 @@ public static class FillMetric
     public const string SleepAvg = "sleep_avg";
     public const string EnergyAvg = "energy_avg";
     public const string AnxietyAvg = "anxiety_avg";
+    public const string StressAvg = "stress_avg";
+    public const string MoodAvg = "mood_avg";
     public const string CheckinNotes = "checkin_notes";
 
     public static IReadOnlyList<string> All { get; } =
@@ -36,6 +38,8 @@ public static class FillMetric
         SleepAvg,
         EnergyAvg,
         AnxietyAvg,
+        StressAvg,
+        MoodAvg,
         CheckinNotes,
     ];
 

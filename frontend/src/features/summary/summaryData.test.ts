@@ -38,7 +38,7 @@ const withSets = (...dates: string[]) => ({ sessions: dates.map((d) => session(d
 
 const checkin = (date: string, over: Partial<DailyCheckin> = {}): DailyCheckin => ({
   id: `c-${date}`, date, sleepQuality: 4, bowel: 'normal', energyWake: 3, energyDay: 4, anxiety: 2, waterL: 3, weightKg: null, note: null,
-  cardioDone: false, cardioMinutes: null, clientUpdatedAt: `${date}T08:00:00.000Z`, ...over,
+  stress: null, mood: null, cardioDone: false, cardioMinutes: null, clientUpdatedAt: `${date}T08:00:00.000Z`, ...over,
 })
 
 const input = (over: Partial<SummaryInput> = {}): SummaryInput => ({
@@ -142,9 +142,27 @@ describe('buildSummary', () => {
     expect(s.calendar.find((d) => d.date === '2026-10-23')?.cardio).toBe(true)
   })
 
+  it('averages stress (0 counts) and mood over the days answered', () => {
+    const s = buildSummary(
+      input({
+        checkins: [
+          checkin('2026-10-20', { stress: 0, mood: 4 }),
+          checkin('2026-10-21', { stress: 5 }),
+          checkin('2026-10-22', { stress: 3, mood: 3 }),
+          checkin('2026-10-10', { stress: 10, mood: 1 }), // before the cycle
+        ],
+      }),
+      TODAY,
+    )
+    expect(s.stress).toBe(2.7)
+    expect(s.mood).toBe(3.5)
+    // Optional: a check-in without them is still complete.
+    expect(s.checkinCount).toBe(3)
+  })
+
   it('has no averages without check-ins', () => {
     const s = buildSummary(input(), TODAY)
-    expect([s.sleep, s.energyWake, s.energyDay, s.anxiety, s.water]).toEqual([null, null, null, null, null])
+    expect([s.sleep, s.energyWake, s.energyDay, s.anxiety, s.stress, s.mood, s.water]).toEqual([null, null, null, null, null, null, null])
   })
 
   it('respects overrides and the plan version active on each day', () => {
