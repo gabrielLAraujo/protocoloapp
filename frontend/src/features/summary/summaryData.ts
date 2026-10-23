@@ -175,12 +175,15 @@ export interface AdherenceInput {
   adherence: AdherenceLogLocal[]
   /** The reminder times: today, a target is only due once its time has come. */
   slots: readonly DaySlot[]
+  /** Diet deviations (live ones): each is one more planned diet target not done on its day. */
+  deviations?: readonly { date: string }[]
 }
 
 /**
  * Diet (meals) and protocol items from `from` to `to` (inclusive): what buildDay plans for each day, and how much of
  * it was marked. A mark of something not planned that day does not count. On past days every planned target counts;
  * today (the local date of `now`) only the marked ones and those whose time has come, so the morning does not read low.
+ * Each diet deviation of a day in the range adds one planned meal that was not done (done ÷ (planned + deviations)).
  */
 export function adherenceRates(input: AdherenceInput, from: string, to: string, now: Date): { diet: AdherenceRate; items: AdherenceRate } {
   const today = localDate(now)
@@ -200,6 +203,7 @@ export function adherenceRates(input: AdherenceInput, from: string, to: string, 
       else if (status === 'partial') rate.partial++
     }
   }
+  for (const d of input.deviations ?? []) if (d.date >= from && d.date <= to) diet.planned++
   return { diet, items }
 }
 

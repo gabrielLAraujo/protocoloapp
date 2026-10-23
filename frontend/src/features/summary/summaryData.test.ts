@@ -254,6 +254,27 @@ describe('adherenceRates', () => {
     expect(untimed([log('2026-10-21', 'meal', '1', 'partial')]).diet).toEqual({ done: 0, partial: 1, planned: 1 })
   })
 
+  it('diet deviations add to the planned meals of their day; outside the range they do not count', () => {
+    const rates = (deviations: { date: string }[], adherence: AdherenceLogLocal[] = []) =>
+      adherenceRates({ protocol: { activatedOn: '2026-10-20', document }, workoutPlans, overrides: [], adherence, slots: [], deviations }, '2026-10-20', '2026-10-21', new Date(2026, 9, 25, 12))
+    const allDone = ['2026-10-20', '2026-10-21'].flatMap((d) => [log(d, 'meal', '1', 'done'), log(d, 'meal', '2', 'done')])
+
+    expect(rates([{ date: '2026-10-20' }, { date: '2026-10-22' }], allDone).diet).toEqual({ done: 4, partial: 0, planned: 5 })
+    expect(formatRate(rates([{ date: '2026-10-20' }], allDone).diet)).toBe('80%')
+    expect(rates([], allDone).diet).toEqual({ done: 4, partial: 0, planned: 4 })
+    // Items are unchanged.
+    expect(rates([{ date: '2026-10-20' }]).items).toEqual(rates([]).items)
+  })
+
+  it('a deviation with nothing planned yet reads 0 %, not "—"', () => {
+    const r = adherenceRates(
+      { protocol: { activatedOn: '2026-10-20', document }, workoutPlans, overrides: [], adherence: [], slots: [], deviations: [{ date: '2026-10-21' }] },
+      '2026-10-21', '2026-10-21', new Date(2026, 9, 21, 6, 0),
+    )
+    expect(r.diet).toEqual({ done: 0, partial: 0, planned: 1 })
+    expect(formatRate(r.diet)).toBe('0%')
+  })
+
   it('nothing planned shows "—"', () => {
     expect(formatRate({ done: 0, partial: 0, planned: 0 })).toBe('—')
   })

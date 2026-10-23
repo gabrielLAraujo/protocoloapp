@@ -4,6 +4,7 @@ import { CycleDatesForm } from '../plans/CycleDatesForm'
 import { useData } from '../../data/dataContext'
 import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { dietDeviationRepo, type DietDeviationLocal } from '../../data/dietDeviationRepo'
 import { exerciseRepo } from '../../data/exerciseRepo'
 import { planRepo } from '../../data/planRepo'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
@@ -18,6 +19,7 @@ import { loadWorkoutPlans } from '../workout/workoutPlans'
 import { toDayPlans } from '../today/todayData'
 import { CycleCalendar } from './CycleCalendar'
 import { CycleTimeline } from './CycleTimeline'
+import { DeviationsSheet } from './DeviationsSheet'
 import { StrengthByGroup } from './StrengthByGroup'
 import { adherenceRates, buildSummary, formatRate, ranOutDays, type AdherenceRate, type SummaryData, type SummaryInput } from './summaryData'
 import { WeightSparkline } from './WeightSparkline'
@@ -27,6 +29,7 @@ import { ListRow } from '../../ui/ListRow'
 import { SectionHeader } from '../../ui/SectionHeader'
 import { Stat } from '../../ui/Stat'
 import { EmptyState } from '../../ui/EmptyState'
+import { Icon } from '../../ui/Icon'
 
 interface Loaded {
   summary: SummaryData
@@ -34,6 +37,10 @@ interface Loaded {
   rates: { diet: AdherenceRate; items: AdherenceRate } | null
   /** Days of the cycle so far with a protocol item marked "Acabou". */
   ranOut: number
+  /** Diet deviations of the cycle so far (same span as the rates); empty without an active protocol. */
+  deviations: DietDeviationLocal[]
+  /** Meal key → label of the active protocol (REF n when it has none). */
+  mealLabels: Map<string, string>
   /** The active protocol version (target of the dates form), when there is one. */
   protocolId: string | null
   billingDate: string | null
@@ -92,13 +99,16 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
   const summary = buildSummary({ protocol, plans: plans.map((p) => p.at), overrides, sessions, sets, checkins, exercises, cardioMarkDates }, today)
   let rates: Loaded['rates'] = null
   let ranOut = 0
+  let deviations: DietDeviationLocal[] = []
   if (protocol && summary.cycle) {
     // Same span as the other statistics: cycle start through today (or the update date once the cycle is over).
     const statsTo = summary.cycle.end && summary.cycle.end < today ? summary.cycle.end : today
-    rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence, slots }, summary.cycle.start, statsTo, new Date())
+    deviations = summary.cycle.start <= statsTo ? await dietDeviationRepo.between(db, summary.cycle.start, statsTo) : []
+    rates = adherenceRates({ protocol, workoutPlans: toDayPlans(plans), overrides, adherence, slots, deviations }, summary.cycle.start, statsTo, new Date())
     ranOut = ranOutDays(adherence, summary.cycle.start, statsTo)
   }
-  return { summary, rates, ranOut, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null, progress }
+  const mealLabels = new Map((protocol?.document.meals ?? []).map((m, i) => [m.key, m.label?.trim() ? m.label : `REF ${i + 1}`]))
+  return { summary, rates, ranOut, deviations, mealLabels, protocolId: protocol ? active!.id : null, billingDate: protocol?.document.billingDate ?? null, progress }
 }
 
 /** `/`: the cycle at a glance - timeline, calendar, adherence, check-in averages, weight and strength. */
@@ -108,6 +118,7 @@ export function SummaryPage() {
   const { dataVersion } = useSync()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
+  const [deviationsOpen, setDeviationsOpen] = useState(false)
 
   useEffect(() => {
     if (!data) return
@@ -132,7 +143,7 @@ export function SummaryPage() {
   if (failed) return <p role="alert" className="text-danger">Não foi possível carregar o resumo.</p>
   if (!loaded) return <p className="text-muted">Carregando…</p>
 
-  const { summary, rates, ranOut, protocolId, billingDate, progress } = loaded
+  const { summary, rates, ranOut, deviations, mealLabels, protocolId, billingDate, progress } = loaded
   if (!summary.cycle) {
     return (
       <section className="grid gap-4">
@@ -191,6 +202,17 @@ export function SummaryPage() {
                   caption={summary.waterTarget === null ? 'média por dia' : `meta ${fmt(summary.waterTarget, ' L')}`}
                 />
               </Card>
+              {rates && (
+                <Card tone="list">
+                  <ListRow
+                    title="Desvios na dieta"
+                    subtitle="fora do plano, contam na dieta"
+                    value={`${deviations.length} no ciclo`}
+                    onClick={() => setDeviationsOpen(true)}
+                    trailing={<Icon name="chevronRight" size={18} className="text-muted" />}
+                  />
+                </Card>
+              )}
               <Card as="dl" tone="list">
                 <ListRow
                   term
@@ -258,6 +280,8 @@ export function SummaryPage() {
           </section>
         </div>
       </div>
+
+      {deviationsOpen && <DeviationsSheet deviations={deviations} mealLabels={mealLabels} onClose={() => setDeviationsOpen(false)} />}
     </div>
   )
 }

@@ -33,6 +33,11 @@ export interface DayScoreOptions {
    * rest from it, so an unmarked cardio does not count. A cardio marked partial/missed still counts.
    */
   cardioOptional?: boolean
+  /**
+   * Diet deviations recorded on the day (something eaten outside the plan): each counts as one more planned diet target
+   * that was not done, so the diet is done ÷ (planned + deviations). They count as soon as they are recorded (no time).
+   */
+  deviations?: number
 }
 
 export const EMPTY_SCORE: DayScore = Object.freeze({ done: 0, partial: 0, planned: 0, ratio: null }) as DayScore
@@ -55,6 +60,7 @@ export function dayScore(plan: DayPlan, statuses: TargetStatuses, opts: DayScore
     if (status === 'done') done++
     else if (status === 'partial') partial++
   }
+  planned += Math.max(0, opts.deviations ?? 0)
   return { done, partial, planned, ratio: planned === 0 ? null : (done + 0.5 * partial) / planned }
 }
 
@@ -78,10 +84,13 @@ export interface DayInfo {
   dayType: DayKind
   /** Future days: EMPTY_SCORE. */
   score: DayScore
-  /** Meals (and protocol items): today only due-or-marked; on a future day `planned` is the whole day and nothing is done. */
+  /**
+   * Meals (and protocol items): today only due-or-marked; on a future day `planned` is the whole day and nothing is done.
+   * The diet's `planned` also counts the day's deviations (done ÷ (planned meals + deviations)).
+   */
   diet: TargetRate
   items: TargetRate
-  /** Every meal of the whole day done; null when the day has no meals. False on future days. */
+  /** Every meal of the whole day done and no deviation; null when the day has neither meals nor deviations. False on future days. */
   dietComplete: boolean | null
   workout: { planned: boolean; done: boolean }
   /** `planned`: the day lists cardio. `done`: its status is done (marked, or "cardio feito" on the check-in without a mark). */
@@ -100,6 +109,8 @@ export interface DayInfoInput {
   checkinParts: { morning: boolean; evening: boolean }
   waterL: number | null
   cardioOptional: boolean
+  /** Diet deviations recorded on the day (see DayScoreOptions.deviations). */
+  deviations?: number
 }
 
 /** Pure: everything the gamification needs about one day. `now` is the clock for today's due targets. */
@@ -120,6 +131,10 @@ export function buildDayInfo(input: DayInfoInput, now: Date = new Date()): DayIn
     }
     return r
   }
+  // Like dayScore: without any plan (no protocol, no workout plan) there is no diet to deviate from.
+  const deviations = future || !hasPlan(plan) ? 0 : Math.max(0, input.deviations ?? 0)
+  const diet = rate('meal')
+  diet.planned += deviations
   const meals = plan.targets.filter((t) => t.type === 'meal')
   const workout = plan.targets.find((t) => t.type === 'workout')
   const cardio = plan.targets.find((t) => t.type === 'cardio')
@@ -127,10 +142,13 @@ export function buildDayInfo(input: DayInfoInput, now: Date = new Date()): DayIn
     date: input.date,
     when,
     dayType: plan.dayType,
-    score: future ? { ...EMPTY_SCORE } : dayScore(plan, statuses, { isToday: when === 'today', now, cardioOptional: input.cardioOptional }),
-    diet: rate('meal'),
+    score: future
+      ? { ...EMPTY_SCORE }
+      : dayScore(plan, statuses, { isToday: when === 'today', now, cardioOptional: input.cardioOptional, deviations }),
+    diet,
     items: rate('protocol_item'),
-    dietComplete: meals.length === 0 ? null : !future && meals.every((m) => statusOf(targetId(m)) === 'done'),
+    dietComplete:
+      meals.length === 0 && deviations === 0 ? null : !future && deviations === 0 && meals.every((m) => statusOf(targetId(m)) === 'done'),
     workout: { planned: workout !== undefined, done: workout !== undefined && statusOf(targetId(workout)) === 'done' },
     cardio: {
       planned: cardio !== undefined,

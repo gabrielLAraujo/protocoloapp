@@ -1,5 +1,6 @@
 import { adherenceLogSync } from './adherenceRepo'
 import { dailyCheckinSync } from './dailyCheckinRepo'
+import { dietDeviationSync } from './dietDeviationRepo'
 import type { SyncEntityAdapter } from './entities'
 import { exerciseSync } from './exerciseRepo'
 import { planVersionSync } from './planRepo'
@@ -18,4 +19,5 @@ export const syncEntities: readonly SyncEntityAdapter[] = [
   rotationOverrideSync,
   scheduleSlotSync,
   adherenceLogSync,
+  dietDeviationSync,
 ]

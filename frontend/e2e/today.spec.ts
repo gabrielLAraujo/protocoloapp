@@ -60,6 +60,16 @@ test('marks a meal on Hoje offline, syncs it, adds water and sees the diet rate 
   await expect(total).toHaveText(new RegExp(`^${formatLiters(before + 0.5)} (de |L)`))
   await expectSynced(page)
 
+  // Desvio: something eaten outside the plan in the meal, from its "⋯" sheet; the row shows the "Desvio" chip. The diet
+  // rate stays positive (1 done of 1 meal + 1 deviation).
+  await page.getByRole('button', { name: `Mais opções para ${MEAL}` }).click()
+  await page.getByRole('dialog', { name: MEAL }).getByRole('button', { name: 'Comi algo fora do plano' }).click()
+  const deviation = page.getByRole('dialog', { name: 'Comi algo fora do plano' })
+  await deviation.getByLabel('O que foi').fill('Biscoito')
+  await deviation.getByRole('button', { name: 'Salvar' }).click()
+  await expect(page.getByRole('listitem', { name: MEAL }).getByText('Desvio', { exact: true })).toBeVisible()
+  await expectSynced(page)
+
   // Resumo: the cycle started today (activation), so the marked meal makes the diet rate positive.
   await nav(page, 'Resumo').click()
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()

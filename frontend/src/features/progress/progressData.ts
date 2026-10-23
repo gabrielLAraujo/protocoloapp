@@ -1,5 +1,6 @@
 import { adherenceRepo, type AdherenceLogLocal } from '../../data/adherenceRepo'
 import { checkinParts, dailyCheckinRepo, type DailyCheckin } from '../../data/dailyCheckinRepo'
+import { dietDeviationRepo } from '../../data/dietDeviationRepo'
 import type { LocalDb } from '../../data/localDb'
 import { planRepo } from '../../data/planRepo'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
@@ -82,11 +83,12 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
   const planEnd = current?.end && current.end > sunday ? current.end : sunday
   // Overrides re-anchor the rotation from each version's activation: load them since the first one (as /treino).
   const overridesFrom = plans.map((p) => p.at.activatedOn).sort()[0] ?? from
-  const [logs, checkins, worked, overrides] = await Promise.all([
+  const [logs, checkins, worked, overrides, deviations] = await Promise.all([
     adherenceRepo.between(db, from, today),
     dailyCheckinRepo.between(db, from, today),
     workoutRepo.workedOutDates(db, from, today),
     rotationOverrideRepo.between(db, overridesFrom, planEnd),
+    dietDeviationRepo.between(db, from, today),
   ])
 
   const logsByDate = new Map<string, AdherenceLogLocal[]>()
@@ -95,6 +97,8 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
     if (list) list.push(l)
     else logsByDate.set(l.date, [l])
   }
+  const deviationsByDate = new Map<string, number>()
+  for (const d of deviations) deviationsByDate.set(d.date, (deviationsByDate.get(d.date) ?? 0) + 1)
   const checkinByDate = new Map<string, DailyCheckin>(checkins.map((c) => [c.date, c]))
   const workedOut = new Set(worked)
   const dayPlans = toDayPlans(plans)
@@ -118,6 +122,7 @@ export async function loadProgress(db: LocalDb, today: string, now: Date = new D
         checkinParts: parts,
         waterL: checkin?.waterL ?? null,
         cardioOptional: span?.document.cardio != null && span.document.cardio.daily !== true,
+        deviations: deviationsByDate.get(date) ?? 0,
       },
       now,
     )

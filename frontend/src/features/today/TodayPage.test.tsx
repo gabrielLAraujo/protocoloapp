@@ -5,6 +5,7 @@ import type { RouteObject } from 'react-router'
 import type { SyncRecord } from '../../data/apiClient'
 import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
+import { dietDeviationRepo } from '../../data/dietDeviationRepo'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
@@ -59,11 +60,12 @@ async function saveFullCheckin(db: LocalDb, note: string | null) {
   await dailyCheckinRepo.saveEvening(db, USER_A, TODAY, { energyDay: 3, anxiety: 2, waterL: 3, note }, new Date())
 }
 
-async function render(items: string[] = ['a', 'b']) {
+async function render(items: string[] = ['a', 'b'], seed?: (db: LocalDb) => Promise<unknown>) {
   const app = await setupApp()
   await seedExercises(app.db)
   await seedPlan(app.db, items)
   await seedProtocol(app.db)
+  await seed?.(app.db)
   const user = userEvent.setup()
   app.view(<TodayPage />)
   await screen.findByRole('list', { name: 'Itens de hoje' })
@@ -455,3 +457,74 @@ describe('/hoje', () => {
     expect(await screen.findByRole('link', { name: 'Check-in da noite' })).toBeInTheDocument()
   })
 })
+
+describe('TodayPage diet deviations', () => {
+  const deviations = (db: LocalDb) => dietDeviationRepo.between(db, TODAY, TODAY)
+
+  it('"Comi algo fora do plano" in a meal records it there, shows the "Desvio" chip and counts it in the day', async () => {
+    const { db, user } = await render()
+    expect(screen.getByRole('status')).toHaveTextContent('0 de 8 feitos')
+
+    await openMenu(user, 'REF 1')
+    await user.click(dialog('REF 1').getByRole('button', { name: 'Comi algo fora do plano' }))
+    const sheet = dialog('Comi algo fora do plano')
+    // The description is required.
+    await user.click(sheet.getByRole('button', { name: 'Salvar' }))
+    expect(sheet.getByRole('alert')).toHaveTextContent('Diga o que foi')
+    expect(await deviations(db)).toEqual([])
+
+    await user.type(sheet.getByLabelText('O que foi'), 'Biscoito')
+    await user.type(sheet.getByLabelText('Quantidade (opcional)'), '3 unidades')
+    expect(sheet.queryByLabelText('Horário')).not.toBeInTheDocument()
+    await user.click(sheet.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(row('REF 1').getByText('Desvio')).toBeInTheDocument())
+    expect(await deviations(db)).toMatchObject([{ mealKey: '1', time: null, description: 'Biscoito', quantity: '3 unidades' }])
+    expect(screen.getByRole('status')).toHaveTextContent('0 de 9 feitos')
+  })
+
+  it('the meal sheet lists its deviations with "Editar" and "Apagar"', async () => {
+    const { db, user } = await render(['a', 'b'], (d) =>
+      dietDeviationRepo.add(d, { date: TODAY, mealKey: '2', time: null, description: 'Refrigerante', quantity: null }, new Date()),
+    )
+    expect(row('REF 2').getByText('Desvio')).toBeInTheDocument()
+
+    await openMenu(user, 'REF 2')
+    await user.click(dialog('REF 2').getByRole('button', { name: 'Editar Refrigerante' }))
+    const edit = dialog('Editar desvio')
+    expect(edit.getByLabelText('O que foi')).toHaveValue('Refrigerante')
+    await user.clear(edit.getByLabelText('O que foi'))
+    await user.type(edit.getByLabelText('O que foi'), 'Suco')
+    await user.click(edit.getByRole('button', { name: 'Salvar' }))
+    await waitFor(async () => expect(await deviations(db)).toMatchObject([{ mealKey: '2', description: 'Suco' }]))
+
+    await openMenu(user, 'REF 2')
+    await user.click(dialog('REF 2').getByRole('button', { name: 'Apagar Suco' }))
+    await waitFor(() => expect(row('REF 2').queryByText('Desvio')).not.toBeInTheDocument())
+    expect(await deviations(db)).toEqual([])
+  })
+
+  it('"Refeição fora do plano" adds a row in the period of its time, which opens to edit or delete', async () => {
+    const { db, user } = await render()
+
+    await user.click(screen.getByRole('button', { name: 'Refeição fora do plano' }))
+    const sheet = dialog('Refeição fora do plano')
+    // Default time: now (12:00).
+    expect(sheet.getByLabelText('Horário')).toHaveValue('12:00')
+    await user.type(sheet.getByLabelText('O que foi'), 'Pizza')
+    await user.clear(sheet.getByLabelText('Horário'))
+    await user.type(sheet.getByLabelText('Horário'), '21:00')
+    await user.click(sheet.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(within(period('Noite')).getByRole('listitem', { name: 'Pizza' })).toBeInTheDocument())
+    expect(row('Pizza').getByText('Fora do plano')).toBeInTheDocument()
+    expect(row('Pizza').getByText('21:00')).toBeInTheDocument()
+    expect(await deviations(db)).toMatchObject([{ mealKey: null, time: '21:00', description: 'Pizza', quantity: null }])
+
+    await user.click(row('Pizza').getByRole('button'))
+    await user.click(dialog('Editar desvio').getByRole('button', { name: 'Apagar desvio' }))
+    await waitFor(() => expect(screen.queryByRole('listitem', { name: 'Pizza' })).not.toBeInTheDocument())
+    expect(await deviations(db)).toEqual([])
+  })
+})
+
