@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { useData } from '../../data/dataContext'
 import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { workoutRepo, type SessionSummary } from '../../data/workoutRepo'
@@ -24,9 +24,19 @@ interface Loaded {
   dayNames: Map<string, Map<string, string>>
 }
 
-/** `/treino/historico`: sessions by date (newest first, 60 at a time) with day and volume, and the exercises that were done. */
+/** What the session editor sends back (`navigate('/treino/historico', { state })`). */
+export interface HistoryNotice {
+  notice?: string
+}
+
+/**
+ * `/treino/historico`: sessions by date (newest first, 60 at a time) with day and volume, and the exercises that were
+ * done. A finished session opens to fix its sets.
+ */
 export function HistoryPage() {
   const data = useData()
+  const location = useLocation()
+  const [notice] = useState(() => (location.state as HistoryNotice | null)?.notice ?? null)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -86,6 +96,12 @@ export function HistoryPage() {
         <h1 className="text-xl font-bold">Histórico de treinos</h1>
       </div>
 
+      {notice && (
+        <p role="status" className="rounded-card border border-ink/20 bg-surface px-4 py-3 text-sm font-medium">
+          {notice}
+        </p>
+      )}
+
       <section aria-label="Sessões" className="grid gap-3">
         {loaded.rows.length === 0 ? (
           <EmptyState icon="history">Nenhum treino registrado ainda.</EmptyState>
@@ -107,6 +123,7 @@ export function HistoryPage() {
                     </span>
                   }
                   value={formatVolume(volume)}
+                  to={session.endedAt === null ? undefined : `/treino/historico/${session.id}`}
                 />
               </li>
             ))}

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { finishSessionAndMark } from '../../data/adherenceLinks'
 import type { Data } from '../../data/dataContext'
 import { workoutRepo, type ExerciseChangeLocal, type SetKind, type SetLocal } from '../../data/workoutRepo'
 import { useSync } from '../sync/syncContext'
+import { nextLogTime } from './logDay'
 
 /** The latest change wins for a planned exercise (a skip can be undone by swapping back). */
 export function effectiveChanges(changes: ExerciseChangeLocal[]): Map<string, ExerciseChangeLocal> {
@@ -62,14 +63,21 @@ export interface ActiveSession {
 /**
  * The sets and exercise changes of one session, read from the device (so a reload brings the session back as it was),
  * plus the actions that write them. Every write is followed by a sync attempt; it never blocks on the network.
+ * `logFrom` (the session's start) is for a session written afterwards: new sets are timed on its day (nextLogTime), not now.
  */
-export function useActiveSession(data: Data, sessionId: string, exerciseIds: string[]): ActiveSession {
+export function useActiveSession(data: Data, sessionId: string, exerciseIds: string[], logFrom?: string): ActiveSession {
   // `exerciseIds`: the planned exercises; replacements already stored are added on their own.
   const { syncNow } = useSync()
   const [state, setState] = useState<{ sets: SetLocal[]; changes: ExerciseChangeLocal[] } | null>(null)
   const [failed, setFailed] = useState(false)
   const [lastTime, setLastTime] = useState<Map<string, SetLocal[]>>(new Map())
   const { db, userId } = data
+  // The sets as last read, for the time of the next logged set (read by the writes, after render).
+  const setsNow = useRef<SetLocal[]>([])
+  useEffect(() => {
+    setsNow.current = state?.sets ?? []
+  }, [state])
+  const completedAt = () => (logFrom === undefined ? undefined : nextLogTime(setsNow.current, logFrom))
 
   const reload = useCallback(async () => {
     const read = await readSession(db, sessionId)
@@ -134,11 +142,11 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
     changes,
     lastTime,
     async logSet(input) {
-      await workoutRepo.logSet(db, userId, { sessionId, ...input }, now())
+      await workoutRepo.logSet(db, userId, { sessionId, ...input, completedAt: completedAt() }, now())
       return after()
     },
     async logSubSet(input) {
-      await workoutRepo.logSubSet(db, userId, input, now())
+      await workoutRepo.logSubSet(db, userId, { ...input, completedAt: completedAt() }, now())
       return after()
     },
     async removeSet(setId) {

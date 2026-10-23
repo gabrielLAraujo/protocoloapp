@@ -599,3 +599,69 @@ describe('WorkoutTodayPage', () => {
     })
   })
 })
+
+describe('Registrar treino de outro dia', () => {
+  const YESTERDAY = '2026-10-17'
+
+  it('logs a workout of an earlier day without the rest timer and saves it finished on that date', async () => {
+    const { db, user } = await render()
+    await user.click(await screen.findByRole('button', { name: 'Registrar treino de outro dia' }))
+    const panel = within(screen.getByRole('region', { name: 'Registrar treino de outro dia' }))
+    expect(panel.getByLabelText('Data do treino')).toHaveValue(YESTERDAY)
+    await user.click(panel.getByRole('button', { name: /Treino A/ }))
+
+    expect(await screen.findByText('Registro do treino de 17/10')).toBeInTheDocument()
+    expect(screen.queryByText('Treino em andamento')).not.toBeInTheDocument()
+    await typeSet(user, 1, '80', '10')
+    await user.click(bench().getByRole('button', { name: 'Concluir série 1' }))
+    expect(await bench().findByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
+    expect(screen.queryByText(/^Descanso \d/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Salvar treino' }))
+    expect(await screen.findByText('Treino de 17/10 salvo')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Treino A — Peito' })).toBeInTheDocument()
+
+    const [session] = await workoutRepo.sessionsBetween(db, YESTERDAY, YESTERDAY)
+    expect(session).toMatchObject({ date: YESTERDAY, dayKey: 'a', startedAt: new Date(2026, 9, 17, 12).toISOString() })
+    expect(session!.endedAt).not.toBeNull()
+    const sets = await workoutRepo.setsForSession(db, session!.id)
+    expect(sets.map((s) => [s.weightKg, s.reps, s.completedAt])).toEqual([[80, 10, new Date(2026, 9, 17, 12, 0, 1).toISOString()]])
+    expect((await adherenceRepo.between(db, YESTERDAY, YESTERDAY)).map((l) => [l.targetType, l.status])).toEqual([['workout', 'done']])
+    expect(await workoutRepo.openSession(db)).toBeNull()
+  })
+
+  it('refuses today and days before the limit', async () => {
+    const { user } = await render()
+    await user.click(await screen.findByRole('button', { name: 'Registrar treino de outro dia' }))
+    const panel = within(screen.getByRole('region', { name: 'Registrar treino de outro dia' }))
+    const input = panel.getByLabelText('Data do treino')
+    await user.clear(input)
+    await user.type(input, '2026-10-18')
+    expect(panel.getByRole('alert')).toHaveTextContent('Escolha um dia entre 13/09 e 17/10.')
+    expect(panel.queryByRole('button', { name: /Treino A/ })).not.toBeInTheDocument()
+  })
+
+  it('?dia= (from a past day on Hoje) opens the form on that day', async () => {
+    const app = await setupApp(['/treino?dia=2026-10-15'])
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    app.view(<WorkoutTodayPage />)
+    const panel = within(await screen.findByRole('region', { name: 'Registrar treino de outro dia' }))
+    expect(panel.getByLabelText('Data do treino')).toHaveValue('2026-10-15')
+  })
+
+  it('a logged workout left open comes back in log mode from "Continuar"', async () => {
+    const { db, user, ui, view } = await render()
+    await user.click(await screen.findByRole('button', { name: 'Registrar treino de outro dia' }))
+    await user.click(within(screen.getByRole('region', { name: 'Registrar treino de outro dia' })).getByRole('button', { name: /Treino A/ }))
+    expect(await screen.findByText('Registro do treino de 17/10')).toBeInTheDocument()
+    expect(await workoutRepo.openSession(db)).toMatchObject({ date: YESTERDAY })
+
+    ui.unmount()
+    view(<WorkoutTodayPage />)
+    expect(await screen.findByText('Você tem um treino aberto de 17/10')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(await screen.findByText('Registro do treino de 17/10')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Salvar treino' })).toBeInTheDocument()
+  })
+})

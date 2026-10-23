@@ -25,6 +25,12 @@ async function stubGif(context: BrowserContext) {
   await context.route(GIF_URL, (route) => route.fulfill({ status: 200, contentType: 'image/gif', body: TINY_GIF }))
 }
 
+/** The calendar date (yyyy-MM-dd) `offset` days from today in America/Sao_Paulo (the browser's timezone, playwright.config.ts). */
+function saoPauloDate(offset: number): string {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+  return new Date(Date.parse(`${today}T12:00:00Z`) + offset * 86_400_000).toISOString().slice(0, 10)
+}
+
 const pdfFile = (name: string, buffer: Buffer) => ({ name, mimeType: 'application/pdf', buffer })
 
 const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
@@ -88,6 +94,8 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   await expect(page.getByLabel('Nome da refeição').first()).toHaveValue('Refeicao 1')
   // The dates have no year in the PDF: inferred, so marked for review.
   await expect(page.getByText('Confira').first()).toBeVisible()
+  // The cycle starts yesterday, so today.spec.ts can fix yesterday on Hoje (the limit back is the cycle's start).
+  await page.getByLabel('Início do ciclo').fill(saoPauloDate(-1))
   await activate(page, 'Protocolo')
 
   await importOnDevice(page, 'Treino', pdfFile('treino-ficticio.pdf', workoutPdf()))

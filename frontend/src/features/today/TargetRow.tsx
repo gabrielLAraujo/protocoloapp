@@ -44,19 +44,22 @@ export function TargetRow({
   row,
   late,
   busy,
+  day,
   onChoose,
   onOpen,
 }: {
   row: TodayRow
   late: boolean
   busy: boolean
+  /** A past day: the links open that date. */
+  day?: string
   /** A status was chosen (the caller clears when it is the current one). */
   onChoose(status: AdherenceStatus): void
   /** Open the item's sheet. */
   onOpen(): void
 }) {
   const { target } = row
-  const link = linkOf(target)
+  const link = linkOf(target, day)
   const metaId = `meta-${target.type}-${target.key}`
 
   if (link)

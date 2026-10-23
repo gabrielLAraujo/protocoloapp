@@ -6,6 +6,7 @@ import { useData, type Data } from '../../data/dataContext'
 import { Button } from '../../ui/Button'
 import { cardClasses } from '../../ui/styles'
 import { useSync } from '../sync/syncContext'
+import { useChosenDay, withDay } from '../today/dayParam'
 import type { TodayNotice } from '../today/TodayPage'
 import { useTodayState } from '../workout/useToday'
 import { localDate, longDate } from './localDate'
@@ -29,21 +30,25 @@ const Message = ({ children }: { children: ReactNode }) => <p className="text-mu
 /**
  * Today's part of the check-in: saved on the device first, sent to the server by the sync, then back to Hoje. Re-read
  * whenever a pull brings records (another device may have edited the day) and when the day changes; neither ever
- * throws away what is being typed.
+ * throws away what is being typed. `?dia=` (within Hoje's limits) edits an earlier day instead, and goes back to it.
  */
 export function CheckinPartPage<I extends FieldValues, O>({ part }: { part: CheckinPart<I, O> }) {
   const data = useData()
   const { dataVersion } = useSync()
+  const chosen = useChosenDay()
   const [today, refreshToday] = useTodayState()
   // The day on screen. It follows `today`, except while the form holds unsaved input (the form then says the day changed).
-  const [date, setDate] = useState(today)
+  const [followed, setDate] = useState(today)
+  /** An earlier day asked for with `?dia=`: fixed, it never follows today. */
+  const past = chosen?.isPast ? chosen.date : null
+  const date = past ?? followed
   const dirty = useRef(false)
   const [loaded, setLoaded] = useState<{ date: string; checkin: DailyCheckin | null } | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    if (today !== date && !dirty.current) setDate(today)
-  }, [today, date])
+    if (today !== followed && !dirty.current) setDate(today)
+  }, [today, followed])
 
   useEffect(() => {
     if (!data) return
@@ -73,14 +78,16 @@ export function CheckinPartPage<I extends FieldValues, O>({ part }: { part: Chec
 
   if (failed) return <Message>Não foi possível abrir os dados do aparelho.</Message>
   if (!data) return <Message>Preparando os dados do aparelho…</Message>
-  if (loaded?.date !== date) return <Message>Carregando…</Message>
+  if (!chosen || loaded?.date !== date) return <Message>Carregando…</Message>
   return (
     <PartForm
       key={date}
       part={part}
       data={data}
       date={date}
-      dayChanged={today !== date}
+      past={past !== null}
+      today={today}
+      dayChanged={past === null && today !== date}
       initial={loaded.checkin}
       onDirtyChange={onDirtyChange}
       onOpenToday={openToday}
@@ -95,6 +102,8 @@ function PartForm<I extends FieldValues, O>({
   part,
   data,
   date,
+  past,
+  today,
   dayChanged,
   initial,
   onDirtyChange,
@@ -103,6 +112,9 @@ function PartForm<I extends FieldValues, O>({
   part: CheckinPart<I, O>
   data: Data
   date: string
+  /** `date` is an earlier day, opened on purpose (`?dia=`). */
+  past: boolean
+  today: string
   /** The device's day is no longer `date`. */
   dayChanged: boolean
   /** The stored check-in, re-read after every pull. */
@@ -154,7 +166,7 @@ function PartForm<I extends FieldValues, O>({
 
   const save = async (values: O) => {
     setSaveError(false)
-    if (dayChanged || localDate() !== date) {
+    if (!past && (dayChanged || localDate() !== date)) {
       setStale('day')
       return
     }
@@ -167,7 +179,7 @@ function PartForm<I extends FieldValues, O>({
     }
     void syncNow()
     const state: TodayNotice = { notice: part.savedNotice }
-    void navigate('/hoje', { state })
+    void navigate(past ? withDay('/hoje', date, today) : '/hoje', { state })
   }
 
   return (

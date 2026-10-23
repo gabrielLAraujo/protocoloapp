@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RouteObject } from 'react-router'
+import { useLocation, type RouteObject } from 'react-router'
 import type { SyncRecord } from '../../data/apiClient'
 import { adherenceRepo } from '../../data/adherenceRepo'
 import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
@@ -9,6 +9,7 @@ import { dietDeviationRepo } from '../../data/dietDeviationRepo'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
+import { updateCycleSync } from '../../data/updateCycleRepo'
 import { routes } from '../../routes'
 import { mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
@@ -528,3 +529,101 @@ describe('TodayPage diet deviations', () => {
   })
 })
 
+
+describe('TodayPage on another day', () => {
+  const YESTERDAY = '2026-10-19'
+
+  /** The URL the screen is on (the arrows replace `?dia=`). */
+  function Where() {
+    const location = useLocation()
+    return <output data-testid="where">{`${location.pathname}${location.search}`}</output>
+  }
+
+  async function renderAt(entry: string, seed?: (db: LocalDb) => Promise<unknown>) {
+    const app = await setupApp([entry])
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    await seedProtocol(app.db)
+    await seed?.(app.db)
+    const user = userEvent.setup()
+    app.view(
+      <>
+        <TodayPage />
+        <Where />
+      </>,
+    )
+    await screen.findByRole('list', { name: 'Itens de hoje' })
+    return { ...app, user }
+  }
+
+  it('the arrows move one day back and forward; forward stops at today', async () => {
+    const { user } = await renderAt('/hoje')
+    const forward = screen.getByRole('button', { name: 'Dia seguinte' })
+    expect(forward).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Dia anterior' }))
+    expect(await screen.findByRole('heading', { name: /Dia 19\/10/ })).toBeInTheDocument()
+    expect(screen.getByTestId('where')).toHaveTextContent(`/hoje?dia=${YESTERDAY}`)
+    expect(screen.getByText('Segunda, 19/10', { exact: false })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Dia seguinte' }))
+    expect(await screen.findByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/hoje$/)
+  })
+
+  it('a past day has no next task, no "Atrasado", and marks are saved on that date', async () => {
+    vi.setSystemTime(new Date(2026, 9, 20, 23, 0))
+    const { db, user } = await renderAt(`/hoje?dia=${YESTERDAY}`)
+
+    expect(screen.getByRole('heading', { name: /Dia 19\/10/ })).toBeInTheDocument()
+    expect(screen.getAllByText('Dia anterior').some((el) => el.tagName === 'SPAN')).toBe(true)
+    expect(screen.queryByRole('region', { name: 'Próxima tarefa' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
+
+    await user.click(row('REF 1').getByRole('button', { name: 'Feito' }))
+    await waitFor(() => expect(row('REF 1').getByRole('button', { name: 'Feito' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(await adherenceRepo.between(db, YESTERDAY, YESTERDAY)).toMatchObject([{ targetType: 'meal', targetKey: '1', status: 'done' }])
+    expect(await today(db)).toEqual([])
+  })
+
+  it('the check-in and workout rows of a past day open that day', async () => {
+    await renderAt(`/hoje?dia=${YESTERDAY}`)
+    expect(screen.getByRole('link', { name: 'Check-in da manhã' })).toHaveAttribute('href', `/checkin/manha?dia=${YESTERDAY}`)
+    expect(screen.getByRole('link', { name: 'Check-in da noite' })).toHaveAttribute('href', `/checkin/noite?dia=${YESTERDAY}`)
+  })
+
+  it('water and an extra meal are saved on the past day', async () => {
+    const { db, user } = await renderAt(`/hoje?dia=${YESTERDAY}`)
+    await user.click(screen.getByRole('button', { name: 'Adicionar 500 ml de água' }))
+    await waitFor(async () => expect((await dailyCheckinRepo.get(db, YESTERDAY))?.waterL).toBe(0.5))
+    expect(await dailyCheckinRepo.get(db, TODAY)).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Refeição fora do plano' }))
+    const sheet = dialog('Refeição fora do plano')
+    await user.type(sheet.getByLabelText('O que foi'), 'Pizza')
+    await user.click(sheet.getByRole('button', { name: 'Salvar' }))
+    await waitFor(async () => expect(await dietDeviationRepo.between(db, YESTERDAY, YESTERDAY)).toMatchObject([{ description: 'Pizza' }]))
+  })
+
+  it('a day out of range falls back to the nearest limit (today for the future)', async () => {
+    await renderAt('/hoje?dia=2026-10-25')
+    expect(screen.getByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
+  })
+
+  it('the back limit is the start of the update cycle in progress', async () => {
+    const { user } = await renderAt(`/hoje?dia=${YESTERDAY}`, (db) =>
+      updateCycleSync.applyRemote(db, {
+        entity: 'update_cycle',
+        id: '7d1f2a10-0000-5000-8000-0000000000c1',
+        version: 1,
+        payload: { protocol_version_id: '7d1f2a10-0000-5000-8000-0000000000d1', period_start: YESTERDAY, period_end: '2026-12-05', status: 'collecting', answers: {}, photos: [], sent_at: null },
+        deletedAt: null,
+        clientUpdatedAt: '2026-10-19T12:00:00.000000+00:00',
+      }),
+    )
+    expect(await screen.findByRole('heading', { name: /Dia 19\/10/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dia anterior' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Dia seguinte' }))
+    expect(await screen.findByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
+  })
+})

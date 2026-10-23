@@ -363,3 +363,43 @@ describe('routes', () => {
     expect(paths(routes)).toEqual(expect.arrayContaining(['/checkin', '/checkin/manha', '/checkin/noite']))
   })
 })
+
+describe('check-in of another day (?dia=)', () => {
+  const YESTERDAY = '2026-10-17'
+
+  it('/checkin/manha?dia= edits that day and goes back to that day on Hoje', async () => {
+    const { db, user, mount } = await open(`/checkin/manha?dia=${YESTERDAY}`)
+    const { router } = mount()
+    expect(await screen.findByRole('heading', { name: 'Check-in da manhã' })).toBeInTheDocument()
+    expect(screen.getByText(/sábado, 17 de outubro/i)).toBeInTheDocument()
+
+    await fillMorning(user)
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(`/hoje?dia=${YESTERDAY}`))
+    expect(await screen.findByText('Check-in da manhã salvo — será sincronizado')).toBeInTheDocument()
+    expect((await dailyCheckinRepo.get(db, YESTERDAY))?.sleepQuality).toBe(4)
+    expect(await dailyCheckinRepo.get(db, DAY)).toBeNull()
+    expect((await adherenceRepo.between(db, YESTERDAY, YESTERDAY)).map((l) => l.targetKey)).toEqual(['checkin_morning'])
+  })
+
+  it('/checkin/noite?dia= opens the saved evening of that day and does not say the day changed', async () => {
+    const { db, user, mount } = await open(`/checkin/noite?dia=${YESTERDAY}`)
+    await dailyCheckinRepo.saveEvening(db, USER_A, YESTERDAY, { energyDay: 3, anxiety: 2, waterL: 1.5, note: null }, new Date())
+    mount()
+    expect(await screen.findByRole('heading', { name: 'Check-in da noite' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Água (litros)')).toHaveValue('1.5')
+    expect(screen.queryByText('O dia mudou — recarregue o check-in')).not.toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Água (litros)'))
+    await user.type(screen.getByLabelText('Água (litros)'), '3')
+    await user.click(screen.getByRole('button', { name: 'Salvar' }))
+    await waitFor(async () => expect((await dailyCheckinRepo.get(db, YESTERDAY))?.waterL).toBe(3))
+  })
+
+  it('a future ?dia= is today', async () => {
+    const { mount } = await open('/checkin/manha?dia=2026-10-30')
+    mount()
+    expect(await screen.findByText(/domingo, 18 de outubro/i)).toBeInTheDocument()
+  })
+})

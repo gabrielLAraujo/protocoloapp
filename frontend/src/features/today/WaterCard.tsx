@@ -60,7 +60,7 @@ function useWater(db: LocalDb, userId: string, date: string, totalL: number, onS
 }
 
 /** "Ajustar": the exact total in liters ("2,5"), with a "−250 ml" step that never goes below 0. */
-function WaterSheet({ currentL, onSave, onCancel }: { currentL: number; onSave(liters: number): void; onCancel(): void }) {
+function WaterSheet({ currentL, past, onSave, onCancel }: { currentL: number; past: boolean; onSave(liters: number): void; onCancel(): void }) {
   const inputId = useId()
   const errorId = useId()
   const [text, setText] = useState(() => formatLiters(currentL))
@@ -88,7 +88,7 @@ function WaterSheet({ currentL, onSave, onCancel }: { currentL: number; onSave(l
       <form onSubmit={submit} noValidate className="grid gap-4">
         <div className="grid gap-2">
           <label htmlFor={inputId} className="text-sm font-medium">
-            Total de hoje (litros)
+            {past ? 'Total do dia (litros)' : 'Total de hoje (litros)'}
           </label>
           <div className="flex gap-2">
             <input
@@ -136,6 +136,7 @@ export function WaterCard({
   date,
   totalL,
   targetL,
+  past = false,
   onSaved,
 }: {
   db: LocalDb
@@ -143,6 +144,8 @@ export function WaterCard({
   date: string
   totalL: number
   targetL: number | null
+  /** A day before today (the adjustment speaks of "o dia"). */
+  past?: boolean
   /** After the queued changes are saved: read the day again and sync. */
   onSaved(): void
 }) {
@@ -197,6 +200,7 @@ export function WaterCard({
       {adjusting && (
         <WaterSheet
           currentL={shownL}
+          past={past}
           onCancel={() => setAdjusting(false)}
           onSave={(liters) => {
             setAdjusting(false)

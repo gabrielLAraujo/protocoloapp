@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { newLocalDb, USER_A } from '../test/localDb'
-import { finishSessionAndMark, saveEveningAndMark, saveMorningAndMark, setCardio } from './adherenceLinks'
+import { finishSessionAndMark, saveLoggedSession, saveEveningAndMark, saveMorningAndMark, setCardio } from './adherenceLinks'
 import { adherenceRepo } from './adherenceRepo'
 import { checkinParts, dailyCheckinRepo, type EveningFields, type MorningFields } from './dailyCheckinRepo'
 import { outbox } from './outbox'
@@ -129,5 +129,45 @@ describe('saveMorningAndMark / saveEveningAndMark', () => {
 
     expect(await dailyCheckinRepo.get(db, DAY)).toBeNull()
     expect(await outbox.pendingCount(db)).toBe(0)
+  })
+})
+
+describe('saveLoggedSession', () => {
+  const PAST = '2026-10-15'
+  const NOON = new Date(2026, 9, 15, 12)
+  const NOW = new Date('2026-10-20T15:00:00.000Z')
+
+  it('keeps the start, the set times and the end on the logged day, and marks that day done', async () => {
+    const db = await newLocalDb()
+    const id = await workoutRepo.startSession(db, USER_A, { date: PAST, planVersionId: PLAN, dayKey: 'a', startedAt: NOON }, NOW)
+    const setId = await workoutRepo.logSet(
+      db,
+      USER_A,
+      { sessionId: id, exerciseId: EXERCISE, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 50, reps: 10, kind: 'normal', completedAt: new Date(NOON.getTime() + 1000) },
+      NOW,
+    )
+    await workoutRepo.logSubSet(db, USER_A, { parentSetId: setId, kind: 'drop', ordinal: 1, weightKg: 40, reps: 8, completedAt: new Date(NOON.getTime() + 2000) }, NOW)
+
+    await saveLoggedSession(db, USER_A, id, NOW)
+
+    const [session] = await workoutRepo.sessionsBetween(db, PAST, PAST)
+    expect(session).toMatchObject({ startedAt: NOON.toISOString(), endedAt: new Date(NOON.getTime() + 2000).toISOString(), clientUpdatedAt: expect.any(String) })
+    expect((await workoutRepo.setsForSession(db, id)).map((s) => s.completedAt)).toEqual([
+      new Date(NOON.getTime() + 1000).toISOString(),
+      new Date(NOON.getTime() + 2000).toISOString(),
+    ])
+    expect((await adherenceRepo.between(db, PAST, PAST)).map((l) => [l.targetType, l.status])).toEqual([['workout', 'done']])
+  })
+
+  it('a session left without working sets clears the day\'s workout mark (unless another session counts)', async () => {
+    const db = await newLocalDb()
+    const id = await workoutRepo.startSession(db, USER_A, { date: PAST, planVersionId: PLAN, dayKey: 'a', startedAt: NOON }, NOW)
+    const setId = await workoutRepo.logSet(db, USER_A, { sessionId: id, exerciseId: EXERCISE, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 50, reps: 10, kind: 'normal' }, NOW)
+    await saveLoggedSession(db, USER_A, id, NOW)
+    await workoutRepo.deleteSet(db, USER_A, setId, later(10_000_000))
+
+    await saveLoggedSession(db, USER_A, id, later(10_000_000))
+
+    expect(await adherenceRepo.between(db, PAST, PAST)).toEqual([])
   })
 })
