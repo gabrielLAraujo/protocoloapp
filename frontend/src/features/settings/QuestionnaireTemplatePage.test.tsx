@@ -120,18 +120,119 @@ describe('QuestionnaireTemplatePage', () => {
     expect(q.fill ?? null).toBeNull()
   })
 
+  it('"Valor inicial" is saved as the default, and a metric without parameters shows none of them', async () => {
+    const { db } = await open(fixture())
+
+    await userEvent.click(screen.getByRole('button', { name: /Qual foi a variação de peso/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Editar pergunta' })
+    expect(within(dialog).queryByLabelText('Semana')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('group', { name: 'Categorias' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('group', { name: 'Grupos' })).not.toBeInTheDocument()
+    await userEvent.type(within(dialog).getByLabelText('Valor inicial'), 'Texto inicial de exemplo')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect((await stored(db))!.sections[2]!.questions[0]).toMatchObject({ key: 'weight', default: 'Texto inicial de exemplo' })
+  })
+
+  it('an existing default shows in "Valor inicial" and clearing it removes it', async () => {
+    const { db } = await open(fixture())
+
+    await userEvent.click(screen.getByRole('button', { name: /Nome do atleta de exemplo/ }))
+    const dialog = await screen.findByRole('dialog')
+    const field = within(dialog).getByLabelText('Valor inicial')
+    expect(field).toHaveValue('Atleta de exemplo')
+    await userEvent.clear(field)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const q = (await stored(db))!.sections[2]!.questions.find((x) => x.key === 'athlete_name')!
+    expect(q.default ?? null).toBeNull()
+  })
+
+  it('"Semana" shows for a weekly metric, and a metric that does not take it drops it', async () => {
+    const { db } = await open(fixture())
+    const find = async () => (await stored(db))!.sections[1]!.questions.find((x) => x.key === 'missed_workouts_week_2')!
+
+    await userEvent.click(screen.getByRole('button', { name: /perdidos na semana 2/ }))
+    let dialog = await screen.findByRole('dialog')
+    const week = within(dialog).getByLabelText('Semana')
+    expect(week).toHaveValue('2')
+    await userEvent.selectOptions(week, 'Semana 3')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect((await find()).fillOptions).toEqual({ week: 3 })
+
+    await userEvent.click(screen.getByRole('button', { name: /perdidos na semana 2/ }))
+    dialog = await screen.findByRole('dialog')
+    await userEvent.selectOptions(within(dialog).getByLabelText('Preencher com'), 'Média de água')
+    expect(within(dialog).queryByLabelText('Semana')).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect((await find()).fillOptions ?? null).toBeNull()
+  })
+
+  it('"Semana" on "Ciclo todo" means no week', async () => {
+    const { db } = await open(fixture())
+
+    await userEvent.click(screen.getByRole('button', { name: /perdidos na semana 2/ }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.selectOptions(within(dialog).getByLabelText('Semana'), 'Ciclo todo')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const q = (await stored(db))!.sections[1]!.questions.find((x) => x.key === 'missed_workouts_week_2')!
+    expect(q.fillOptions ?? null).toBeNull()
+  })
+
+  it('"Categorias" for the item metrics: the checked ones are saved in the list order', async () => {
+    const { db } = await open(fixture())
+
+    await userEvent.click(screen.getByRole('button', { name: /Quais suplementos de exemplo foram usados/ }))
+    const dialog = await screen.findByRole('dialog')
+    const categories = within(dialog).getByRole('group', { name: 'Categorias' })
+    expect(within(categories).getByLabelText('Suplemento')).toBeChecked()
+    expect(within(categories).getByLabelText('Composto')).toBeChecked()
+    expect(within(categories).getByLabelText('Hormônio')).not.toBeChecked()
+    expect(within(dialog).queryByLabelText('Semana')).not.toBeInTheDocument()
+    await userEvent.click(within(categories).getByLabelText('Composto'))
+    await userEvent.click(within(categories).getByLabelText('Termogênico'))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const q = (await stored(db))!.sections[2]!.questions.find((x) => x.key === 'supplements_used')!
+    expect(q.fillOptions).toEqual({ categories: ['supplement', 'thermogenic'] })
+  })
+
+  it('"Grupos" for the strength changes; none checked means every group', async () => {
+    const { db } = await open(fixture())
+
+    await userEvent.click(screen.getByRole('button', { name: /força de exemplo no peito/ }))
+    const dialog = await screen.findByRole('dialog')
+    const groups = within(dialog).getByRole('group', { name: 'Grupos' })
+    expect(within(groups).getByLabelText('Peito')).toBeChecked()
+    expect(within(groups).getByLabelText('Lombar')).toBeChecked()
+    await userEvent.click(within(groups).getByLabelText('Peito'))
+    await userEvent.click(within(groups).getByLabelText('Lombar'))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const q = (await stored(db))!.sections[1]!.questions.find((x) => x.key === 'chest_strength')!
+    expect(q.fillOptions ?? null).toBeNull()
+  })
+
   it('moving a question changes the order', async () => {
     const { db } = await open(fixture())
     expect(screen.getByRole('button', { name: 'Subir pergunta 1 de Dieta de exemplo' })).toBeDisabled()
 
     await userEvent.click(screen.getByRole('button', { name: 'Descer pergunta 1 de Dieta de exemplo' }))
 
-    await waitFor(async () => expect(keysOf(await stored(db))?.[0]).toEqual(['diet_hunger', 'diet_errors']))
+    await waitFor(async () => expect(keysOf(await stored(db))?.[0]).toEqual(['diet_hunger', 'diet_errors', 'diet_wrong_week_2']))
     const list = within(screen.getByRole('region', { name: 'Dieta de exemplo' }))
     expect(list.getAllByRole('listitem')[0]).toHaveTextContent('Como foi a fome na semana de exemplo?')
 
     await userEvent.click(screen.getByRole('button', { name: 'Subir pergunta 2 de Dieta de exemplo' }))
-    await waitFor(async () => expect(keysOf(await stored(db))?.[0]).toEqual(['diet_errors', 'diet_hunger']))
+    await waitFor(async () => expect(keysOf(await stored(db))?.[0]).toEqual(['diet_errors', 'diet_hunger', 'diet_wrong_week_2']))
   })
 
   it('edits the poses: label and order', async () => {
