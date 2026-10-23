@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Today;
+using ProtocoloApp.Api.Features.Updates;
 using ProtocoloApp.Api.Shared.Data;
 
 namespace ProtocoloApp.Api.Features.Push;
@@ -28,6 +29,14 @@ public sealed class ReminderScheduler(
 {
     /// <summary>Minutes a tick may be late (restart, slow loop) and still send.</summary>
     public const int LateTolerance = 2;
+
+    public const string UpdatePhotosSlot = "update_photos";
+
+    /// <summary>The photos reminder starts this many days before the update date.</summary>
+    public const int UpdatePhotosDaysBefore = 3;
+
+    /// <summary>09:00: the photos reminder time when the day has no morning check-in time.</summary>
+    public const int DefaultUpdateMinute = 9 * 60;
 
     public static readonly TimeSpan Tick = TimeSpan.FromSeconds(60);
 
@@ -160,7 +169,49 @@ public sealed class ReminderScheduler(
             claimed++;
         }
 
+        claimed += await RunUpdatePhotosAsync(db, sender, userId, date, minuteOfDay, plan, now, logger, ct);
         return claimed;
+    }
+
+    /// <summary>
+    /// The photos reminder: once a day from <see cref="UpdatePhotosDaysBefore"/> days before the update date up to that date,
+    /// at the time of the morning check-in slot for the kind of day (<see cref="DefaultUpdateMinute"/> without one). Nothing
+    /// once the cycle is <c>sent</c>. Same claim and retry rules as the slot reminders.
+    /// </summary>
+    private static async Task<int> RunUpdatePhotosAsync(
+        AppDbContext db, IPushSender sender, Guid userId, DateOnly date, int minuteOfDay, DayPlan plan, DateTimeOffset now, ILogger logger, CancellationToken ct)
+    {
+        var periodEnds = await db.UpdateCycles.AsNoTracking()
+            .Where(c => c.UserId == userId && c.DeletedAt == null && c.Status != UpdateCycleStatus.Sent)
+            .Select(c => c.PeriodEnd)
+            .ToListAsync(ct);
+        var open = periodEnds.Select(end => end.DayNumber - date.DayNumber).Where(d => d is >= 0 and <= UpdatePhotosDaysBefore).ToList();
+        if (open.Count == 0)
+            return 0;
+        var daysLeft = open.Min();
+
+        var time = plan.Targets.FirstOrDefault(t => t.SlotKey == DayPlanner.CheckinMorningSlot)?.Time;
+        var minute = time is { } t0 ? t0.Hour * 60 + t0.Minute : DefaultUpdateMinute;
+        var late = minuteOfDay - minute;
+        if (late is < 0 or > LateTolerance)
+            return 0;
+
+        var claimId = Guid.NewGuid();
+        var inserted = await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO reminder_sends (id, user_id, date, slot, sent_at) VALUES ({claimId}, {userId}, {date}, {UpdatePhotosSlot}, {now.ToUniversalTime()}) ON CONFLICT (user_id, date, slot) DO NOTHING",
+            ct);
+        if (inserted == 0)
+            return 0;
+
+        var result = await PushDispatcher.SendToUserAsync(db, sender, userId, ReminderCopy.Update(daysLeft), logger, ct);
+        if (result is { Sent: 0, Removed: 0, Transient: > 0 })
+        {
+            await db.ReminderSends.Where(r => r.Id == claimId).ExecuteDeleteAsync(ct);
+            logger.LogWarning("Update reminder reached no device; released for a retry within the tolerance window.");
+            return 0;
+        }
+
+        return 1;
     }
 
     /// <summary>
