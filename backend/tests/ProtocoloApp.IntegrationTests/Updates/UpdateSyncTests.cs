@@ -98,7 +98,7 @@ public sealed class UpdateSyncTests(ApiFactory factory) : IClassFixture<ApiFacto
         var result = await SyncApi.PushOneAsync(api.Client, UpdateApi.TemplateChange(id, SyncApi.Past()));
 
         Assert.Equal(SyncResultStatus.Applied, result.Status);
-        var record = Assert.Single((await SyncApi.PullAllAsync(api.Client)).Where(r => r.Entity == UpdateApi.Template));
+        var record = Assert.Single(await SyncApi.PullAllAsync(api.Client), r => r.Entity == UpdateApi.Template);
         Assert.Equal(id, record.Id);
         var document = record.Payload!.Value.GetProperty("document");
         Assert.Equal("Questionário de exemplo", document.GetProperty("title").GetString());
@@ -120,7 +120,7 @@ public sealed class UpdateSyncTests(ApiFactory factory) : IClassFixture<ApiFacto
             UpdateApi.TemplateChange(id, SyncApi.Past(30), UpdateApi.TemplateDocument.Replace("Questionário de exemplo", "Outro título", StringComparison.Ordinal)));
 
         Assert.Equal(SyncResultStatus.Applied, edit.Status);
-        var record = Assert.Single((await SyncApi.PullAllAsync(api.Client)).Where(r => r.Entity == UpdateApi.Template));
+        var record = Assert.Single(await SyncApi.PullAllAsync(api.Client), r => r.Entity == UpdateApi.Template);
         Assert.Equal("Outro título", record.Payload!.Value.GetProperty("document").GetProperty("title").GetString());
     }
 
