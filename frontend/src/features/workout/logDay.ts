@@ -1,4 +1,6 @@
 import type { SessionLocal } from '../../data/workoutRepo'
+import { activePlanAt } from '../../domain/rotation'
+import type { WorkoutPlanEntry } from './workoutPlans'
 
 /** Seconds between two sets logged afterwards: keeps their order (and "Última vez") without inventing a workout length. */
 const STEP_MS = 1000
@@ -18,3 +20,12 @@ export function nextLogTime(sets: readonly { completedAt: string }[], startedAt:
   const latest = sets.reduce((max, s) => Math.max(max, Date.parse(s.completedAt)), Date.parse(startedAt))
   return new Date(latest + STEP_MS)
 }
+/** The plan to log a day with: the version active on it, else (a day before the first activation) the oldest one. */
+export function planForDay(date: string, plans: readonly WorkoutPlanEntry[]): WorkoutPlanEntry | undefined {
+  const at = activePlanAt(
+    date,
+    plans.map((p) => p.at),
+  )
+  return plans.find((p) => p.id === at?.planVersionId) ?? plans[0]
+}
+

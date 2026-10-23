@@ -72,8 +72,11 @@ export function useActiveSession(data: Data, sessionId: string, exerciseIds: str
   const [failed, setFailed] = useState(false)
   const [lastTime, setLastTime] = useState<Map<string, SetLocal[]>>(new Map())
   const { db, userId } = data
+  // The sets as last read, for the time of the next logged set (read by the writes, after render).
   const setsNow = useRef<SetLocal[]>([])
-  setsNow.current = state?.sets ?? []
+  useEffect(() => {
+    setsNow.current = state?.sets ?? []
+  }, [state])
   const completedAt = () => (logFrom === undefined ? undefined : nextLogTime(setsNow.current, logFrom))
 
   const reload = useCallback(async () => {

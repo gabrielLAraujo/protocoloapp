@@ -8,6 +8,8 @@ import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
 import { ExerciseHistoryPage } from './ExerciseHistoryPage'
 import { HistoryPage } from './HistoryPage'
+import { SessionEditPage } from './SessionEditPage'
+import { adherenceRepo } from '../../data/adherenceRepo'
 import { BENCH, PLAN, seedExercises, seedPastSession, seedPlan } from './testData'
 
 async function seeded(entry: string) {
@@ -22,6 +24,7 @@ async function seeded(entry: string) {
   app.view(
     <Routes>
       <Route path="/treino/historico" element={<HistoryPage />} />
+      <Route path="/treino/historico/:id" element={<SessionEditPage />} />
       <Route path="/treino/exercicio/:id" element={<ExerciseHistoryPage />} />
     </Routes>,
   )
@@ -89,5 +92,57 @@ describe('ExerciseHistoryPage', () => {
     expect(rows[0]).toHaveTextContent('106,7 kg')
     expect(rows[1]).toHaveTextContent('04/10/2026')
     expect(rows[1]).toHaveTextContent('98 kg')
+  })
+})
+
+describe('fixing a past session from the history', () => {
+  it('opens a finished session in log mode: change a load, delete and add sets, then save', async () => {
+    const app = await seeded('/treino/historico')
+    const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: 'Sessões' })
+    await user.click(within(list).getByRole('link', { name: /11\/10\/2026/ }))
+
+    expect(await screen.findByText('Registro do treino de 11/10')).toBeInTheDocument()
+    const bench = () => within(screen.getByRole('region', { name: 'Supino reto' }))
+    await user.click(bench().getByRole('button', { name: 'Editar série 1' }))
+    await user.clear(bench().getByLabelText('Carga da série 1 (kg)'))
+    await user.type(bench().getByLabelText('Carga da série 1 (kg)'), '85')
+    await user.click(bench().getByRole('button', { name: 'Salvar série 1' }))
+    expect(await bench().findByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
+
+    await user.click(bench().getByRole('button', { name: 'Editar série 2' }))
+    await user.click(bench().getByRole('button', { name: 'Excluir série 2' }))
+    expect(await bench().findByRole('button', { name: 'Concluir série 2' })).toBeInTheDocument()
+
+    const fly = within(screen.getByRole('region', { name: 'Crucifixo' }))
+    await user.type(fly.getByLabelText('Carga da série 1 (kg)'), '20')
+    await user.type(fly.getByLabelText('Repetições da série 1'), '12')
+    await user.click(fly.getByRole('button', { name: 'Concluir série 1' }))
+    expect(await fly.findByRole('button', { name: 'Editar série 1' })).toBeInTheDocument()
+    expect(screen.queryByText(/^Descanso \d/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Salvar treino' }))
+    expect(await screen.findByText('Treino de 11/10 salvo')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Histórico de treinos' })).toBeInTheDocument()
+
+    const [session] = await workoutRepo.sessionsBetween(app.db, '2026-10-11', '2026-10-11')
+    const sets = await workoutRepo.setsForSession(app.db, session!.id)
+    expect(sets.map((s) => [s.weightKg, s.reps])).toEqual([
+      [85, 10],
+      [20, 12],
+    ])
+    // The new set is timed on that day, after the ones already there.
+    expect(sets[1]!.completedAt.slice(0, 10)).toBe('2026-10-11')
+    expect((await adherenceRepo.between(app.db, '2026-10-11', '2026-10-11')).map((l) => [l.targetType, l.status])).toEqual([['workout', 'done']])
+  })
+
+  it('an open session is not a link', async () => {
+    const app = await setupApp(['/treino/historico'])
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    await workoutRepo.startSession(app.db, USER_A, { date: '2026-10-12', planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 12, 9))
+    app.view(<HistoryPage />)
+    const list = await screen.findByRole('region', { name: 'Sessões' })
+    expect(within(list).queryByRole('link')).not.toBeInTheDocument()
   })
 })

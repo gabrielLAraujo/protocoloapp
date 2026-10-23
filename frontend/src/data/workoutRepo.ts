@@ -328,6 +328,12 @@ export const workoutRepo = {
     })
   },
 
+  /** A live session by id, or null. */
+  async sessionById(db: LocalDb, id: string): Promise<SessionLocal | null> {
+    const [row] = await db.query<SessionRow>('SELECT * FROM workout_sessions WHERE id = ? AND deleted_at IS NULL', [id])
+    return row ? toSession(row) : null
+  },
+
   /** The session started and not yet finished (the newest one), or null. */
   async openSession(db: LocalDb): Promise<SessionLocal | null> {
     const [row] = await db.query<SessionRow>(

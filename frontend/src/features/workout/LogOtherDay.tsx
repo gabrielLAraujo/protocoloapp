@@ -1,26 +1,17 @@
 import { useId, useState } from 'react'
 import { addDays, isCalendarDate } from '../../domain/calendarDate'
-import { activePlanAt } from '../../domain/rotation'
 import { inputClass } from '../plans/styles'
 import type { DayLimits } from '../today/dayParam'
 import { Button } from '../../ui/Button'
 import { SectionHeader } from '../../ui/SectionHeader'
 import { cardClasses, GROUP_LABEL } from '../../ui/styles'
 import { formatShortDate } from './format'
+import { planForDay } from './logDay'
 import type { WorkoutPlanEntry } from './workoutPlans'
 
 const optionClass =
   'flex min-h-13 w-full items-center px-4 py-2.5 text-left text-base hover:bg-raised active:bg-raised disabled:opacity-50 ' +
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
-
-/** The plan to log a day with: the version active on it, else (a day before the first activation) the oldest one. */
-export function planForDay(date: string, plans: readonly WorkoutPlanEntry[]): WorkoutPlanEntry | undefined {
-  const at = activePlanAt(
-    date,
-    plans.map((p) => p.at),
-  )
-  return plans.find((p) => p.id === at?.planVersionId) ?? plans[0]
-}
 
 /**
  * "Registrar treino de outro dia": a date before today (back to the limit of Hoje) and the plan day that was done. Picking

@@ -8,6 +8,7 @@ import { MorningCheckinPage } from './features/checkin/MorningCheckinPage'
 import { SummaryPage } from './features/summary/SummaryPage'
 import { ExerciseHistoryPage } from './features/workout/ExerciseHistoryPage'
 import { HistoryPage } from './features/workout/HistoryPage'
+import { SessionEditPage } from './features/workout/SessionEditPage'
 import { WorkoutTodayPage } from './features/workout/WorkoutTodayPage'
 import { PlanReviewPage } from './features/plans/PlanReviewPage'
 import { PlansPage } from './features/plans/PlansPage'
@@ -40,6 +41,7 @@ export const routes: RouteObject[] = [
           { path: '/planejamento/protocolo', element: <ProtocolView /> },
           { path: '/treino', element: <WorkoutTodayPage /> },
           { path: '/treino/historico', element: <HistoryPage /> },
+          { path: '/treino/historico/:id', element: <SessionEditPage /> },
           { path: '/treino/exercicio/:id', element: <ExerciseHistoryPage /> },
           { path: '/atualizacao', element: <UpdatePage /> },
           { path: '/sync', element: <AttentionList /> },
