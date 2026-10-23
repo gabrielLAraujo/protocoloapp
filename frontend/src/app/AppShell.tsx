@@ -5,7 +5,7 @@ import { SyncProvider } from '../features/sync/SyncProvider'
 import { SyncStatus } from '../features/sync/SyncStatus'
 import { BrandMark } from '../ui/BrandMark'
 import { useIsDesktop } from '../ui/useMediaQuery'
-import { useStartPhotoSync } from '../features/update/useUpdateCycle'
+import { useEnsureUpdateCycleAfterSync, useStartPhotoSync } from '../features/update/useUpdateCycle'
 import { InstallHint } from '../pwa/InstallHint'
 import { requestPersistentStorage } from '../pwa/persistentStorage'
 import { WebUpdateBanner } from '../pwa/WebUpdateBanner'
@@ -29,6 +29,8 @@ export function AppShell() {
   const { pathname } = useLocation()
   // The update photos taken offline go up once the connection is back, whatever screen is open.
   useStartPhotoSync()
+  // The cycle of a protocol activated before the update cycles existed is created after the first good sync.
+  useEnsureUpdateCycleAfterSync()
   // Once per session, after login (this shell only exists while signed in).
   useEffect(() => {
     void requestPersistentStorage()

@@ -170,7 +170,7 @@ describe('PoseCamera (fallback to a file)', () => {
     expect(screen.getByAltText('Foto anterior de Frente')).toBeInTheDocument()
 
     const input = screen.getByLabelText('Escolher foto') as HTMLInputElement
-    expect(input).toHaveAttribute('accept', 'image/*')
+    expect(input).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp')
     expect(input).toHaveAttribute('capture', 'environment')
     const file = new File([new Uint8Array([1, 2, 3])], 'generated.jpg', { type: 'image/jpeg' })
     await userEvent.upload(input, file)
@@ -182,6 +182,31 @@ describe('PoseCamera (fallback to a file)', () => {
     render(<PoseCamera pose={POSE} overlayUrl={null} onCapture={vi.fn()} onCancel={vi.fn()} />)
     expect(screen.getByLabelText('Escolher foto')).toBeInTheDocument()
     expect(screen.queryByText('Câmera indisponível. Escolha uma foto.')).not.toBeInTheDocument()
+  })
+})
+
+describe('PoseCamera focus', () => {
+  it('Tab and Shift+Tab stay inside the dialog', async () => {
+    stubMedia(() => Promise.reject(new Error('denied')))
+    const outside = document.createElement('button')
+    outside.textContent = 'Fora'
+    document.body.append(outside)
+    const user = userEvent.setup()
+    render(<PoseCamera pose={POSE} overlayUrl={null} onCapture={vi.fn()} onCancel={vi.fn()} />)
+    const dialog = screen.getByRole('dialog', { name: 'Frente' })
+    const close = screen.getByRole('button', { name: 'Fechar' })
+    await screen.findByLabelText('Escolher foto')
+    expect(close).toHaveFocus()
+
+    await user.tab({ shift: true })
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    expect(document.activeElement).not.toBe(close)
+    for (let i = 0; i < 5; i++) {
+      await user.tab()
+      expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    }
+    expect(outside).not.toHaveFocus()
+    outside.remove()
   })
 })
 
@@ -201,6 +226,8 @@ describe('PoseCamera (APK)', () => {
     expect(screen.getByAltText('Foto anterior de Frente')).not.toHaveStyle({ opacity: '0.35' })
     await userEvent.click(screen.getByRole('button', { name: 'Abrir câmera' }))
     await waitFor(() => expect(onCapture).toHaveBeenCalledWith(blob))
+    // Never a full-size copy in the gallery.
+    expect(takePhoto).toHaveBeenCalledWith(expect.objectContaining({ saveToGallery: false }))
   })
 
   it('a cancelled native camera keeps the screen; a failure falls back to a file', async () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, LOGOUT_EVENT } from '../api/client'
 import { toProblem } from '../api/problem'
+import { forgetQueuedPhotos } from '../data/localUser'
 import { AuthContext, LoginError, type Status } from './authContext'
 import { tokenStore, type TokenResponse } from './tokenStore'
 
@@ -52,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Best effort: signing out locally must work offline.
     if (refreshToken) await api.POST('/api/auth/logout', { body: { refreshToken } }).catch(() => undefined)
     await tokenStore.clear()
+    // Photos taken but not sent stay on the device only while their user is signed in.
+    await forgetQueuedPhotos()
     setStatus('signedOut')
   }, [])
 

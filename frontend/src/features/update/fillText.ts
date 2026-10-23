@@ -1,3 +1,4 @@
+import { muscleGroupFromApi, muscleGroupLabel } from '../../domain/muscleGroups'
 import { REASON_LABELS } from '../today/todayData'
 import type { MetricsAvg, MetricsTrend, UpdateMetrics } from './updateMetrics'
 
@@ -14,6 +15,11 @@ const dayMonth = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const reasons = (list: { reason: string; count: number }[]) =>
   list.length === 0 ? '' : ` (${list.map((r) => `${REASONS[r.reason] ?? r.reason} ${r.count}`).join(', ')})`
+/** The pt-BR label of a muscle group as the server sends it (`lowerBack` or `lower_back`); an unknown one as it came. */
+const groupLabel = (group: string) => {
+  const known = muscleGroupFromApi(group)
+  return known ? muscleGroupLabel(known) : group
+}
 const days = (n: number) => plural(n, 'dia', 'dias')
 const scale = (a: MetricsAvg) => (a.avg === null ? 'sem dados' : `${decimal(a.avg, 1)} de 5 em ${days(a.days)}`)
 const trendText = (t: MetricsTrend) => `${t.name} ${signed(t.delta, 1)} kg (${decimal(t.firstE1rm, 1)} → ${decimal(t.lastE1rm, 1)})`
@@ -69,7 +75,7 @@ const writers: Record<string, (m: UpdateMetrics) => string> = {
           g.best.length > 0 ? `melhores ${g.best.map(trendText).join(', ')}` : null,
           g.worst.length > 0 ? `piores ${g.worst.map(trendText).join(', ')}` : null,
         ].filter(Boolean)
-        return `${g.group}: ${parts.join('; ')}`
+        return `${groupLabel(g.group)}: ${parts.join('; ')}`
       })
       .join('\n')
   },

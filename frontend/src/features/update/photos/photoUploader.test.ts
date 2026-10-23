@@ -5,7 +5,7 @@ import { photoThumbRepo } from '../../../data/photoThumbRepo'
 import { updateCycleRepo, updateCycleSync } from '../../../data/updateCycleRepo'
 import { json, mockFetch, problem, type Handler } from '../../../test/fetch-mock'
 import { fakeLocks } from '../../../test/fakeLocks'
-import { newLocalDb, newTestApi } from '../../../test/localDb'
+import { newLocalDb, newTestApi, USER_A, USER_B } from '../../../test/localDb'
 import { createPhotoQueue, type PhotoQueue } from './photoQueue'
 import { startPhotoSync, uploadPending, type PhotoSyncDeps } from './photoUploader'
 
@@ -53,13 +53,13 @@ beforeEach(async () => {
   db = await newLocalDb()
   await seedCycle(db)
   queue = createPhotoQueue(() => new IDBFactory())
-  deps = { db, api: newTestApi(), queue, now: () => T0, makeThumbnail: async () => 'data:image/jpeg;base64,AAAA' }
+  deps = { db, api: newTestApi(), userId: USER_A, queue, now: () => T0, makeThumbnail: async () => 'data:image/jpeg;base64,AAAA' }
 })
 
 afterEach(() => vi.unstubAllGlobals())
 
 const add = (id: string, pose: string, seed = 1, takenAt = '2026-10-19T09:00:00.000Z') =>
-  queue.add({ id, cycleId: CYCLE, pose, blob: generated(seed), takenAt })
+  queue.add({ id, userId: USER_A, cycleId: CYCLE, pose, blob: generated(seed), takenAt })
 
 describe('uploadPending', () => {
   it('upload-url, PUT without Authorization, confirm; then the cycle photo and the thumbnail, and the queue is empty', async () => {
@@ -67,7 +67,7 @@ describe('uploadPending', () => {
     const calls = fakeServer()
     const setPhoto = vi.spyOn(updateCycleRepo, 'setPhoto')
 
-    expect(await uploadPending(deps)).toEqual({ sent: 1, failed: 0 })
+    expect(await uploadPending(deps)).toEqual({ sent: 1, failed: 0, refused: [] })
 
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/files/upload-url', 'PUT /upload/1', `POST /api/files/${fileId(1)}/confirm`])
     expect(JSON.parse(calls[0]!.body)).toEqual({ kind: 'photo', contentType: 'image/jpeg', sizeBytes: 5 })
@@ -84,7 +84,7 @@ describe('uploadPending', () => {
     await add('p2', 'back', 2, '2026-10-19T09:01:00.000Z')
     mockFetch({}) // every request fails like a dropped connection
 
-    expect(await uploadPending(deps)).toEqual({ sent: 0, failed: 0 })
+    expect(await uploadPending(deps)).toEqual({ sent: 0, failed: 0, refused: [] })
 
     expect((await queue.list()).map((p) => p.id)).toEqual(['p1', 'p2'])
     expect((await updateCycleRepo.byId(db, CYCLE))!.photos).toEqual([])
@@ -93,7 +93,7 @@ describe('uploadPending', () => {
   it('a queue left by a closed app goes up once after the reload (Review Focus 2)', async () => {
     const factory = new IDBFactory()
     const before = createPhotoQueue(() => factory)
-    await before.add({ id: 'p1', cycleId: CYCLE, pose: 'front', blob: generated(1), takenAt: '2026-10-19T09:00:00.000Z' })
+    await before.add({ id: 'p1', userId: USER_A, cycleId: CYCLE, pose: 'front', blob: generated(1), takenAt: '2026-10-19T09:00:00.000Z' })
     mockFetch({})
     await uploadPending({ ...deps, queue: before })
     before.close()
@@ -114,7 +114,7 @@ describe('uploadPending', () => {
 
     const [a, b] = await Promise.all([uploadPending(deps), uploadPending(deps)])
 
-    expect(a).toEqual({ sent: 1, failed: 0 })
+    expect(a).toEqual({ sent: 1, failed: 0, refused: [] })
     expect(b).toEqual(a)
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(1)
   })
@@ -125,12 +125,12 @@ describe('uploadPending', () => {
     const locks = fakeLocks()
     const release = await locks.hold('protocolo-photo-upload')
 
-    expect(await uploadPending({ ...deps, locks })).toEqual({ sent: 0, failed: 0 })
+    expect(await uploadPending({ ...deps, locks })).toEqual({ sent: 0, failed: 0, refused: [] })
     expect(calls).toHaveLength(0)
 
     release()
     await vi.waitFor(() => expect(locks.held.has('protocolo-photo-upload')).toBe(false))
-    expect(await uploadPending({ ...deps, locks })).toEqual({ sent: 1, failed: 0 })
+    expect(await uploadPending({ ...deps, locks })).toEqual({ sent: 1, failed: 0, refused: [] })
   })
 
   it('a 400 drops that photo, counts it as failed and goes on with the next', async () => {
@@ -147,16 +147,29 @@ describe('uploadPending', () => {
       },
     })
 
-    expect(await uploadPending(deps)).toEqual({ sent: 1, failed: 1 })
+    expect(await uploadPending(deps)).toEqual({ sent: 1, failed: 1, refused: [{ cycleId: CYCLE, pose: 'front' }] })
     expect(await queue.list()).toEqual([])
     expect((await updateCycleRepo.byId(db, CYCLE))!.photos.map((p) => p.pose)).toEqual(['back'])
+  })
+
+  it("drops, without sending, a photo queued by another user (an account switch) or by no known user", async () => {
+    await queue.add({ id: 'theirs', userId: USER_B, cycleId: CYCLE, pose: 'front', blob: generated(1), takenAt: '2026-10-19T09:00:00.000Z' })
+    await queue.add({ id: 'nobody', userId: '', cycleId: CYCLE, pose: 'side', blob: generated(3), takenAt: '2026-10-19T09:00:30.000Z' })
+    await add('mine', 'back', 2, '2026-10-19T09:01:00.000Z')
+    const calls = fakeServer()
+
+    expect(await uploadPending(deps)).toEqual({ sent: 1, failed: 0, refused: [] })
+
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(1)
+    expect((await updateCycleRepo.byId(db, CYCLE))!.photos.map((p) => p.pose)).toEqual(['back'])
+    expect(await queue.list()).toEqual([])
   })
 
   it('a server error stops and keeps the photo for later', async () => {
     await add('p1', 'front')
     fakeServer({ [`POST /api/files/${fileId(1)}/confirm`]: () => problem(503, { title: 'x' }) })
 
-    expect(await uploadPending(deps)).toEqual({ sent: 0, failed: 0 })
+    expect(await uploadPending(deps)).toEqual({ sent: 0, failed: 0, refused: [] })
     expect((await queue.list()).map((p) => p.id)).toEqual(['p1'])
   })
 
@@ -166,7 +179,7 @@ describe('uploadPending', () => {
 
     const result = await uploadPending({ ...deps, makeThumbnail: () => Promise.reject(new Error('no canvas')) })
 
-    expect(result).toEqual({ sent: 1, failed: 0 })
+    expect(result).toEqual({ sent: 1, failed: 0, refused: [] })
     expect(await queue.list()).toEqual([])
     expect((await photoThumbRepo.byCycle(db, CYCLE)).size).toBe(0)
   })
@@ -196,7 +209,7 @@ describe('startPhotoSync', () => {
     window.dispatchEvent(new Event('online'))
     await vi.waitFor(async () => expect(await queue.list()).toEqual([]))
 
-    await sync.enqueue({ id: 'p2', cycleId: CYCLE, pose: 'back', blob: generated(2), takenAt: '2026-10-19T09:01:00.000Z' })
+    await sync.enqueue({ id: 'p2', userId: USER_A, cycleId: CYCLE, pose: 'back', blob: generated(2), takenAt: '2026-10-19T09:01:00.000Z' })
     await vi.waitFor(async () => expect(await queue.list()).toEqual([]))
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(2)
 

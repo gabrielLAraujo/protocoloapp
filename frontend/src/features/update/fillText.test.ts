@@ -99,6 +99,18 @@ describe('fillText', () => {
     expect(fillText('strength_changes', m)).toBe('Sem dados suficientes.')
   })
 
+  it('strength groups use the pt-BR muscle group labels (camelCase or snake_case from the server)', () => {
+    const m = sampleMetrics()
+    const trend = m.strengthChanges[0]!.best
+    m.strengthChanges = [
+      { group: 'lowerBack', best: trend, worst: [] },
+      { group: 'lower_back', best: trend, worst: [] },
+      { group: 'chest', best: trend, worst: [] },
+    ]
+    const lines = fillText('strength_changes', m).split('\n')
+    expect(lines.map((l) => l.split(':')[0])).toEqual(['Lombar', 'Lombar', 'Peito'])
+  })
+
   it('an unknown metric gives an empty text', () => {
     expect(fillText('not_a_metric', sampleMetrics())).toBe('')
   })

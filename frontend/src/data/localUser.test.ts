@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { json, mockFetch, problem } from '../test/fetch-mock'
 import { newLocalDb, newTestApi, USER_A, USER_B } from '../test/localDb'
 import { dailyCheckinRepo } from './dailyCheckinRepo'
@@ -42,6 +42,24 @@ describe('local user', () => {
     expect(await dailyCheckinRepo.get(db, '2026-10-18')).toBeNull()
     expect(await outbox.pendingCount(db)).toBe(0)
     expect(await syncState.get(db, 'last_since')).toBeNull()
+    expect(await syncState.get(db, 'user_id')).toBe(USER_B)
+  })
+
+  it('drops the queued update photos only when another user signs in', async () => {
+    const db = await newLocalDb()
+    const photos = { clear: vi.fn(() => Promise.resolve()) }
+    await bindLocalUser(db, USER_A, undefined, photos)
+    await bindLocalUser(db, USER_A, undefined, photos)
+    expect(photos.clear).not.toHaveBeenCalled()
+
+    await bindLocalUser(db, USER_B, undefined, photos)
+    expect(photos.clear).toHaveBeenCalledTimes(1)
+  })
+
+  it('a photo queue that cannot be cleared does not stop the account switch', async () => {
+    const db = await newLocalDb()
+    await bindLocalUser(db, USER_A)
+    await bindLocalUser(db, USER_B, undefined, { clear: () => Promise.reject(new Error('no IndexedDB')) })
     expect(await syncState.get(db, 'user_id')).toBe(USER_B)
   })
 

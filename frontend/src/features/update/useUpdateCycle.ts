@@ -4,22 +4,17 @@ import { useData } from '../../data/dataContext'
 import type { LocalDb } from '../../data/localDb'
 import { updateCycleRepo, type UpdateCycleLocal } from '../../data/updateCycleRepo'
 import { useSync } from '../sync/syncContext'
+import { ensureUpdateCycle } from './ensureCycle'
 import { photoQueue } from './photos/photoQueue'
 import { startPhotoSync, type PhotoSync } from './photos/photoUploader'
 
+export { resetEnsureForTests } from './ensureCycle'
+
 export type CycleState = { status: 'loading' } | { status: 'error' } | { status: 'ok'; cycle: UpdateCycleLocal | null }
 
-/** Asked once per session: a protocol activated before cycles existed gets its cycle on the first visit. */
-let ensured = false
-
-/** For the tests. */
-export function resetEnsureForTests() {
-  ensured = false
-}
-
 /**
- * The current update cycle (the live one with the latest period). With none locally and a connection, asks the
- * server to create the one of the active protocol (`POST /api/update-cycles/ensure`, once per session) and syncs.
+ * The current update cycle (updateCycleRepo.current). With none locally and a connection, asks the server to create
+ * the one of the active protocol (ensureUpdateCycle: once per user and session, retried after a failure) and syncs.
  * `reload` re-reads it; a pull (dataVersion) re-reads it too.
  */
 export function useUpdateCycle(): { state: CycleState; reload(): void } {
@@ -33,18 +28,9 @@ export function useUpdateCycle(): { state: CycleState; reload(): void } {
     let cancelled = false
     const run = async () => {
       let cycle = await updateCycleRepo.current(data.db)
-      if (!cycle && online && !ensured) {
-        ensured = true
-        try {
-          const { data: created } = await api.POST('/api/update-cycles/ensure')
-          if (created) {
-            await syncNow()
-            cycle = await updateCycleRepo.current(data.db)
-          }
-        } catch {
-          // Offline after all: the next session asks again.
-          ensured = false
-        }
+      if (!cycle && online && (await ensureUpdateCycle(api, data.userId))) {
+        await syncNow()
+        cycle = await updateCycleRepo.current(data.db)
       }
       if (!cancelled) setState({ status: 'ok', cycle })
     }
@@ -60,21 +46,58 @@ export function useUpdateCycle(): { state: CycleState; reload(): void } {
   return { state, reload: () => setTick((n) => n + 1) }
 }
 
-let running: { db: LocalDb; sync: PhotoSync } | null = null
+/**
+ * Once the first sync after login ends well, asks the server for the cycle of the active protocol (a protocol activated
+ * before the cycles existed has none, and the Hoje card and the reminder need it) and syncs again when one came back.
+ */
+export function useEnsureUpdateCycleAfterSync(): void {
+  const data = useData()
+  useEffect(() => {
+    if (!data) return
+    const { engine, userId } = data
+    let sawRun = false
+    let asked = false
+    return engine.subscribe((status) => {
+      if (status.running) {
+        sawRun = true
+        return
+      }
+      if (!sawRun || asked || status.lastError !== null) return
+      asked = true
+      void ensureUpdateCycle(api, userId).then((created) => {
+        if (created) return engine.runOnce({ ignoreBackoff: true })
+        // Not answered (offline, server error): the next good sync asks again.
+        asked = false
+        sawRun = false
+      }).catch(() => undefined)
+    })
+  }, [data])
+}
 
-/** The app's photo queue sender, one per local database: started on first use, then on every `online` event. */
-export function photoSyncFor(db: LocalDb): PhotoSync {
-  if (running?.db !== db) {
+let running: { db: LocalDb; userId: string; sync: PhotoSync } | null = null
+
+/** The app's photo queue sender, one per local database and user: started on first use, then on every `online` event. */
+export function photoSyncFor(db: LocalDb, userId: string): PhotoSync {
+  if (running?.db !== db || running.userId !== userId) {
     running?.sync.stop()
-    running = { db, sync: startPhotoSync({ db, api, queue: photoQueue, now: () => new Date() }) }
+    running = { db, userId, sync: startPhotoSync({ db, api, userId, queue: photoQueue, now: () => new Date() }) }
   }
   return running.sync
+}
+
+/** Stops the sender (logout): the next user starts their own. */
+export function stopPhotoSync(): void {
+  running?.sync.stop()
+  running = null
 }
 
 /** Starts sending the queued photos as soon as the user's data is open (AppShell), so they go up after a reload too. */
 export function useStartPhotoSync(): void {
   const data = useData()
   useEffect(() => {
-    if (data) photoSyncFor(data.db)
+    if (!data) return
+    photoSyncFor(data.db, data.userId)
+    // Signed out (or another user): this sender stops; the next one starts with the next user.
+    return () => stopPhotoSync()
   }, [data])
 }

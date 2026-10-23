@@ -13,22 +13,25 @@ export const MAX_QUESTIONS = 300
 const QUESTION_KEY = /^[a-z0-9_]{1,64}$/
 const POSE_KEY = /^[a-z0-9_]{1,32}$/
 
+/** Trimmed text (the server refuses blank ones: IsNullOrWhiteSpace) of at most `max` characters. */
+const text = (max: number) => z.string().trim().min(1).max(max)
+
 const questionSchema = z.object({
   key: z.string().regex(QUESTION_KEY),
-  text: z.string().min(1).max(1000),
+  text: text(1000),
   kind: z.enum(QUESTION_KINDS),
-  options: z.array(z.string().min(1).max(120)).nullish(),
+  options: z.array(text(120)).nullish(),
   fill: z.enum(FILL_METRICS).nullish(),
 })
 
 const sectionSchema = z.object({
-  title: z.string().min(1).max(120),
+  title: text(120),
   questions: z.array(questionSchema).min(1).max(60),
 })
 
 const poseSchema = z.object({
   key: z.string().regex(POSE_KEY),
-  label: z.string().min(1).max(40),
+  label: text(40),
 })
 
 const DUPLICATE_KEY = 'duplicate_key'
@@ -36,7 +39,7 @@ const DUPLICATE_POSE = 'duplicate_pose'
 
 export const questionnaireTemplateSchema = z
   .object({
-    title: z.string().min(1).max(120),
+    title: text(120),
     sections: z.array(sectionSchema).min(1).max(30),
     poses: z.preprocess((v) => v ?? [], z.array(poseSchema).max(12)),
   })

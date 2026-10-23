@@ -19,6 +19,7 @@ import { answersAsText, resolveAnswer } from './answers'
 import { CycleNotesSheet } from './CycleNotesSheet'
 import { loadMetrics, type LoadedMetrics } from './metricsCache'
 import { toJpeg } from './photos/imageTools'
+import { PHOTO_TYPES, UNSUPPORTED_PHOTO_MESSAGE, uploadFailedMessage } from './photos/photoMessages'
 import { photoQueue } from './photos/photoQueue'
 import { DOWNLOAD_FAILED_MESSAGE, downloadCyclePhotos, PhotosDownloadError } from './photos/photosZip'
 import { PhotosStep } from './PhotosStep'
@@ -26,6 +27,7 @@ import { QuestionnairePrint } from './QuestionnairePrint'
 import { NoTemplate, QuestionsStep } from './QuestionsStep'
 import { ReviewStep, type ReviewAction } from './ReviewStep'
 import { dayMonth, periodText } from './updateFormat'
+import type { UploadResult } from './photos/photoUploader'
 import { photoSyncFor, useUpdateCycle } from './useUpdateCycle'
 
 export const SAVE_DEBOUNCE_MS = 500
@@ -94,6 +96,7 @@ export function UpdatePage() {
 
   const cycleId = cycle?.id ?? null
   const db = data?.db ?? null
+  const userId = data?.userId ?? null
 
   useEffect(() => {
     if (!db || !cycle) return
@@ -193,35 +196,55 @@ export function UpdatePage() {
 
   const refreshSide = () => setSideTick((n) => n + 1)
 
+  /** A photo the server refused leaves the queue: say which pose has to be taken again, instead of a silent tile. */
+  const reportRefused = useCallback(
+    (result: UploadResult) => {
+      const refused = result.refused.filter((r) => r.cycleId === cycleId)
+      if (refused.length === 0) return
+      const labels = new Map(posesOf(side?.template ?? null).map((p) => [p.key, p.label]))
+      setPhotoError(refused.map((r) => uploadFailedMessage(labels.get(r.pose) ?? r.pose)).join(' '))
+    },
+    [cycleId, side],
+  )
+
   // Photos sent after the connection came back show up without leaving the screen.
   useEffect(() => {
-    if (!db) return
-    const onOnline = () => void photoSyncFor(db).flush().then(() => {
-      reload()
-      refreshSide()
-    })
+    if (!db || !userId) return
+    const onOnline = () =>
+      void photoSyncFor(db, userId)
+        .flush()
+        .then((result) => {
+          reportRefused(result)
+          reload()
+          refreshSide()
+        })
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
-  }, [db, reload])
+  }, [db, userId, reload, reportRefused])
 
   const onCapture = async (pose: string, blob: Blob) => {
-    if (!db || !cycleId) return
+    if (!db || !cycleId || !userId) return
     setPhotoError(null)
-    let jpeg: Blob = blob
+    let photo: Blob
     try {
-      jpeg = await toJpeg(blob)
+      photo = await toJpeg(blob)
     } catch {
-      // A format the browser cannot decode into a canvas: sent as it came.
+      // The browser cannot decode it (HEIC and the like): only a type the server takes may go as it came.
+      if (!PHOTO_TYPES.includes(blob.type)) {
+        setPhotoError(UNSUPPORTED_PHOTO_MESSAGE)
+        return
+      }
+      photo = blob
     }
-    const sync = photoSyncFor(db)
+    const sync = photoSyncFor(db, userId)
     try {
-      await sync.enqueue({ id: newId(), cycleId, pose, blob: jpeg, takenAt: new Date().toISOString() })
+      await sync.enqueue({ id: newId(), userId, cycleId, pose, blob: photo, takenAt: new Date().toISOString() })
     } catch {
       setPhotoError('Não foi possível guardar a foto. Tente de novo.')
       return
     }
     refreshSide()
-    await sync.flush()
+    reportRefused(await sync.flush())
     reload()
     refreshSide()
   }

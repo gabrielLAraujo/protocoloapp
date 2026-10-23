@@ -26,9 +26,9 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
          "items":[],"cardio":{"daily":false},"guidelines":[]}
         """;
 
-    private static SyncChange MorningSlot(string time) =>
+    private static SyncChange MorningSlot(string time, bool reminderEnabled = true) =>
         new("schedule_slot", Guid.NewGuid(), SyncOp.Upsert,
-            JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["slot"] = "checkin_morning", ["day_type"] = "off", ["time"] = time, ["reminder_enabled"] = false }),
+            JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["slot"] = "checkin_morning", ["day_type"] = "off", ["time"] = time, ["reminder_enabled"] = reminderEnabled }),
             SyncApi.Past(60));
 
     /// <summary>A user with an active protocol, a cycle ending on <paramref name="periodEnd"/>, and one push subscription.</summary>
@@ -144,5 +144,41 @@ public sealed class UpdateReminderTests(ApiFactory factory) : IClassFixture<ApiF
         var message = Assert.Single(factory.Push.SentTo(endpoint));
         Assert.DoesNotContain("REF 1", message.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("Fase 1", message.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task With_the_morning_checkin_reminder_off_nothing_is_sent()
+    {
+        var (api, endpoint) = await SetupAsync(Day.AddDays(2), UpdateCycleStatus.Collecting, MorningSlot("07:00", reminderEnabled: false));
+        using var _ = api;
+
+        await RunAsync(Local("07:00"));
+        await RunAsync(Local("09:00"));
+
+        Assert.Empty(factory.Push.SentTo(endpoint));
+    }
+
+    [Fact]
+    public async Task An_active_protocol_without_a_cycle_gets_one_and_its_reminder()
+    {
+        // Activated before the update cycles existed: the protocol is active, its cycle was never made.
+        var api = await PlanApi.CreateAsync(factory);
+        using var _ = api;
+        var draft = await api.ImportDraftAsync(PlanKind.Protocol);
+        Assert.True((await api.PutAsync(draft.Id, Protocol.Replace("2026-03-01", "2026-03-12", StringComparison.Ordinal))).IsSuccessStatusCode);
+        Assert.True((await api.ActivateAsync(draft.Id)).IsSuccessStatusCode);
+        await api.WithDbAsync(db => db.UpdateCycles.Where(c => c.UserId == api.UserId).ExecuteDeleteAsync());
+        var endpoint = await PushApi.AddSubscriptionAsync(api);
+
+        await RunAsync(Local("09:00"));
+
+        var cycle = await api.WithDbAsync(db => db.UpdateCycles.AsNoTracking().SingleAsync(c => c.UserId == api.UserId));
+        Assert.Equal(draft.Id, cycle.ProtocolVersionId);
+        Assert.Equal(new DateOnly(2026, 3, 12), cycle.PeriodEnd);
+        Assert.Equal("Atualização em 2 dias: hora das fotos", Assert.Single(factory.Push.SentTo(endpoint)).Body);
+
+        // Idempotent: the next tick makes no second cycle.
+        await RunAsync(Local("09:01"));
+        Assert.Equal(1, await api.WithDbAsync(db => db.UpdateCycles.CountAsync(c => c.UserId == api.UserId)));
     }
 }

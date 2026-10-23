@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using ProtocoloApp.Api.Features.Files;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Sync;
@@ -56,6 +57,37 @@ internal static class UpdateApi
             }).ToList(),
             ["sent_at"] = null,
         }), at);
+
+    /// <summary>A push from the current app: each answer and photo with its own clock.</summary>
+    public static SyncChange CycleEntriesChange(
+        Guid id,
+        DateTimeOffset at,
+        IReadOnlyDictionary<string, (string? Text, DateTimeOffset At)> entries,
+        IReadOnlyList<(string Pose, Guid FileId, DateTimeOffset UpdatedAt)>? photos = null,
+        string status = "draft") =>
+        new(Cycle, id, SyncOp.Upsert, JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+        {
+            ["protocol_version_id"] = Guid.NewGuid(),
+            ["period_start"] = "2029-12-01",
+            ["period_end"] = "2030-01-01",
+            ["status"] = status,
+            ["answers"] = entries.Where(e => e.Value.Text is not null).ToDictionary(e => e.Key, e => e.Value.Text),
+            ["answer_entries"] = entries.ToDictionary(e => e.Key, e => new Dictionary<string, object?> { ["text"] = e.Value.Text, ["at"] = e.Value.At }),
+            ["photos"] = (photos ?? []).Select(p => new Dictionary<string, object?>
+            {
+                ["pose"] = p.Pose,
+                ["file_id"] = p.FileId,
+                ["taken_at"] = "2026-03-10T12:00:00Z",
+                ["updated_at"] = p.UpdatedAt,
+            }).ToList(),
+            ["sent_at"] = null,
+        }), at);
+
+    public static Dictionary<string, string?> Answers(JsonElement payload) =>
+        payload.GetProperty("answers").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString());
+
+    public static Dictionary<string, Guid> Photos(JsonElement payload) =>
+        payload.GetProperty("photos").EnumerateArray().ToDictionary(p => p.GetProperty("pose").GetString()!, p => p.GetProperty("file_id").GetGuid());
 
     /// <summary>Imports and activates a protocol (the sample has <c>updateDate</c> 2026-11-01 unless replaced).</summary>
     public static async Task<Guid> ActivateProtocolAsync(PlanApi api, string? document = null)
@@ -276,5 +308,135 @@ public sealed class UpdateSyncTests(ApiFactory factory) : IClassFixture<ApiFacto
         Assert.Equal(HttpStatusCode.NoContent, ensure.StatusCode);
         Assert.DoesNotContain(await SyncApi.PullAllAsync(other.Client), r => r.Entity is UpdateApi.Template or UpdateApi.Cycle);
         Assert.Equal("collecting", (await UpdateApi.SingleCycleAsync(owner.Client)).Payload!.Value.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Two_devices_editing_different_answers_and_poses_both_survive_in_any_order()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        await UpdateApi.ActivateProtocolAsync(api);
+        var cycle = await UpdateApi.SingleCycleAsync(api.Client);
+        var frontPhoto = await api.CreateFileAsync(FileKind.Photo);
+        var backPhoto = await api.CreateFileAsync(FileKind.Photo);
+        var t0 = DateTimeOffset.UtcNow;
+        var a = t0.AddSeconds(1);
+        var b = t0.AddSeconds(2);
+
+        // Device B (newer) reaches the server first; device A (older, offline) arrives later and still counts.
+        var fromB = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, b, new Dictionary<string, (string?, DateTimeOffset)> { ["diet_error"] = ("Do aparelho B", b) }, [("back", backPhoto, b)]));
+        var fromA = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, a, new Dictionary<string, (string?, DateTimeOffset)> { ["week_summary"] = ("Do aparelho A", a) }, [("front", frontPhoto, a)]));
+
+        Assert.Equal(SyncResultStatus.Applied, fromB.Status);
+        Assert.Equal(SyncResultStatus.Applied, fromA.Status);
+        var pulled = await UpdateApi.SingleCycleAsync(api.Client);
+        Assert.Equal(
+            new Dictionary<string, string?> { ["diet_error"] = "Do aparelho B", ["week_summary"] = "Do aparelho A" },
+            UpdateApi.Answers(pulled.Payload!.Value));
+        Assert.Equal(new Dictionary<string, Guid> { ["back"] = backPhoto, ["front"] = frontPhoto }, UpdateApi.Photos(pulled.Payload!.Value));
+        Assert.True(pulled.ClientUpdatedAt >= b.AddMilliseconds(-1));
+        var entries = pulled.Payload!.Value.GetProperty("answer_entries");
+        Assert.Equal("Do aparelho A", entries.GetProperty("week_summary").GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task The_same_answer_on_two_devices_keeps_the_newer_whatever_arrives_last()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        await UpdateApi.ActivateProtocolAsync(api);
+        var cycle = await UpdateApi.SingleCycleAsync(api.Client);
+        var t0 = DateTimeOffset.UtcNow;
+        var older = t0.AddSeconds(1);
+        var newer = t0.AddSeconds(2);
+
+        await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, newer, new Dictionary<string, (string?, DateTimeOffset)> { ["week_summary"] = ("Mais nova", newer) }));
+        var late = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, older, new Dictionary<string, (string?, DateTimeOffset)> { ["week_summary"] = ("Mais antiga", older) }));
+        var replay = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, newer, new Dictionary<string, (string?, DateTimeOffset)> { ["week_summary"] = ("Mais nova", newer) }));
+
+        Assert.Equal(SyncResultStatus.Stale, late.Status);
+        Assert.Equal(SyncResultStatus.Stale, replay.Status);
+        Assert.Equal("Mais nova", UpdateApi.Answers((await UpdateApi.SingleCycleAsync(api.Client)).Payload!.Value)["week_summary"]);
+    }
+
+    [Fact]
+    public async Task A_newer_removal_removes_the_answer_and_an_older_text_does_not_bring_it_back()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        await UpdateApi.ActivateProtocolAsync(api);
+        var cycle = await UpdateApi.SingleCycleAsync(api.Client);
+        var t0 = DateTimeOffset.UtcNow;
+
+        await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, t0.AddSeconds(1), new Dictionary<string, (string?, DateTimeOffset)> { ["diet_error"] = ("Editado", t0.AddSeconds(1)) }));
+        var removed = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, t0.AddSeconds(3), new Dictionary<string, (string?, DateTimeOffset)> { ["diet_error"] = (null, t0.AddSeconds(3)) }));
+        var older = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, t0.AddSeconds(2), new Dictionary<string, (string?, DateTimeOffset)> { ["diet_error"] = ("Outro texto", t0.AddSeconds(2)) }));
+
+        Assert.Equal(SyncResultStatus.Applied, removed.Status);
+        Assert.Equal(SyncResultStatus.Stale, older.Status);
+        var payload = (await UpdateApi.SingleCycleAsync(api.Client)).Payload!.Value;
+        Assert.Empty(UpdateApi.Answers(payload));
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("answer_entries").GetProperty("diet_error").GetProperty("text").ValueKind);
+    }
+
+    [Fact]
+    public async Task The_status_only_moves_forward()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        await UpdateApi.ActivateProtocolAsync(api);
+        var cycle = await UpdateApi.SingleCycleAsync(api.Client);
+        var t0 = DateTimeOffset.UtcNow;
+
+        await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, t0.AddSeconds(1), new Dictionary<string, (string?, DateTimeOffset)>(), status: "sent"));
+        // A device that had not seen "sent" yet edits an answer: the answer goes in, the cycle stays sent.
+        var edit = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, t0.AddSeconds(2), new Dictionary<string, (string?, DateTimeOffset)> { ["week_summary"] = ("Depois", t0.AddSeconds(2)) }));
+
+        Assert.Equal(SyncResultStatus.Applied, edit.Status);
+        var payload = (await UpdateApi.SingleCycleAsync(api.Client)).Payload!.Value;
+        Assert.Equal("sent", payload.GetProperty("status").GetString());
+        Assert.NotEqual(JsonValueKind.Null, payload.GetProperty("sent_at").ValueKind);
+        Assert.Equal("Depois", UpdateApi.Answers(payload)["week_summary"]);
+    }
+
+    [Fact]
+    public async Task A_cycle_stored_in_the_older_shape_and_an_older_app_push_still_merge()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        await UpdateApi.ActivateProtocolAsync(api);
+        var cycle = await UpdateApi.SingleCycleAsync(api.Client);
+        var photo = await api.CreateFileAsync(FileKind.Photo);
+        var storedAt = DateTimeOffset.UtcNow.AddSeconds(1);
+        await api.WithDbAsync(async db =>
+        {
+            var row = await db.UpdateCycles.SingleAsync(c => c.Id == cycle.Id);
+            row.Answers = JsonDocument.Parse("""{"week_summary":"Antiga","diet_error":"10%"}""");
+            row.Photos = JsonDocument.Parse($$"""[{"pose":"front","file_id":"{{photo}}","taken_at":"2026-03-10T12:00:00Z"}]""");
+            row.ClientUpdatedAt = storedAt;
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        // An older app: answers only (no clocks); it changed one answer and dropped another.
+        var legacy = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleChange(
+            cycle.Id, storedAt.AddSeconds(1), answers: new Dictionary<string, string> { ["week_summary"] = "Do app antigo" }, photos: [("front", photo)]));
+        // The current app adds another answer, older than the legacy push.
+        var current = await SyncApi.PushOneAsync(api.Client, UpdateApi.CycleEntriesChange(
+            cycle.Id, storedAt.AddMilliseconds(500), new Dictionary<string, (string?, DateTimeOffset)> { ["example_choice"] = ("A", storedAt.AddMilliseconds(500)) }));
+
+        Assert.Equal(SyncResultStatus.Applied, legacy.Status);
+        Assert.Equal(SyncResultStatus.Applied, current.Status);
+        var payload = (await UpdateApi.SingleCycleAsync(api.Client)).Payload!.Value;
+        Assert.Equal(
+            new Dictionary<string, string?> { ["example_choice"] = "A", ["week_summary"] = "Do app antigo" },
+            UpdateApi.Answers(payload));
+        Assert.Equal(photo, UpdateApi.Photos(payload)["front"]);
+        Assert.Equal(JsonValueKind.String, payload.GetProperty("photos")[0].GetProperty("updated_at").ValueKind);
     }
 }

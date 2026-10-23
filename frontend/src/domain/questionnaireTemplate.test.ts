@@ -40,6 +40,25 @@ describe('questionnaireTemplateSchema', () => {
     expect(errorPaths(base())).toEqual([])
   })
 
+  it('trims the texts and refuses blank ones, like the server (IsNullOrWhiteSpace)', () => {
+    const padded = base()
+    padded.title = '  Modelo  '
+    padded.sections[0]!.questions[0]!.text = ' Pergunta de exemplo? '
+    const parsed = questionnaireTemplateSchema.parse(padded)
+    expect(parsed.title).toBe('Modelo')
+    expect(parsed.sections[0]!.questions[0]!.text).toBe('Pergunta de exemplo?')
+
+    const blank = base()
+    blank.title = '   '
+    blank.sections[0]!.title = '\t'
+    blank.sections[0]!.questions[0]!.text = ' '
+    blank.sections[1]!.questions[0] = { key: 'b1', text: 'Escolha', kind: 'choice', options: ['A', '  '] }
+    blank.poses = [{ key: 'front', label: ' ' }]
+    expect(errorPaths(blank)).toEqual(
+      expect.arrayContaining(['title', 'sections.0.title', 'sections.0.questions.0.text', 'sections.1.questions.0.options.1', 'poses.0.label']),
+    )
+  })
+
   it('refuses a key repeated across sections at the second occurrence', () => {
     const t = base()
     t.sections[1]!.questions[0]!.key = 'a1'

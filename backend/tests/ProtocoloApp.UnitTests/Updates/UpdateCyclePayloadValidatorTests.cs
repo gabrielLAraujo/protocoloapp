@@ -95,4 +95,29 @@ public sealed class UpdateCyclePayloadValidatorTests
 
         Assert.Equal(["photos"], Errors(Valid with { Photos = photos }));
     }
+
+    [Fact]
+    public void Answer_entries_with_a_clock_pass_and_a_null_text_is_a_removal()
+    {
+        var entries = new Dictionary<string, UpdateCycleAnswerDto?>
+        {
+            ["week_summary"] = new() { Text = "Semana de exemplo.", At = TakenAt },
+            ["removed"] = new() { Text = null, At = TakenAt },
+        };
+
+        Assert.Empty(Errors(Valid with { AnswerEntries = entries }));
+    }
+
+    [Fact]
+    public void An_answer_entry_without_a_clock_a_bad_key_or_a_long_text_is_an_error()
+    {
+        Assert.Equal(["answer_entries"], Errors(Valid with { AnswerEntries = new Dictionary<string, UpdateCycleAnswerDto?> { ["ok"] = new() { Text = "x" } } }));
+        Assert.Equal(["answer_entries"], Errors(Valid with { AnswerEntries = new Dictionary<string, UpdateCycleAnswerDto?> { ["ok"] = null } }));
+        Assert.Equal(["answer_entries"], Errors(Valid with { AnswerEntries = new Dictionary<string, UpdateCycleAnswerDto?> { ["A b"] = new() { Text = "x", At = TakenAt } } }));
+        Assert.Equal(
+            ["answer_entries"],
+            Errors(Valid with { AnswerEntries = new Dictionary<string, UpdateCycleAnswerDto?> { ["long"] = new() { Text = new string('a', 4001), At = TakenAt } } }));
+        var tooMany = Enumerable.Range(0, 301).ToDictionary(i => $"q_{i}", _ => (UpdateCycleAnswerDto?)new UpdateCycleAnswerDto { Text = "x", At = TakenAt });
+        Assert.Equal(["answer_entries"], Errors(Valid with { AnswerEntries = tooMany }));
+    }
 }

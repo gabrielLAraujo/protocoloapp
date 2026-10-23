@@ -7,6 +7,8 @@ const STORE = 'pending'
 
 export interface PendingPhoto {
   id: string
+  /** The signed-in user who took it: the sender drops a photo of another user (an account switch on the device). */
+  userId: string
   cycleId: string
   pose: string
   blob: Blob
@@ -14,7 +16,7 @@ export interface PendingPhoto {
   takenAt: string
 }
 
-type Stored = Omit<PendingPhoto, 'blob'> & { type: string; bytes: ArrayBuffer }
+type Stored = Omit<PendingPhoto, 'blob' | 'userId'> & { userId?: string; type: string; bytes: ArrayBuffer }
 
 export interface PhotoQueue {
   /** Queues a photo; one still waiting for the same cycle and pose is dropped (only the latest goes up). */
@@ -22,6 +24,8 @@ export interface PhotoQueue {
   /** The waiting photos, oldest first. */
   list(): Promise<PendingPhoto[]>
   remove(id: string): Promise<void>
+  /** Drops every waiting photo (logout, or another account signing in). */
+  clear(): Promise<void>
   /** Closes the connection (the next call opens it again). */
   close(): void
 }
@@ -69,7 +73,7 @@ export function createPhotoQueue(factory: () => IDBFactory = () => indexedDB): P
       const store = tx.objectStore(STORE)
       const all = await done(store.getAll() as IDBRequest<Stored[]>)
       for (const old of all) if (old.cycleId === photo.cycleId && old.pose === photo.pose && old.id !== photo.id) store.delete(old.id)
-      const stored: Stored = { id: photo.id, cycleId: photo.cycleId, pose: photo.pose, takenAt: photo.takenAt, type: photo.blob.type || 'image/jpeg', bytes }
+      const stored: Stored = { id: photo.id, userId: photo.userId, cycleId: photo.cycleId, pose: photo.pose, takenAt: photo.takenAt, type: photo.blob.type || 'image/jpeg', bytes }
       store.put(stored)
       await committed(tx)
     },
@@ -78,13 +82,21 @@ export function createPhotoQueue(factory: () => IDBFactory = () => indexedDB): P
       const all = await readAll()
       return all
         .sort((a, b) => a.takenAt.localeCompare(b.takenAt) || a.id.localeCompare(b.id))
-        .map(({ type, bytes, ...rest }) => ({ ...rest, blob: new Blob([bytes], { type }) }))
+        // A photo queued before the owner was stored has none (''): never anyone's, so the sender drops it.
+        .map(({ type, bytes, ...rest }) => ({ ...rest, userId: rest.userId ?? '', blob: new Blob([bytes], { type }) }))
     },
 
     async remove(id) {
       const db = await open()
       const tx = db.transaction(STORE, 'readwrite')
       tx.objectStore(STORE).delete(id)
+      await committed(tx)
+    },
+
+    async clear() {
+      const db = await open()
+      const tx = db.transaction(STORE, 'readwrite')
+      tx.objectStore(STORE).clear()
       await committed(tx)
     },
 

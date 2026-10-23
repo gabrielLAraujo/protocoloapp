@@ -2,9 +2,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { photoQueue } from '../features/update/photos/photoQueue'
 import { routes } from '../routes'
 import { json, mockFetch, problem, tokenResponse } from '../test/fetch-mock'
+import { useAuth } from './authContext'
 import { AuthProvider } from './AuthProvider'
 import { tokenStore } from './tokenStore'
 
@@ -91,5 +93,33 @@ describe('login', () => {
 
     expect(await screen.findByLabelText('E-mail')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/login')
+  })
+})
+
+describe('logout', () => {
+  it('drops the update photos still waiting to be sent', async () => {
+    await tokenStore.setTokens(tokenResponse('stored'))
+    mockFetch({ 'GET /api/auth/me': () => json({ id: 'x', email: 'atleta@example.com' }), 'POST /api/auth/logout': () => new Response(null, { status: 204 }) })
+    const clear = vi.spyOn(photoQueue, 'clear').mockResolvedValue()
+    function SignOut() {
+      const { status, logout } = useAuth()
+      return (
+        <button type="button" onClick={() => void logout()}>
+          {status}
+        </button>
+      )
+    }
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <SignOut />
+      </AuthProvider>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'signedIn' }))
+
+    expect(await screen.findByRole('button', { name: 'signedOut' })).toBeInTheDocument()
+    expect(clear).toHaveBeenCalledTimes(1)
+    clear.mockRestore()
   })
 })

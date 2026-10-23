@@ -7,6 +7,8 @@ import { grabFrame, openStream, pickSource, stopStream, type CameraSource, type 
 const TIMER_SECONDS = 5
 const DEFAULT_OPACITY = 35
 const UNAVAILABLE = 'Câmera indisponível. Escolha uma foto.'
+/** What Tab cycles through inside the dialog (the file input is visually hidden but focusable through its label). */
+const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'
 
 /** Controls on the black viewfinder: white strokes, a white focus ring (the accent is kept for the shutter). */
 const DARK_CONTROL =
@@ -145,10 +147,26 @@ export function PoseCamera({
     if (file) onCapture(file)
   }
 
+  // Escape closes; Tab and Shift+Tab wrap inside the dialog (aria-modal: the page behind must not take the focus).
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Escape') return
-    e.stopPropagation()
-    onCancel()
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      onCancel()
+      return
+    }
+    if (e.key !== 'Tab') return
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE))
+    if (items.length === 0) return
+    const first = items[0]!
+    const last = items[items.length - 1]!
+    const inside = e.currentTarget.contains(document.activeElement)
+    if (e.shiftKey && (document.activeElement === first || !inside)) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+      e.preventDefault()
+      first.focus()
+    }
   }
 
   const overlayAlt = `Foto anterior de ${pose.label}`
@@ -291,7 +309,7 @@ export function PoseCamera({
         {source === 'file' && (
           <label className={`${buttonClasses({ variant: 'primary', size: 'lg', block: true })} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-white`}>
             Escolher foto
-            <input type="file" accept="image/*" capture="environment" onChange={onFile} className="sr-only" />
+            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={onFile} className="sr-only" />
           </label>
         )}
       </footer>

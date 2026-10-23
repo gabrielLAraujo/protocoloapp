@@ -104,7 +104,7 @@ public sealed class ReminderScheduler(
                 await using var userScope = scopes.CreateAsyncScope();
                 var db = userScope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var sender = userScope.ServiceProvider.GetRequiredService<IPushSender>();
-                claimed += await RunForUserAsync(db, sender, userId, date, minuteOfDay, zone, now, logger, ct);
+                claimed += await RunForUserAsync(db, sender, userId, date, minuteOfDay, zone, now, clock, logger, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -117,7 +117,7 @@ public sealed class ReminderScheduler(
     }
 
     private static async Task<int> RunForUserAsync(
-        AppDbContext db, IPushSender sender, Guid userId, DateOnly date, int minuteOfDay, TimeZoneInfo zone, DateTimeOffset now, ILogger logger, CancellationToken ct)
+        AppDbContext db, IPushSender sender, Guid userId, DateOnly date, int minuteOfDay, TimeZoneInfo zone, DateTimeOffset now, TimeProvider clock, ILogger logger, CancellationToken ct)
     {
         var plan = await BuildDayAsync(db, userId, date, zone, ct);
 
@@ -169,14 +169,31 @@ public sealed class ReminderScheduler(
             claimed++;
         }
 
+        // A protocol activated before the update cycles existed has no cycle (and so no photos reminder) until one is made.
+        await EnsureUpdateCycleAsync(db, userId, clock, ct);
         claimed += await RunUpdatePhotosAsync(db, sender, userId, date, minuteOfDay, plan, now, logger, ct);
         return claimed;
     }
 
     /// <summary>
+    /// Creates the cycle of the user's active protocol when it has none (<see cref="UpdateCycles.EnsureForActiveProtocolAsync"/>,
+    /// idempotent). A cheap check first, so the usual tick (cycle already there) takes no lock.
+    /// </summary>
+    private static async Task EnsureUpdateCycleAsync(AppDbContext db, Guid userId, TimeProvider clock, CancellationToken ct)
+    {
+        var missing = await db.PlanVersions.AsNoTracking().AnyAsync(
+            p => p.UserId == userId && p.Kind == PlanKind.Protocol && p.Status == PlanStatus.Active && p.DeletedAt == null
+                && !db.UpdateCycles.Any(c => c.UserId == userId && c.ProtocolVersionId == p.Id),
+            ct);
+        if (missing)
+            await UpdateCycles.EnsureForActiveProtocolAsync(db, userId, clock, ct);
+    }
+
+    /// <summary>
     /// The photos reminder: once a day from <see cref="UpdatePhotosDaysBefore"/> days before the update date up to that date,
     /// at the time of the morning check-in slot for the kind of day (<see cref="DefaultUpdateMinute"/> without one). Nothing
-    /// once the cycle is <c>sent</c>. Same claim and retry rules as the slot reminders.
+    /// once the cycle is <c>sent</c>, and nothing when the morning check-in slot has its reminder switched off (the same
+    /// toggle governs both). Same claim and retry rules as the slot reminders.
     /// </summary>
     private static async Task<int> RunUpdatePhotosAsync(
         AppDbContext db, IPushSender sender, Guid userId, DateOnly date, int minuteOfDay, DayPlan plan, DateTimeOffset now, ILogger logger, CancellationToken ct)
@@ -190,7 +207,11 @@ public sealed class ReminderScheduler(
             return 0;
         var daysLeft = open.Min();
 
-        var time = plan.Targets.FirstOrDefault(t => t.SlotKey == DayPlanner.CheckinMorningSlot)?.Time;
+        var morning = plan.Targets.FirstOrDefault(t => t.SlotKey == DayPlanner.CheckinMorningSlot);
+        // A configured morning slot (it has a time) with its reminder off: the person turned these reminders off.
+        if (morning is { Time: not null, ReminderEnabled: false })
+            return 0;
+        var time = morning?.Time;
         var minute = time is { } t0 ? t0.Hour * 60 + t0.Minute : DefaultUpdateMinute;
         var late = minuteOfDay - minute;
         if (late is < 0 or > LateTolerance)

@@ -85,11 +85,39 @@ public static class UpdateCycles
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>The answers of a cycle (<c>key -> text</c>).</summary>
-    public static IReadOnlyDictionary<string, string?> ReadAnswers(UpdateCycle cycle)
+    /// <summary>The live answers of a cycle (<c>key -> text</c>; removed ones left out).</summary>
+    public static IReadOnlyDictionary<string, string?> ReadAnswers(UpdateCycle cycle) =>
+        ReadAnswerEntries(cycle)
+            .Where(e => e.Value.Text is not null)
+            .ToDictionary(e => e.Key, e => e.Value.Text, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every answer of a cycle with its clock (removed ones included). Reads the stored <c>{key: {text, at}}</c> and the
+    /// older <c>{key: text}</c>, whose clock is then the cycle's <c>ClientUpdatedAt</c>.
+    /// </summary>
+    public static Dictionary<string, UpdateCycleAnswerDto> ReadAnswerEntries(UpdateCycle cycle)
     {
         ArgumentNullException.ThrowIfNull(cycle);
-        return cycle.Answers.Deserialize<Dictionary<string, string?>>() ?? new Dictionary<string, string?>();
+
+        var entries = new Dictionary<string, UpdateCycleAnswerDto>(StringComparer.Ordinal);
+        var root = cycle.Answers.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            return entries;
+
+        foreach (var property in root.EnumerateObject())
+        {
+            if (property.Value.ValueKind == JsonValueKind.String)
+            {
+                entries[property.Name] = new UpdateCycleAnswerDto { Text = property.Value.GetString(), At = cycle.ClientUpdatedAt };
+            }
+            else if (property.Value.ValueKind == JsonValueKind.Object
+                && property.Value.Deserialize<UpdateCycleAnswerDto>(SyncPayload.Options) is { At: not null } entry)
+            {
+                entries[property.Name] = entry;
+            }
+        }
+
+        return entries;
     }
 
     /// <summary>The photos of a cycle.</summary>
@@ -99,8 +127,8 @@ public static class UpdateCycles
         return cycle.Photos.Deserialize<List<UpdateCyclePhotoDto>>(SyncPayload.Options) ?? [];
     }
 
-    internal static JsonDocument WriteAnswers(IReadOnlyDictionary<string, string?>? answers) =>
-        JsonSerializer.SerializeToDocument(answers ?? new Dictionary<string, string?>());
+    internal static JsonDocument WriteAnswerEntries(IReadOnlyDictionary<string, UpdateCycleAnswerDto> entries) =>
+        JsonSerializer.SerializeToDocument(entries, SyncPayload.Options);
 
     internal static JsonDocument WritePhotos(IEnumerable<UpdateCyclePhotoDto?>? photos) =>
         JsonSerializer.SerializeToDocument((photos ?? []).OfType<UpdateCyclePhotoDto>().ToList(), SyncPayload.Options);

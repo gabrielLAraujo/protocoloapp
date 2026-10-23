@@ -11,6 +11,8 @@ export const PHOTO_UPLOAD_LOCK = 'protocolo-photo-upload'
 export interface PhotoSyncDeps {
   db: LocalDb
   api: ApiClient
+  /** The signed-in user: queued photos of anyone else are dropped, never sent into this account. */
+  userId: string
   queue: PhotoQueue
   now(): Date
   /** Defaults to navigator.locks (none: only the in-memory guard). */
@@ -22,7 +24,11 @@ export interface PhotoSyncDeps {
 export interface UploadResult {
   sent: number
   failed: number
+  /** The photos the server refused (dropped from the queue): the screen tells which pose has to be taken again. */
+  refused: { cycleId: string; pose: string }[]
 }
+
+const nothing = (): UploadResult => ({ sent: 0, failed: 0, refused: [] })
 
 /** The server refused the photo itself: sending it again cannot work. */
 const REFUSED = new Set([400, 409, 413, 415, 422])
@@ -60,7 +66,7 @@ async function sendOne(deps: PhotoSyncDeps, photo: PendingPhoto): Promise<Outcom
 }
 
 async function drain(deps: PhotoSyncDeps): Promise<UploadResult> {
-  const result: UploadResult = { sent: 0, failed: 0 }
+  const result = nothing()
   const tried = new Set<string>()
   // Lists again after each pass: photos queued meanwhile (in any tab) go in the same run.
   for (;;) {
@@ -68,6 +74,11 @@ async function drain(deps: PhotoSyncDeps): Promise<UploadResult> {
     if (next.length === 0) return result
     for (const photo of next) {
       tried.add(photo.id)
+      if (photo.userId !== deps.userId) {
+        // Taken under another account on this device: it must never reach this one.
+        await deps.queue.remove(photo.id)
+        continue
+      }
       let outcome: Outcome
       try {
         outcome = await sendOne(deps, photo)
@@ -78,7 +89,10 @@ async function drain(deps: PhotoSyncDeps): Promise<UploadResult> {
       if (outcome === 'stop') return result
       await deps.queue.remove(photo.id)
       if (outcome === 'sent') result.sent++
-      else result.failed++
+      else {
+        result.failed++
+        result.refused.push({ cycleId: photo.cycleId, pose: photo.pose })
+      }
     }
   }
 }
@@ -94,7 +108,7 @@ export function uploadPending(deps: PhotoSyncDeps): Promise<UploadResult> {
   running ??= (async () => {
     const locks = deps.locks ?? getLocks()
     if (!locks) return drain(deps)
-    const skipped: UploadResult = { sent: 0, failed: 0 }
+    const skipped = nothing()
     return (await locks.request(PHOTO_UPLOAD_LOCK, { ifAvailable: true }, (lock) => (lock ? drain(deps) : skipped))) as UploadResult
   })().finally(() => {
     running = null
@@ -112,7 +126,7 @@ export interface PhotoSync {
 
 /** Sends the queue now, whenever the connection comes back and after each new photo. Failures never reach the console. */
 export function startPhotoSync(deps: PhotoSyncDeps): PhotoSync {
-  const flush = () => uploadPending(deps).catch((): UploadResult => ({ sent: 0, failed: 0 }))
+  const flush = () => uploadPending(deps).catch(nothing)
   const onOnline = () => void flush()
   window.addEventListener('online', onOnline)
   void flush()
