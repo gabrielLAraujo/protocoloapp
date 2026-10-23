@@ -11,6 +11,10 @@ const TEMPLATE = new URL('../../fixtures/questionnaire-template.example.json', i
 const CALCULATED_QUESTION = 'Quantos treinos de exemplo foram perdidos?'
 const CHOICE_QUESTION = 'Como foi a fome na semana de exemplo?'
 const NUMBER_QUESTION = 'De 0 a 10, que nota você dá ao treino de exemplo?'
+// The cycle opened in this run, so it has no week 2, and the fictitious protocol has no hormone.
+const WEEK_QUESTION = 'Quantos treinos de exemplo foram perdidos na semana 2?'
+const CATEGORY_QUESTION = 'Quais hormônios de exemplo deixaram de ser usados?'
+const DEFAULT_QUESTION = 'Nome do atleta de exemplo'
 
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name, exact: true })
 
@@ -104,6 +108,10 @@ test('imports the example questionnaire, answers it, sends a photo, copies the t
   const calculated = page.getByRole('textbox', { name: CALCULATED_QUESTION })
   await expect(calculated).not.toHaveValue('')
   await expect(page.getByText('Calculado', { exact: true }).first()).toBeVisible()
+  // Parameters of the template: one week of the cycle, one item category, and an initial value.
+  await expect(page.getByRole('textbox', { name: WEEK_QUESTION })).toHaveValue('Sem dados nessa semana.')
+  await expect(page.getByRole('textbox', { name: CATEGORY_QUESTION })).toHaveValue('Nenhum item deixado de usar.')
+  await expect(page.getByRole('textbox', { name: DEFAULT_QUESTION })).toHaveValue('Atleta de exemplo')
   await page.getByRole('radiogroup', { name: CHOICE_QUESTION }).getByText('Normal', { exact: true }).click()
   await page.getByRole('textbox', { name: NUMBER_QUESTION }).fill('8')
 
@@ -117,6 +125,8 @@ test('imports the example questionnaire, answers it, sends a photo, copies the t
   expect(text).toContain(`${CHOICE_QUESTION}\nNormal`)
   expect(text).toContain(`${NUMBER_QUESTION}\n8`)
   expect(text).toContain(CALCULATED_QUESTION)
+  expect(text).toContain(`${WEEK_QUESTION}\nSem dados nessa semana.`)
+  expect(text).toContain(`${DEFAULT_QUESTION}\nAtleta de exemplo`)
 
   await page.getByRole('button', { name: 'Marcar como enviada' }).click()
   await expect(page.getByText(/^Enviada em \d{2}\/\d{2}$/)).toBeVisible()

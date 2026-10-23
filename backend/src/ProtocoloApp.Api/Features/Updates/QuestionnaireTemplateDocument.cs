@@ -189,8 +189,8 @@ internal static partial class QuestionnaireRules
         if (question.Default is { Length: > MaxDefaultLength })
             fail($"{path}.default", $"Informe um valor inicial de até {MaxDefaultLength} caracteres.");
 
-        if (question.FillOptions is { } options)
-            ValidateFillOptions(options, question.Fill, $"{path}.fillOptions", fail);
+        if (question.FillOptions is { } fillOptions)
+            ValidateFillOptions(fillOptions, question.Fill, $"{path}.fillOptions", fail);
     }
 
     private static void ValidateFillOptions(QuestionnaireFillOptionsDto options, string? fill, string path, Action<string, string> fail)
