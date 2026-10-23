@@ -107,11 +107,13 @@ describe('BottomNav', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     const first = screen.getByRole('link', { name: 'Conquistas' })
     expect(screen.getByRole('link', { name: 'Check-in de hoje' })).toHaveAttribute('href', '/checkin')
+    expect(screen.getByRole('link', { name: 'Atualização' })).toHaveAttribute('href', '/atualizacao')
     expect(screen.getByRole('link', { name: 'Configurações' })).toBeInTheDocument()
     const exit = screen.getByRole('button', { name: 'Sair' })
     expect(first).toHaveAttribute('href', '/conquistas')
     expect(first).toHaveFocus()
 
+    await user.tab()
     await user.tab()
     await user.tab()
     await user.tab()
@@ -153,7 +155,7 @@ describe('BottomNav on the desktop (lg)', () => {
     expect(nav).toHaveClass('fixed', 'left-0', 'inset-y-0')
     expect(within(nav).getByText('Protocolo')).toBeInTheDocument()
     const names = within(nav).getAllByRole('link').map((l) => l.textContent)
-    expect(names).toEqual(['Resumo', 'Hoje', 'Treino', 'Planejamento', 'Conquistas', 'Check-in de hoje', 'Configurações'])
+    expect(names).toEqual(['Resumo', 'Hoje', 'Treino', 'Planejamento', 'Conquistas', 'Check-in de hoje', 'Atualização', 'Configurações'])
     expect(within(nav).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
     expect(within(nav).queryByRole('button', { name: 'Mais' })).not.toBeInTheDocument()
     // The sync state sits at its foot.

@@ -17,6 +17,8 @@ export async function bindLocalUser(db: LocalDb, userId: string, tables: readonl
     if (current === userId) return
     if (current !== null) {
       for (const table of [...tables, ...LOCAL_USER_TABLES, 'outbox', 'sync_unknown', 'sync_state']) await tx.execute(`DELETE FROM ${table}`)
+      // The cached update metrics (features/update/metricsCache.ts) carry the user's check-in notes and deviations.
+      await tx.execute("DELETE FROM kv WHERE key LIKE 'update_metrics:%'")
     }
     await syncState.set(tx, 'user_id', userId)
   })

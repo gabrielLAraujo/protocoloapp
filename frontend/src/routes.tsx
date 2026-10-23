@@ -19,6 +19,7 @@ import { SchedulePage } from './features/settings/SchedulePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { AttentionList } from './features/sync/AttentionList'
 import { TodayPage } from './features/today/TodayPage'
+import { UpdatePage } from './features/update/UpdatePage'
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -40,6 +41,7 @@ export const routes: RouteObject[] = [
           { path: '/treino', element: <WorkoutTodayPage /> },
           { path: '/treino/historico', element: <HistoryPage /> },
           { path: '/treino/exercicio/:id', element: <ExerciseHistoryPage /> },
+          { path: '/atualizacao', element: <UpdatePage /> },
           { path: '/sync', element: <AttentionList /> },
           { path: '/configuracoes', element: <SettingsPage /> },
           { path: '/configuracoes/horarios', element: <SchedulePage /> },

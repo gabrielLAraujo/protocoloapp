@@ -34,6 +34,7 @@ const TabIcon = ({ name, active }: { name: IconName; active: boolean }) => (
 const MORE_LINKS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/conquistas', label: 'Conquistas', icon: 'medal' },
   { to: '/checkin', label: 'Check-in de hoje', icon: 'note', end: true },
+  { to: '/atualizacao', label: 'Atualização', icon: 'camera' },
   { to: '/configuracoes', label: 'Configurações', icon: 'settings' },
 ]
 
@@ -169,7 +170,10 @@ function PhoneNav() {
   }
 
   const moreActive =
-    location.pathname.startsWith('/configuracoes') || location.pathname.startsWith('/settings') || location.pathname.startsWith('/conquistas')
+    location.pathname.startsWith('/configuracoes') ||
+    location.pathname.startsWith('/settings') ||
+    location.pathname.startsWith('/conquistas') ||
+    location.pathname.startsWith('/atualizacao')
   return (
     <>
       {open && (
