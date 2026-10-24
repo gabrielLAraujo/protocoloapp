@@ -7,7 +7,7 @@ import { Button } from '../../ui/Button'
 import { ACTION_ROW, cardClasses } from '../../ui/styles'
 import { ExerciseMedia } from '../../ui/ExerciseMedia'
 import { Icon } from '../../ui/Icon'
-import { formatKg } from './format'
+import { formatKg, formatRpe } from './format'
 import { SetRow } from './SetRow'
 import { SwapExerciseDialog } from './SwapExerciseDialog'
 import { MAX_SET_INDEX } from './setInput'
@@ -132,6 +132,7 @@ export function ExerciseCard(props: Props) {
               <li key={s.id}>
                 Série {s.setIndex + 1}: {formatKg(s.weightKg)} kg × {s.reps}
                 {s.kind === 'normal' ? '' : ` (${KIND_LABEL[s.kind]})`}
+                {s.rpe === null ? '' : ` · ${formatRpe(s.rpe)}`}
               </li>
             ))}
           </ul>

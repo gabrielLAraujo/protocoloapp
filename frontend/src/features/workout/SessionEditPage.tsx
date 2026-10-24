@@ -8,6 +8,7 @@ import { Icon } from '../../ui/Icon'
 import { buttonClasses } from '../../ui/styles'
 import { formatShortDate } from './format'
 import type { HistoryNotice } from './HistoryPage'
+import { SessionReadView } from './SessionReadView'
 import { SessionView } from './SessionView'
 import { loadWorkoutPlans } from './workoutPlans'
 
@@ -26,7 +27,10 @@ const BackLink = () => (
   </Link>
 )
 
-/** `/treino/historico/:id`: a finished workout opened from the history to fix its sets (log mode: no timer, "Salvar treino"). */
+/**
+ * `/treino/historico/:id`: a finished workout opened from the history to fix its sets (log mode: no timer, "Salvar treino").
+ * One imported from Hevy opens only to view (SessionReadView), also when its plan day is no longer found.
+ */
 export function SessionEditPage() {
   const { id = '' } = useParams()
   const data = useData()
@@ -65,6 +69,23 @@ export function SessionEditPage() {
         <p role="alert">Este treino não está no histórico.</p>
       </div>
     )
+  const back = (notice?: string) => {
+    const state: HistoryNotice = { notice }
+    void navigate('/treino/historico', { state })
+  }
+  if (session.source === 'hevy')
+    return (
+      <div className="grid gap-2 lg:mx-auto lg:max-w-[760px]">
+        <BackLink />
+        <SessionReadView
+          data={data}
+          session={session}
+          dayName={day?.name ?? 'Treino'}
+          catalog={loaded.catalog}
+          onDeleted={() => back(`Treino de ${formatShortDate(session.date)} excluído do app`)}
+        />
+      </div>
+    )
   if (!day)
     return (
       <div className="grid gap-3">
@@ -73,10 +94,6 @@ export function SessionEditPage() {
       </div>
     )
 
-  const back = (notice?: string) => {
-    const state: HistoryNotice = { notice }
-    void navigate('/treino/historico', { state })
-  }
   return (
     <div className="grid gap-2 lg:mx-auto lg:max-w-[760px]">
       <BackLink />
