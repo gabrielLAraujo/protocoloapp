@@ -136,3 +136,14 @@ Subprojeto aprovado pelo Gabriel em 24/10. Os treinos registrados no Hevy entram
   - `external_title` (só pull).
 - **`set_logs`:** `rpe` (opcional, de 1 a 10 em passos de 0,5; sincronizado) e `hevy_template_id` (só no servidor).
 - **Migration** EF gerada só pelo Codegen. Migration local SQLite com as colunas novas.
+
+## Referência conferida da API do Hevy (24/10, swagger público em api.hevyapp.com/docs)
+
+- Header `api-key` (formato uuid). `GET /v1/user/info` serve para testar a chave.
+- `GET /v1/workouts/events?page&pageSize&since` (pageSize máx. **10**; `since` padrão `1970-01-01T00:00:00Z`) → `{ page, page_count, events: [ {type:"updated", workout} | {type:"deleted", id, deleted_at} ] }`.
+- `GET /v1/workouts?page&pageSize` (pageSize máx. 10), `GET /v1/workouts/{workoutId}`, `GET /v1/workouts/count`.
+- Workout: `id`, `title`, `routine_id?`, `description?`, `start_time`, `end_time`, `updated_at`, `created_at`, `exercises[]`.
+- Exercise: `index`, `title`, `notes?`, `exercise_template_id`, `superset_id?` (número), `sets[]`.
+- Set: `index`, `type` (`normal` | `warmup` | `dropset` | `failure`), `weight_kg?`, `reps?`, `distance_meters?`, `duration_seconds?`, `rpe?`, `custom_metric?`.
+- ExerciseTemplate: `id`, `title`, `type`, `primary_muscle_group`, `secondary_muscle_groups[]`, `equipment`, `is_custom`, `thumbnail_url?`.
+- `GET /v1/exercise_history/{exerciseTemplateId}` existe (não usado agora).
