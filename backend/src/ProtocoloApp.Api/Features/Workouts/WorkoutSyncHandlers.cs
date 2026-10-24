@@ -77,7 +77,10 @@ public sealed class SetLogSyncHandler(AppDbContext db, TimeProvider clock) : Syn
         entity.Kind = EnumText.Parse<SetKind>(payload.Kind!);
         entity.ParentSetId = payload.ParentSetId;
         entity.CompletedAt = payload.CompletedAt!.Value;
-        entity.Rpe = payload.Rpe;
+        // App versions before the RPE column send no rpe at all: on a set imported from Hevy (which only the server writes)
+        // that must not erase Hevy's RPE. Elsewhere null still clears it.
+        if (payload.Rpe is not null || entity.HevyTemplateId is null)
+            entity.Rpe = payload.Rpe;
     }
 
     protected override SetLogPayload CreatePayload(SetLog entity) => new()

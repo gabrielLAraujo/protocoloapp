@@ -352,4 +352,69 @@ public sealed class HevyImporterTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Equal(before, await CountAsync(api));
         Assert.False(await api.WithDbAsync(db => db.Exercises.AnyAsync(e => e.UserId == api.UserId && e.Name == "Exercicio Inventado Hevy")));
     }
+
+    [Fact]
+    public async Task Deleting_the_hevy_session_keeps_the_mark_when_an_app_session_of_the_day_has_working_sets()
+    {
+        var s = await NewUserAsync();
+        using var api = s.Api;
+        var id = NewId();
+        await ImportAsync(api.UserId, Workout(id, Edited));
+        var appSession = Guid.NewGuid();
+        var pushed = await SyncApi.PushAsync(api.Client,
+            new SyncChange("workout_session", appSession, SyncOp.Upsert, JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+            {
+                ["date"] = "2026-03-10",
+                ["plan_version_id"] = s.PlanVersionId,
+                ["workout_day_key"] = "a",
+                ["started_at"] = SyncApi.Past(90),
+                ["ended_at"] = SyncApi.Past(70),
+                ["note"] = null,
+            }), SyncApi.Past(60)),
+            new SyncChange("set_log", Guid.NewGuid(), SyncOp.Upsert, JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+            {
+                ["session_id"] = appSession,
+                ["exercise_id"] = s.CurlId,
+                ["planned_exercise_key"] = "bench",
+                ["set_index"] = 0,
+                ["weight_kg"] = 20m,
+                ["reps"] = 10,
+                ["kind"] = "normal",
+                ["parent_set_id"] = null,
+                ["completed_at"] = SyncApi.Past(80),
+            }), SyncApi.Past(60)));
+        Assert.All(pushed, r => Assert.Equal(SyncResultStatus.Applied, r.Status));
+
+        Assert.Equal(ImportOutcome.Deleted, await DeleteAsync(api.UserId, id));
+
+        var mark = await api.WithDbAsync(db => db.AdherenceLogs.AsNoTracking().SingleAsync(a => a.Id == MarkId(api.UserId, LocalDay)));
+        Assert.Null(mark.DeletedAt);
+        Assert.Equal(AdherenceStatus.Done, mark.Status);
+    }
+
+    [Fact]
+    public async Task An_old_app_pushing_a_hevy_set_without_rpe_keeps_hevys_rpe()
+    {
+        var s = await NewUserAsync();
+        using var api = s.Api;
+        await ImportAsync(api.UserId, Workout(NewId(), Edited));
+        var set = await api.WithDbAsync(db => db.SetLogs.AsNoTracking().SingleAsync(x => x.UserId == api.UserId && x.Rpe == 8m));
+
+        // The payload of an app version from before the rpe column: no "rpe" at all.
+        var result = await SyncApi.PushOneAsync(api.Client, new SyncChange("set_log", set.Id, SyncOp.Upsert, JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+        {
+            ["session_id"] = set.SessionId,
+            ["exercise_id"] = set.ExerciseId,
+            ["planned_exercise_key"] = set.PlannedExerciseKey,
+            ["set_index"] = set.SetIndex,
+            ["weight_kg"] = set.WeightKg,
+            ["reps"] = set.Reps,
+            ["kind"] = "normal",
+            ["parent_set_id"] = set.ParentSetId,
+            ["completed_at"] = set.CompletedAt,
+        }), DateTimeOffset.UtcNow.AddSeconds(1)));
+
+        Assert.Equal(SyncResultStatus.Applied, result.Status);
+        Assert.Equal(8m, (await api.WithDbAsync(db => db.SetLogs.AsNoTracking().SingleAsync(x => x.Id == set.Id))).Rpe);
+    }
 }
