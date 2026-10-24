@@ -148,6 +148,33 @@ public sealed class HevyConnectionTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("k")]
+    [InlineData("abcdefg")]
+    public async Task Put_with_a_key_too_short_to_hide_is_400(string key)
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+
+        var response = await ConnectAsync(api.Client, key);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(HevyConnectionEndpoints.ApiKeyLengthMessage, problem.RootElement.GetProperty("errors").GetProperty("apiKey")[0].GetString());
+        Assert.Null(await RowAsync(api));
+    }
+
+    [Fact]
+    public async Task The_shortest_key_taken_shows_its_last_4()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var key = NewKey()[^HevyConnectionEndpoints.MinApiKeyLength..];
+
+        Assert.Equal(HttpStatusCode.OK, (await ConnectAsync(api.Client, key)).StatusCode);
+
+        var status = (await (await api.Client.GetAsync(Url)).Content.ReadFromJsonAsync<HevyStatusResponse>(PlanApi.Json))!;
+        Assert.Equal(key[^4..], status.KeyLast4);
+    }
+
     [Fact]
     public async Task Put_with_a_future_sync_from_is_400()
     {
@@ -278,6 +305,13 @@ public sealed class HevyConnectionTests(ApiFactory factory) : IClassFixture<ApiF
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("key_unreadable", json.RootElement.GetProperty("lastError").GetString());
         Assert.True(json.RootElement.GetProperty("connected").GetBoolean());
+
+        // "Sincronizar agora" says so in the app's words.
+        var sync = await api.Client.PostAsync(new Uri("/api/integrations/hevy/sync", UriKind.Relative), null);
+        Assert.Equal(HttpStatusCode.BadGateway, sync.StatusCode);
+        using var problem = JsonDocument.Parse(await sync.Content.ReadAsStringAsync());
+        Assert.Equal("key_unreadable", problem.RootElement.GetProperty("lastError").GetString());
+        Assert.Equal("A chave salva não pode mais ser lida. Informe a chave do Hevy de novo.", problem.RootElement.GetProperty("detail").GetString());
     }
 
     [Fact]

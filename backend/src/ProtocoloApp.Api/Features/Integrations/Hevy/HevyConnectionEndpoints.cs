@@ -18,6 +18,9 @@ public static class HevyConnectionEndpoints
 {
     public const int MaxApiKeyLength = 200;
 
+    /// <summary>Shorter keys are refused: Hevy's are uuids, and the 4 characters the status shows must not be the whole key.</summary>
+    public const int MinApiKeyLength = 8;
+
     /// <summary>Body cap of the <c>PUT</c> (a key and a date).</summary>
     public const long MaxConnectBodyBytes = 4096;
 
@@ -26,6 +29,11 @@ public static class HevyConnectionEndpoints
     public const string RejectedKeyMessage = "O Hevy recusou a chave. Confira a chave e se a conta é Pro.";
 
     public const string UnavailableMessage = "Não foi possível falar com o Hevy agora. Tente de novo.";
+
+    /// <summary>The text of <c>key_unreadable</c>; the app's copy (<c>hevyCopy.ts</c>) must say the same.</summary>
+    public const string KeyUnreadableMessage = "A chave salva não pode mais ser lida. Informe a chave do Hevy de novo.";
+
+    public const string ApiKeyLengthMessage = "Informe a chave da API do Hevy (de 8 a 200 caracteres).";
 
     /// <summary>Maps <c>GET</c>/<c>PUT</c>/<c>PATCH</c>/<c>DELETE</c> on the group root (<c>/integrations/hevy</c>).</summary>
     public static void MapHevyConnectionEndpoints(this RouteGroupBuilder group)
@@ -82,8 +90,8 @@ public static class HevyConnectionEndpoints
         var today = Today(clock, zones);
         var apiKey = request?.ApiKey?.Trim() ?? "";
         var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        if (apiKey.Length is 0 or > MaxApiKeyLength)
-            errors["apiKey"] = ["Informe a chave da API do Hevy (até 200 caracteres)."];
+        if (apiKey.Length is < MinApiKeyLength or > MaxApiKeyLength)
+            errors["apiKey"] = [ApiKeyLengthMessage];
         if (request?.SyncFrom is { } from && from > today)
             errors["syncFrom"] = ["A data inicial não pode ser no futuro."];
         if (errors.Count > 0)

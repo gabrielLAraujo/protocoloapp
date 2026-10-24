@@ -42,12 +42,15 @@ public static class HevyConnections
         return protector.TryUnprotect(connection.ApiKeyCipher, Purpose(connection.UserId), out var key) ? key : null;
     }
 
-    /// <summary>The last 4 characters shown in the status; empty for a key too short to hide anything.</summary>
+    /// <summary>
+    /// The last 4 characters shown in the status. The <c>PUT</c> only takes keys of <see cref="HevyConnectionEndpoints.MinApiKeyLength"/>
+    /// characters or more, so these never give the whole key away.
+    /// </summary>
     public static string Last4(string apiKey)
     {
         ArgumentNullException.ThrowIfNull(apiKey);
 
-        return apiKey.Length > 2 * HevyConnection.KeyLast4Length ? apiKey[^HevyConnection.KeyLast4Length..] : "";
+        return apiKey.Length > HevyConnection.KeyLast4Length ? apiKey[^HevyConnection.KeyLast4Length..] : apiKey;
     }
 
     /// <summary>The <c>last_result</c> column value of a run.</summary>
@@ -77,6 +80,8 @@ public static class HevyConnections
         "unavailable" => HevyErrorCode.Unavailable,
         "format" => HevyErrorCode.Format,
         "key_unreadable" => HevyErrorCode.KeyUnreadable,
+        "incomplete" => HevyErrorCode.Incomplete,
+        "internal" => HevyErrorCode.Internal,
         _ => null,
     };
 

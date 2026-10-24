@@ -5,6 +5,8 @@ namespace ProtocoloApp.Api.Features.Integrations.Hevy;
 /// <summary>
 /// Tolerant reading of Hevy's JSON: unknown fields are ignored, null or missing numbers are accepted, a malformed list item
 /// is skipped and counted. An unexpected envelope (or a page where nothing is readable) is null, never an empty page.
+/// The lists the sync pages through (workouts, events) must say their <c>page_count</c>: without it the run could not tell
+/// the last page from a broken answer, so it is a format failure too.
 /// </summary>
 internal static class HevyParser
 {
@@ -14,9 +16,10 @@ internal static class HevyParser
     /// <summary>Entries read per list; anything beyond is skipped.</summary>
     public const int MaxItemsPerList = 200;
 
-    public static HevyPage<HevyWorkout>? Workouts(JsonElement root) => Page(root, "workouts", TryWorkout);
+    public static HevyPage<HevyWorkout>? Workouts(JsonElement root) => Page(root, "workouts", TryWorkout, requirePageCount: true);
 
-    public static HevyPage<HevyTemplate>? Templates(JsonElement root) => Page(root, "exercise_templates", TryTemplate);
+    /// <summary>Templates only feed a lookup: a missing <c>page_count</c> means this page is the last.</summary>
+    public static HevyPage<HevyTemplate>? Templates(JsonElement root) => Page(root, "exercise_templates", TryTemplate, requirePageCount: false);
 
     public static HevyPage<HevyEvent>? Events(JsonElement root)
     {
@@ -55,8 +58,11 @@ internal static class HevyParser
         if (items.Count == 0 && malformed > 0)
             return null;
 
+        // A page of only unknown event types is an empty page, not the end: the run keeps going to page_count.
         var (page, pageCount) = ReadPaging(root);
-        return new HevyPage<HevyEvent>(items, page, pageCount, malformed + unknown);
+        if (pageCount is not { } count)
+            return null;
+        return new HevyPage<HevyEvent>(items, page, count, malformed + unknown);
     }
 
     /// <summary>A single workout, bare or wrapped in <c>{ "workout": ... }</c>.</summary>
@@ -69,7 +75,7 @@ internal static class HevyParser
         return TryWorkout(root);
     }
 
-    private static HevyPage<T>? Page<T>(JsonElement root, string listName, Func<JsonElement, T?> read) where T : class
+    private static HevyPage<T>? Page<T>(JsonElement root, string listName, Func<JsonElement, T?> read, bool requirePageCount) where T : class
     {
         if (!TryList(root, listName, out var list))
             return null;
@@ -89,7 +95,9 @@ internal static class HevyParser
             return null;
 
         var (page, pageCount) = ReadPaging(root);
-        return new HevyPage<T>(items, page, pageCount, skipped);
+        if (pageCount is null && requirePageCount)
+            return null;
+        return new HevyPage<T>(items, page, pageCount ?? page, skipped);
     }
 
     private static bool TryList(JsonElement root, string name, out JsonElement list)
@@ -108,10 +116,11 @@ internal static class HevyParser
         return list.EnumerateArray().Take(MaxItemsPerList).ToList();
     }
 
-    private static (int Page, int PageCount) ReadPaging(JsonElement root)
+    /// <summary>The page (1 when absent) and <c>page_count</c> (null when absent or invalid).</summary>
+    private static (int Page, int? PageCount) ReadPaging(JsonElement root)
     {
         var page = ReadInt(root, "page") is { } p && p > 0 ? p : 1;
-        var count = ReadInt(root, "page_count") is { } c && c >= 0 ? c : page;
+        int? count = ReadInt(root, "page_count") is { } c && c >= 0 ? c : null;
         return (page, count);
     }
 

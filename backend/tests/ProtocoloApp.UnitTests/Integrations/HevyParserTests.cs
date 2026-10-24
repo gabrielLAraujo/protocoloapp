@@ -119,19 +119,45 @@ public sealed class HevyParserTests
     }
 
     [Fact]
-    public void Missing_page_numbers_mean_a_single_page()
+    public void A_missing_page_defaults_to_1()
     {
-        var page = HevyParser.Workouts(Json("""{"workouts":[]}"""));
+        var page = HevyParser.Workouts(Json("""{"page_count":1,"workouts":[]}"""));
 
         Assert.Equal(1, page!.Page);
         Assert.Equal(1, page.PageCount);
+    }
+
+    [Theory]
+    [InlineData("""{"page":1,"workouts":[]}""")]
+    [InlineData("""{"page":1,"page_count":null,"workouts":[]}""")]
+    [InlineData("""{"page":1,"page_count":-1,"workouts":[]}""")]
+    public void Workouts_without_a_page_count_are_a_format_failure(string json)
+    {
+        Assert.Null(HevyParser.Workouts(Json(json)));
+    }
+
+    [Theory]
+    [InlineData("""{"page":1,"events":[]}""")]
+    [InlineData("""{"page":1,"events":[{"type":"deleted","id":"d1"}]}""")]
+    [InlineData("""{"page":1,"page_count":"2","events":[{"type":"archived","id":"x"}]}""")]
+    public void Events_without_a_page_count_are_a_format_failure(string json)
+    {
+        Assert.Null(HevyParser.Events(Json(json)));
+    }
+
+    [Fact]
+    public void Templates_without_a_page_count_are_a_single_page()
+    {
+        var page = HevyParser.Templates(Json("""{"page":2,"exercise_templates":[{"id":"T1","title":"Exemplo"}]}"""));
+
+        Assert.Equal(2, page!.PageCount);
     }
 
     [Fact]
     public void Missing_set_index_falls_back_to_the_position_and_missing_type_to_normal()
     {
         var page = HevyParser.Workouts(Json("""
-            {"workouts":[{"id":"w1","title":"T","start_time":"2026-10-01T10:00:00Z","updated_at":"2026-10-01T11:00:00Z",
+            {"page_count":1,"workouts":[{"id":"w1","title":"T","start_time":"2026-10-01T10:00:00Z","updated_at":"2026-10-01T11:00:00Z",
               "exercises":[{"title":"E","exercise_template_id":"T1","sets":[{"reps":5},{"reps":6,"type":"weird"}]}]}]}
             """));
 
@@ -144,7 +170,7 @@ public sealed class HevyParserTests
     public void Exercise_without_template_id_is_dropped()
     {
         var page = HevyParser.Workouts(Json("""
-            {"workouts":[{"id":"w1","title":"T","start_time":"2026-10-01T10:00:00Z","updated_at":"2026-10-01T11:00:00Z",
+            {"page_count":1,"workouts":[{"id":"w1","title":"T","start_time":"2026-10-01T10:00:00Z","updated_at":"2026-10-01T11:00:00Z",
               "exercises":[{"title":"No template","sets":[]},{"title":"E","exercise_template_id":"T1","sets":[]}]}]}
             """));
 
@@ -155,7 +181,7 @@ public sealed class HevyParserTests
     public void Missing_updated_at_falls_back_to_created_at_then_start_time()
     {
         var page = HevyParser.Workouts(Json("""
-            {"workouts":[
+            {"page_count":1,"workouts":[
               {"id":"w1","start_time":"2026-10-01T10:00:00Z","created_at":"2026-10-01T12:00:00Z"},
               {"id":"w2","start_time":"2026-10-02T10:00:00Z"}]}
             """));
@@ -169,7 +195,7 @@ public sealed class HevyParserTests
     public void Fractional_reps_are_ignored_but_integral_decimals_are_read()
     {
         var page = HevyParser.Workouts(Json("""
-            {"workouts":[{"id":"w1","start_time":"2026-10-01T10:00:00Z",
+            {"page_count":1,"workouts":[{"id":"w1","start_time":"2026-10-01T10:00:00Z",
               "exercises":[{"title":"E","exercise_template_id":"T1","sets":[{"index":0,"reps":8.0},{"index":1,"reps":7.5},{"index":2,"reps":"8"}]}]}]}
             """));
 
@@ -214,7 +240,7 @@ public sealed class HevyParserTests
     public void Malformed_known_events_are_skipped()
     {
         var page = HevyParser.Events(Json("""
-            {"events":[
+            {"page_count":1,"events":[
               {"type":"updated"},
               {"type":"deleted"},
               {"type":"deleted","id":"d1"}]}

@@ -14,6 +14,9 @@ internal static partial class HevyLog
     [LoggerMessage(Level = LogLevel.Warning, Message = "Hevy sync failed: {Error} after {Pages} pages.")]
     public static partial void RunFailed(this ILogger logger, string error, int pages);
 
+    [LoggerMessage(Level = LogLevel.Error, Message = "Hevy sync crashed: {Error}.")]
+    public static partial void RunCrashed(this ILogger logger, string error);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Hevy templates lookup stopped: {Error}.")]
     public static partial void TemplatesFailed(this ILogger logger, string error);
 

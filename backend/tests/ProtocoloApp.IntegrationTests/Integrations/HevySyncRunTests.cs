@@ -3,9 +3,15 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ProtocoloApp.Api.Features.Integrations.Hevy;
+using ProtocoloApp.Api.Features.Integrations.Secrets;
+using ProtocoloApp.Api.Features.Push;
+using ProtocoloApp.Api.Features.Sync;
+using ProtocoloApp.Api.Shared.Data;
 using ProtocoloApp.IntegrationTests.Infra;
 using ProtocoloApp.IntegrationTests.Plans;
+using ProtocoloApp.IntegrationTests.Sync;
 using static ProtocoloApp.IntegrationTests.Integrations.HevyTestData;
 
 namespace ProtocoloApp.IntegrationTests.Integrations;
@@ -207,5 +213,245 @@ public sealed class HevySyncRunTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Equal(HevyRunResult.KeyUnreadable, brokenRow.LastError);
         Assert.Null(brokenRow.Cursor);
         Assert.NotNull(brokenRow.LastAttemptAt);
+    }
+
+    /// <summary>The system clock without the pauses between pages, so a run can read up to the page cap quickly.</summary>
+    private sealed class NoDelayClock : TimeProvider
+    {
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            TimeProvider.System.CreateTimer(callback, state, TimeSpan.Zero, period);
+    }
+
+    /// <summary>A run like the endpoint's, with the services of the app but <see cref="NoDelayClock"/>.</summary>
+    private async Task<HevyRunResult> RunFastAsync(Guid userId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var runner = new HevySyncRunner(
+            services.GetRequiredService<AppDbContext>(),
+            factory.Hevy,
+            services.GetRequiredService<ISecretProtector>(),
+            services.GetRequiredService<IZoneProvider>(),
+            new NoDelayClock(),
+            services.GetRequiredService<ILogger<HevySyncRunner>>());
+        return await runner.RunAsync(userId, CancellationToken.None);
+    }
+
+    private static async Task PatchSyncFromAsync(PlanApi api, DateOnly syncFrom) =>
+        Assert.Equal(HttpStatusCode.OK, (await api.Client.PatchAsJsonAsync(Url, new { syncFrom }, PlanApi.Json)).StatusCode);
+
+    private static async Task<string?> StatusErrorAsync(PlanApi api)
+    {
+        using var status = JsonDocument.Parse(await (await api.Client.GetAsync(Url)).Content.ReadAsStringAsync());
+        return status.RootElement.GetProperty("lastError").GetString();
+    }
+
+    private static Task<WorkoutSessionRow> SessionAsync(PlanApi api, string externalId) =>
+        api.WithDbAsync(db => db.WorkoutSessions.AsNoTracking()
+            .Where(x => x.UserId == api.UserId && x.ExternalId == externalId)
+            .Select(x => new WorkoutSessionRow(x.Id, x.DeletedAt))
+            .SingleAsync());
+
+    private sealed record WorkoutSessionRow(Guid Id, DateTimeOffset? DeletedAt);
+
+    [Fact]
+    public async Task A_first_run_stopped_by_the_page_cap_keeps_no_cursor_says_incomplete_and_removes_nothing()
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        var earlier = NewId();
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(9, earlier)]);
+        await SyncOkAsync(api);
+        await PatchSyncFromAsync(api, SyncFrom);
+        // More pages than one run reads, each with a workout after sync_from, none of them the earlier one.
+        var ids = Enumerable.Range(0, HevyClient.MaxPagesPerRun + 10).Select(_ => NewId()).ToArray();
+        factory.Hevy.WorkoutPages[key] = page =>
+            HevyResult<HevyPage<HevyWorkout>>.Ok(new HevyPage<HevyWorkout>([Workout(10 + page % 15, ids[page])], page, ids.Length, 0));
+
+        var first = await RunFastAsync(api.UserId);
+
+        Assert.Equal(HevyRunResult.Incomplete, first.Error);
+        Assert.Equal(HevyClient.MaxPagesPerRun, first.Result!.Imported);
+        Assert.Equal(0, first.Result.Deleted);
+        var row = await RowAsync(api);
+        Assert.Null(row.Cursor);
+        Assert.Equal(HevyRunResult.Incomplete, row.LastError);
+        Assert.Equal(first.Result, HevyConnections.ReadResult(row.LastResult));
+        Assert.Equal("incomplete", await StatusErrorAsync(api));
+        // Not seen because of the cap, not because Hevy deleted it: it stays.
+        Assert.Null((await SessionAsync(api, earlier)).DeletedAt);
+
+        // The next run reads the same pages again: nothing is lost, nothing is duplicated, the cursor still waits.
+        var second = await RunFastAsync(api.UserId);
+        Assert.Equal(HevyRunResult.Incomplete, second.Error);
+        Assert.Equal(0, second.Result!.Imported);
+        Assert.Equal(HevyClient.MaxPagesPerRun, second.Result.Unchanged);
+        Assert.Null((await RowAsync(api)).Cursor);
+        Assert.Equal(HevyClient.MaxPagesPerRun + 1, await LiveSessionsAsync(api));
+    }
+
+    [Fact]
+    public async Task An_incremental_run_stopped_by_the_page_cap_keeps_the_cursor()
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10)]);
+        await SyncOkAsync(api);
+        var cursor = (await RowAsync(api)).Cursor;
+        // Empty pages (as when every event is of a type we skip) up to a page_count past the cap.
+        factory.Hevy.EventPages[key] = (_, page) =>
+            HevyResult<HevyPage<HevyEvent>>.Ok(new HevyPage<HevyEvent>([], page, HevyClient.MaxPagesPerRun + 30, 1));
+
+        var run = await RunFastAsync(api.UserId);
+
+        Assert.Equal(HevyRunResult.Incomplete, run.Error);
+        Assert.Equal(HevyClient.MaxPagesPerRun, CallsOf(key).Count(c => c.Call == "events"));
+        var row = await RowAsync(api);
+        Assert.Equal(cursor, row.Cursor);
+        Assert.Equal(HevyRunResult.Incomplete, row.LastError);
+    }
+
+    [Fact]
+    public async Task A_page_of_only_skipped_events_does_not_end_the_run()
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10)]);
+        await SyncOkAsync(api);
+        var cursor = (await RowAsync(api)).Cursor;
+        factory.Hevy.EventPages[key] = (_, page) => HevyResult<HevyPage<HevyEvent>>.Ok(page == 1
+            ? new HevyPage<HevyEvent>([], 1, 2, 1)
+            : new HevyPage<HevyEvent>([new HevyEvent(HevyEvent.Updated, Workout(12), null, null)], 2, 2, 0));
+
+        var result = await SyncOkAsync(api);
+
+        Assert.Equal(1, result.Imported);
+        Assert.Equal(new[] { 1, 2 }, CallsOf(key).Where(c => c.Call == "events").Select(c => c.Page));
+        var row = await RowAsync(api);
+        Assert.True(row.Cursor > cursor);
+        Assert.Null(row.LastError);
+    }
+
+    [Fact]
+    public async Task An_unexpected_failure_is_stored_as_internal_and_keeps_the_cursor_and_what_was_imported()
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        var pages = Pages(3, [Workout(10)]);
+        factory.Hevy.WorkoutPages[key] = page => page == 2 ? throw new InvalidOperationException("fake failure") : pages(page);
+
+        var response = await api.Client.PostAsync(SyncUrl, null);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("internal", problem.RootElement.GetProperty("lastError").GetString());
+        var row = await RowAsync(api);
+        Assert.Null(row.Cursor);
+        Assert.Null(row.LastSuccessAt);
+        Assert.Equal(HevyRunResult.Internal, row.LastError);
+        Assert.Equal("internal", await StatusErrorAsync(api));
+        Assert.Equal(1, await LiveSessionsAsync(api));
+    }
+
+    [Fact]
+    public async Task A_whole_first_run_after_the_cursor_reset_removes_sessions_deleted_in_hevy_meanwhile()
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        var (kept, gone, dismissed, older) = (NewId(), NewId(), NewId(), NewId());
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10, kept), Workout(8, gone), Workout(7, dismissed), Workout(6, older)]);
+        Assert.Equal(4, (await SyncOkAsync(api)).Imported);
+        // Deleted in the app ("manter só um"): it must stay as the app left it.
+        var dismissedRow = await SessionAsync(api, dismissed);
+        Assert.Equal(SyncResultStatus.Applied, (await SyncApi.PushOneAsync(api.Client,
+            new SyncChange("workout_session", dismissedRow.Id, SyncOp.Delete, null, DateTimeOffset.UtcNow.AddSeconds(1)))).Status);
+        var dismissedAt = (await SessionAsync(api, dismissed)).DeletedAt;
+        // A later start date resets the cursor; meanwhile two workouts went away in Hevy (one of them before the new date).
+        await PatchSyncFromAsync(api, new DateOnly(2026, 3, 7));
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10, kept)]);
+
+        var result = await SyncOkAsync(api);
+
+        Assert.Equal(1, result.Deleted);
+        Assert.Equal(1, result.Unchanged);
+        Assert.Null((await SessionAsync(api, kept)).DeletedAt);
+        Assert.NotNull((await SessionAsync(api, gone)).DeletedAt);
+        Assert.Equal(dismissedAt, (await SessionAsync(api, dismissed)).DeletedAt);
+        // Before the start date: out of the reconciliation.
+        Assert.Null((await SessionAsync(api, older)).DeletedAt);
+        // The removal went through the deleted-event path: sets gone and the day's workout mark cleared.
+        var goneId = (await SessionAsync(api, gone)).Id;
+        Assert.False(await api.WithDbAsync(db => db.SetLogs.AnyAsync(x => x.SessionId == goneId && x.DeletedAt == null)));
+        var mark = await api.WithDbAsync(db => db.AdherenceLogs.AsNoTracking().SingleAsync(a => a.UserId == api.UserId && a.Date == new DateOnly(2026, 3, 8)));
+        Assert.NotNull(mark.DeletedAt);
+        Assert.NotNull((await RowAsync(api)).Cursor);
+    }
+
+    [Fact]
+    public async Task A_first_run_with_unreadable_items_removes_nothing()
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        var (kept, unsure) = (NewId(), NewId());
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10, kept), Workout(8, unsure)]);
+        await SyncOkAsync(api);
+        await PatchSyncFromAsync(api, SyncFrom);
+        // The second workout may be the item Hevy sent that could not be read.
+        factory.Hevy.WorkoutPages[key] = page => HevyResult<HevyPage<HevyWorkout>>.Ok(new HevyPage<HevyWorkout>([Workout(10, kept)], page, 1, 1));
+
+        var result = await SyncOkAsync(api);
+
+        Assert.Equal(0, result.Deleted);
+        Assert.Null((await SessionAsync(api, unsure)).DeletedAt);
+    }
+
+    [Theory]
+    [InlineData("put")]
+    [InlineData("patch")]
+    public async Task A_put_or_patch_while_a_run_goes_on_keeps_the_run_from_setting_a_cursor(string edit)
+    {
+        var (api, _) = await UserWithPlanAsync(factory);
+        using var _api = api;
+        var key = NewKey();
+        await ConnectAsync(api, key);
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10)]);
+        var gate = (Entered: new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), Release: new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+        factory.Hevy.Gates[key] = gate;
+        try
+        {
+            var run = api.Client.PostAsync(SyncUrl, null);
+            await gate.Entered.Task.WaitAsync(Wait);
+
+            if (edit == "put")
+                await ConnectAsync(api, key);
+            else
+                await PatchSyncFromAsync(api, SyncFrom);
+
+            gate.Release.SetResult();
+            Assert.Equal(HttpStatusCode.OK, (await run.WaitAsync(Wait)).StatusCode);
+        }
+        finally
+        {
+            gate.Release.TrySetResult();
+            factory.Hevy.Gates.TryRemove(key, out _);
+        }
+
+        var row = await RowAsync(api);
+        Assert.Null(row.Cursor);
+        Assert.NotNull(row.LastSuccessAt);
+        Assert.Null(row.LastError);
+        Assert.Equal(1, await LiveSessionsAsync(api));
     }
 }
