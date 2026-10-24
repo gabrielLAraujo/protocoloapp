@@ -2,12 +2,12 @@ import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import * as push from '../../pwa/push'
-import { mockFetch } from '../../test/fetch-mock'
+import { json, mockFetch } from '../../test/fetch-mock'
 import { setupApp } from '../testSupport'
 import { SettingsPage } from './SettingsPage'
 
-async function open(support: push.PushSupport, subscribed = false) {
-  mockFetch({})
+async function open(support: push.PushSupport, subscribed = false, pendingExercises = 0) {
+  mockFetch({ 'GET /api/integrations/hevy': () => json(hevyStatus(pendingExercises)) })
   vi.spyOn(push, 'pushSupport').mockReturnValue(support)
   vi.spyOn(push, 'currentSubscription').mockResolvedValue(subscribed ? ({ endpoint: 'https://push.example.test/x' } as PushSubscription) : null)
   const refresh = vi.spyOn(push, 'refreshSubscription').mockResolvedValue()
@@ -15,6 +15,19 @@ async function open(support: push.PushSupport, subscribed = false) {
   app.view(<SettingsPage />)
   return { ...app, refresh }
 }
+
+const hevyStatus = (pendingExercises: number) => ({
+  serverConfigured: true,
+  connected: true,
+  keyLast4: '0001',
+  syncFrom: '2026-10-01',
+  lastAttemptAt: null,
+  lastSuccessAt: null,
+  lastError: null,
+  lastResult: null,
+  running: false,
+  pendingExercises,
+})
 
 describe('SettingsPage', () => {
   it('links to Horários, Questionário de atualização and Diagnóstico', async () => {
@@ -24,6 +37,21 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('link', { name: /Horários/ })).toHaveAttribute('href', '/configuracoes/horarios')
     expect(screen.getByRole('link', { name: /Questionário de atualização/ })).toHaveAttribute('href', '/configuracoes/questionario')
     expect(screen.getByRole('link', { name: /Diagnóstico/ })).toHaveAttribute('href', '/settings/diagnostics')
+    expect(screen.getByRole('link', { name: /Hevy/ })).toHaveAttribute('href', '/configuracoes/hevy')
+  })
+
+  it('the Hevy row says how many exercises wait for confirmation', async () => {
+    await open('default', false, 2)
+
+    expect(await screen.findByText('2 para confirmar')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Hevy/ })).toHaveTextContent('2 para confirmar')
+  })
+
+  it('the Hevy row has no badge offline (no request)', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    await open('default', false, 2)
+
+    expect(screen.getByRole('link', { name: /Hevy/ })).not.toHaveTextContent('para confirmar')
   })
 
   it('asks to install on iOS Safari outside the Home Screen app', async () => {

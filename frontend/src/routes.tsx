@@ -15,6 +15,7 @@ import { PlansPage } from './features/plans/PlansPage'
 import { ProtocolView } from './features/plans/ProtocolView'
 import { LoginPage } from './features/login/LoginPage'
 import { DiagnosticsPage } from './features/settings/DiagnosticsPage'
+import { HevySettingsPage } from './features/settings/hevy/HevySettingsPage'
 import { QuestionnaireTemplatePage } from './features/settings/QuestionnaireTemplatePage'
 import { SchedulePage } from './features/settings/SchedulePage'
 import { SettingsPage } from './features/settings/SettingsPage'
@@ -48,6 +49,7 @@ export const routes: RouteObject[] = [
           { path: '/configuracoes', element: <SettingsPage /> },
           { path: '/configuracoes/horarios', element: <SchedulePage /> },
           { path: '/configuracoes/questionario', element: <QuestionnaireTemplatePage /> },
+          { path: '/configuracoes/hevy', element: <HevySettingsPage /> },
           { path: '/settings/diagnostics', element: <DiagnosticsPage /> },
         ],
       },
