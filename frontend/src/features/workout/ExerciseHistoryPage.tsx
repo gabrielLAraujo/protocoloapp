@@ -5,7 +5,7 @@ import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { workoutRepo, type SetLocal } from '../../data/workoutRepo'
 import { bestSet, e1rm } from '../../domain/strength'
 import { E1rmChart, type E1rmPoint } from './E1rmChart'
-import { formatDate, formatKg } from './format'
+import { formatDate, formatKg, formatRpe } from './format'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
 import { ExerciseMedia } from '../../ui/ExerciseMedia'
@@ -105,7 +105,7 @@ export function ExerciseHistoryPage() {
               {[...rows].reverse().map((r) => (
                 <tr key={r.sessionId} className="border-t border-line align-top">
                   <td className="py-2 pr-3 whitespace-nowrap">{formatDate(r.date)}</td>
-                  <td className="py-2 pr-3 text-muted">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}${s.parentSetId === null ? '' : s.kind === 'rest_pause' ? ' (rest-pause)' : ` (${s.kind === 'drop' ? 'drop' : s.kind})`}`).join(' · ')}</td>
+                  <td className="py-2 pr-3 text-muted">{r.sets.map((s) => `${formatKg(s.weightKg)} × ${s.reps}${s.parentSetId === null ? '' : s.kind === 'rest_pause' ? ' (rest-pause)' : ` (${s.kind === 'drop' ? 'drop' : s.kind})`}${s.rpe === null ? '' : ` (${formatRpe(s.rpe)})`}`).join(' · ')}</td>
                   <td className="py-2 text-right font-medium whitespace-nowrap">{r.best === null ? '—' : `${formatKg(Math.round(r.best * 10) / 10)} kg`}</td>
                 </tr>
               ))}

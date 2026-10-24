@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { newLocalDb, USER_A } from '../test/localDb'
-import { finishSessionAndMark, saveLoggedSession, saveEveningAndMark, saveMorningAndMark, setCardio } from './adherenceLinks'
+import { deleteSessionAndMark, finishSessionAndMark, saveLoggedSession, saveEveningAndMark, saveMorningAndMark, setCardio } from './adherenceLinks'
 import { adherenceRepo } from './adherenceRepo'
 import { checkinParts, dailyCheckinRepo, type EveningFields, type MorningFields } from './dailyCheckinRepo'
 import { outbox } from './outbox'
@@ -169,5 +169,58 @@ describe('saveLoggedSession', () => {
     await saveLoggedSession(db, USER_A, id, later(10_000_000))
 
     expect(await adherenceRepo.between(db, PAST, PAST)).toEqual([])
+  })
+})
+
+describe('deleteSessionAndMark', () => {
+  const session = async (db: Awaited<ReturnType<typeof newLocalDb>>, at: Date, sets: number) => {
+    const id = await workoutRepo.startSession(db, USER_A, { date: DAY, planVersionId: PLAN, dayKey: 'a' }, at)
+    for (let i = 0; i < sets; i++) {
+      const setId = await workoutRepo.logSet(
+        db,
+        USER_A,
+        { sessionId: id, exerciseId: EXERCISE, plannedExerciseKey: 'e1', setIndex: i, weightKg: 50, reps: 10, kind: 'normal' },
+        new Date(at.getTime() + (i + 1) * 60_000),
+      )
+      if (i === 0) await workoutRepo.logSubSet(db, USER_A, { parentSetId: setId, kind: 'drop', ordinal: 1, weightKg: 30, reps: 8 }, new Date(at.getTime() + 90_000))
+    }
+    await finishSessionAndMark(db, USER_A, id, new Date(at.getTime() + 3_600_000), new Date(at.getTime() + 3_600_000))
+    return id
+  }
+
+  it('deletes the sets (sub-sets first) and then the session through the outbox, and clears the mark when nothing else counts', async () => {
+    const db = await newLocalDb()
+    const id = await session(db, T0, 2)
+    const before = (await outbox.due(db, later(10_000_000), 500)).length
+
+    await deleteSessionAndMark(db, USER_A, id, later(7_200_000))
+
+    expect(await workoutRepo.sessionById(db, id)).toBeNull()
+    expect(await workoutRepo.setsForSession(db, id)).toEqual([])
+    const queued = (await outbox.due(db, later(100_000_000), 500)).slice(before)
+    expect(queued.map((e) => [e.entity, e.op])).toEqual([
+      ['set_log', 'delete'],
+      ['set_log', 'delete'],
+      ['set_log', 'delete'],
+      ['workout_session', 'delete'],
+      ['adherence_log', 'delete'],
+    ])
+    expect(await marks(db)).toEqual([])
+  })
+
+  it('keeps the day done when another finished session of that date counts', async () => {
+    const db = await newLocalDb()
+    await session(db, T0, 1)
+    const other = await session(db, later(7_200_000), 1)
+
+    await deleteSessionAndMark(db, USER_A, other, later(20_000_000))
+
+    expect(await workoutRepo.sessionsBetween(db, DAY, DAY)).toHaveLength(1)
+    expect(await marks(db)).toEqual([['workout', 'done']])
+  })
+
+  it('a session already gone is a no-op', async () => {
+    const db = await newLocalDb()
+    await expect(deleteSessionAndMark(db, USER_A, 'missing', T0)).resolves.toBeUndefined()
   })
 })
