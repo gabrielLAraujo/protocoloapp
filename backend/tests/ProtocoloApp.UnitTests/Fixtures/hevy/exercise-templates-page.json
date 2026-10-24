@@ -1,0 +1,28 @@
+{
+  "page": 1,
+  "page_count": 3,
+  "exercise_templates": [
+    {
+      "id": "TPL00001",
+      "title": "Supino Exemplo (Barbell)",
+      "type": "weight_reps",
+      "primary_muscle_group": "chest",
+      "secondary_muscle_groups": ["triceps", "shoulders"],
+      "equipment": "barbell",
+      "is_custom": false,
+      "thumbnail_url": null
+    },
+    {
+      "id": "TPL00002",
+      "title": "Exercício Exemplo Personalizado",
+      "type": "weight_reps",
+      "primary_muscle_group": null,
+      "secondary_muscle_groups": [],
+      "equipment": "none",
+      "is_custom": true
+    },
+    {
+      "title": "Template sem id"
+    }
+  ]
+}

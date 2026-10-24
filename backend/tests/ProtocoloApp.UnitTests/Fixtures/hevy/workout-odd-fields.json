@@ -1,0 +1,40 @@
+{
+  "page": 1,
+  "page_count": 1,
+  "unknown_envelope_field": { "a": 1 },
+  "workouts": [
+    {
+      "id": "00000000-0000-4000-8000-00000000a010",
+      "title": "Treino Exemplo Estranho",
+      "start_time": "2026-10-19T08:00:00+00:00",
+      "end_time": null,
+      "updated_at": "2026-10-19T09:00:00Z",
+      "unknown_workout_field": [1, 2, 3],
+      "exercises": [
+        {
+          "index": 0,
+          "title": "Prancha Exemplo",
+          "exercise_template_id": "TPL00010",
+          "unknown_exercise_field": "x",
+          "sets": [
+            { "index": 0, "type": "normal", "weight_kg": null, "reps": 12, "rpe": 11, "unknown_set_field": true },
+            { "index": 1, "type": "normal", "duration_seconds": 60 },
+            "not a set"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000a011",
+      "title": "Treino Exemplo Sem Exercícios",
+      "start_time": "2026-10-19T18:00:00Z",
+      "updated_at": "2026-10-19T19:00:00Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000a012",
+      "title": "Treino Exemplo Sem Início",
+      "updated_at": "2026-10-19T19:00:00Z",
+      "exercises": []
+    }
+  ]
+}
