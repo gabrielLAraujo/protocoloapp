@@ -203,4 +203,28 @@ public sealed class HevyExerciseEndpointTests(ApiFactory factory) : IClassFixtur
 
         Assert.Null((await ExerciseAsync(api, s.ProvisionalId)).DeletedAt);
     }
+
+    [Fact]
+    public async Task Relinking_recomputes_the_planned_exercise_key_from_each_sessions_plan_day()
+    {
+        var s = await ImportedAsync();
+        using var api = s.Api;
+        Task<List<SetLog>> SetsOfAsync(string templateId) =>
+            api.WithDbAsync(db => db.SetLogs.AsNoTracking().Where(x => x.UserId == api.UserId && x.DeletedAt == null && x.HevyTemplateId == templateId).ToListAsync());
+        var curlLink = await api.WithDbAsync(db => db.HevyExerciseLinks.AsNoTracking().SingleAsync(l => l.UserId == api.UserId && l.TemplateId == MatchedTemplate));
+        Assert.All(await SetsOfAsync(MatchedTemplate), x => Assert.Equal("bench", x.PlannedExerciseKey));
+        Assert.All(await SetsOfAsync(UnknownTemplate), x => Assert.Null(x.PlannedExerciseKey));
+        var lastVersion = (await SyncApi.PullAllAsync(api.Client)).Max(r => r.Version);
+
+        // The curl's sets move to an exercise day "a" does not plan: they become extra (no key).
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmAsync(api.Client, curlLink.Id, s.ProvisionalId)).StatusCode);
+        // The unknown template's sets move to the curl, which day "a" plans as "bench".
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmAsync(api.Client, s.LinkId, s.CurlId)).StatusCode);
+
+        Assert.All(await SetsOfAsync(MatchedTemplate), x => Assert.Null(x.PlannedExerciseKey));
+        Assert.All(await SetsOfAsync(UnknownTemplate), x => Assert.Equal("bench", x.PlannedExerciseKey));
+        var changed = (await SyncApi.PullAsync(api.Client, lastVersion)).Records;
+        Assert.Contains(changed, r => r.Entity == "set_log" && r.Payload!.Value.GetProperty("planned_exercise_key").GetString() == "bench");
+        Assert.Contains(changed, r => r.Entity == "set_log" && r.Payload!.Value.GetProperty("planned_exercise_key").ValueKind == System.Text.Json.JsonValueKind.Null);
+    }
 }

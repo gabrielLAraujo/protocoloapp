@@ -57,7 +57,8 @@ public static class HevyExerciseEndpoints
     }
 
     /// <summary>
-    /// Confirms a link. With another exercise: the live sets imported from the template move to it, the Hevy title becomes one
+    /// Confirms a link. With another exercise: the live sets imported from the template move to it (their planned exercise key
+    /// recomputed from each session's plan day, as the import does), the Hevy title becomes one
     /// of its aliases (when usable, new and under the cap), and the provisional exercise is removed when the import created it,
     /// nothing uses it any more (sets, swaps) and no plan version mentions it. The link becomes <c>confirmed</c>. 404 for a link
     /// or an exercise of another user, or a removed exercise.
@@ -91,9 +92,11 @@ public static class HevyExerciseEndpoints
             var sets = await db.SetLogs
                 .Where(s => s.UserId == userId && s.DeletedAt == null && s.HevyTemplateId == link.TemplateId && s.ExerciseId != targetId)
                 .ToListAsync(ct);
+            var plannedKeys = await PlannedKeysAsync(db, userId, sets.Select(x => x.SessionId).Distinct().ToList(), targetId, ct);
             foreach (var set in sets)
             {
                 set.ExerciseId = targetId;
+                set.PlannedExerciseKey = plannedKeys.GetValueOrDefault(set.SessionId);
                 await SyncWrites.StampAsync(db, set, userId, clock, ct);
             }
 
@@ -114,6 +117,35 @@ public static class HevyExerciseEndpoints
 
         var response = await ToResponsesAsync(db, userId, [link], ct);
         return TypedResults.Ok(response[0]);
+    }
+
+    /// <summary>
+    /// Per session, the key of <paramref name="exerciseId"/> in the session's plan day (as the importer sets it), null when the
+    /// day does not plan it ("exercício extra") or the plan version cannot be read.
+    /// </summary>
+    private static async Task<Dictionary<Guid, string?>> PlannedKeysAsync(
+        AppDbContext db, Guid userId, IReadOnlyList<Guid> sessionIds, Guid exerciseId, CancellationToken ct)
+    {
+        var sessions = await db.WorkoutSessions.AsNoTracking()
+            .Where(x => x.UserId == userId && sessionIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.PlanVersionId, x.WorkoutDayKey })
+            .ToListAsync(ct);
+        var versionIds = sessions.Select(x => x.PlanVersionId).Distinct().ToList();
+        var documents = new Dictionary<Guid, WorkoutDocument>();
+        foreach (var version in await db.PlanVersions.AsNoTracking().Where(p => p.UserId == userId && versionIds.Contains(p.Id)).ToListAsync(ct))
+        {
+            if (PlanDocuments.TryRead<WorkoutDocument>(version.Document.RootElement, out var document, out _) && document is not null)
+                documents[version.Id] = document;
+        }
+
+        var keys = new Dictionary<Guid, string?>();
+        foreach (var session in sessions)
+        {
+            var day = documents.GetValueOrDefault(session.PlanVersionId)?.Days.FirstOrDefault(d => d?.Key == session.WorkoutDayKey);
+            keys[session.Id] = (day?.Exercises ?? []).FirstOrDefault(e => e?.ExerciseId == exerciseId)?.Key;
+        }
+
+        return keys;
     }
 
     /// <summary>Soft-deletes the provisional exercise when no live set, no swap and no plan version (by id in its JSON) uses it.</summary>
