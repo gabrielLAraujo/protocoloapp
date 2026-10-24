@@ -9,6 +9,7 @@ using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.DietDeviations;
 using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
+using ProtocoloApp.Api.Features.Integrations.Hevy;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Push;
@@ -85,6 +86,7 @@ builder.Services.AddPlanExtraction(builder.Configuration);
 builder.Services.AddAppUpdates(builder.Configuration);
 builder.Services.AddPush(builder.Configuration);
 builder.Services.AddExerciseCatalog(builder.Configuration);
+builder.Services.AddHevy(builder.Configuration);
 
 builder.Services.AddOpenApi();
 // Tags: /health (liveness) runs the "live" checks, /health/ready runs the "ready" ones (Postgres and the storage bucket).
@@ -145,6 +147,7 @@ api.MapApp();
 api.MapPush();
 api.MapExerciseCatalog();
 api.MapUpdates();
+api.MapHevy();
 
 app.MapSpaFallback();
 
