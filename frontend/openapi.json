@@ -1152,6 +1152,106 @@
           }
         }
       }
+    },
+    "/api/integrations/hevy/sync": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevySyncResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/hevy/exercises": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HevyExerciseLinkResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/hevy/exercises/{id}": {
+      "put": {
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfirmHevyExerciseRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevyExerciseLinkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1269,6 +1369,21 @@
           },
           "note": {
             "type": "string"
+          }
+        }
+      },
+      "ConfirmHevyExerciseRequest": {
+        "required": [
+          "exerciseId"
+        ],
+        "type": "object",
+        "properties": {
+          "exerciseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -1568,6 +1683,51 @@
           "format",
           "key_unreadable",
           null
+        ]
+      },
+      "HevyExerciseLinkResponse": {
+        "required": [
+          "id",
+          "templateId",
+          "title",
+          "exerciseId",
+          "exerciseName",
+          "status",
+          "setCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "exerciseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exerciseName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HevyLinkStatus"
+          },
+          "setCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "HevyLinkStatus": {
+        "enum": [
+          "auto",
+          "pending",
+          "confirmed"
         ]
       },
       "HevyStatusResponse": {
