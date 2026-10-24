@@ -207,8 +207,7 @@ public static class HevyConnectionEndpoints
             connection.LastSuccessAt,
             lastError,
             HevyConnections.ReadResult(connection.LastResult),
-            // The run lock arrives with the scheduler (Task 7).
-            false,
+            await HevySyncLock.IsHeldAsync(db, userId, ct),
             pending);
     }
 

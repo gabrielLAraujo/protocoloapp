@@ -1,0 +1,376 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using ProtocoloApp.Api.Features.Auth;
+using ProtocoloApp.Api.Features.Integrations.Secrets;
+using ProtocoloApp.Api.Features.Push;
+using ProtocoloApp.Api.Shared.Data;
+
+namespace ProtocoloApp.Api.Features.Integrations.Hevy;
+
+/// <summary>
+/// How one run ended: <see cref="Result"/> when it finished without error; otherwise <see cref="Error"/> (a stored error code
+/// such as <c>rate_limited</c>, or <see cref="NotConfigured"/>/<see cref="NotConnected"/>), or <see cref="AlreadyRunning"/>.
+/// </summary>
+public sealed record HevyRunResult(HevySyncResult? Result, string? Error, bool AlreadyRunning)
+{
+    public const string NotConfigured = "not_configured";
+    public const string NotConnected = "not_connected";
+    public const string KeyUnreadable = "key_unreadable";
+}
+
+/// <summary>
+/// One Hevy sync run of a user (spec "Hevy", section 3), shared by the scheduler and "Sincronizar agora":
+/// <list type="bullet">
+/// <item>a session advisory lock (<see cref="HevySyncLock"/>) on a dedicated connection keeps two runs of the same user apart;</item>
+/// <item>without a cursor, the initial load reads <c>/v1/workouts</c> (newest first) until a page is wholly before
+/// <c>sync_from</c>, the last page, or <see cref="HevyClient.MaxPagesPerRun"/>;</item>
+/// <item>with a cursor, it reads <c>/v1/workouts/events?since=cursor</c> to the last page (same cap);</item>
+/// <item>templates are fetched only when a new exercise needs its muscle group, cached for the run;</item>
+/// <item>any Hevy error stops the run and is stored in <c>last_error</c>; what was imported stays (idempotent) but the cursor only
+/// moves after a run without error, to its start minus <see cref="CursorSlack"/>.</item>
+/// </list>
+/// Logs counts and error codes only.
+/// </summary>
+public sealed class HevySyncRunner(
+    AppDbContext db,
+    IHevyClient hevy,
+    ISecretProtector protector,
+    IZoneProvider zones,
+    TimeProvider clock,
+    ILogger<HevySyncRunner> logger)
+{
+    /// <summary>Margin taken off the cursor, so a workout saved in Hevy while a run was going is read again next time.</summary>
+    public static readonly TimeSpan CursorSlack = TimeSpan.FromMinutes(5);
+
+    public async Task<HevyRunResult> RunAsync(Guid userId, CancellationToken ct)
+    {
+        if (!protector.IsConfigured)
+            return new HevyRunResult(null, HevyRunResult.NotConfigured, false);
+
+        var connectionString = db.Database.GetConnectionString()
+            ?? throw new InvalidOperationException("The database connection string is missing.");
+        await using var held = await HevySyncLock.TryAcquireAsync(connectionString, userId, ct);
+        if (held is null)
+        {
+            logger.RunLocked();
+            return new HevyRunResult(null, null, true);
+        }
+
+        var connection = await db.HevyConnections.AsNoTracking().SingleOrDefaultAsync(c => c.UserId == userId, ct);
+        if (connection is null)
+            return new HevyRunResult(null, HevyRunResult.NotConnected, false);
+
+        var startedAt = clock.GetUtcNow();
+        // PUT and PATCH change UpdatedAt (and reset the cursor): a run that overlapped them must not set a cursor of its own.
+        var edition = connection.UpdatedAt;
+        await UpdateConnectionAsync(userId, c => c.LastAttemptAt = startedAt, ct);
+
+        var key = HevyConnections.ReadKey(connection, protector);
+        if (key is null)
+        {
+            await UpdateConnectionAsync(userId, c => c.LastError = HevyRunResult.KeyUnreadable, ct);
+            logger.RunFailed(HevyRunResult.KeyUnreadable, 0);
+            return new HevyRunResult(null, HevyRunResult.KeyUnreadable, false);
+        }
+
+        var templates = new TemplateLookup(hevy, key, clock, logger, ct);
+        var ctx = new ImportContext(connection.SyncFrom, zones.Zone, clock, templates.GroupAsync);
+        var pass = connection.Cursor is { } cursor
+            ? await ReadEventsAsync(userId, key, cursor, ctx, ct)
+            : await ReadWorkoutsAsync(userId, key, ctx, ct);
+
+        if (pass.Error is { } error)
+        {
+            var code = HevyConnections.ErrorCode(error);
+            await UpdateConnectionAsync(userId, c => c.LastError = code, ct);
+            logger.RunFailed(code, pass.Pages);
+            return new HevyRunResult(null, code, false);
+        }
+
+        var pending = await HevyImporter.PendingExercisesAsync(db, userId, ct);
+        var result = ctx.ToResult(pending);
+        var finishedAt = clock.GetUtcNow();
+        await UpdateConnectionAsync(userId, c =>
+        {
+            c.LastSuccessAt = finishedAt;
+            c.LastError = null;
+            c.LastResult = HevyConnections.WriteResult(result);
+            if (c.UpdatedAt == edition)
+                c.Cursor = startedAt - CursorSlack;
+        }, ct);
+        logger.RunFinished(
+            pass.Pages, result.Imported, result.Updated, result.Deleted, result.Unchanged, result.SkippedNoPlan, result.SkippedSets,
+            pass.SkippedItems, pending, pass.Capped);
+        return new HevyRunResult(result, null, false);
+    }
+
+    private sealed record Pass(int Pages, HevyError? Error, int SkippedItems, bool Capped);
+
+    /// <summary>The initial load: pages of workouts (newest first) until one is wholly before <c>sync_from</c>.</summary>
+    private async Task<Pass> ReadWorkoutsAsync(Guid userId, string key, ImportContext ctx, CancellationToken ct)
+    {
+        var pages = 0;
+        var skipped = 0;
+        for (var page = 1; page <= HevyClient.MaxPagesPerRun; page++)
+        {
+            if (page > 1)
+                await Task.Delay(HevyClient.PageDelay, clock, ct);
+
+            var response = await hevy.GetWorkoutsAsync(key, page, ct);
+            if (response.Value is not { } value)
+                return new Pass(pages, response.Error ?? HevyError.Format, skipped, false);
+
+            pages++;
+            skipped += value.Skipped;
+            var allBefore = value.Items.Count > 0;
+            foreach (var workout in value.Items)
+            {
+                var outcome = ctx.Count(await HevyImporter.ApplyUpdatedAsync(db, userId, workout, ctx, ct));
+                if (outcome != ImportOutcome.SkippedBeforeSyncFrom)
+                    allBefore = false;
+            }
+
+            if (allBefore || value.Items.Count == 0 || page >= value.PageCount)
+                return new Pass(pages, null, skipped, false);
+        }
+
+        return new Pass(pages, null, skipped, true);
+    }
+
+    /// <summary>The incremental run: every page of events since the cursor.</summary>
+    private async Task<Pass> ReadEventsAsync(Guid userId, string key, DateTimeOffset since, ImportContext ctx, CancellationToken ct)
+    {
+        var pages = 0;
+        var skipped = 0;
+        for (var page = 1; page <= HevyClient.MaxPagesPerRun; page++)
+        {
+            if (page > 1)
+                await Task.Delay(HevyClient.PageDelay, clock, ct);
+
+            var response = await hevy.GetEventsAsync(key, since, page, ct);
+            if (response.Value is not { } value)
+                return new Pass(pages, response.Error ?? HevyError.Format, skipped, false);
+
+            pages++;
+            skipped += value.Skipped;
+            foreach (var ev in value.Items)
+            {
+                if (ev.Type == HevyEvent.Updated && ev.Workout is { } workout)
+                    ctx.Count(await HevyImporter.ApplyUpdatedAsync(db, userId, workout, ctx, ct));
+                else if (ev.Type == HevyEvent.Deleted && ev.DeletedId is { } deletedId)
+                    ctx.Count(await HevyImporter.ApplyDeletedAsync(db, userId, deletedId, ctx, ct));
+                else
+                    skipped++;
+            }
+
+            if (value.Items.Count == 0 || page >= value.PageCount)
+                return new Pass(pages, null, skipped, false);
+        }
+
+        return new Pass(pages, null, skipped, true);
+    }
+
+    /// <summary>Writes the run's state on a fresh row (the importer may have cleared the change tracker); no-op when it was removed.</summary>
+    private async Task UpdateConnectionAsync(Guid userId, Action<HevyConnection> apply, CancellationToken ct)
+    {
+        db.ChangeTracker.Clear();
+        var row = await db.HevyConnections.SingleOrDefaultAsync(c => c.UserId == userId, ct);
+        if (row is null)
+            return;
+
+        apply(row);
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// The <c>primary_muscle_group</c> of a template, reading the template pages lazily (and only once per run). A failed page
+    /// stops the lookup: the exercise gets the "other" group, the import goes on.
+    /// </summary>
+    private sealed class TemplateLookup(IHevyClient hevy, string key, TimeProvider clock, ILogger logger, CancellationToken ct)
+    {
+        private readonly Dictionary<string, string?> _groups = new(StringComparer.Ordinal);
+        private int _nextPage = 1;
+        private bool _done;
+
+        public async Task<string?> GroupAsync(string templateId)
+        {
+            string? group;
+            while (!_groups.TryGetValue(templateId, out group))
+            {
+                if (_done)
+                    return null;
+                if (_nextPage > 1)
+                    await Task.Delay(HevyClient.PageDelay, clock, ct);
+
+                var response = await hevy.GetTemplatesAsync(key, _nextPage, ct);
+                if (response.Value is not { } value)
+                {
+                    _done = true;
+                    logger.TemplatesFailed(HevyConnections.ErrorCode(response.Error ?? HevyError.Format));
+                    return null;
+                }
+
+                foreach (var template in value.Items)
+                    _groups.TryAdd(template.Id, template.PrimaryMuscleGroup);
+                if (value.Items.Count == 0 || _nextPage >= value.PageCount || _nextPage >= HevyClient.MaxPagesPerRun)
+                    _done = true;
+                _nextPage++;
+            }
+
+            return group;
+        }
+    }
+}
+
+/// <summary>
+/// The per-user run lock: a session advisory lock on <c>hashtext('hevy:' || userId)</c>, held on a connection of its own for the
+/// whole run (the importer's transactions come and go on the context's connection). Released on dispose; a dropped connection
+/// releases it too.
+/// </summary>
+public sealed class HevySyncLock : IAsyncDisposable
+{
+    private readonly NpgsqlConnection _connection;
+    private readonly string _key;
+
+    private HevySyncLock(NpgsqlConnection connection, string key)
+    {
+        _connection = connection;
+        _key = key;
+    }
+
+    public static string Key(Guid userId) => $"hevy:{userId}";
+
+    /// <summary>The held lock, or null when another run of the user holds it.</summary>
+    public static async Task<HevySyncLock?> TryAcquireAsync(string connectionString, Guid userId, CancellationToken ct)
+    {
+        var key = Key(userId);
+        var connection = new NpgsqlConnection(connectionString);
+        try
+        {
+            await connection.OpenAsync(ct);
+            await using var command = new NpgsqlCommand("SELECT pg_try_advisory_lock(hashtext(@key))", connection);
+            command.Parameters.AddWithValue("key", key);
+            if (await command.ExecuteScalarAsync(ct) is true)
+                return new HevySyncLock(connection, key);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+
+        await connection.DisposeAsync();
+        return null;
+    }
+
+    /// <summary>Whether a run of the user holds the lock now (any connection of this database).</summary>
+    public static Task<bool> IsHeldAsync(AppDbContext db, Guid userId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+
+        // A bigint key shows in pg_locks as classid = high 32 bits, objid = low 32 bits, objsubid = 1.
+        var key = Key(userId);
+        return db.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_locks l
+                WHERE l.locktype = 'advisory' AND l.granted AND l.objsubid = 1
+                  AND l.database = (SELECT d.oid FROM pg_database d WHERE d.datname = current_database())
+                  AND l.classid = ((hashtext({key})::bigint >> 32) & 4294967295)::oid
+                  AND l.objid = (hashtext({key})::bigint & 4294967295)::oid
+            ) AS "Value"
+            """).SingleAsync(ct);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await using var command = new NpgsqlCommand("SELECT pg_advisory_unlock(hashtext(@key))", _connection);
+            command.Parameters.AddWithValue("key", _key);
+            await command.ExecuteScalarAsync(CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException)
+        {
+            // A broken connection already released the lock.
+        }
+        finally
+        {
+            await _connection.DisposeAsync();
+        }
+    }
+}
+
+/// <summary><c>POST /api/integrations/hevy/sync</c>: "Sincronizar agora".</summary>
+public static class HevySyncEndpoints
+{
+    public const string AlreadyRunningMessage = "Sincronização já em andamento.";
+
+    public const string NotConnectedMessage = "Nenhuma conexão com o Hevy.";
+
+    public static void MapHevySyncEndpoints(this RouteGroupBuilder group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+
+        group.MapPost("/sync", SyncAsync);
+    }
+
+    /// <summary>
+    /// Runs a sync now. 409 while another run of the user goes on (the scheduler's included), 404 without a connection, 503 when
+    /// the server has no encryption key, 502 with <c>lastError</c> when Hevy failed (the cursor stays).
+    /// </summary>
+    private static async Task<Results<Ok<HevySyncResult>, ProblemHttpResult>> SyncAsync(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        ISecretProtector protector,
+        HevySyncRunner runner,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(protector);
+        ArgumentNullException.ThrowIfNull(runner);
+
+        if (!protector.IsConfigured)
+            return NotConfigured();
+
+        var userId = principal.GetUserId();
+        if (!await db.HevyConnections.AnyAsync(c => c.UserId == userId, ct))
+            return NotConnected();
+
+        var run = await runner.RunAsync(userId, ct);
+        if (run.AlreadyRunning)
+            return TypedResults.Problem(title: "Sincronização em andamento", detail: AlreadyRunningMessage, statusCode: StatusCodes.Status409Conflict);
+        if (run.Result is { } result)
+            return TypedResults.Ok(result);
+
+        return run.Error switch
+        {
+            HevyRunResult.NotConfigured => NotConfigured(),
+            HevyRunResult.NotConnected or null => NotConnected(),
+            { } code => TypedResults.Problem(
+                title: "Falha na sincronização",
+                detail: ErrorMessage(code),
+                statusCode: StatusCodes.Status502BadGateway,
+                extensions: new Dictionary<string, object?> { ["lastError"] = code }),
+        };
+    }
+
+    /// <summary>The pt-BR message of a stored error code.</summary>
+    public static string ErrorMessage(string code) => code switch
+    {
+        "unauthorized" => HevyConnectionEndpoints.RejectedKeyMessage,
+        "rate_limited" => "O Hevy limitou as chamadas. Tente de novo em alguns minutos.",
+        "format" => "O Hevy respondeu num formato inesperado. Tente de novo mais tarde.",
+        HevyRunResult.KeyUnreadable => "A chave guardada não abre mais. Conecte a chave do Hevy de novo.",
+        _ => HevyConnectionEndpoints.UnavailableMessage,
+    };
+
+    private static ProblemHttpResult NotConfigured() =>
+        TypedResults.Problem(title: "Hevy não configurado", detail: HevyConnectionEndpoints.NotConfiguredMessage, statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    private static ProblemHttpResult NotConnected() =>
+        TypedResults.Problem(title: "Hevy não conectado", detail: NotConnectedMessage, statusCode: StatusCodes.Status404NotFound);
+}
