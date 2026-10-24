@@ -278,8 +278,9 @@ jobs:
           cache-to: type=gha,scope=image,mode=max
 
   # The offline-first promise end to end: the real API (published like the image, serving the built front) on a real Postgres,
-  # and two browsers. Two small Node stubs (frontend/e2e/fixtures) stand in for the outside world: the Anthropic API (plan
-  # import) and the R2 bucket (the PDF upload); the API reaches them through Anthropic__BaseUrl and R2__ServiceUrl.
+  # and two browsers. Three small Node stubs (frontend/e2e/fixtures) stand in for the outside world: the Anthropic API (plan
+  # import), the R2 bucket (the PDF upload) and the Hevy API (workout import); the API reaches them through
+  # Anthropic__BaseUrl, R2__ServiceUrl and Hevy__BaseUrl.
   e2e:
     name: E2E smoke
     needs: changes
@@ -316,6 +317,13 @@ jobs:
       # already has the item). The catalog is the fixture seeded below.
       ExerciseCatalog__Enabled: 'false'
       E2E_ANTHROPIC_STUB_URL: http://127.0.0.1:9100
+      # TEST ONLY, public on purpose: base64 of the 32 ASCII bytes "e2e-only-test-key-not-a-secret!!". Production uses its own
+      # random key (openssl rand -base64 32, set in Coolify; see README.md).
+      Integrations__EncryptionKey: ZTJlLW9ubHktdGVzdC1rZXktbm90LWEtc2VjcmV0ISE=
+      # The Hevy stand-in (http is accepted only for a loopback host). The scheduler stays off: only "Sincronizar agora" in
+      # e2e/hevy.spec.ts reaches it, so no background run can collide with it (409) or import before the test looks.
+      Hevy__BaseUrl: http://127.0.0.1:9102/
+      Hevy__Enabled: 'false'
       ASPNETCORE_URLS: http://localhost:5190
       E2E_BASE_URL: http://localhost:5190
       E2E_EMAIL: e2e@example.com
@@ -370,12 +378,14 @@ jobs:
           PROTOCOLOAPP_PASSWORD: ${{ env.E2E_PASSWORD }}
         run: dotnet ProtocoloApp.Api.dll create-user "$E2E_EMAIL"
 
-      - name: Start the Anthropic and storage stubs
+      - name: Start the Anthropic, storage and Hevy stubs
         run: |
           nohup node frontend/e2e/fixtures/anthropic-stub.mjs 9100 > "$RUNNER_TEMP/anthropic-stub.log" 2>&1 &
           nohup node frontend/e2e/fixtures/storage-stub.mjs 9101 > "$RUNNER_TEMP/storage-stub.log" 2>&1 &
+          nohup node frontend/e2e/fixtures/hevy-stub.mjs 9102 > "$RUNNER_TEMP/hevy-stub.log" 2>&1 &
           for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:9100/__requests > /dev/null 2>&1 && curl -fsS http://127.0.0.1:9101/e2e-bucket/ > /dev/null 2>&1; then echo "Stubs are up"; exit 0; fi
+            if curl -fsS http://127.0.0.1:9100/__requests > /dev/null 2>&1 && curl -fsS http://127.0.0.1:9101/e2e-bucket/ > /dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:9102/__requests > /dev/null 2>&1; then echo "Stubs are up"; exit 0; fi
             sleep 0.5
           done
           echo "Stubs did not start"; cat "$RUNNER_TEMP"/*-stub.log; exit 1
@@ -446,6 +456,7 @@ jobs:
           echo "::error title=API exceptions::$(grep -iE 'exception|error' "$RUNNER_TEMP/api.log" 2>/dev/null | grep -v '\"RequestPath\"' | head -n 12 | cut -c1-300 | tr '\n' '|' | cut -c1-1500)"
           echo "::error title=API 500 entries::$(grep -E '\"StatusCode\":500' "$RUNNER_TEMP/api.log" 2>/dev/null | tail -n 2 | cut -c1-1200 | tr '\n' '|' | cut -c1-1500)"
           echo "::error title=Stub logs::$(tail -n 8 "$RUNNER_TEMP/storage-stub.log" 2>/dev/null | tr '\n' '|' | cut -c1-600)"
+          echo "::error title=Hevy stub calls::$(curl -fsS http://127.0.0.1:9102/__requests 2>/dev/null | jq -c '.[]' | tail -n 12 | tr '\n' '|' | cut -c1-900)"
           echo "::error title=API log::$(grep -E '"RequestPath":"/api' "$RUNNER_TEMP/api.log" 2>/dev/null | jq -r '"\(.RequestMethod) \(.RequestPath) \(.StatusCode)"' | tail -n 25 | tr '\n' '|' | cut -c1-900)"
 
   # Debug APK on every run (artifact to install and test). The signed release is a separate job below.

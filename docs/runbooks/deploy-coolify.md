@@ -25,6 +25,7 @@ Android fala com a mesma API.
 - [ ] 5. Primeiro deploy verde
 - [ ] 6. Usuário criado com `create-user`
 - [ ] 7. Token do GitHub para a checagem de atualização
+- [ ] 10. (Opcional) `Integrations__EncryptionKey` para o Hevy
 - [ ] 8. Verificação pós-deploy (última seção) toda marcada
 
 ## 1. Cloudflare R2
@@ -158,6 +159,10 @@ entram na imagem).
 | `ExerciseCatalog__RefreshAfterDays` | não | `30` (padrão). Idade máxima do catálogo; depois disso o próximo start sincroniza de novo. |
 | `ExerciseCatalog__PageDelayMilliseconds` | não | `1200` (padrão). Pausa entre as páginas (25 itens) para não sobrecarregar o ExerciseDB. |
 | `Reminders__Enabled` | não | `true` (padrão). `false` desliga o agendador de lembretes; o envio de teste continua funcionando. |
+| `Integrations__EncryptionKey` | para o Hevy | 32 bytes aleatórios em base64: `openssl rand -base64 32`. Cifra a chave do Hevy no banco. Sem ela (ou com valor inválido) o app sobe, mas Configurações → Hevy mostra "Não configurado no servidor". **Perder ou trocar** o valor obriga a informar a chave do Hevy de novo. Veja o passo 10. |
+| `Hevy__Enabled` | não | `true` (padrão). `false` desliga a sincronização automática; "Sincronizar agora" continua funcionando. |
+| `Hevy__IntervalMinutes` | não | `30` (padrão). Minutos entre as sincronizações automáticas (a primeira, 1 minuto depois de subir). |
+| `Hevy__BaseUrl` | não | URL base da API do Hevy. Padrão: `https://api.hevyapp.com/`. **Não defina em produção**: existe só para o e2e do CI (stub em `http://127.0.0.1`). |
 
 Pontos de atenção:
 
@@ -289,6 +294,28 @@ baixando). Confirme que `ExerciseCatalog__Enabled` não está `false`. Depois de
 novo se o catálogo estiver vazio ou incompleto. No app, o catálogo é atualizado ao abrir (com internet); um aparelho já
 aberto pode precisar recarregar.
 
+## 10. Hevy (importação de treinos)
+
+Os treinos registrados no Hevy entram no app como sessões encerradas, a cada `Hevy__IntervalMinutes` (30 por padrão) e em
+"Sincronizar agora". Precisa de uma **conta Hevy Pro**: só ela tem a chave da API pública.
+
+1. **Chave de criptografia do servidor** (uma vez): no seu computador, `openssl rand -base64 32`. Cadastre a saída como
+   `Integrations__EncryptionKey` no Coolify (runtime, sem "Available at Buildtime") e guarde no gerenciador de senhas.
+   Redeploy. Ela cifra a chave do Hevy no banco (AES-GCM); o log da partida só avisa, sem o valor, quando ela falta ou é
+   inválida. **Se ela se perder ou for trocada**, a chave do Hevy guardada não abre mais (o app mostra "A chave salva não
+   pode mais ser lida. Informe a chave de novo."): basta informar a chave do Hevy de novo; nada importado se perde.
+2. **Chave da API do Hevy:** no site do Hevy, **Settings → Developer** (`https://hevy.com/settings?developer`), gere ou
+   copie a chave. Ela não entra no Coolify nem no repositório.
+3. **No app:** Configurações → Hevy, cole a chave e toque em **Conectar** (o servidor testa a chave antes de guardar).
+   "Importar a partir de" em branco importa desde o início do ciclo atual. Depois, **Sincronizar agora** mostra o resultado
+   ("1 importado, 0 atualizados, 0 removidos"). Exercícios do Hevy sem par no app viram provisórios e aparecem em
+   "Exercícios do Hevy para confirmar".
+4. **Remover** apaga a chave do servidor; as sessões já importadas ficam.
+
+Sem treinos chegando: veja em Configurações → Hevy a "Última tentativa falhou" e, nos logs, `Hevy ... request failed: status N`
+(401/403 = chave recusada ou conta sem Pro; 429 = limite do Hevy, a próxima rodada tenta de novo). Os logs trazem só
+contagens, status e tipos de erro: nunca a chave nem o conteúdo dos treinos.
+
 ## Verificação pós-deploy
 
 Critérios do spec (seção 9.1). Marque um a um.
@@ -311,6 +338,8 @@ Critérios do spec (seção 9.1). Marque um a um.
 - [ ] **Lembretes:** no iPhone (app na Tela de Início), Configurações, **Ativar lembretes** e **Enviar teste**: a notificação
   chega (passo 8).
 - [ ] **Catálogo:** depois de ~1 minuto, `GET /api/exercise-catalog` devolve itens (passo 9) e um exercício do treino mostra a demonstração.
+- [ ] **Hevy (se usar):** Configurações → Hevy mostra o formulário "Conectar" (não "Não configurado no servidor"); com a
+  chave, "Sincronizar agora" traz os treinos e o Histórico mostra o selo "Hevy" (passo 10).
 - [ ] **Deploy automático:** um push na `main` dispara um deploy no Coolify e o `/health` volta a responder 200.
 - [ ] **Release do APK:** o CI da `main` publicou a release `v0.1.<n>` com o arquivo `protocolo-0.1.<n>.apk`.
 - [ ] **Aviso de atualização:** com um APK mais antigo instalado, ao abrir o app aparece "Nova versão disponível" e o botão
@@ -334,6 +363,9 @@ Critérios do spec (seção 9.1). Marque um a um.
 | Lembretes pararam depois de restaurar/limpar o banco | Chaves VAPID novas: "Ativar lembretes" de novo em cada aparelho |
 | Importação mostra "A IA está sem créditos. Recarregue em console.anthropic.com → Plans & Billing…" | A conta da API da Anthropic (`Anthropic__ApiKey`) ficou sem saldo. Recarregue em console.anthropic.com → Plans & Billing e use "Ler com IA" de novo, ou preencha o rascunho à mão. Nada a mudar no Coolify; o log da API registra só o código `no_credits` |
 | Exercícios sem GIF, só "Ver no YouTube" | Catálogo vazio: veja o passo 9 (logs `ExerciseDB page request failed: status`, `ExerciseCatalog__Enabled`). No app nativo não há GIF offline |
+| Configurações → Hevy diz "Não configurado no servidor" | `Integrations__EncryptionKey` ausente ou inválida (precisa decodificar para 32 bytes): gere com `openssl rand -base64 32` e faça redeploy |
+| Hevy: "A chave salva não pode mais ser lida" | `Integrations__EncryptionKey` foi trocada ou perdida: informe a chave do Hevy de novo em Configurações → Hevy |
+| Hevy: "O Hevy recusou a chave. Confira a chave e se a conta é Pro." | Chave errada, revogada no Hevy ou conta sem Pro |
 | Banner de atualização nunca aparece | `GitHub__Token` ausente/expirado (a API responde 503 a `/api/app/latest-release`) ou ainda não há release |
 
 ## Operação
