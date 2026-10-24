@@ -30,6 +30,7 @@ const set = (over: Partial<SetLocal>): SetLocal => {
     parentSetId: null,
     completedAt: new Date(Date.UTC(2026, 9, 18, 12, 0, clock)).toISOString(),
     clientUpdatedAt: '',
+    rpe: null,
     ...over,
   }
 }

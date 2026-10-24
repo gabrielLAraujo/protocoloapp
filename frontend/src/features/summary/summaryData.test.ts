@@ -28,11 +28,12 @@ const plan: WorkoutPlanAt = {
 
 const session = (date: string, id = `s-${date}`): SessionLocal => ({
   id, date, planVersionId: 'p1', dayKey: 'a', startedAt: `${date}T12:00:00.000Z`, endedAt: `${date}T13:00:00.000Z`, note: null, exerciseNotes: {}, clientUpdatedAt: `${date}T13:00:00.000Z`,
+  source: 'app', externalTitle: null,
 })
 
 const workingSet = (sessionId: string, kind: SetLocal['kind'] = 'normal'): SetLocal => ({
   id: `${sessionId}-${kind}`, sessionId, exerciseId: 'e1', plannedExerciseKey: 'e1', setIndex: 0, weightKg: 50, reps: 10, kind,
-  parentSetId: null, completedAt: '2026-10-20T12:30:00.000Z', clientUpdatedAt: '2026-10-20T12:30:00.000Z',
+  parentSetId: null, completedAt: '2026-10-20T12:30:00.000Z', clientUpdatedAt: '2026-10-20T12:30:00.000Z', rpe: null,
 })
 const withSets = (...dates: string[]) => ({ sessions: dates.map((d) => session(d)), sets: dates.map((d) => workingSet(`s-${d}`)) })
 
@@ -203,7 +204,7 @@ describe('buildSummary', () => {
     const ex: ExerciseLocal = { id: 'e1', name: 'Supino', normalizedName: 'supino', primaryMuscleGroup: 'chest', aliases: [], catalogId: null }
     const set = (sessionId: string, weightKg: number): SetLocal => ({
       id: `${sessionId}-1`, sessionId, exerciseId: 'e1', plannedExerciseKey: 'e1', setIndex: 0, weightKg, reps: 10, kind: 'normal',
-      parentSetId: null, completedAt: '2026-10-20T12:30:00.000Z', clientUpdatedAt: '2026-10-20T12:30:00.000Z',
+      parentSetId: null, completedAt: '2026-10-20T12:30:00.000Z', clientUpdatedAt: '2026-10-20T12:30:00.000Z', rpe: null,
     })
     const s = buildSummary(
       input({ sessions: [session('2026-10-20'), session('2026-10-26')], sets: [set('s-2026-10-20', 60), set('s-2026-10-26', 70)], exercises: [ex] }),

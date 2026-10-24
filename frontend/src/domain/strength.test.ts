@@ -6,10 +6,11 @@ import { bestSet, e1rm, sessionPRs, strengthByGroup } from './strength'
 let n = 0
 const set = (sessionId: string, exerciseId: string, weightKg: number, reps: number, kind: SetLocal['kind'] = 'normal'): SetLocal => ({
   id: `set${++n}`, sessionId, exerciseId, plannedExerciseKey: null, setIndex: 0, weightKg, reps, kind, parentSetId: null,
-  completedAt: '2026-10-20T10:00:00Z', clientUpdatedAt: '2026-10-20T10:00:00Z',
+  completedAt: '2026-10-20T10:00:00Z', clientUpdatedAt: '2026-10-20T10:00:00Z', rpe: null,
 })
 const session = (id: string, date: string): SessionLocal => ({
   id, date, planVersionId: 'v1', dayKey: 'A', startedAt: `${date}T10:00:00Z`, endedAt: null, note: null, exerciseNotes: {}, clientUpdatedAt: `${date}T10:00:00Z`,
+  source: 'app', externalTitle: null,
 })
 const exercise = (id: string, name: string, primaryMuscleGroup: ExerciseLocal['primaryMuscleGroup']): ExerciseLocal => ({
   id, name, normalizedName: name.toLowerCase(), primaryMuscleGroup, aliases: [], catalogId: null,
