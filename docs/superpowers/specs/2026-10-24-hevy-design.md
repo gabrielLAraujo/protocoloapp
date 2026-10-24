@@ -15,7 +15,7 @@ Subprojeto aprovado pelo Gabriel em 24/10. Os treinos registrados no Hevy entram
 - **Envio:** `PUT /api/integrations/hevy` com `{ apiKey, syncFrom? }`. Antes de gravar, o servidor testa a chave no Hevy (`GET /v1/workouts?page=1&pageSize=1`). Chave recusada → 422 "O Hevy recusou a chave. Confira a chave e se a conta é Pro."
 - **Armazenamento:** criptografada no servidor com **AES-GCM**. A chave de criptografia vem da variável de ambiente `Integrations__EncryptionKey` (32 bytes aleatórios em base64). Formato gravado: `versão (1 byte) | nonce (12) | texto cifrado | tag (16)`, com o id do usuário como dado associado (a cifra de um usuário não abre como de outro).
 - **Sem `Integrations__EncryptionKey`** (ou com valor inválido): o app sobe normalmente. As funções do Hevy respondem "não configurado no servidor" (status `serverConfigured: false`; `PUT` e `sync` → 503 com essa mensagem), e o agendador não faz nada. Um aviso de uma linha no log na partida, sem o valor.
-- **Chave de criptografia trocada** (a cifra não abre mais): status `lastError: "key_unreadable"` → "A chave salva não pode mais ser lida. Informe a chave de novo."
+- **Chave de criptografia trocada** (a cifra não abre mais): status `lastError: "key_unreadable"` → "A chave salva não pode mais ser lida. Informe a chave do Hevy de novo."
 - **Remover:** `DELETE /api/integrations/hevy` apaga a chave e o cursor. Os treinos já importados ficam.
 - A variável no Coolify é criada pelo assistente do Gabriel; o runbook documenta o comando para gerar o valor (`openssl rand -base64 32`).
 

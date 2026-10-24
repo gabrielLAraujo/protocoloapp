@@ -303,7 +303,7 @@ Os treinos registrados no Hevy entram no app como sessões encerradas, a cada `H
    `Integrations__EncryptionKey` no Coolify (runtime, sem "Available at Buildtime") e guarde no gerenciador de senhas.
    Redeploy. Ela cifra a chave do Hevy no banco (AES-GCM); o log da partida só avisa, sem o valor, quando ela falta ou é
    inválida. **Se ela se perder ou for trocada**, a chave do Hevy guardada não abre mais (o app mostra "A chave salva não
-   pode mais ser lida. Informe a chave de novo."): basta informar a chave do Hevy de novo; nada importado se perde.
+   pode mais ser lida. Informe a chave do Hevy de novo."): basta informar a chave do Hevy de novo; nada importado se perde.
 2. **Chave da API do Hevy:** no site do Hevy, **Settings → Developer** (`https://hevy.com/settings?developer`), gere ou
    copie a chave. Ela não entra no Coolify nem no repositório.
 3. **No app:** Configurações → Hevy, cole a chave e toque em **Conectar** (o servidor testa a chave antes de guardar).
