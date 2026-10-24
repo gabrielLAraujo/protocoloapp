@@ -1,55 +1,13 @@
-import type { Client } from 'openapi-fetch'
 import { api } from '../../../api/client'
-import type { components, paths } from '../../../api/schema'
+import type { components } from '../../../api/schema'
 
 type Schemas = components['schemas']
 export type HevyStatus = Schemas['HevyStatusResponse']
 export type HevySyncResult = Schemas['HevySyncResult']
 export type HevyErrorCode = NonNullable<Schemas['HevyErrorCode']>
 
-/** A link from a Hevy exercise template to an app exercise (contract of the plan, Task 7). */
-export type HevyExerciseLink = {
-  id: string
-  templateId: string
-  title: string
-  exerciseId: string
-  exerciseName: string
-  status: 'auto' | 'pending' | 'confirmed'
-  setCount: number
-}
-
-type Json<T> = { headers: Record<string, unknown>; content: { 'application/json': T } }
-type Problem = { headers: Record<string, unknown>; content: { 'application/problem+json': Schemas['HttpValidationProblemDetails'] } }
-type NoParams = { query?: never; header?: never; path?: never; cookie?: never }
-
-/**
- * The routes Task 7 adds (`/sync`, `/exercises`), typed from the plan's contract until the generated schema has them.
- * Intersected with the generated `paths`, so it keeps compiling once the codegen brings the real ones; then this goes away.
- */
-type PendingPaths = {
-  '/api/integrations/hevy/sync': {
-    parameters: NoParams
-    post: { parameters: NoParams; requestBody?: never; responses: { 200: Json<HevySyncResult>; 409: Problem; 404: Problem; 502: Problem; 503: Problem } }
-  }
-  '/api/integrations/hevy/exercises': {
-    parameters: NoParams
-    get: {
-      parameters: { query?: { all?: boolean }; header?: never; path?: never; cookie?: never }
-      requestBody?: never
-      responses: { 200: Json<HevyExerciseLink[]> }
-    }
-  }
-  '/api/integrations/hevy/exercises/{id}': {
-    parameters: NoParams
-    put: {
-      parameters: { query?: never; header?: never; path: { id: string }; cookie?: never }
-      requestBody: { content: { 'application/json': { exerciseId: string | null } } }
-      responses: { 200: Json<HevyExerciseLink>; 404: Problem }
-    }
-  }
-}
-
-const client = api as unknown as Client<paths & PendingPaths>
+/** A link from a Hevy exercise template to an app exercise. */
+export type HevyExerciseLink = Schemas['HevyExerciseLinkResponse']
 
 /** A failed call, with the server's pt-BR message (status 0: the server was not reached). */
 export class HevyApiError extends Error {
@@ -103,13 +61,13 @@ const ROOT = '/api/integrations/hevy'
 
 /** Configurações → Hevy, over REST (online only). The API key goes in the body of `connect` and nowhere else. */
 export const hevyApi = {
-  status: () => call<HevyStatus>(() => client.GET(ROOT)),
+  status: () => call<HevyStatus>(() => api.GET(ROOT)),
   connect: (apiKey: string, syncFrom?: string) =>
-    call<HevyStatus>(() => client.PUT(ROOT, { body: syncFrom ? { apiKey, syncFrom } : { apiKey } })),
-  changeSyncFrom: (syncFrom: string) => call<HevyStatus>(() => client.PATCH(ROOT, { body: { syncFrom } })),
-  remove: () => call<undefined>(() => client.DELETE(ROOT)),
-  syncNow: () => call<HevySyncResult>(() => client.POST(`${ROOT}/sync`)),
-  links: (all: boolean) => call<HevyExerciseLink[]>(() => client.GET(`${ROOT}/exercises`, { params: { query: { all } } })),
+    call<HevyStatus>(() => api.PUT(ROOT, { body: syncFrom ? { apiKey, syncFrom } : { apiKey } })),
+  changeSyncFrom: (syncFrom: string) => call<HevyStatus>(() => api.PATCH(ROOT, { body: { syncFrom } })),
+  remove: () => call<undefined>(() => api.DELETE(ROOT)),
+  syncNow: () => call<HevySyncResult>(() => api.POST(`${ROOT}/sync`)),
+  links: (all: boolean) => call<HevyExerciseLink[]>(() => api.GET(`${ROOT}/exercises`, { params: { query: { all } } })),
   confirm: (id: string, exerciseId: string | null) =>
-    call<HevyExerciseLink>(() => client.PUT(`${ROOT}/exercises/{id}`, { params: { path: { id } }, body: { exerciseId } })),
+    call<HevyExerciseLink>(() => api.PUT(`${ROOT}/exercises/{id}`, { params: { path: { id } }, body: { exerciseId } })),
 }
