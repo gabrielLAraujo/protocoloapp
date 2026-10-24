@@ -395,6 +395,19 @@ public sealed class HevySyncRunTests(ApiFactory factory) : IClassFixture<ApiFact
         var mark = await api.WithDbAsync(db => db.AdherenceLogs.AsNoTracking().SingleAsync(a => a.UserId == api.UserId && a.Date == new DateOnly(2026, 3, 8)));
         Assert.NotNull(mark.DeletedAt);
         Assert.NotNull((await RowAsync(api)).Cursor);
+
+        // A removal by the reconciliation is not final: if Hevy lists the workout again, it comes back (same session).
+        // The session deleted in the app stays deleted.
+        await PatchSyncFromAsync(api, new DateOnly(2026, 3, 7));
+        factory.Hevy.WorkoutPages[key] = Pages(1, [Workout(10, kept), Workout(8, gone), Workout(7, dismissed)]);
+
+        var again = await SyncOkAsync(api);
+
+        Assert.Equal(1, again.Imported);
+        Assert.Null((await SessionAsync(api, gone)).DeletedAt);
+        Assert.Equal(goneId, (await SessionAsync(api, gone)).Id);
+        Assert.True(await api.WithDbAsync(db => db.SetLogs.AnyAsync(x => x.SessionId == goneId && x.DeletedAt == null)));
+        Assert.Equal(dismissedAt, (await SessionAsync(api, dismissed)).DeletedAt);
     }
 
     [Fact]

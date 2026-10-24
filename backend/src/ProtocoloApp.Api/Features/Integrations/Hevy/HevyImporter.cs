@@ -76,7 +76,7 @@ public sealed class ImportContext(DateOnly syncFrom, TimeZoneInfo zone, TimeProv
 /// <see cref="SyncWrites.BeginAsync"/> transaction per workout, every row stamped so devices receive it by pull:
 /// <list type="bullet">
 /// <item>the session is found by <c>(user, hevy, external_id)</c>, deleted rows included: one deleted in the app is never
-/// brought back (<see cref="ImportOutcome.Dismissed"/>);</item>
+/// brought back (<see cref="ImportOutcome.Dismissed"/>); one removed because Hevy deleted it comes back if Hevy lists it again;</item>
 /// <item>a newer <c>updated_at</c> keeps the session id and replaces every set (old ones soft-deleted);</item>
 /// <item>the workout mark of the date (<c>adherence_log</c> <c>workout/workout</c>, the device's deterministic id) is set to
 /// <c>done</c> when a live finished session of that date has a working set, and a <c>done</c> mark is cleared when none is left
@@ -108,7 +108,7 @@ public static class HevyImporter
         // the user's sync lock is held. Nothing is fetched for a workout that will not be written.
         // (Read-only pre-checks; the transaction below checks again.)
         var existing = await FindAsync(db, userId, w.Id, tracked: false, ct);
-        if (existing is { DeletedAt: not null })
+        if (existing is { DeletedAt: not null, ExternalUpdatedAt: not null })
             return ImportOutcome.Dismissed;
         if (existing?.ExternalUpdatedAt is { } seen && seen >= updatedAt)
             return ImportOutcome.Unchanged;
@@ -119,7 +119,7 @@ public static class HevyImporter
         return await InTransactionAsync(db, userId, async () =>
         {
             var session = await FindAsync(db, userId, w.Id, tracked: true, ct);
-            if (session is { DeletedAt: not null })
+            if (session is { DeletedAt: not null, ExternalUpdatedAt: not null })
                 return ImportOutcome.Dismissed;
             if (session?.ExternalUpdatedAt is { } stored && stored >= updatedAt)
                 return ImportOutcome.Unchanged;
@@ -150,7 +150,10 @@ public static class HevyImporter
 
             var planDay = plans.Single(p => p.Version.Id == day.PlanVersionId).Doc.Days.First(d => d?.Key == day.DayKey);
 
-            var isNew = session is null;
+            // A session removed because Hevy deleted or no longer listed it (ExternalUpdatedAt cleared) comes back when Hevy
+            // lists the workout again; only a deletion made in the app is final.
+            var isNew = session is null || session.DeletedAt is not null;
+            var revived = session is { DeletedAt: not null };
             var previousDate = session?.Date;
             if (session is null)
             {
@@ -158,6 +161,7 @@ public static class HevyImporter
                 db.WorkoutSessions.Add(session);
             }
 
+            session.DeletedAt = null;
             session.Date = date;
             session.PlanVersionId = day.PlanVersionId;
             session.WorkoutDayKey = day.DayKey;
@@ -168,7 +172,7 @@ public static class HevyImporter
             session.ExternalUpdatedAt = updatedAt;
             await SyncWrites.StampAsync(db, session, userId, ctx.Clock, ct);
 
-            if (!isNew)
+            if (!isNew || revived)
                 await DeleteSetsAsync(db, userId, session.Id, ctx.Clock, ct);
 
             var nextIndex = new Dictionary<Guid, int>();
@@ -214,6 +218,9 @@ public static class HevyImporter
                 return ImportOutcome.Unchanged;
 
             session.DeletedAt = ctx.Clock.GetUtcNow();
+            // Cleared so the removal is not taken for a deletion made in the app: if Hevy lists the workout again
+            // (for instance after a reconciliation that should not have removed it), the import brings it back.
+            session.ExternalUpdatedAt = null;
             await SyncWrites.StampAsync(db, session, userId, ctx.Clock, ct);
             await DeleteSetsAsync(db, userId, session.Id, ctx.Clock, ct);
             await db.SaveChangesAsync(ct);
