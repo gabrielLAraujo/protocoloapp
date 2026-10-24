@@ -222,3 +222,27 @@ describe('local migration 8', () => {
     ])
   })
 })
+
+describe('local migration 10', () => {
+  it('adds source (app), external_title and rpe without touching the sessions and sets of a device on version 9', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 9)
+    await db.execute(
+      `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, client_updated_at, version, deleted_at)
+       VALUES ('s1', '2026-10-18', 'p1', 'a', '2026-10-18T11:00:00.000Z', '2026-10-18T12:00:00.000Z', 'ok', '2026-10-18T12:00:00.000Z', 3, NULL),
+              ('s2', '2026-10-19', 'p1', 'b', '2026-10-19T11:00:00.000Z', NULL, NULL, '2026-10-19T11:00:00.000Z', NULL, '2026-10-19T11:30:00.000Z')`,
+    )
+    await db.execute(
+      `INSERT INTO set_logs (id, session_id, exercise_id, planned_exercise_key, set_index, weight_kg, reps, kind, parent_set_id, completed_at, client_updated_at, version, deleted_at)
+       VALUES ('l1', 's1', 'x1', 'e1', 0, 80, 8, 'normal', NULL, '2026-10-18T11:05:00.000Z', '2026-10-18T11:05:00.000Z', 4, NULL)`,
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT id, note, version, deleted_at, source, external_title FROM workout_sessions ORDER BY id')).toEqual([
+      { id: 's1', note: 'ok', version: 3, deleted_at: null, source: 'app', external_title: null },
+      { id: 's2', note: null, version: null, deleted_at: '2026-10-19T11:30:00.000Z', source: 'app', external_title: null },
+    ])
+    expect(await db.query('SELECT id, weight_kg, reps, version, rpe FROM set_logs')).toEqual([{ id: 'l1', weight_kg: 80, reps: 8, version: 4, rpe: null }])
+  })
+})

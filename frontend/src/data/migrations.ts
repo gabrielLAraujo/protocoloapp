@@ -274,6 +274,15 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
     version: 9,
     statements: ['ALTER TABLE daily_checkins ADD COLUMN stress INTEGER', 'ALTER TABLE daily_checkins ADD COLUMN mood INTEGER'],
   },
+  {
+    // Hevy sync: where a session came from (set by the server, pull only), the Hevy title, and the RPE of a set. Additive only.
+    version: 10,
+    statements: [
+      "ALTER TABLE workout_sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'app'",
+      'ALTER TABLE workout_sessions ADD COLUMN external_title TEXT',
+      'ALTER TABLE set_logs ADD COLUMN rpe REAL',
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

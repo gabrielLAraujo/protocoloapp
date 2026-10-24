@@ -54,6 +54,7 @@ describe('workoutRepo', () => {
       kind: 'normal',
       parent_set_id: null,
       completed_at: at(5).toISOString(),
+      rpe: null,
     })
     expect((await workoutRepo.setsForSession(db, sessionId)).map((s) => s.id)).toEqual([s1, s2])
   })
@@ -268,6 +269,84 @@ describe('workoutRepo', () => {
 
     expect(await workoutRepo.setsForExercise(db, EX, 10)).toEqual([])
     expect(await workoutRepo.exerciseIdsWithSets(db)).toEqual([])
+  })
+})
+
+describe('workoutRepo: origin and RPE', () => {
+  const base = { deletedAt: null, clientUpdatedAt: '2026-10-18T12:00:00+00:00' }
+  const pulledSession = (db: Awaited<ReturnType<typeof newLocalDb>>, payload: Record<string, unknown>, version = 1) =>
+    workoutSessionSync.applyRemote(db, { ...base, entity: 'workout_session', id: 'h1', version, payload })
+  const hevyPayload = {
+    date: '2026-10-18', plan_version_id: PLAN, workout_day_key: 'a', started_at: '2026-10-18T11:00:00+00:00',
+    ended_at: '2026-10-18T12:00:00+00:00', note: null, source: 'hevy', external_title: 'Treino A',
+  }
+
+  it('a local session is from the app, and its payloads never carry source or external_title', async () => {
+    const db = await newLocalDb()
+    const sessionId = await start(db)
+    await workoutRepo.setExerciseNote(db, USER_A, sessionId, 'supino', 'Nota', at(1))
+    await workoutRepo.finishSession(db, USER_A, sessionId, at(50))
+
+    expect(await workoutRepo.sessionById(db, sessionId)).toMatchObject({ source: 'app', externalTitle: null })
+    const entries = await outbox.due(db, at(60), 500)
+    expect(entries).toHaveLength(3)
+    for (const entry of entries) {
+      const payload = JSON.parse(entry.payload!) as Record<string, unknown>
+      expect(payload).not.toHaveProperty('source')
+      expect(payload).not.toHaveProperty('external_title')
+    }
+  })
+
+  it('a pulled Hevy session keeps source and external_title, also after a local edit (which does not push them)', async () => {
+    const db = await newLocalDb()
+    await pulledSession(db, hevyPayload)
+
+    expect(await workoutRepo.sessionById(db, 'h1')).toMatchObject({ source: 'hevy', externalTitle: 'Treino A', endedAt: '2026-10-18T12:00:00.000Z' })
+    expect((await workoutRepo.sessionSummaries(db, 10, 0))[0]!.session).toMatchObject({ source: 'hevy', externalTitle: 'Treino A' })
+
+    await workoutRepo.setExerciseNote(db, USER_A, 'h1', 'supino', 'Nota', at(1))
+    expect(await workoutRepo.sessionById(db, 'h1')).toMatchObject({ source: 'hevy', externalTitle: 'Treino A' })
+    const [entry] = await outbox.due(db, at(60), 500)
+    expect(JSON.parse(entry!.payload!)).not.toHaveProperty('source')
+  })
+
+  it('a pulled session without source (older server) or with an unknown one is from the app', async () => {
+    const db = await newLocalDb()
+    const { source: _source, external_title: _title, ...older } = hevyPayload
+    await pulledSession(db, older)
+    expect(await workoutRepo.sessionById(db, 'h1')).toMatchObject({ source: 'app', externalTitle: null })
+
+    await pulledSession(db, { ...hevyPayload, source: 'other' }, 2)
+    expect(await workoutRepo.sessionById(db, 'h1')).toMatchObject({ source: 'app', externalTitle: 'Treino A' })
+  })
+
+  it('rpe round-trips: pulled, kept on a local edit and pushed back; a new local set has none', async () => {
+    const db = await newLocalDb()
+    await pulledSession(db, hevyPayload)
+    await setLogSync.applyRemote(db, {
+      ...base,
+      entity: 'set_log',
+      id: 'l1',
+      version: 1,
+      payload: { session_id: 'h1', exercise_id: EX, planned_exercise_key: null, set_index: 0, weight_kg: 80, reps: 8, kind: 'normal', parent_set_id: null, completed_at: '2026-10-18T11:05:00+00:00', rpe: 8.5 },
+    })
+    await setLogSync.applyRemote(db, {
+      ...base,
+      entity: 'set_log',
+      id: 'l2',
+      version: 1,
+      // An older server sends no rpe.
+      payload: { session_id: 'h1', exercise_id: EX, planned_exercise_key: null, set_index: 1, weight_kg: 80, reps: 8, kind: 'normal', parent_set_id: null, completed_at: '2026-10-18T11:08:00+00:00' },
+    })
+    expect((await workoutRepo.setsForSession(db, 'h1')).map((s) => s.rpe)).toEqual([8.5, null])
+
+    await workoutRepo.updateSet(db, USER_A, 'l1', { reps: 9 }, at(1))
+    const [entry] = await outbox.due(db, at(60), 500)
+    expect(JSON.parse(entry!.payload!)).toMatchObject({ reps: 9, rpe: 8.5 })
+    expect((await workoutRepo.setsForSession(db, 'h1'))[0]).toMatchObject({ reps: 9, rpe: 8.5 })
+
+    const local = await workoutRepo.logSet(db, USER_A, setInput('h1', 2), at(2))
+    expect((await workoutRepo.setsForSession(db, 'h1')).find((s) => s.id === local)).toMatchObject({ rpe: null })
   })
 })
 
