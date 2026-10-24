@@ -44,6 +44,28 @@ public sealed class ImportContext(DateOnly syncFrom, TimeZoneInfo zone, TimeProv
     public Func<string, Task<string?>> TemplateGroup { get; } = templateGroup ?? throw new ArgumentNullException(nameof(templateGroup));
 
     public int SkippedSets { get; set; }
+
+    private readonly Dictionary<ImportOutcome, int> _counts = [];
+
+    /// <summary>Records one outcome for <see cref="ToResult"/>; returns it, so <c>ctx.Count(await ApplyUpdatedAsync(...))</c> reads well.</summary>
+    public ImportOutcome Count(ImportOutcome outcome)
+    {
+        _counts[outcome] = _counts.GetValueOrDefault(outcome) + 1;
+        return outcome;
+    }
+
+    /// <summary>
+    /// The run's counts. <see cref="ImportOutcome.Dismissed"/> counts as unchanged; <see cref="ImportOutcome.SkippedBeforeSyncFrom"/>
+    /// is not counted (the initial load reads past the start date on purpose).
+    /// </summary>
+    public HevySyncResult ToResult(int pendingExercises) => new(
+        _counts.GetValueOrDefault(ImportOutcome.Imported),
+        _counts.GetValueOrDefault(ImportOutcome.Updated),
+        _counts.GetValueOrDefault(ImportOutcome.Deleted),
+        _counts.GetValueOrDefault(ImportOutcome.Unchanged) + _counts.GetValueOrDefault(ImportOutcome.Dismissed),
+        _counts.GetValueOrDefault(ImportOutcome.SkippedNoPlan),
+        SkippedSets,
+        pendingExercises);
 }
 
 /// <summary>
@@ -173,6 +195,13 @@ public static class HevyImporter
             await SyncWorkoutMarkAsync(db, userId, session.Date, ctx.Clock, ct);
             return ImportOutcome.Deleted;
         }, ct);
+    }
+
+    /// <summary>Links waiting for the user's confirmation (<see cref="HevySyncResult.PendingExercises"/>).</summary>
+    public static Task<int> PendingExercisesAsync(AppDbContext db, Guid userId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        return db.HevyExerciseLinks.CountAsync(l => l.UserId == userId && l.Status == HevyLinkStatus.Pending, ct);
     }
 
     /// <summary>An exercise that can be linked (a storable template id) and has at least one set to keep.</summary>

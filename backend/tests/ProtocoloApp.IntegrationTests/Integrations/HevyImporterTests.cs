@@ -99,10 +99,12 @@ public sealed class HevyImporterTests(ApiFactory factory) : IClassFixture<ApiFac
         using var api = s.Api;
         var ctx = Context();
 
-        var outcome = await ImportAsync(api.UserId, Workout(NewId(), Edited), ctx);
+        var outcome = ctx.Count(await ImportAsync(api.UserId, Workout(NewId(), Edited), ctx));
 
         Assert.Equal(ImportOutcome.Imported, outcome);
         Assert.Equal(1, ctx.SkippedSets);
+        var pending = await api.WithDbAsync(db => HevyImporter.PendingExercisesAsync(db, api.UserId, CancellationToken.None));
+        Assert.Equal(new HevySyncResult(1, 0, 0, 0, 0, 1, 1), ctx.ToResult(pending));
         var records = await SyncApi.PullAllAsync(api.Client);
         var session = Assert.Single(records, r => r.Entity == "workout_session");
         var payload = session.Payload!.Value;
