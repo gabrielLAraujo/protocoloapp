@@ -29,6 +29,8 @@ COPY backend/src/ProtocoloApp.Api/ProtocoloApp.Api.csproj src/ProtocoloApp.Api/
 RUN dotnet tool restore && dotnet restore src/ProtocoloApp.Api/ProtocoloApp.Api.csproj
 
 COPY backend/src/ src/
+# Embedded in the API assembly (the Hevy exercise matcher), at the path the csproj expects (../../../frontend from the project).
+COPY frontend/src/domain/exercise-dictionary.json /frontend/src/domain/exercise-dictionary.json
 RUN dotnet publish src/ProtocoloApp.Api/ProtocoloApp.Api.csproj -c Release -o /app/publish --no-restore
 # EF Core migrations bundle: applied by the entrypoint before the API starts
 RUN dotnet ef migrations bundle \
