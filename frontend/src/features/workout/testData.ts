@@ -2,7 +2,7 @@ import type { SyncRecord } from '../../data/apiClient'
 import type { LocalDb } from '../../data/localDb'
 import { exerciseSync } from '../../data/exerciseRepo'
 import { planVersionSync } from '../../data/planRepo'
-import { workoutRepo } from '../../data/workoutRepo'
+import { setLogSync, workoutRepo, workoutSessionSync } from '../../data/workoutRepo'
 import { USER_A } from '../../test/localDb'
 
 /** Fictitious fixtures for the workout screens' tests. */
@@ -77,4 +77,43 @@ export async function seedPastSession(db: LocalDb, date: string, exerciseId: str
   }
   await workoutRepo.finishSession(db, USER_A, sessionId, new Date(start.getTime() + 3_600_000))
   return sessionId
+}
+
+/**
+ * A finished session imported from Hevy (as the pull writes it), day `a` of PLAN, with the given sets of one exercise:
+ * [weight, reps, rpe?][]; the sets are `${id}-0`, `${id}-1`…
+ */
+export async function seedHevySession(db: LocalDb, id: string, date: string, exerciseId: string, sets: [number, number, number?][], title = 'Treino de exemplo') {
+  const start = `${date}T12:00:00.000Z`
+  await workoutSessionSync.applyRemote(
+    db,
+    record('workout_session', id, {
+      date,
+      plan_version_id: PLAN,
+      workout_day_key: 'a',
+      started_at: start,
+      ended_at: `${date}T13:00:00.000Z`,
+      note: null,
+      source: 'hevy',
+      external_title: title,
+    }),
+  )
+  for (const [i, [weight_kg, reps, rpe]] of sets.entries()) {
+    await setLogSync.applyRemote(
+      db,
+      record('set_log', `${id}-${i}`, {
+        session_id: id,
+        exercise_id: exerciseId,
+        planned_exercise_key: 'e1',
+        set_index: i,
+        weight_kg,
+        reps,
+        kind: 'normal',
+        parent_set_id: null,
+        completed_at: `${date}T12:0${i + 1}:00.000Z`,
+        rpe: rpe ?? null,
+      }),
+    )
+  }
+  return id
 }

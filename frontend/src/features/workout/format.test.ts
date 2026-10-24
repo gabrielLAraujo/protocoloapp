@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatClock, formatDate, formatDuration, formatKg, formatShortDate, repsLabel } from './format'
+import { formatClock, formatDate, formatDuration, formatKg, formatRpe, formatShortDate, repsLabel } from './format'
 
 describe('format', () => {
   it('formats kg with comma decimals', () => {
@@ -14,6 +14,10 @@ describe('format', () => {
     expect(formatClock(-3)).toBe('00:00')
     expect(formatDuration(45 * 60_000)).toBe('45 min')
     expect(formatDuration(65 * 60_000)).toBe('1 h 05 min')
+  })
+  it('formats RPE with comma decimals', () => {
+    expect(formatRpe(8)).toBe('RPE 8')
+    expect(formatRpe(8.5)).toBe('RPE 8,5')
   })
   it('labels reps', () => {
     expect(repsLabel(15, 20)).toBe('15–20 reps')
