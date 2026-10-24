@@ -17,6 +17,8 @@ public sealed class SetLog : ISyncEntity
     public const int MaxSetIndex = 50;
     public const int MaxWeightKg = 1000;
     public const int MaxReps = 200;
+    public const int MinRpe = 1;
+    public const int MaxRpe = 10;
 
     public Guid Id { get; set; }
 
@@ -53,4 +55,10 @@ public sealed class SetLog : ISyncEntity
     public Guid? ParentSetId { get; set; }
 
     public DateTimeOffset CompletedAt { get; set; }
+
+    /// <summary>Rate of perceived exertion, 1–10 in steps of 0.5; optional.</summary>
+    public decimal? Rpe { get; set; }
+
+    /// <summary>The Hevy exercise template the set was imported from (server only, not in the payload).</summary>
+    public string? HevyTemplateId { get; set; }
 }

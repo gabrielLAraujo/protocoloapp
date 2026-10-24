@@ -21,6 +21,7 @@ public sealed class WorkoutSessionSyncHandler(AppDbContext db, TimeProvider cloc
 
     protected override WorkoutSession Create(Guid id, Guid userId) => new() { Id = id, UserId = userId };
 
+    // Source and ExternalTitle belong to the server: a push (from any app version) never changes them.
     protected override void Apply(WorkoutSessionPayload payload, WorkoutSession entity)
     {
         entity.Date = payload.Date!.Value;
@@ -41,6 +42,8 @@ public sealed class WorkoutSessionSyncHandler(AppDbContext db, TimeProvider cloc
         EndedAt = entity.EndedAt,
         Note = entity.Note,
         Notes = entity.ExerciseNotes?.Deserialize<Dictionary<string, string?>>(),
+        Source = EnumText.ToText(entity.Source),
+        ExternalTitle = entity.ExternalTitle,
     };
 
     // The plan version may be archived (a session keeps pointing at the version it followed); it only has to be the user's.
@@ -74,6 +77,7 @@ public sealed class SetLogSyncHandler(AppDbContext db, TimeProvider clock) : Syn
         entity.Kind = EnumText.Parse<SetKind>(payload.Kind!);
         entity.ParentSetId = payload.ParentSetId;
         entity.CompletedAt = payload.CompletedAt!.Value;
+        entity.Rpe = payload.Rpe;
     }
 
     protected override SetLogPayload CreatePayload(SetLog entity) => new()
@@ -87,6 +91,7 @@ public sealed class SetLogSyncHandler(AppDbContext db, TimeProvider clock) : Syn
         Kind = EnumText.ToText(entity.Kind),
         ParentSetId = entity.ParentSetId,
         CompletedAt = entity.CompletedAt,
+        Rpe = entity.Rpe,
     };
 
     protected override async Task<string?> ValidateReferencesAsync(SetLog entity, Guid userId, CancellationToken cancellationToken)

@@ -8,7 +8,8 @@ namespace ProtocoloApp.Api.Features.Workouts;
 /// <summary>
 /// <c>workout_session</c>: <c>{date, plan_version_id, workout_day_key, started_at, ended_at?, note?, notes?}</c>.
 /// <c>plan_version_id</c> must be a (non-deleted) plan version of the user, archived or not. <c>notes</c> maps a planned exercise
-/// key to a text (at most 30 keys, 2000 characters each).
+/// key to a text (at most 30 keys, 2000 characters each). The pull also carries <c>source</c> (<c>app|hevy</c>) and
+/// <c>external_title</c>; both are set by the server, so a push may omit them and anything it sends there is ignored.
 /// </summary>
 public sealed record WorkoutSessionPayload
 {
@@ -25,6 +26,12 @@ public sealed record WorkoutSessionPayload
     public string? Note { get; init; }
 
     public Dictionary<string, string?>? Notes { get; init; }
+
+    /// <summary>Pull only (ignored on push).</summary>
+    public string? Source { get; init; }
+
+    /// <summary>Pull only (ignored on push).</summary>
+    public string? ExternalTitle { get; init; }
 }
 
 public sealed class WorkoutSessionPayloadValidator : AbstractValidator<WorkoutSessionPayload>
@@ -50,8 +57,9 @@ public sealed class WorkoutSessionPayloadValidator : AbstractValidator<WorkoutSe
 
 /// <summary>
 /// <c>set_log</c>: <c>{session_id, exercise_id, planned_exercise_key?, set_index, weight_kg, reps, kind, parent_set_id?,
-/// completed_at}</c>; <c>kind</c> is <c>normal|drop|partial|rest_pause|warmup</c>. The session, exercise and parent set
-/// must exist, belong to the user and not be deleted, so a client sends the session before its sets.
+/// completed_at, rpe?}</c>; <c>kind</c> is <c>normal|drop|partial|rest_pause|warmup</c>; <c>rpe</c> is 1–10 in steps of 0.5
+/// (absent or null when not recorded). The session, exercise and parent set must exist, belong to the user and not be
+/// deleted, so a client sends the session before its sets.
 /// </summary>
 public sealed record SetLogPayload
 {
@@ -72,6 +80,8 @@ public sealed record SetLogPayload
     public Guid? ParentSetId { get; init; }
 
     public DateTimeOffset? CompletedAt { get; init; }
+
+    public decimal? Rpe { get; init; }
 }
 
 public sealed class SetLogPayloadValidator : AbstractValidator<SetLogPayload>
@@ -87,7 +97,13 @@ public sealed class SetLogPayloadValidator : AbstractValidator<SetLogPayload>
         RuleFor(p => p.Kind).Must(k => k is not null && Plans.EnumText.Values<SetKind>().Contains(k)).OverridePropertyName("kind");
         RuleFor(p => p.ParentSetId).NotEqual(Guid.Empty).OverridePropertyName("parent_set_id");
         RuleFor(p => p.CompletedAt).NotNull().OverridePropertyName("completed_at");
+        RuleFor(p => p.Rpe).Must(BeValidRpe).OverridePropertyName("rpe");
     }
+
+    // 1–10 in steps of 0.5; null means "not recorded" (older app versions never send it).
+    private static bool BeValidRpe(decimal? rpe) =>
+        rpe is not { } value
+        || (value >= SetLog.MinRpe && value <= SetLog.MaxRpe && decimal.Truncate(value * 2) == value * 2);
 }
 
 /// <summary>
