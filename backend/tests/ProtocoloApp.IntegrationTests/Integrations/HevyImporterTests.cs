@@ -306,4 +306,50 @@ public sealed class HevyImporterTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Equal(AdherenceStatus.Done, mark.Status);
         Assert.Null(mark.Reason);
     }
+
+    [Fact]
+    public async Task Template_groups_are_asked_outside_the_write_transaction_and_only_for_new_exercises()
+    {
+        var s = await NewUserAsync();
+        using var api = s.Api;
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var asked = new List<(string TemplateId, bool InTransaction)>();
+        var ctx = new ImportContext(new DateOnly(2026, 3, 1), Zone, TimeProvider.System, templateId =>
+        {
+            asked.Add((templateId, db.Database.CurrentTransaction is not null));
+            return Task.FromResult<string?>("biceps");
+        });
+
+        var outcome = await HevyImporter.ApplyUpdatedAsync(db, api.UserId, Workout(NewId(), Edited), ctx, CancellationToken.None);
+
+        Assert.Equal(ImportOutcome.Imported, outcome);
+        // The matched curl needs no group; the unknown template is asked once, with no transaction (nor user lock) open.
+        Assert.Equal(new[] { (UnknownTemplate, false) }, asked);
+        var link = await api.WithDbAsync(d => d.HevyExerciseLinks.AsNoTracking().SingleAsync(l => l.UserId == api.UserId && l.TemplateId == UnknownTemplate));
+        Assert.Equal(MuscleGroup.Biceps, (await api.WithDbAsync(d => d.Exercises.AsNoTracking().SingleAsync(e => e.Id == link.ExerciseId))).PrimaryMuscleGroup);
+    }
+
+    [Fact]
+    public async Task A_workout_with_no_plan_day_to_go_to_creates_no_exercise_nor_link()
+    {
+        var s = await NewUserAsync();
+        using var api = s.Api;
+        // The active plan has no day at all: the resolver finds nowhere to put the workout.
+        await api.WithDbAsync(async db =>
+        {
+            var plan = await db.PlanVersions.SingleAsync(p => p.Id == s.PlanVersionId);
+            var copy = System.Text.Json.Nodes.JsonNode.Parse(plan.Document.RootElement.GetRawText())!.AsObject();
+            copy["days"] = new System.Text.Json.Nodes.JsonArray();
+            plan.Document = JsonDocument.Parse(copy.ToJsonString());
+            return await db.SaveChangesAsync();
+        });
+        var before = await CountAsync(api);
+
+        var outcome = await ImportAsync(api.UserId, Workout(NewId(), Edited));
+
+        Assert.Equal(ImportOutcome.SkippedNoPlan, outcome);
+        Assert.Equal(before, await CountAsync(api));
+        Assert.False(await api.WithDbAsync(db => db.Exercises.AnyAsync(e => e.UserId == api.UserId && e.Name == "Exercicio Inventado Hevy")));
+    }
 }

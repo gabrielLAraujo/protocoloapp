@@ -32,7 +32,10 @@ public enum ImportOutcome
 }
 
 /// <summary>What one import run shares between workouts. <see cref="SkippedSets"/> accumulates the sets left out.</summary>
-/// <param name="templateGroup">The <c>primary_muscle_group</c> of a Hevy template (null when unknown), asked only for new exercises.</param>
+/// <param name="templateGroup">
+/// The <c>primary_muscle_group</c> of a Hevy template (null when unknown), asked only for templates that would get a new
+/// exercise, and always before the workout's write transaction (it may call Hevy).
+/// </param>
 public sealed class ImportContext(DateOnly syncFrom, TimeZoneInfo zone, TimeProvider clock, Func<string, Task<string?>> templateGroup)
 {
     public DateOnly SyncFrom { get; } = syncFrom;
@@ -77,7 +80,9 @@ public sealed class ImportContext(DateOnly syncFrom, TimeZoneInfo zone, TimeProv
 /// <item>a newer <c>updated_at</c> keeps the session id and replaces every set (old ones soft-deleted);</item>
 /// <item>the workout mark of the date (<c>adherence_log</c> <c>workout/workout</c>, the device's deterministic id) is set to
 /// <c>done</c> when a live finished session of that date has a working set, and a <c>done</c> mark is cleared when none is left
-/// (the device's <c>saveLoggedSession</c> rule).</item>
+/// (the device's <c>saveLoggedSession</c> rule);</item>
+/// <item>template groups (Hevy calls) are fetched before the transaction, and the plan day is chosen before any exercise is
+/// linked, so a skipped workout creates nothing.</item>
 /// </list>
 /// Nothing from the workout (titles, notes, loads) is logged.
 /// </summary>
@@ -97,9 +102,23 @@ public static class HevyImporter
             return ImportOutcome.SkippedBeforeSyncFrom;
 
         var updatedAt = Microseconds(w.UpdatedAt);
+        var exercises = w.Exercises.Where(IsLinkable).ToList();
+
+        // Hevy is asked for the muscle groups of new templates here, before the write transaction: no HTTP call ever runs while
+        // the user's sync lock is held. Nothing is fetched for a workout that will not be written.
+        // (Read-only pre-checks; the transaction below checks again.)
+        var existing = await FindAsync(db, userId, w.Id, tracked: false, ct);
+        if (existing is { DeletedAt: not null })
+            return ImportOutcome.Dismissed;
+        if (existing?.ExternalUpdatedAt is { } seen && seen >= updatedAt)
+            return ImportOutcome.Unchanged;
+        if (!(await LoadPlansAsync(db, userId, ctx.Zone, ct)).Any(p => p.ActivatedOn <= date))
+            return ImportOutcome.SkippedNoPlan;
+        var templateGroups = await TemplateGroupsAsync(db, userId, exercises, ctx, ct);
+
         return await InTransactionAsync(db, userId, async () =>
         {
-            var session = await FindAsync(db, userId, w.Id, ct);
+            var session = await FindAsync(db, userId, w.Id, tracked: true, ct);
             if (session is { DeletedAt: not null })
                 return ImportOutcome.Dismissed;
             if (session?.ExternalUpdatedAt is { } stored && stored >= updatedAt)
@@ -109,20 +128,26 @@ public static class HevyImporter
             if (!plans.Any(p => p.ActivatedOn <= date))
                 return ImportOutcome.SkippedNoPlan;
 
-            var exercises = w.Exercises.Where(IsLinkable).ToList();
-            ctx.SkippedSets += w.Exercises.Where(e => !IsLinkable(e)).Sum(e => e.Sets.Count);
-            var mapped = new List<Guid?>();
-            foreach (var exercise in exercises)
-                mapped.Add(await HevyExerciseLinker.ResolveAsync(db, userId, exercise, ctx.TemplateGroup, ctx.Clock, ct));
-
             var overrides = (await db.RotationOverrides.AsNoTracking()
                     .Where(o => o.UserId == userId && o.DeletedAt == null)
                     .Select(o => new { o.Date, o.WorkoutDayKey })
                     .ToListAsync(ct))
                 .Select(o => new RotationOverrideRow(o.Date, o.WorkoutDayKey))
                 .ToList();
-            if (HevyDayResolver.Resolve(date, w, mapped, plans, overrides) is not { } day)
+
+            // The day is chosen before anything is linked: a workout that cannot be placed leaves no provisional exercise
+            // nor pending link behind. A provisional exercise is brand new, so it is in no plan day: null is the same to the resolver.
+            var known = new List<Guid?>();
+            foreach (var exercise in exercises)
+                known.Add(await HevyExerciseLinker.PeekAsync(db, userId, exercise, ct));
+            if (HevyDayResolver.Resolve(date, w, known, plans, overrides) is not { } day)
                 return ImportOutcome.SkippedNoPlan;
+
+            ctx.SkippedSets += w.Exercises.Where(e => !IsLinkable(e)).Sum(e => e.Sets.Count);
+            var mapped = new List<Guid>();
+            foreach (var exercise in exercises)
+                mapped.Add(await HevyExerciseLinker.ResolveAsync(db, userId, exercise, templateGroups, ctx.Clock, ct));
+
             var planDay = plans.Single(p => p.Version.Id == day.PlanVersionId).Doc.Days.First(d => d?.Key == day.DayKey);
 
             var isNew = session is null;
@@ -150,7 +175,7 @@ public static class HevyImporter
             var order = 0;
             for (var i = 0; i < exercises.Count; i++)
             {
-                var exerciseId = mapped[i]!.Value;
+                var exerciseId = mapped[i];
                 var plannedKey = (planDay.Exercises ?? []).FirstOrDefault(e => e?.ExerciseId == exerciseId)?.Key;
                 var (sets, skipped) = HevySetMapper.Map(
                     exercises[i], session.Id, exerciseId, plannedKey, userId, w.StartTime.AddSeconds(order), nextIndex.GetValueOrDefault(exerciseId));
@@ -184,7 +209,7 @@ public static class HevyImporter
 
         return await InTransactionAsync(db, userId, async () =>
         {
-            var session = await FindAsync(db, userId, externalId, ct);
+            var session = await FindAsync(db, userId, externalId, tracked: true, ct);
             if (session is null || session.DeletedAt is not null)
                 return ImportOutcome.Unchanged;
 
@@ -232,8 +257,27 @@ public static class HevyImporter
         }
     }
 
-    private static Task<WorkoutSession?> FindAsync(AppDbContext db, Guid userId, string externalId, CancellationToken ct) =>
-        db.WorkoutSessions.SingleOrDefaultAsync(s => s.UserId == userId && s.Source == SessionSource.Hevy && s.ExternalId == externalId, ct);
+    private static Task<WorkoutSession?> FindAsync(AppDbContext db, Guid userId, string externalId, bool tracked, CancellationToken ct) =>
+        (tracked ? db.WorkoutSessions : db.WorkoutSessions.AsNoTracking())
+            .SingleOrDefaultAsync(s => s.UserId == userId && s.Source == SessionSource.Hevy && s.ExternalId == externalId, ct);
+
+    /// <summary>
+    /// The muscle groups of the templates that would get a new provisional exercise (<see cref="HevyExerciseLinker.PeekAsync"/>),
+    /// asked through <see cref="ImportContext.TemplateGroup"/> (which may call Hevy). Must run outside the write transaction.
+    /// </summary>
+    private static async Task<Dictionary<string, string?>> TemplateGroupsAsync(
+        AppDbContext db, Guid userId, IReadOnlyList<HevyExercise> exercises, ImportContext ctx, CancellationToken ct)
+    {
+        var groups = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var exercise in exercises)
+        {
+            if (groups.ContainsKey(exercise.TemplateId) || await HevyExerciseLinker.PeekAsync(db, userId, exercise, ct) is not null)
+                continue;
+            groups[exercise.TemplateId] = await ctx.TemplateGroup(exercise.TemplateId);
+        }
+
+        return groups;
+    }
 
     private static async Task<List<(PlanVersion Version, WorkoutDocument Doc, DateOnly ActivatedOn)>> LoadPlansAsync(
         AppDbContext db, Guid userId, TimeZoneInfo zone, CancellationToken ct)
