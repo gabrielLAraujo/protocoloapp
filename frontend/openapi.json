@@ -1682,6 +1682,8 @@
           "unavailable",
           "format",
           "key_unreadable",
+          "incomplete",
+          "internal",
           null
         ]
       },

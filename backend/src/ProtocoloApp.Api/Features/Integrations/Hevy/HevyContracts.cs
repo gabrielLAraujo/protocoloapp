@@ -20,6 +20,14 @@ public enum HevyErrorCode
     /// <summary>The stored key no longer opens (the server's encryption key changed).</summary>
     [JsonStringEnumMemberName("key_unreadable")]
     KeyUnreadable,
+
+    /// <summary>The last run stopped at the page cap: what it read is imported, the rest waits (the cursor did not move).</summary>
+    [JsonStringEnumMemberName("incomplete")]
+    Incomplete,
+
+    /// <summary>The last run failed on the server side (not Hevy's); the cursor did not move.</summary>
+    [JsonStringEnumMemberName("internal")]
+    Internal,
 }
 
 /// <summary>The counts of one sync run.</summary>

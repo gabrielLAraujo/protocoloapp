@@ -1613,7 +1613,7 @@ export interface components {
             worst: components["schemas"]["StrengthTrend"][];
         };
         /** @enum {unknown} */
-        HevyErrorCode: "unauthorized" | "rate_limited" | "unavailable" | "format" | "key_unreadable" | null;
+        HevyErrorCode: "unauthorized" | "rate_limited" | "unavailable" | "format" | "key_unreadable" | "incomplete" | "internal" | null;
         HevyExerciseLinkResponse: {
             /** Format: uuid */
             id: string;
