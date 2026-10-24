@@ -17,7 +17,13 @@ describe('hevyCopy', () => {
     expect(errorText('rate_limited')).toBe('O Hevy pediu uma pausa. Tentaremos de novo em 30 minutos.')
     expect(errorText('unavailable')).toBe('O Hevy não respondeu. Tentaremos de novo em 30 minutos.')
     expect(errorText('format')).toBe('Resposta inesperada do Hevy. Avise o suporte do app.')
-    expect(errorText('key_unreadable')).toBe('A chave salva não pode mais ser lida. Informe a chave de novo.')
+    expect(errorText('key_unreadable')).toBe('A chave salva não pode mais ser lida. Informe a chave do Hevy de novo.')
+    expect(errorText('incomplete')).toBe('A sincronização parou antes do fim; ela continua na próxima rodada.')
+    expect(errorText('internal')).toBe('Erro inesperado na sincronização. Ela tenta de novo em até 30 minutos.')
+  })
+
+  it('a code this version does not know yet still reads as a failure', () => {
+    expect(errorText('something_new')).toBe('Erro inesperado na sincronização. Ela tenta de novo em até 30 minutos.')
   })
 
   it('counts the result in plural and singular', () => {

@@ -1,15 +1,24 @@
 import type { HevyErrorCode, HevySyncResult } from './hevyApi'
 
-const ERRORS: Record<HevyErrorCode, string> = {
+/** The codes the server sends today plus the ones a newer server may send (the generated enum may lag behind). */
+type ErrorCode = HevyErrorCode | 'incomplete' | 'internal'
+
+const INTERNAL = 'Erro inesperado na sincronização. Ela tenta de novo em até 30 minutos.'
+
+const ERRORS: Record<ErrorCode, string> = {
   unauthorized: 'O Hevy recusou a chave. Confira a chave e se a conta é Pro.',
   rate_limited: 'O Hevy pediu uma pausa. Tentaremos de novo em 30 minutos.',
   unavailable: 'O Hevy não respondeu. Tentaremos de novo em 30 minutos.',
   format: 'Resposta inesperada do Hevy. Avise o suporte do app.',
-  key_unreadable: 'A chave salva não pode mais ser lida. Informe a chave de novo.',
+  key_unreadable: 'A chave salva não pode mais ser lida. Informe a chave do Hevy de novo.',
+  incomplete: 'A sincronização parou antes do fim; ela continua na próxima rodada.',
+  internal: INTERNAL,
 }
 
-/** The last error of a sync run, as the user reads it. */
-export const errorText = (code: HevyErrorCode): string => ERRORS[code]
+const isKnown = (code: string): code is ErrorCode => Object.hasOwn(ERRORS, code)
+
+/** The last error of a sync run, as the user reads it. A code this version does not know reads as an unexpected error. */
+export const errorText = (code: string): string => (isKnown(code) ? ERRORS[code] : INTERNAL)
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

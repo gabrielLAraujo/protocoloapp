@@ -17,6 +17,9 @@ type Loaded = { status: 'loading' } | { status: 'error'; text: string } | { stat
 type Message = { kind: 'status' | 'alert'; text: string }
 type Open = 'key' | 'date' | 'remove' | null
 
+/** How often the page reads the status again while the server says a sync is running. */
+export const STATUS_POLL_MS = 5_000
+
 const textOf = (error: unknown) => (error instanceof HevyApiError ? error.message : 'Não foi possível falar com o servidor. Tente de novo.')
 
 /** Only the kind of failure is logged: never a key, a body or a message from the server. */
@@ -77,9 +80,10 @@ async function withKey<T>(field: HTMLInputElement | null, send: (key: string) =>
   }
 }
 
-function ConnectForm({ onConnected }: { onConnected(s: HevyStatus): void }) {
+/** `proposed`: the default start date the server suggests (start of the open update cycle, else the last 30 days). */
+function ConnectForm({ proposed, onConnected }: { proposed: string | null; onConnected(s: HevyStatus): void }) {
   const keyRef = useRef<HTMLInputElement>(null)
-  const [syncFrom, setSyncFrom] = useState('')
+  const [syncFrom, setSyncFrom] = useState(proposed ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,7 +105,7 @@ function ConnectForm({ onConnected }: { onConnected(s: HevyStatus): void }) {
   return (
     <form onSubmit={(e) => void submit(e)} className={cardClasses({ className: 'grid gap-4' })} aria-label="Conectar ao Hevy">
       <KeyField inputRef={keyRef} />
-      <DateField value={syncFrom} onChange={setSyncFrom} hint="Em branco, importa desde o início do ciclo atual." />
+      <DateField value={syncFrom} onChange={setSyncFrom} hint="Sugerido: o início do ciclo atual (sem ciclo, os últimos 30 dias)." />
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
@@ -267,7 +271,7 @@ function Connected({ hevy, onChange }: { hevy: HevyStatus; onChange(s: HevyStatu
       <Card tone={hevy.lastError ? 'warn' : 'list'} padding="none" className={hevy.lastError ? 'overflow-hidden divide-y divide-line' : ''}>
         <div className="flex min-h-13 items-start gap-3 px-4 py-3">
           <div className="grid min-w-0 flex-1 gap-0.5">
-            <p className="text-base font-semibold text-ink">Conectado · chave terminada em {hevy.keyLast4}</p>
+            <p className="text-base font-semibold text-ink">{hevy.keyLast4 ? `Conectado · chave terminada em ${hevy.keyLast4}` : 'Conectado'}</p>
             {hevy.syncFrom && <p className="text-sm text-muted">Importando desde {longDay(hevy.syncFrom)}</p>}
           </div>
           {running && <Chip icon="sync">Sincronizando</Chip>}
@@ -361,6 +365,35 @@ export function HevySettingsPage() {
     }
   }, [online, attempt])
 
+  // While the server runs a sync (started by the timer or another device), read the status again until it ends, so
+  // "Sincronizar agora" does not stay disabled. Stops when it is no longer running, offline, or when the page closes.
+  const serverRunning = online && loaded.status === 'ok' && loaded.hevy.connected && loaded.hevy.running
+  useEffect(() => {
+    if (!serverRunning) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const poll = () => {
+      timer = setTimeout(() => {
+        hevyApi
+          .status()
+          .then((hevy) => {
+            if (cancelled) return
+            setLoaded({ status: 'ok', hevy })
+            if (hevy.running) poll()
+          })
+          .catch((err: unknown) => {
+            logFailure('read the status', err)
+            if (!cancelled) poll()
+          })
+      }, STATUS_POLL_MS)
+    }
+    poll()
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [serverRunning])
+
   const retry = () => {
     setLoaded({ status: 'loading' })
     setAttempt((n) => n + 1)
@@ -405,6 +438,7 @@ export function HevySettingsPage() {
   else if (!loaded.hevy.connected)
     body = (
       <ConnectForm
+        proposed={loaded.hevy.syncFrom}
         onConnected={(hevy) => {
           setNotice(null)
           setLoaded({ status: 'ok', hevy })
