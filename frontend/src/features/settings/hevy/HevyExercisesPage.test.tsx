@@ -37,12 +37,9 @@ const pending: HevyExerciseLink = {
   setCount: 4,
 }
 
-const syncResult = { imported: 0, updated: 1, deleted: 0, unchanged: 0, skippedNoPlan: 0, skippedSets: 0, pendingExercises: 0 }
-
 async function open(links: HevyExerciseLink[], routes: Record<string, Handler> = {}) {
   const calls = mockFetch({
     'GET /api/integrations/hevy/exercises': () => json(links),
-    'POST /api/integrations/hevy/sync': () => json(syncResult),
     ...routes,
   })
   const app = await setupApp()
@@ -68,7 +65,7 @@ describe('HevyExercisesPage', () => {
     expect(calls.find((c) => c.method === 'GET')!.path).toBe('/api/integrations/hevy/exercises?all=false')
   })
 
-  it('"Confirmar" sends the chosen exercise, syncs and removes the item', async () => {
+  it('"Confirmar" sends the chosen exercise, removes the item and syncs the device only (the server already moved the sets)', async () => {
     const { calls, runOnce } = await open([pending], {
       [`PUT /api/integrations/hevy/exercises/${LINK_ID}`]: () => json(confirmed(BENCH_ID, 'Supino exemplo com barra')),
     })
@@ -80,8 +77,8 @@ describe('HevyExercisesPage', () => {
     expect(await screen.findByText('Nenhum exercício para confirmar.')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Supino Exemplo (Barbell)' })).not.toBeInTheDocument()
     expect(JSON.parse(calls.find((c) => c.method === 'PUT')!.body)).toEqual({ exerciseId: BENCH_ID })
-    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/api/integrations/hevy/sync')).toBe(true))
-    await waitFor(() => expect(runOnce).toHaveBeenCalled())
+    await waitFor(() => expect(runOnce).toHaveBeenCalledWith({ ignoreBackoff: true }))
+    expect(calls.some((c) => c.path === '/api/integrations/hevy/sync')).toBe(false)
   })
 
   it('another exercise can be picked, after a search', async () => {
@@ -122,19 +119,6 @@ describe('HevyExercisesPage', () => {
     const select = within(item).getByLabelText('Exercício no app')
     expect(select).toHaveDisplayValue('Manter como exercício novo')
     expect(within(select).queryByRole('option', { name: 'Supino Exemplo (Barbell)' })).not.toBeInTheDocument()
-  })
-
-  it('a 409 on the sync after confirming is ignored', async () => {
-    await open([pending], {
-      [`PUT /api/integrations/hevy/exercises/${LINK_ID}`]: () => json(confirmed(BENCH_ID, 'Supino exemplo com barra')),
-      'POST /api/integrations/hevy/sync': () => problem(409, { title: 'Conflito', detail: 'Sincronização já em andamento.' }),
-    })
-
-    const item = await screen.findByRole('group', { name: 'Supino Exemplo (Barbell)' })
-    await userEvent.click(within(item).getByRole('button', { name: 'Confirmar' }))
-
-    expect(await screen.findByText('Nenhum exercício para confirmar.')).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('a failed confirmation keeps the item and says why', async () => {

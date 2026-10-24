@@ -1,10 +1,10 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { json, mockFetch, problem, type Handler } from '../../../test/fetch-mock'
 import { setupApp } from '../../testSupport'
 import type { HevyStatus } from './hevyApi'
-import { HevySettingsPage } from './HevySettingsPage'
+import { HevySettingsPage, STATUS_POLL_MS } from './HevySettingsPage'
 
 // Fictitious key, in the format the plan reserves for tests.
 const KEY = 'test-key-0000-0000-0000-000000000001'
@@ -35,9 +35,13 @@ async function open(status: HevyStatus, routes: Record<string, Handler> = {}) {
   const calls = mockFetch({ 'GET /api/integrations/hevy': () => json(status), ...routes })
   const app = await setupApp()
   const runOnce = vi.spyOn(app.engine, 'runOnce').mockResolvedValue(undefined as never)
-  app.view(<HevySettingsPage />)
-  return { ...app, calls, runOnce }
+  const { unmount } = app.view(<HevySettingsPage />)
+  return { ...app, calls, runOnce, unmount }
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('HevySettingsPage', () => {
   it('says the server is not configured, without the form', async () => {
@@ -117,6 +121,58 @@ describe('HevySettingsPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Sincronização já em andamento.')
     expect(runOnce).not.toHaveBeenCalled()
+  })
+
+  it('the connect form proposes the start date from the status (start of the cycle)', async () => {
+    const { calls } = await open({ ...disconnected, syncFrom: '2026-10-05' }, { 'PUT /api/integrations/hevy': () => json(connected) })
+
+    expect(await screen.findByLabelText('Importar a partir de')).toHaveValue('2026-10-05')
+    await userEvent.type(screen.getByLabelText('Chave da API do Hevy'), KEY)
+    await userEvent.click(screen.getByRole('button', { name: 'Conectar' }))
+
+    await screen.findByText('Conectado · chave terminada em 0001')
+    expect(JSON.parse(calls.find((c) => c.method === 'PUT')!.body)).toEqual({ apiKey: KEY, syncFrom: '2026-10-05' })
+  })
+
+  it('without the last 4 characters of the key it says only "Conectado"', async () => {
+    await open({ ...connected, keyLast4: '' })
+
+    expect(await screen.findByText('Conectado')).toBeInTheDocument()
+    expect(screen.queryByText(/chave terminada em/)).not.toBeInTheDocument()
+  })
+
+  it('while the server is syncing, reads the status every 5 s and enables "Sincronizar agora" when it ends', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'], shouldAdvanceTime: true })
+    let running = true
+    const { calls } = await open(connected, { 'GET /api/integrations/hevy': () => json({ ...connected, running }) })
+    const statusReads = () => calls.filter((c) => c.method === 'GET' && c.path === '/api/integrations/hevy').length
+
+    const button = await screen.findByRole('button', { name: 'Sincronizar agora' })
+    expect(button).toBeDisabled()
+    expect(statusReads()).toBe(1)
+
+    await act(() => vi.advanceTimersByTimeAsync(STATUS_POLL_MS))
+    expect(statusReads()).toBe(2)
+    expect(button).toBeDisabled()
+
+    running = false
+    await act(() => vi.advanceTimersByTimeAsync(STATUS_POLL_MS))
+    expect(statusReads()).toBe(3)
+    expect(screen.getByRole('button', { name: 'Sincronizar agora' })).toBeEnabled()
+
+    await act(() => vi.advanceTimersByTimeAsync(STATUS_POLL_MS * 3))
+    expect(statusReads()).toBe(3)
+  })
+
+  it('stops reading the status when the page closes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'], shouldAdvanceTime: true })
+    const { calls, unmount } = await open({ ...connected, running: true })
+    await screen.findByRole('button', { name: 'Sincronizar agora' })
+    const reads = () => calls.filter((c) => c.method === 'GET' && c.path === '/api/integrations/hevy').length
+
+    unmount()
+    await act(() => vi.advanceTimersByTimeAsync(STATUS_POLL_MS * 3))
+    expect(reads()).toBe(1)
   })
 
   it('"Remover" asks first, then disconnects', async () => {

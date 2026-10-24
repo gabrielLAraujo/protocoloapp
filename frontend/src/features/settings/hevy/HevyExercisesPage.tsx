@@ -134,7 +134,6 @@ export function HevyExercisesPage() {
   const { online, syncNow } = useSync()
   const [all, setAll] = useState(false)
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' })
-  const [syncNote, setSyncNote] = useState<string | null>(null)
   // Bumped by "Tentar de novo" to read the list again.
   const [attempt, setAttempt] = useState(0)
 
@@ -162,27 +161,14 @@ export function HevyExercisesPage() {
     setAttempt((n) => n + 1)
   }
 
-  /** The server moves the sets of the template: run its sync, then bring the result to the device. */
-  const syncAfterConfirm = async () => {
-    try {
-      await hevyApi.syncNow()
-      await syncNow()
-    } catch (err) {
-      // A sync already running picks the confirmation up by itself.
-      if (err instanceof HevyApiError && err.status === 409) return
-      logFailure('sync after confirming', err)
-      setSyncNote('Confirmado. A sincronização não rodou agora; ela tenta de novo em até 30 minutos.')
-    }
-  }
-
   const confirmed = (next: HevyExerciseLink) => {
     setLoaded((current) =>
       current.status !== 'ok'
         ? current
         : { ...current, links: all ? current.links.map((l) => (l.id === next.id ? next : l)) : current.links.filter((l) => l.id !== next.id) },
     )
-    setSyncNote(null)
-    void syncAfterConfirm()
+    // The server already moved the sets of the template when it confirmed: only bring the result to the device.
+    void syncNow()
   }
 
   const header = (
@@ -231,11 +217,6 @@ export function HevyExercisesPage() {
         <Button className="w-fit" size="sm" aria-pressed={all} onClick={() => reload(!all)}>
           Ver todos
         </Button>
-      )}
-      {syncNote && (
-        <p role="status" className="text-sm text-muted">
-          {syncNote}
-        </p>
       )}
       {body}
     </section>

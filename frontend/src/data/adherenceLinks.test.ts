@@ -208,6 +208,29 @@ describe('deleteSessionAndMark', () => {
     expect(await marks(db)).toEqual([])
   })
 
+  it('also deletes the exercise changes (swaps) of the session through the outbox, in the same transaction', async () => {
+    const db = await newLocalDb()
+    const id = await session(db, T0, 1)
+    const swap = await workoutRepo.recordChange(db, USER_A, { sessionId: id, plannedExerciseKey: 'e1', action: 'swapped', replacementExerciseId: EXERCISE }, later(100_000))
+    await workoutRepo.recordChange(db, USER_A, { sessionId: id, plannedExerciseKey: 'e2', action: 'skipped' }, later(110_000))
+    await workoutRepo.removeChange(db, USER_A, swap, later(120_000))
+    const before = (await outbox.due(db, later(10_000_000), 500)).length
+
+    await deleteSessionAndMark(db, USER_A, id, later(7_200_000))
+
+    expect(await workoutRepo.changesForSession(db, id)).toEqual([])
+    expect(await db.query('SELECT COUNT(*) AS n FROM exercise_changes WHERE session_id = ? AND deleted_at IS NULL', [id])).toEqual([{ n: 0 }])
+    const queued = (await outbox.due(db, later(100_000_000), 500)).slice(before)
+    // The change already undone is not deleted again; the other goes before the session.
+    expect(queued.map((e) => [e.entity, e.op])).toEqual([
+      ['set_log', 'delete'],
+      ['set_log', 'delete'],
+      ['exercise_change', 'delete'],
+      ['workout_session', 'delete'],
+      ['adherence_log', 'delete'],
+    ])
+  })
+
   it('keeps the day done when another finished session of that date counts', async () => {
     const db = await newLocalDb()
     await session(db, T0, 1)
