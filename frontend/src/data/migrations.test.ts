@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { LATEST_LOCAL_VERSION, migrateLocalDb } from './migrations'
 import { createSerializedLocalDb } from './localDb'
 import { createSqlJsDriver, createSqlJsLocalDb } from './sqlJsLocalDb'
+import { json, mockFetch } from '../test/fetch-mock'
+import { newTestApi } from '../test/localDb'
+import { outbox } from './outbox'
+import { SyncEngine } from './syncEngine'
+import { syncState } from './syncState'
+import { workoutRepo } from './workoutRepo'
 
 describe('migrateLocalDb', () => {
   it('migrate is idempotent', async () => {
@@ -220,5 +226,87 @@ describe('local migration 8', () => {
     expect(await db.query('SELECT id, anxiety, stress, mood, version FROM daily_checkins')).toEqual([
       { id: 'c1', anxiety: 2, stress: null, mood: null, version: 5 },
     ])
+  })
+})
+
+describe('local migration 10', () => {
+  it('adds source (app), external_title and rpe to the sessions and sets of a device on version 9, keeping their data', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 9)
+    await db.execute(
+      `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, client_updated_at, version, deleted_at)
+       VALUES ('s1', '2026-10-18', 'p1', 'a', '2026-10-18T11:00:00.000Z', '2026-10-18T12:00:00.000Z', 'ok', '2026-10-18T12:00:00.000Z', 3, NULL),
+              ('s2', '2026-10-19', 'p1', 'b', '2026-10-19T11:00:00.000Z', NULL, NULL, '2026-10-19T11:00:00.000Z', NULL, '2026-10-19T11:30:00.000Z')`,
+    )
+    await db.execute(
+      `INSERT INTO set_logs (id, session_id, exercise_id, planned_exercise_key, set_index, weight_kg, reps, kind, parent_set_id, completed_at, client_updated_at, version, deleted_at)
+       VALUES ('l1', 's1', 'x1', 'e1', 0, 80, 8, 'normal', NULL, '2026-10-18T11:05:00.000Z', '2026-10-18T11:05:00.000Z', 4, NULL)`,
+    )
+
+    await migrateLocalDb(db)
+
+    expect(await db.query('SELECT id, note, version, deleted_at, source, external_title FROM workout_sessions ORDER BY id')).toEqual([
+      { id: 's1', note: 'ok', version: null, deleted_at: null, source: 'app', external_title: null },
+      { id: 's2', note: null, version: null, deleted_at: '2026-10-19T11:30:00.000Z', source: 'app', external_title: null },
+    ])
+    expect(await db.query('SELECT id, weight_kg, reps, version, rpe FROM set_logs')).toEqual([{ id: 'l1', weight_kg: 80, reps: 8, version: null, rpe: null }])
+  })
+
+  it('resets the pull cursor: the next sync pulls everything again, restoring source, title and rpe without clobbering a pending local edit', async () => {
+    const db = await createSqlJsLocalDb()
+    await migrateLocalDb(db, 9)
+    // Pulled by the older version: s1 came from Hevy (source and title dropped), l1 had an RPE (dropped); s2 has a local
+    // edit still waiting in the outbox (in backoff), newer than the server's copy.
+    await db.execute(
+      `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, client_updated_at, version, deleted_at)
+       VALUES ('s1', '2026-10-18', 'p1', 'a', '2026-10-18T11:00:00.000Z', '2026-10-18T12:00:00.000Z', NULL, '2026-10-18T12:00:00.000Z', 3, NULL),
+              ('s2', '2026-10-19', 'p1', 'b', '2026-10-19T11:00:00.000Z', '2026-10-19T12:00:00.000Z', 'local edit', '2026-10-19T13:00:00.000Z', 5, NULL)`,
+    )
+    await db.execute(
+      `INSERT INTO set_logs (id, session_id, exercise_id, planned_exercise_key, set_index, weight_kg, reps, kind, parent_set_id, completed_at, client_updated_at, version, deleted_at)
+       VALUES ('l1', 's1', 'x1', NULL, 0, 80, 8, 'normal', NULL, '2026-10-18T11:05:00.000Z', '2026-10-18T11:05:00.000Z', 4, NULL)`,
+    )
+    await db.execute(
+      "INSERT INTO daily_checkins (id, date, energy_day, client_updated_at, version) VALUES ('c1', '2026-10-18', 4, '2026-10-18T21:00:00.000Z', 7)",
+    )
+    const now = new Date('2026-10-24T12:00:00.000Z')
+    await outbox.enqueue(db, { entity: 'workout_session', id: 's2', op: 'upsert', payload: '{}', clientUpdatedAt: '2026-10-19T13:00:00.000Z' })
+    const [entry] = await outbox.due(db, now, 10)
+    await outbox.fail(db, [entry!.seq], now)
+    await syncState.set(db, 'last_since', '42')
+
+    await migrateLocalDb(db)
+    expect(await syncState.get(db, 'last_since')).toBeNull()
+
+    const sessionPayload = { plan_version_id: 'p1', ended_at: null, note: null }
+    const calls = mockFetch({
+      'POST /api/sync/push': () => json({ results: [] }),
+      'GET /api/sync/pull': () =>
+        json({
+          records: [
+            { entity: 'workout_session', id: 's1', version: 3, deletedAt: null, clientUpdatedAt: '2026-10-18T12:00:00+00:00',
+              payload: { ...sessionPayload, date: '2026-10-18', workout_day_key: 'a', started_at: '2026-10-18T11:00:00+00:00', ended_at: '2026-10-18T12:00:00+00:00', source: 'hevy', external_title: 'Treino A' } },
+            { entity: 'set_log', id: 'l1', version: 4, deletedAt: null, clientUpdatedAt: '2026-10-18T11:05:00+00:00',
+              payload: { session_id: 's1', exercise_id: 'x1', planned_exercise_key: null, set_index: 0, weight_kg: 80, reps: 8, kind: 'normal', parent_set_id: null, completed_at: '2026-10-18T11:05:00+00:00', rpe: 8.5 } },
+            { entity: 'workout_session', id: 's2', version: 5, deletedAt: null, clientUpdatedAt: '2026-10-19T12:00:00+00:00',
+              payload: { ...sessionPayload, date: '2026-10-19', workout_day_key: 'b', started_at: '2026-10-19T11:00:00+00:00', note: 'server', source: 'app' } },
+            { entity: 'daily_checkin', id: 'c1', version: 7, deletedAt: null, clientUpdatedAt: '2026-10-18T21:00:00+00:00',
+              payload: { date: '2026-10-18', energy_day: 1 } },
+          ],
+          nextSince: 7,
+          hasMore: false,
+        }),
+    })
+
+    await new SyncEngine(db, newTestApi(), () => now).runOnce()
+
+    expect(calls.filter((c) => c.path.startsWith('/api/sync/pull')).map((c) => c.path)).toEqual(['/api/sync/pull?since=0&limit=500'])
+    expect(await workoutRepo.sessionById(db, 's1')).toMatchObject({ source: 'hevy', externalTitle: 'Treino A' })
+    expect(await db.query('SELECT version, rpe FROM set_logs')).toEqual([{ version: 4, rpe: 8.5 }])
+    expect(await workoutRepo.sessionById(db, 's2')).toMatchObject({ note: 'local edit' })
+    expect(await outbox.pendingCount(db)).toBe(1)
+    // Rows of other entities the device already has are skipped (same version).
+    expect(await db.query('SELECT energy_day FROM daily_checkins')).toEqual([{ energy_day: 4 }])
+    expect(await syncState.get(db, 'last_since')).toBe('7')
   })
 })

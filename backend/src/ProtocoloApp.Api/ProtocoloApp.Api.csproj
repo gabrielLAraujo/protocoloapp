@@ -36,6 +36,12 @@
     <InternalsVisibleTo Include="ProtocoloApp.IntegrationTests" />
   </ItemGroup>
 
+  <!-- The front's pt-BR exercise dictionary is the single source of truth; the Hevy matcher reads it from the assembly.
+       The Dockerfile copies it into the build stage. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../../../frontend/src/domain/exercise-dictionary.json" LogicalName="exercise-dictionary.json" />
+  </ItemGroup>
+
   <!-- The tool writes into frontend/, which does not exist until the front is scaffolded. -->
   <Target Name="EnsureOpenApiDirectory" BeforeTargets="CoreCompile" Condition="'$(OpenApiGenerateDocumentsOnBuild)' != 'false'">
     <MakeDir Directories="$(OpenApiDocumentsDirectory)" />

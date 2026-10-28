@@ -10,7 +10,7 @@ import { ExerciseHistoryPage } from './ExerciseHistoryPage'
 import { HistoryPage } from './HistoryPage'
 import { SessionEditPage } from './SessionEditPage'
 import { adherenceRepo } from '../../data/adherenceRepo'
-import { BENCH, PLAN, seedExercises, seedPastSession, seedPlan } from './testData'
+import { BENCH, PLAN, seedExercises, seedHevySession, seedPastSession, seedPlan } from './testData'
 
 async function seeded(entry: string) {
   const app = await setupApp([entry])
@@ -144,5 +144,93 @@ describe('fixing a past session from the history', () => {
     app.view(<HistoryPage />)
     const list = await screen.findByRole('region', { name: 'Sessões' })
     expect(within(list).queryByRole('link')).not.toBeInTheDocument()
+  })
+})
+
+const HEVY = '7d1f2a10-0000-5000-8000-00000000f001'
+
+async function withHevy(entry: string, hevyDate: string) {
+  const app = await setupApp([entry])
+  await seedExercises(app.db)
+  await seedPlan(app.db, ['a', 'b'])
+  await seedPastSession(app.db, '2026-10-11', BENCH, [[80, 10]])
+  await seedHevySession(app.db, HEVY, hevyDate, BENCH, [
+    [82.5, 8, 8.5],
+    [82.5, 7],
+  ], 'Peito exemplo')
+  app.view(
+    <Routes>
+      <Route path="/treino/historico" element={<HistoryPage />} />
+      <Route path="/treino/historico/:id" element={<SessionEditPage />} />
+    </Routes>,
+  )
+  return app
+}
+
+describe('Hevy sessions in the history', () => {
+  it("lists a Hevy set's RPE in the exercise history", async () => {
+    const app = await setupApp([`/treino/exercicio/${BENCH}`])
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    await seedHevySession(app.db, HEVY, '2026-10-12', BENCH, [[82.5, 8, 8.5], [82.5, 7]])
+    app.view(
+      <Routes>
+        <Route path="/treino/exercicio/:id" element={<ExerciseHistoryPage />} />
+      </Routes>,
+    )
+    const table = await screen.findByRole('table', { name: 'Sessões' })
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('82,5 × 8 (RPE 8,5) · 82,5 × 7')
+  })
+
+  it('shows the "Hevy" chip and the Hevy title only on the imported session', async () => {
+    await withHevy('/treino/historico', '2026-10-12')
+    const list = await screen.findByRole('region', { name: 'Sessões' })
+    const [hevy, app] = within(list).getAllByRole('listitem')
+    expect(hevy).toHaveTextContent('12/10/2026')
+    expect(within(hevy!).getByText('Hevy')).toBeInTheDocument()
+    expect(hevy).toHaveTextContent('Treino A (Peito exemplo), 2 séries')
+    expect(within(app!).queryByText('Hevy')).not.toBeInTheDocument()
+    expect(screen.queryByText('Treino registrado no app e no Hevy')).not.toBeInTheDocument()
+  })
+
+  it('warns about the same workout in the app and in Hevy; "Manter o do app" deletes the Hevy one and the warning goes', async () => {
+    const app = await withHevy('/treino/historico', '2026-10-11')
+    const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: 'Sessões' })
+    expect(within(list).getByText('Treino registrado no app e no Hevy')).toBeInTheDocument()
+
+    await user.click(within(list).getByRole('button', { name: 'Manter só um' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Manter só um registro' })
+    expect(within(sheet).getByRole('button', { name: /Manter o do app/ })).toHaveTextContent('1 série, 800 kg')
+    expect(within(sheet).getByRole('button', { name: /Manter o do Hevy/ })).toHaveTextContent('2 séries, 1.238 kg')
+    await user.click(within(sheet).getByRole('button', { name: /Manter o do app/ }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByText('Treino registrado no app e no Hevy')).not.toBeInTheDocument()
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    expect(await workoutRepo.sessionById(app.db, HEVY)).toBeNull()
+    expect((await adherenceRepo.between(app.db, '2026-10-11', '2026-10-11')).map((l) => [l.targetType, l.status])).toEqual([['workout', 'done']])
+  })
+
+  it('opens a Hevy session read-only, with its sets and RPE, and "Excluir do app" deletes it', async () => {
+    const app = await withHevy(`/treino/historico/${HEVY}`, '2026-10-12')
+    const user = userEvent.setup()
+    expect(await screen.findByText('Registrado no Hevy. Para corrigir, edite no Hevy.')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Salvar treino' })).not.toBeInTheDocument()
+
+    const bench = within(screen.getByRole('region', { name: 'Supino reto' }))
+    const rows = bench.getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('82,5 kg × 8')
+    expect(rows[0]).toHaveTextContent('RPE 8,5')
+    expect(rows[1]).toHaveTextContent('82,5 kg × 7')
+    expect(rows[1]).not.toHaveTextContent('RPE')
+
+    await user.click(screen.getByRole('button', { name: 'Excluir do app' }))
+    expect(screen.getByText(/Ele continua no Hevy/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sim, excluir' }))
+    expect(await screen.findByText('Treino de 12/10 excluído do app')).toBeInTheDocument()
+    expect(await workoutRepo.sessionById(app.db, HEVY)).toBeNull()
   })
 })

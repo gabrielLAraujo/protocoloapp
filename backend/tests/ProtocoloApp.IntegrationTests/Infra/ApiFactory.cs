@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using ProtocoloApp.Api.Features.Auth;
+using ProtocoloApp.Api.Features.Integrations.Hevy;
 using ProtocoloApp.Api.Features.Plans.Extraction;
 using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Shared.Data;
@@ -43,6 +44,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>The push sender every test talks to: nothing reaches a push service.</summary>
     public FakePushSender Push { get; } = new();
 
+    /// <summary>The Hevy client every test talks to: nothing reaches Hevy.</summary>
+    public FakeHevyClient Hevy { get; } = new();
+
+    /// <summary>A fictitious encryption key (bytes 0..31 in base64), only for tests.</summary>
+    public const string TestEncryptionKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+
     public string ConnectionString => _connectionString ?? throw new InvalidOperationException("The factory is not initialized yet.");
 
     public async Task InitializeAsync()
@@ -76,12 +83,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Reminders:Enabled", "false");
         // Nothing reaches ExerciseDB: tests run the sync themselves with a fake client.
         builder.UseSetting("ExerciseCatalog:Enabled", "false");
+        // The Hevy scheduler stays off: tests run the import themselves.
+        builder.UseSetting("Hevy:Enabled", "false");
+        builder.UseSetting("Integrations:EncryptionKey", TestEncryptionKey);
         builder.UseSetting("Auth:SigningKey", "test-only-signing-key-0123456789-abcdefghij");
         builder.ConfigureTestServices(services =>
         {
             services.Replace(ServiceDescriptor.Singleton<IFileStorage>(Storage));
             services.Replace(ServiceDescriptor.Singleton<IPlanExtractor>(Extractor));
             services.Replace(ServiceDescriptor.Singleton<IPushSender>(Push));
+            services.Replace(ServiceDescriptor.Singleton<IHevyClient>(Hevy));
         });
     }
 

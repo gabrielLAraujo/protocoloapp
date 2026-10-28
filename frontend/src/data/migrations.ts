@@ -274,6 +274,22 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
     version: 9,
     statements: ['ALTER TABLE daily_checkins ADD COLUMN stress INTEGER', 'ALTER TABLE daily_checkins ADD COLUMN mood INTEGER'],
   },
+  {
+    // Hevy sync: where a session came from (set by the server, pull only), the Hevy title, and the RPE of a set.
+    // Sessions and sets pulled by an older version lost those fields and the pull cursor is already past them, so the
+    // next sync pulls everything again: the cursor is reset, and the version of sessions and sets is cleared so the
+    // re-pulled records are written (other entities are skipped by their version). A pending local change still wins
+    // over an older server copy (applyPulled → localChangeWins), and unpushed rows keep their outbox entries.
+    version: 10,
+    statements: [
+      "ALTER TABLE workout_sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'app'",
+      'ALTER TABLE workout_sessions ADD COLUMN external_title TEXT',
+      'ALTER TABLE set_logs ADD COLUMN rpe REAL',
+      'UPDATE workout_sessions SET version = NULL',
+      'UPDATE set_logs SET version = NULL',
+      "DELETE FROM sync_state WHERE key = 'last_since'",
+    ],
+  },
 ]
 
 export const LATEST_LOCAL_VERSION = MIGRATIONS.at(-1)!.version

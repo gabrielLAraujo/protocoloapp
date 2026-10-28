@@ -16,10 +16,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /(screens|smoke|today|update)\.spec\.ts$/ },
-    // Hoje's marks, the day ring, Resumo's counts and the update cycle (Atualização) need the protocol that
-    // workout.spec.ts activates.
-    { name: 'today', use: { ...devices['Desktop Chrome'] }, testMatch: /(smoke|today|update)\.spec\.ts$/, dependencies: ['chromium'] },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /(hevy|screens|smoke|today|update)\.spec\.ts$/ },
+    // Hoje's marks, the day ring, Resumo's counts, the update cycle (Atualização) and the Hevy import (matched to the
+    // sheet's day) need the protocol that workout.spec.ts activates.
+    { name: 'today', use: { ...devices['Desktop Chrome'] }, testMatch: /(hevy|smoke|today|update)\.spec\.ts$/, dependencies: ['chromium'] },
     // Screenshots for review (CI artifact), after the flows above have created the fictitious data.
     { name: 'screenshots', use: { ...devices['Desktop Chrome'] }, testMatch: /screens\.spec\.ts$/, dependencies: ['chromium', 'today'] },
   ],

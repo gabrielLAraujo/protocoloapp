@@ -15,13 +15,25 @@ public sealed class WorkoutSessionConfiguration : IEntityTypeConfiguration<Worko
     {
         ArgumentNullException.ThrowIfNull(builder);
 
+        builder.ToTable(table => table.HasCheckConstraint("ck_workout_sessions_source", $"source IN {EnumText.SqlList<SessionSource>()}"));
+
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.WorkoutDayKey).HasMaxLength(WorkoutSession.MaxKeyLength);
         builder.Property(s => s.Note).HasMaxLength(WorkoutSession.MaxNoteLength);
         builder.Property(s => s.ExerciseNotes).HasColumnType("jsonb");
+        // The default fills the existing rows when the column is added; the app always writes the value itself.
+        builder.Property(s => s.Source)
+            .HasConversion(EnumText.Converter<SessionSource>())
+            .HasMaxLength(16)
+            .HasDefaultValue(SessionSource.App)
+            .ValueGeneratedNever();
+        builder.Property(s => s.ExternalId).HasMaxLength(WorkoutSession.MaxExternalIdLength);
+        builder.Property(s => s.ExternalTitle).HasMaxLength(WorkoutSession.MaxExternalTitleLength);
 
         builder.HasIndex(s => new { s.UserId, s.Date });
+        // Deleted rows included: a workout deleted in the app must not be imported again.
+        builder.HasIndex(s => new { s.UserId, s.Source, s.ExternalId }).IsUnique().HasFilter("external_id IS NOT NULL");
         builder.HasIndex(s => new { s.UserId, s.Version }).IsUnique();
 
         builder.HasOne<AppUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -42,6 +54,7 @@ public sealed class SetLogConfiguration : IEntityTypeConfiguration<SetLog>
             table.HasCheckConstraint("ck_set_logs_weight_kg", $"weight_kg BETWEEN 0 AND {SetLog.MaxWeightKg}");
             table.HasCheckConstraint("ck_set_logs_reps", $"reps BETWEEN 0 AND {SetLog.MaxReps}");
             table.HasCheckConstraint("ck_set_logs_set_index", $"set_index BETWEEN 0 AND {SetLog.MaxSetIndex}");
+            table.HasCheckConstraint("ck_set_logs_rpe", $"rpe IS NULL OR rpe BETWEEN {SetLog.MinRpe} AND {SetLog.MaxRpe}");
         });
 
         builder.HasKey(s => s.Id);
@@ -49,9 +62,12 @@ public sealed class SetLogConfiguration : IEntityTypeConfiguration<SetLog>
         builder.Property(s => s.PlannedExerciseKey).HasMaxLength(WorkoutSession.MaxKeyLength);
         builder.Property(s => s.WeightKg).HasPrecision(6, 2);
         builder.Property(s => s.Kind).HasConversion(EnumText.Converter<SetKind>()).HasMaxLength(16);
+        builder.Property(s => s.Rpe).HasPrecision(3, 1);
+        builder.Property(s => s.HevyTemplateId).HasMaxLength(WorkoutSession.MaxExternalIdLength);
 
         builder.HasIndex(s => new { s.UserId, s.SessionId });
         builder.HasIndex(s => new { s.UserId, s.ExerciseId });
+        builder.HasIndex(s => new { s.UserId, s.HevyTemplateId });
         builder.HasIndex(s => new { s.UserId, s.Version }).IsUnique();
 
         builder.HasOne<AppUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);

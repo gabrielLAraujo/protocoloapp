@@ -9,6 +9,8 @@ export const EXERCISE_CHANGE_ENTITY = 'exercise_change'
 
 export type SetKind = 'normal' | 'drop' | 'partial' | 'rest_pause' | 'warmup'
 export type ExerciseChangeAction = 'swapped' | 'skipped'
+/** Where a session was recorded: in this app or imported from Hevy (set by the server). */
+export type SessionSource = 'app' | 'hevy'
 
 export interface SessionLocal {
   id: string
@@ -23,6 +25,10 @@ export interface SessionLocal {
   /** Per-exercise notes: planned exercise key -> text. Empty when there are none. */
   exerciseNotes: Record<string, string>
   clientUpdatedAt: string
+  /** Set by the server (pull only); a session started on the device is from the app. */
+  source: SessionSource
+  /** The workout's title in Hevy; null for app sessions. Pull only. */
+  externalTitle: string | null
 }
 
 export const MAX_EXERCISE_NOTE_LENGTH = 2000
@@ -48,6 +54,8 @@ export interface SetLocal {
   parentSetId: string | null
   completedAt: string
   clientUpdatedAt: string
+  /** 1–10 in steps of 0.5; null when not recorded. */
+  rpe: number | null
 }
 
 export interface ExerciseChangeLocal {
@@ -86,7 +94,10 @@ export interface ExerciseChangeInput {
   note?: string | null
 }
 
-/** The server's payloads (snake_case), see WorkoutPayloads.cs on the API. */
+/**
+ * The server's payloads (snake_case), see WorkoutPayloads.cs on the API. The session's `source`/`external_title` come in
+ * the pulled payload only (PulledSessionPayload): the push never carries them, the server ignores them anyway.
+ */
 interface SessionPayload {
   date: string
   plan_version_id: string
@@ -98,6 +109,8 @@ interface SessionPayload {
   notes?: Record<string, string> | null
 }
 
+type PulledSessionPayload = SessionPayload & { source?: string | null; external_title?: string | null }
+
 interface SetPayload {
   session_id: string
   exercise_id: string
@@ -108,6 +121,8 @@ interface SetPayload {
   kind: SetKind
   parent_set_id: string | null
   completed_at: string
+  /** 1–10 in steps of 0.5; absent from older servers. */
+  rpe: number | null
 }
 
 interface ChangePayload {
@@ -118,7 +133,14 @@ interface ChangePayload {
   note: string | null
 }
 
-type SessionRow = Omit<SessionPayload, 'notes'> & { id: string; exercise_notes: string | null; client_updated_at: string; deleted_at: string | null }
+type SessionRow = Omit<SessionPayload, 'notes'> & {
+  id: string
+  exercise_notes: string | null
+  client_updated_at: string
+  deleted_at: string | null
+  source: SessionSource
+  external_title: string | null
+}
 type SetRow = SetPayload & { id: string; client_updated_at: string; deleted_at: string | null }
 type ChangeRow = ChangePayload & { id: string; client_updated_at: string; deleted_at: string | null }
 
@@ -150,6 +172,8 @@ const toSession = (r: SessionRow): SessionLocal => ({
   note: r.note,
   exerciseNotes: parseNotes(r.exercise_notes),
   clientUpdatedAt: r.client_updated_at,
+  source: r.source === 'hevy' ? 'hevy' : 'app',
+  externalTitle: r.external_title,
 })
 
 const toSet = (r: SetRow): SetLocal => ({
@@ -164,6 +188,7 @@ const toSet = (r: SetRow): SetLocal => ({
   parentSetId: r.parent_set_id,
   completedAt: r.completed_at,
   clientUpdatedAt: r.client_updated_at,
+  rpe: r.rpe,
 })
 
 const toChange = (r: ChangeRow): ExerciseChangeLocal => ({
@@ -176,28 +201,43 @@ const toChange = (r: ChangeRow): ExerciseChangeLocal => ({
   clientUpdatedAt: r.client_updated_at,
 })
 
-async function writeSession(db: LocalDb, id: string, p: SessionPayload, clientUpdatedAt: string, version: number | null) {
+/** Where the session came from, as the server says it (pull only). */
+interface SessionOrigin {
+  source: SessionSource
+  externalTitle: string | null
+}
+
+/**
+ * Stores the session. `origin` is given by a pull only: a local write (no origin) inserts an app session and keeps the
+ * source and title of an existing row, so editing an imported session never turns it into an app one.
+ */
+async function writeSession(db: LocalDb, id: string, p: SessionPayload, clientUpdatedAt: string, version: number | null, origin?: SessionOrigin) {
   await db.execute(
-    `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, exercise_notes, client_updated_at, version, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    `INSERT INTO workout_sessions (id, date, plan_version_id, workout_day_key, started_at, ended_at, note, exercise_notes, client_updated_at, version, deleted_at, source, external_title)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
      ON CONFLICT (id) DO UPDATE SET
        date = excluded.date, plan_version_id = excluded.plan_version_id, workout_day_key = excluded.workout_day_key,
        started_at = excluded.started_at, ended_at = excluded.ended_at, note = excluded.note, exercise_notes = excluded.exercise_notes,
-       client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, workout_sessions.version), deleted_at = NULL`,
-    [id, p.date, p.plan_version_id, p.workout_day_key, p.started_at, p.ended_at, p.note, notesJson(p.notes), clientUpdatedAt, version],
+       client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, workout_sessions.version), deleted_at = NULL,
+       source = CASE WHEN ? THEN excluded.source ELSE workout_sessions.source END,
+       external_title = CASE WHEN ? THEN excluded.external_title ELSE workout_sessions.external_title END`,
+    [
+      id, p.date, p.plan_version_id, p.workout_day_key, p.started_at, p.ended_at, p.note, notesJson(p.notes), clientUpdatedAt, version,
+      origin?.source ?? 'app', origin?.externalTitle ?? null, origin ? 1 : 0, origin ? 1 : 0,
+    ],
   )
 }
 
 async function writeSet(db: LocalDb, id: string, p: SetPayload, clientUpdatedAt: string, version: number | null) {
   await db.execute(
-    `INSERT INTO set_logs (id, session_id, exercise_id, planned_exercise_key, set_index, weight_kg, reps, kind, parent_set_id, completed_at, client_updated_at, version, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    `INSERT INTO set_logs (id, session_id, exercise_id, planned_exercise_key, set_index, weight_kg, reps, kind, parent_set_id, completed_at, client_updated_at, version, deleted_at, rpe)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
      ON CONFLICT (id) DO UPDATE SET
        session_id = excluded.session_id, exercise_id = excluded.exercise_id, planned_exercise_key = excluded.planned_exercise_key,
        set_index = excluded.set_index, weight_kg = excluded.weight_kg, reps = excluded.reps, kind = excluded.kind,
-       parent_set_id = excluded.parent_set_id, completed_at = excluded.completed_at,
+       parent_set_id = excluded.parent_set_id, completed_at = excluded.completed_at, rpe = excluded.rpe,
        client_updated_at = excluded.client_updated_at, version = COALESCE(excluded.version, set_logs.version), deleted_at = NULL`,
-    [id, p.session_id, p.exercise_id, p.planned_exercise_key, p.set_index, p.weight_kg, p.reps, p.kind, p.parent_set_id, p.completed_at, clientUpdatedAt, version],
+    [id, p.session_id, p.exercise_id, p.planned_exercise_key, p.set_index, p.weight_kg, p.reps, p.kind, p.parent_set_id, p.completed_at, clientUpdatedAt, version, p.rpe],
   )
 }
 
@@ -233,6 +273,7 @@ const setPayload = (r: SetRow): SetPayload => ({
   kind: r.kind,
   parent_set_id: r.parent_set_id,
   completed_at: r.completed_at,
+  rpe: r.rpe,
 })
 
 /** Soft-deletes the live sub-sets of a set and queues their deletes (a sub-set never outlives its parent). */
@@ -378,6 +419,7 @@ export const workoutRepo = {
       kind: input.kind,
       parent_set_id: input.parentSetId ?? null,
       completed_at: (input.completedAt ?? now).toISOString(),
+      rpe: null,
     }
     const clientUpdatedAt = now.toISOString()
     await db.transaction(async (tx) => {
@@ -424,6 +466,7 @@ export const workoutRepo = {
         parent_set_id: parent.id,
         // After the parent and the sub-sets already done, even if the clock went backwards: the order they were done is kept.
         completed_at: new Date(Math.max((input.completedAt ?? now).getTime(), after + 1)).toISOString(),
+        rpe: null,
       }
       const clientUpdatedAt = now.toISOString()
       await writeSet(tx, id, payload, clientUpdatedAt, null)
@@ -555,13 +598,14 @@ export const workoutSessionSync: SyncEntityAdapter = {
   table: 'workout_sessions',
   applyRemote: (db, record) =>
     applyPulled(db, WORKOUT_SESSION_ENTITY, 'workout_sessions', record, async (payload, clientUpdatedAt) => {
-      const p = payload as SessionPayload
+      const { source, external_title, ...p } = payload as PulledSessionPayload
       await writeSession(
         db,
         record.id,
         { ...p, ended_at: p.ended_at === null ? null : iso(p.ended_at), started_at: iso(p.started_at), note: p.note ?? null, notes: p.notes ?? null },
         clientUpdatedAt,
         record.version,
+        { source: source === 'hevy' ? 'hevy' : 'app', externalTitle: external_title ?? null },
       )
     }),
 }
@@ -575,7 +619,7 @@ export const setLogSync: SyncEntityAdapter = {
       await writeSet(
         db,
         record.id,
-        { ...p, planned_exercise_key: p.planned_exercise_key ?? null, parent_set_id: p.parent_set_id ?? null, completed_at: iso(p.completed_at) },
+        { ...p, planned_exercise_key: p.planned_exercise_key ?? null, parent_set_id: p.parent_set_id ?? null, completed_at: iso(p.completed_at), rpe: p.rpe ?? null },
         clientUpdatedAt,
         record.version,
       )

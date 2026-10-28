@@ -126,6 +126,19 @@ aparelhos. Para carregá-lo:
 Guarde o arquivo **fora do repositório** (nunca o commite). O `npm run privacy` e o `.gitignore` não sabem reconhecer um
 JSON de perguntas reais: o cuidado é seu.
 
+## Hevy
+
+Em **Configurações → Hevy**, a chave da API do Hevy (conta **Pro**; no site do Hevy, Settings → Developer) liga a importação:
+os treinos do Hevy chegam como sessões encerradas, a cada 30 minutos (`Hevy__IntervalMinutes`) e em "Sincronizar agora",
+contam como treino feito em Hoje e no Resumo e aparecem no Histórico com o selo **Hevy** (o mesmo treino registrado no app e
+no Hevy ganha o aviso "Manter só um"). O dia da ficha vem do título do treino, ou dos exercícios em comum, ou da rotação.
+Exercícios sem par viram provisórios para confirmar em "Exercícios do Hevy para confirmar".
+
+A chave vai uma vez ao servidor, que a guarda cifrada (AES-GCM) com `Integrations__EncryptionKey` (32 bytes em base64,
+`openssl rand -base64 32`, no Coolify); sem essa variável o app funciona e a tela diz "Não configurado no servidor". Perder a
+variável só obriga a informar a chave do Hevy de novo. `Hevy__Enabled=false` desliga a sincronização automática. Passo a
+passo no [runbook](docs/runbooks/deploy-coolify.md#10-hevy-importação-de-treinos).
+
 ## Documentação
 
 | O quê | Onde |
@@ -137,6 +150,8 @@ JSON de perguntas reais: o cuidado é seu.
 | Spec do Treino inteligente | [docs/superpowers/specs/2026-10-20-treino-inteligente-design.md](docs/superpowers/specs/2026-10-20-treino-inteligente-design.md) |
 | Spec da Atualização (questionário e fotos) | [docs/superpowers/specs/2026-10-23-atualizacao-design.md](docs/superpowers/specs/2026-10-23-atualizacao-design.md) |
 | Plano da Atualização | [docs/superpowers/plans/2026-10-23-atualizacao.md](docs/superpowers/plans/2026-10-23-atualizacao.md) |
+| Spec da sincronização com o Hevy | [docs/superpowers/specs/2026-10-24-hevy-design.md](docs/superpowers/specs/2026-10-24-hevy-design.md) |
+| Plano da sincronização com o Hevy | [docs/superpowers/plans/2026-10-24-hevy.md](docs/superpowers/plans/2026-10-24-hevy.md) |
 | Plano da Fundação | [docs/superpowers/plans/2026-10-18-fundacao.md](docs/superpowers/plans/2026-10-18-fundacao.md) |
 | Deploy no Coolify (passo a passo) | [docs/runbooks/deploy-coolify.md](docs/runbooks/deploy-coolify.md) |
 | CI, APK e release | [docs/ci/README.md](docs/ci/README.md) |
@@ -197,8 +212,8 @@ Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inc
   lidos no navegador pelo leitor local), treino registrado offline e Resumo; um PDF sem texto e o botão "Ler com IA"; depois, uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do
   Resumo; em seguida (projeto `today`, com o protocolo já ativo), o check-in em partes salvo offline (Manhã, depois Noite) que
   sincroniza com um segundo navegador, sobe o anel do dia e conta 1 check-in completo no Resumo. Esse teste pressupõe o
-  banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje. Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Dois stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs` e `storage-stub.mjs`)
-  fazem o papel da API da Anthropic e do bucket R2 (`Anthropic__BaseUrl`, `R2__ServiceUrl`); nada de rede externa.
+  banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje. No mesmo projeto, a conexão com o Hevy (chave de teste), "Sincronizar agora" com 1 treino fictício importado, o selo "Hevy" no Histórico, o treino feito em Hoje e "Remover". Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Três stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs`, `storage-stub.mjs` e `hevy-stub.mjs`)
+  fazem o papel da API da Anthropic, do bucket R2 e da API do Hevy (`Anthropic__BaseUrl`, `R2__ServiceUrl`, `Hevy__BaseUrl`, com `Integrations__EncryptionKey` de teste e o agendador do Hevy desligado); nada de rede externa.
 - **Android APK:** APK de debug como artifact; na `main`, o job **Android release** publica o APK assinado numa GitHub Release.
 
 `.github/workflows/codegen.yml` gera migrations e `openapi.json` quando a mensagem do commit tem `[codegen]` ou

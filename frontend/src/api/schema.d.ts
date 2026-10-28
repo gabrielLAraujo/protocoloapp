@@ -1261,6 +1261,249 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/integrations/hevy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HevyStatusResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["ConnectHevyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HevyStatusResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["UpdateHevyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HevyStatusResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/integrations/hevy/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HevySyncResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integrations/hevy/exercises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    all?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HevyExerciseLinkResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integrations/hevy/exercises/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["ConfirmHevyExerciseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HevyExerciseLinkResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1292,6 +1535,15 @@ export interface components {
             /** Format: date */
             date: string;
             note: string;
+        };
+        ConfirmHevyExerciseRequest: {
+            /** Format: uuid */
+            exerciseId: null | string;
+        };
+        ConnectHevyRequest: {
+            apiKey: null | string;
+            /** Format: date */
+            syncFrom?: null | string;
         };
         CreateDraftRequest: {
             /** Format: uuid */
@@ -1359,6 +1611,54 @@ export interface components {
             group: components["schemas"]["MuscleGroup"];
             best: components["schemas"]["StrengthTrend"][];
             worst: components["schemas"]["StrengthTrend"][];
+        };
+        /** @enum {unknown} */
+        HevyErrorCode: "unauthorized" | "rate_limited" | "unavailable" | "format" | "key_unreadable" | "incomplete" | "internal" | null;
+        HevyExerciseLinkResponse: {
+            /** Format: uuid */
+            id: string;
+            templateId: string;
+            title: string;
+            /** Format: uuid */
+            exerciseId: string;
+            exerciseName: string;
+            status: components["schemas"]["HevyLinkStatus"];
+            /** Format: int32 */
+            setCount: number;
+        };
+        /** @enum {unknown} */
+        HevyLinkStatus: "auto" | "pending" | "confirmed";
+        HevyStatusResponse: {
+            serverConfigured: boolean;
+            connected: boolean;
+            keyLast4: null | string;
+            /** Format: date */
+            syncFrom: null | string;
+            /** Format: date-time */
+            lastAttemptAt: null | string;
+            /** Format: date-time */
+            lastSuccessAt: null | string;
+            lastError: null | components["schemas"]["HevyErrorCode"];
+            lastResult: null | components["schemas"]["HevySyncResult"];
+            running: boolean;
+            /** Format: int32 */
+            pendingExercises: number;
+        };
+        HevySyncResult: {
+            /** Format: int32 */
+            imported: number;
+            /** Format: int32 */
+            updated: number;
+            /** Format: int32 */
+            deleted: number;
+            /** Format: int32 */
+            unchanged: number;
+            /** Format: int32 */
+            skippedNoPlan: number;
+            /** Format: int32 */
+            skippedSets: number;
+            /** Format: int32 */
+            pendingExercises: number;
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -1577,6 +1877,10 @@ export interface components {
         UpdateExerciseRequest: {
             group: components["schemas"]["MuscleGroup"];
             aliases: string[];
+        };
+        UpdateHevyRequest: {
+            /** Format: date */
+            syncFrom: null | string;
         };
         UpdateMetricsResponse: {
             /** Format: uuid */

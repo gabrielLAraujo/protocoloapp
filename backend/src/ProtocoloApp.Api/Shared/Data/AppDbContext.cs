@@ -5,6 +5,7 @@ using ProtocoloApp.Api.Features.DailyCheckins;
 using ProtocoloApp.Api.Features.DietDeviations;
 using ProtocoloApp.Api.Features.ExerciseCatalog;
 using ProtocoloApp.Api.Features.Files;
+using ProtocoloApp.Api.Features.Integrations.Hevy;
 using ProtocoloApp.Api.Features.Plans;
 using ProtocoloApp.Api.Features.Push;
 using ProtocoloApp.Api.Features.Today;
@@ -52,6 +53,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<QuestionnaireTemplate> QuestionnaireTemplates => Set<QuestionnaireTemplate>();
 
     public DbSet<UpdateCycle> UpdateCycles => Set<UpdateCycle>();
+
+    public DbSet<HevyConnection> HevyConnections => Set<HevyConnection>();
+
+    public DbSet<HevyExerciseLink> HevyExerciseLinks => Set<HevyExerciseLink>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

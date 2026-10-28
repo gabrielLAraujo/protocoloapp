@@ -1034,6 +1034,224 @@
           }
         }
       }
+    },
+    "/api/integrations/hevy": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevyStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Integrations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConnectHevyRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevyStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Integrations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateHevyRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevyStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Integrations"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/integrations/hevy/sync": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevySyncResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/hevy/exercises": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HevyExerciseLinkResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/hevy/exercises/{id}": {
+      "put": {
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfirmHevyExerciseRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HevyExerciseLinkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1151,6 +1369,42 @@
           },
           "note": {
             "type": "string"
+          }
+        }
+      },
+      "ConfirmHevyExerciseRequest": {
+        "required": [
+          "exerciseId"
+        ],
+        "type": "object",
+        "properties": {
+          "exerciseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ConnectHevyRequest": {
+        "required": [
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "syncFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -1418,6 +1672,182 @@
             "items": {
               "$ref": "#/components/schemas/StrengthTrend"
             }
+          }
+        }
+      },
+      "HevyErrorCode": {
+        "enum": [
+          "unauthorized",
+          "rate_limited",
+          "unavailable",
+          "format",
+          "key_unreadable",
+          "incomplete",
+          "internal",
+          null
+        ]
+      },
+      "HevyExerciseLinkResponse": {
+        "required": [
+          "id",
+          "templateId",
+          "title",
+          "exerciseId",
+          "exerciseName",
+          "status",
+          "setCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "exerciseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exerciseName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HevyLinkStatus"
+          },
+          "setCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "HevyLinkStatus": {
+        "enum": [
+          "auto",
+          "pending",
+          "confirmed"
+        ]
+      },
+      "HevyStatusResponse": {
+        "required": [
+          "serverConfigured",
+          "connected",
+          "keyLast4",
+          "syncFrom",
+          "lastAttemptAt",
+          "lastSuccessAt",
+          "lastError",
+          "lastResult",
+          "running",
+          "pendingExercises"
+        ],
+        "type": "object",
+        "properties": {
+          "serverConfigured": {
+            "type": "boolean"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "keyLast4": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "syncFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "lastAttemptAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastSuccessAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HevyErrorCode"
+              }
+            ]
+          },
+          "lastResult": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HevySyncResult"
+              }
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "pendingExercises": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "HevySyncResult": {
+        "required": [
+          "imported",
+          "updated",
+          "deleted",
+          "unchanged",
+          "skippedNoPlan",
+          "skippedSets",
+          "pendingExercises"
+        ],
+        "type": "object",
+        "properties": {
+          "imported": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deleted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unchanged": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skippedNoPlan": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skippedSets": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pendingExercises": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -2275,6 +2705,21 @@
           }
         }
       },
+      "UpdateHevyRequest": {
+        "required": [
+          "syncFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "syncFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
       "UpdateMetricsResponse": {
         "required": [
           "cycleId",
@@ -2726,6 +3171,9 @@
     },
     {
       "name": "Updates"
+    },
+    {
+      "name": "Integrations"
     }
   ]
 }

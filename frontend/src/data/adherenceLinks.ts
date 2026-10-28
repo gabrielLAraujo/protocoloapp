@@ -46,13 +46,38 @@ export async function saveLoggedSession(db: LocalDb, userId: string, sessionId: 
       ])
       await workoutRepo.finishSession(tx, userId, sessionId, new Date(last?.at ?? session.started_at))
     }
-    const target = { date: session.date, targetType: 'workout' as const, targetKey: WORKOUT_KEY }
-    if ((await workoutRepo.workedOutDates(tx, session.date, session.date)).length > 0) {
-      await adherenceRepo.mark(tx, userId, { ...target, status: 'done' }, now)
-      return
-    }
-    const [mark] = (await adherenceRepo.between(tx, session.date, session.date)).filter((l) => l.targetType === 'workout' && l.targetKey === WORKOUT_KEY)
-    if (mark?.status === 'done') await adherenceRepo.clear(tx, userId, target, now)
+    await markWorkoutOf(tx, userId, session.date, now)
+  })
+}
+
+/** With a working set in a finished session of `date` its workout is done; without one, a "done" mark is cleared. */
+async function markWorkoutOf(tx: LocalDb, userId: string, date: string, now: Date): Promise<void> {
+  const target = { date, targetType: 'workout' as const, targetKey: WORKOUT_KEY }
+  if ((await workoutRepo.workedOutDates(tx, date, date)).length > 0) {
+    await adherenceRepo.mark(tx, userId, { ...target, status: 'done' }, now)
+    return
+  }
+  const [mark] = (await adherenceRepo.between(tx, date, date)).filter((l) => l.targetType === 'workout' && l.targetKey === WORKOUT_KEY)
+  if (mark?.status === 'done') await adherenceRepo.clear(tx, userId, target, now)
+}
+
+/**
+ * Deletes a session from the app with its sets and exercise changes ("Excluir do app", "Manter só um"): each set goes
+ * through the normal set delete (its sub-sets first), each live change through the normal change undo, then the session,
+ * all queued in the outbox; then the day's workout mark follows what is
+ * left on that date. No-op when the session is already gone.
+ */
+export async function deleteSessionAndMark(db: LocalDb, userId: string, sessionId: string, now: Date): Promise<void> {
+  await db.transaction(async (tx) => {
+    const session = await workoutRepo.sessionById(tx, sessionId)
+    if (!session) return
+    const sets = await workoutRepo.setsForSession(tx, sessionId)
+    for (const set of sets.filter((s) => s.parentSetId === null)) await workoutRepo.deleteSet(tx, userId, set.id, now)
+    // A sub-set whose parent was already gone (should not happen) goes on its own.
+    for (const set of await workoutRepo.setsForSession(tx, sessionId)) await workoutRepo.deleteSet(tx, userId, set.id, now)
+    for (const change of await workoutRepo.changesForSession(tx, sessionId)) await workoutRepo.removeChange(tx, userId, change.id, now)
+    await workoutRepo.deleteSession(tx, userId, sessionId, now)
+    await markWorkoutOf(tx, userId, session.date, now)
   })
 }
 

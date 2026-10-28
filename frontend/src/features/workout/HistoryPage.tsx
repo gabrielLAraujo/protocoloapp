@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useData } from '../../data/dataContext'
 import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { workoutRepo, type SessionSummary } from '../../data/workoutRepo'
 import { muscleGroupLabel } from '../../domain/muscleGroups'
 import { buttonClass } from '../plans/styles'
+import { Button } from '../../ui/Button'
 import { buttonClasses, cardClasses } from '../../ui/styles'
 import { EmptyState } from '../../ui/EmptyState'
 import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
 import { ListRow } from '../../ui/ListRow'
 import { SectionHeader } from '../../ui/SectionHeader'
+import { DuplicateSheet } from './DuplicateSheet'
+import { findDuplicates, type DuplicatePair } from './duplicates'
 import { formatDate, formatVolume } from './format'
 import { loadWorkoutPlans } from './workoutPlans'
 
@@ -31,7 +34,8 @@ export interface HistoryNotice {
 
 /**
  * `/treino/historico`: sessions by date (newest first, 60 at a time) with day and volume, and the exercises that were
- * done. A finished session opens to fix its sets.
+ * done. A finished session opens to fix its sets (one imported from Hevy opens to view). A Hevy session carries the
+ * "Hevy" chip and its Hevy title; the same workout in the app and in Hevy gets a warning above the pair, with "Manter só um".
  */
 export function HistoryPage() {
   const data = useData()
@@ -40,6 +44,7 @@ export function HistoryPage() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [resolving, setResolving] = useState<DuplicatePair | null>(null)
 
   useEffect(() => {
     if (!data) return
@@ -83,8 +88,17 @@ export function HistoryPage() {
     }
   }
 
+  const dayName = (s: SessionSummary['session']) => loaded?.dayNames.get(s.planVersionId)?.get(s.dayKey) ?? s.dayKey
+
   if (failed) return <p className="text-muted">Não foi possível abrir os dados do aparelho.</p>
   if (!data || !loaded) return <p className="text-muted">Carregando…</p>
+
+  // The warning goes above whichever session of the pair comes first in the list (both have the same date).
+  const pairsByFirst = new Map<string, DuplicatePair>()
+  for (const pair of findDuplicates(loaded.rows)) {
+    const first = loaded.rows.find((r) => r === pair.app || r === pair.hevy)!
+    pairsByFirst.set(first.session.id, pair)
+  }
 
   return (
     <div className="grid gap-6">
@@ -108,24 +122,37 @@ export function HistoryPage() {
         ) : (
           <ul className={cardClasses({ tone: 'list' })}>
             {loaded.rows.map(({ session, setCount, volume }) => (
-              <li key={session.id}>
-                <ListRow
-                  title={
-                    // The "em andamento" chip goes with the date, so every row's volume stays in the same right column.
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <time dateTime={session.date}>{formatDate(session.date)}</time>
-                      {session.endedAt === null && <Chip>em andamento</Chip>}
-                    </span>
-                  }
-                  subtitle={
-                    <span className="tabular-nums">
-                      {loaded.dayNames.get(session.planVersionId)?.get(session.dayKey) ?? session.dayKey}, {setCount} {setCount === 1 ? 'série' : 'séries'}
-                    </span>
-                  }
-                  value={formatVolume(volume)}
-                  to={session.endedAt === null ? undefined : `/treino/historico/${session.id}`}
-                />
-              </li>
+              <Fragment key={session.id}>
+                {pairsByFirst.get(session.id) && (
+                  <li className="flex min-h-13 items-center gap-3 px-4 py-2.5">
+                    {/* Text flush with the dates below; the warning color repeats what it says. */}
+                    <p className="min-w-0 flex-1 text-sm font-semibold text-warn">Treino registrado no app e no Hevy</p>
+                    <Button size="sm" onClick={() => setResolving(pairsByFirst.get(session.id)!)}>
+                      Manter só um
+                    </Button>
+                  </li>
+                )}
+                <li>
+                  <ListRow
+                    title={
+                      // The "em andamento" chip goes with the date, so every row's volume stays in the same right column.
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <time dateTime={session.date}>{formatDate(session.date)}</time>
+                        {session.endedAt === null && <Chip>em andamento</Chip>}
+                        {session.source === 'hevy' && <Chip>Hevy</Chip>}
+                      </span>
+                    }
+                    subtitle={
+                      <span className="tabular-nums">
+                        {dayName(session)}
+                        {session.source === 'hevy' && session.externalTitle ? ` (${session.externalTitle})` : ''}, {setCount} {setCount === 1 ? 'série' : 'séries'}
+                      </span>
+                    }
+                    value={formatVolume(volume)}
+                    to={session.endedAt === null ? undefined : `/treino/historico/${session.id}`}
+                  />
+                </li>
+              </Fragment>
             ))}
           </ul>
         )}
@@ -135,6 +162,18 @@ export function HistoryPage() {
           </button>
         )}
       </section>
+
+      {resolving && (
+        <DuplicateSheet
+          pair={resolving}
+          dayName={dayName(resolving.app.session)}
+          onCancel={() => setResolving(null)}
+          onDone={(deletedId) => {
+            setResolving(null)
+            setLoaded({ ...loaded, rows: loaded.rows.filter((r) => r.session.id !== deletedId) })
+          }}
+        />
+      )}
 
       {loaded.exercises.length > 0 && (
         <section aria-label="Exercícios" className="grid gap-1">

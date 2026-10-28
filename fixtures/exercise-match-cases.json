@@ -1,0 +1,83 @@
+[
+  {
+    "title": "Supino reto c/ barra",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000001", "name": "Supino reto com barra", "aliases": [], "catalogId": null }
+    ],
+    "expected": "00000000-0000-4000-8000-000000000001",
+    "tsKind": "user"
+  },
+  {
+    "title": "Bench Press (Barbell)",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000002", "name": "Exercício de peito exemplo", "aliases": [], "catalogId": "EIeI8Vf" }
+    ],
+    "expected": "00000000-0000-4000-8000-000000000002",
+    "tsKind": "dictionary"
+  },
+  {
+    "title": "Remada exemplo do Hevy",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000003", "name": "Remada T", "aliases": ["Remada exemplo do Hevy"], "catalogId": null }
+    ],
+    "expected": "00000000-0000-4000-8000-000000000003",
+    "tsKind": "user"
+  },
+  {
+    "title": "Biceps testa",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000004", "name": "Triceps testa", "aliases": [], "catalogId": "h8LFzo9" }
+    ],
+    "expected": null,
+    "tsKind": "dictionary"
+  },
+  {
+    "title": "",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000005", "name": "Supino reto com barra", "aliases": [], "catalogId": "EIeI8Vf" }
+    ],
+    "expected": null,
+    "tsKind": "none"
+  },
+  {
+    "title": "Zorblax Twist Exemplo",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000006", "name": "Supino reto com barra", "aliases": [], "catalogId": "EIeI8Vf" }
+    ],
+    "expected": null,
+    "tsKind": "none"
+  },
+  {
+    "title": "Supino reto com halteres",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000007", "name": "Supino halteres", "aliases": [], "catalogId": null }
+    ],
+    "expected": "00000000-0000-4000-8000-000000000007",
+    "tsKind": "dictionary"
+  },
+  {
+    "title": "Leg Press (Machine)",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000008", "name": "Leg exemplo", "aliases": [], "catalogId": "10Z2DXU" }
+    ],
+    "expected": "00000000-0000-4000-8000-000000000008",
+    "tsKind": "dictionary"
+  },
+  {
+    "title": "Supino Reto (Smith Machine)",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000009", "name": "Supino reto com barra", "aliases": [], "catalogId": "EIeI8Vf" },
+      { "id": "00000000-0000-4000-8000-000000000010", "name": "Supino guiado exemplo", "aliases": [], "catalogId": "trqKQv2" }
+    ],
+    "expected": "00000000-0000-4000-8000-000000000010",
+    "tsKind": "dictionary"
+  },
+  {
+    "title": "Leg Press (Machine)",
+    "userExercises": [
+      { "id": "00000000-0000-4000-8000-000000000011", "name": "Cadeira extensora", "aliases": [], "catalogId": "my33uHU" }
+    ],
+    "expected": null,
+    "tsKind": "dictionary"
+  }
+]

@@ -491,6 +491,122 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Integrations.Hevy.HevyConnection", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<byte[]>("ApiKeyCipher")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("api_key_cipher");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("Cursor")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cursor");
+
+                    b.Property<string>("KeyLast4")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("key_last4");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_attempt_at");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("last_error");
+
+                    b.Property<JsonDocument>("LastResult")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("last_result");
+
+                    b.Property<DateTimeOffset?>("LastSuccessAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_success_at");
+
+                    b.Property<DateOnly>("SyncFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("sync_from");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_hevy_connections");
+
+                    b.ToTable("hevy_connections", (string)null);
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Integrations.Hevy.HevyExerciseLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("CreatedExercise")
+                        .HasColumnType("boolean")
+                        .HasColumnName("created_exercise");
+
+                    b.Property<Guid>("ExerciseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exercise_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TemplateId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("template_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_hevy_exercise_links");
+
+                    b.HasIndex("ExerciseId")
+                        .HasDatabaseName("ix_hevy_exercise_links_exercise_id");
+
+                    b.HasIndex("UserId", "TemplateId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_hevy_exercise_links_user_id_template_id");
+
+                    b.ToTable("hevy_exercise_links", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_hevy_exercise_links_status", "status IN ('auto', 'pending', 'confirmed')");
+                        });
+                });
+
             modelBuilder.Entity("ProtocoloApp.Api.Features.Plans.Exercise", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1215,6 +1331,11 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("exercise_id");
 
+                    b.Property<string>("HevyTemplateId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("hevy_template_id");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -1233,6 +1354,11 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                     b.Property<int>("Reps")
                         .HasColumnType("integer")
                         .HasColumnName("reps");
+
+                    b.Property<decimal?>("Rpe")
+                        .HasPrecision(3, 1)
+                        .HasColumnType("numeric(3,1)")
+                        .HasColumnName("rpe");
 
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uuid")
@@ -1274,6 +1400,9 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                     b.HasIndex("UserId", "ExerciseId")
                         .HasDatabaseName("ix_set_logs_user_id_exercise_id");
 
+                    b.HasIndex("UserId", "HevyTemplateId")
+                        .HasDatabaseName("ix_set_logs_user_id_hevy_template_id");
+
                     b.HasIndex("UserId", "SessionId")
                         .HasDatabaseName("ix_set_logs_user_id_session_id");
 
@@ -1286,6 +1415,8 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                             t.HasCheckConstraint("ck_set_logs_kind", "kind IN ('normal', 'drop', 'partial', 'rest_pause', 'warmup')");
 
                             t.HasCheckConstraint("ck_set_logs_reps", "reps BETWEEN 0 AND 200");
+
+                            t.HasCheckConstraint("ck_set_logs_rpe", "rpe IS NULL OR rpe BETWEEN 1 AND 10");
 
                             t.HasCheckConstraint("ck_set_logs_set_index", "set_index BETWEEN 0 AND 50");
 
@@ -1323,6 +1454,20 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("exercise_notes");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("ExternalTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("external_title");
+
+                    b.Property<DateTimeOffset?>("ExternalUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("external_updated_at");
+
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
@@ -1331,6 +1476,13 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                     b.Property<Guid>("PlanVersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("plan_version_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("app")
+                        .HasColumnName("source");
 
                     b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1367,7 +1519,15 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_workout_sessions_user_id_version");
 
-                    b.ToTable("workout_sessions", (string)null);
+                    b.HasIndex("UserId", "Source", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_workout_sessions_user_id_source_external_id")
+                        .HasFilter("external_id IS NOT NULL");
+
+                    b.ToTable("workout_sessions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workout_sessions_source", "source IN ('app', 'hevy')");
+                        });
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Shared.Data.AppUser", b =>
@@ -1584,6 +1744,33 @@ namespace ProtocoloApp.Api.Shared.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_files_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Integrations.Hevy.HevyConnection", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_hevy_connections_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("ProtocoloApp.Api.Features.Integrations.Hevy.HevyExerciseLink", b =>
+                {
+                    b.HasOne("ProtocoloApp.Api.Features.Plans.Exercise", null)
+                        .WithMany()
+                        .HasForeignKey("ExerciseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_hevy_exercise_links_exercises_exercise_id");
+
+                    b.HasOne("ProtocoloApp.Api.Shared.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_hevy_exercise_links_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("ProtocoloApp.Api.Features.Plans.Exercise", b =>
