@@ -317,9 +317,6 @@ jobs:
       # already has the item). The catalog is the fixture seeded below.
       ExerciseCatalog__Enabled: 'false'
       E2E_ANTHROPIC_STUB_URL: http://127.0.0.1:9100
-      # TEST ONLY, public on purpose: base64 of the 32 ASCII bytes "e2e-only-test-key-not-a-secret!!". Production uses its own
-      # random key (openssl rand -base64 32, set in Coolify; see README.md).
-      Integrations__EncryptionKey: ZTJlLW9ubHktdGVzdC1rZXktbm90LWEtc2VjcmV0ISE=
       # The Hevy stand-in (http is accepted only for a loopback host). The scheduler stays off: only "Sincronizar agora" in
       # e2e/hevy.spec.ts reaches it, so no background run can collide with it (409) or import before the test looks.
       Hevy__BaseUrl: http://127.0.0.1:9102/
@@ -330,6 +327,14 @@ jobs:
       E2E_PASSWORD: Senha-e2e-123456
     steps:
       - uses: actions/checkout@v5
+
+      # Integrations__EncryptionKey: a throwaway key made for each run (nothing in the repo looks like a secret). Production
+      # uses its own key (openssl rand -base64 32, set in Coolify; see README.md).
+      - name: Test encryption key
+        run: |
+          key=$(openssl rand -base64 32)
+          echo "::add-mask::$key"
+          echo "Integrations__EncryptionKey=$key" >> "$GITHUB_ENV"
 
       - uses: actions/setup-dotnet@v5
         with:
