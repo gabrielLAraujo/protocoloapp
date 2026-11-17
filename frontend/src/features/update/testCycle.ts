@@ -17,6 +17,7 @@ export async function seedCycle(
     answers = {},
     photos = [],
     sentAt = null,
+    protocolVersionId = PROTOCOL_ID,
   }: {
     id?: string
     periodStart?: string
@@ -25,13 +26,14 @@ export async function seedCycle(
     answers?: Record<string, string>
     photos?: { pose: string; file_id: string; taken_at: string }[]
     sentAt?: string | null
+    protocolVersionId?: string
   } = {},
 ) {
   const record: SyncRecord = {
     entity: 'update_cycle',
     id,
     version: 1,
-    payload: { protocol_version_id: PROTOCOL_ID, period_start: periodStart, period_end: periodEnd, status, answers, photos, sent_at: sentAt },
+    payload: { protocol_version_id: protocolVersionId, period_start: periodStart, period_end: periodEnd, status, answers, photos, sent_at: sentAt },
     deletedAt: null,
     clientUpdatedAt: '2026-10-01T12:00:00.000000+00:00',
   }

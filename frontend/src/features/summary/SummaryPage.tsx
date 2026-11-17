@@ -9,6 +9,7 @@ import { exerciseRepo } from '../../data/exerciseRepo'
 import { planRepo } from '../../data/planRepo'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
+import { updateCycleRepo } from '../../data/updateCycleRepo'
 import { workoutRepo, type SetLocal } from '../../data/workoutRepo'
 import { parseProtocolDocument } from '../../domain/planDocuments'
 import { localDate } from '../checkin/localDate'
@@ -66,7 +67,7 @@ function rateCaption(rate: AdherenceRate): string {
 
 async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: string): Promise<Loaded> {
   const now = new Date()
-  const [active, plans, exercises, progress] = await Promise.all([
+  const [active, plans, exercises, progress, updateCycle] = await Promise.all([
     planRepo.getActive(db, 'protocol'),
     loadWorkoutPlans(db),
     exerciseRepo.all(db),
@@ -75,12 +76,17 @@ async function load(db: NonNullable<ReturnType<typeof useData>>['db'], today: st
       console.error('could not compute the progress', e)
       return null
     }),
+    updateCycleRepo.current(db),
   ])
 
   let protocol: SummaryInput['protocol'] = null
   if (active?.activatedAt) {
     const parsed = parseProtocolDocument(active.document)
-    if (parsed.ok) protocol = { activatedOn: localDate(new Date(active.activatedAt)), document: parsed.value }
+    // Once this protocol's update is sent, the cycle is closed while the new protocol does not arrive (no "atrasada").
+    const sent = updateCycle?.status === 'sent' && updateCycle.sentAt && updateCycle.protocolVersionId === active.id ? updateCycle.sentAt : null
+    if (parsed.ok) {
+      protocol = { activatedOn: localDate(new Date(active.activatedAt)), document: parsed.value, updateSentOn: sent ? localDate(new Date(sent)) : null }
+    }
   }
   const from = protocol?.activatedOn ?? today
   const to = protocol?.document.updateDate && protocol.document.updateDate > today ? protocol.document.updateDate : today
