@@ -77,65 +77,82 @@ describe('UpdatePage', () => {
     expect(screen.getByText('01/10 a 23/10')).toBeInTheDocument()
     expect(screen.getAllByRole('tab').map((t) => t.textContent?.replace(/^\d\./, ''))).toEqual(['Fotos', 'Questionário', 'Revisar e enviar'])
     expect(tab('Fotos')).toHaveAttribute('aria-selected', 'true')
-    const front = await screen.findByRole('listitem', { name: 'Frente' })
+    const front = await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
     expect(within(front).getByText('Falta')).toBeInTheDocument()
     expect(within(front).getByRole('button', { name: 'Tirar foto' })).toBeInTheDocument()
-    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    expect(screen.getAllByRole('listitem')).toHaveLength(7)
   })
 
   it('a sent pose shows its thumbnail', async () => {
     const fileId = '00000000-0000-0000-0000-0000000000f1'
     mockFetch({})
     const app = await setupApp()
-    await seedCycle(app.db, { photos: [{ pose: 'front', file_id: fileId, taken_at: '2026-10-19T10:00:00Z' }] })
-    await photoThumbRepo.put(app.db, { fileId, cycleId: CYCLE_ID, pose: 'front', dataUrl: 'data:image/jpeg;base64,AAAA' })
+    await seedCycle(app.db, { photos: [{ pose: 'front_double_biceps', file_id: fileId, taken_at: '2026-10-19T10:00:00Z' }] })
+    await photoThumbRepo.put(app.db, { fileId, cycleId: CYCLE_ID, pose: 'front_double_biceps', dataUrl: 'data:image/jpeg;base64,AAAA' })
     app.view(<UpdatePage />)
-    const front = await screen.findByRole('listitem', { name: 'Frente' })
-    expect(within(front).getByRole('img', { name: 'Miniatura de Frente' })).toHaveAttribute('src', 'data:image/jpeg;base64,AAAA')
+    const front = await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
+    expect(within(front).getByRole('img', { name: 'Miniatura de Duplo bíceps de frente' })).toHaveAttribute('src', 'data:image/jpeg;base64,AAAA')
     expect(within(front).getByText('Enviada')).toBeInTheDocument()
     expect(within(front).getByRole('button', { name: 'Refazer' })).toBeInTheDocument()
+  })
+
+  it('a photo of a former pose shows under "Outras fotos", next to the bodybuilding poses', async () => {
+    const fileId = '00000000-0000-0000-0000-0000000000f3'
+    mockFetch(metricsOnline())
+    const app = await setupApp()
+    vi.spyOn(app.engine, 'runOnce').mockResolvedValue(undefined as never)
+    await seedCycle(app.db, { photos: [{ pose: 'front', file_id: fileId, taken_at: '2026-10-19T10:00:00Z' }] })
+    await photoThumbRepo.put(app.db, { fileId, cycleId: CYCLE_ID, pose: 'front', dataUrl: 'data:image/jpeg;base64,CCCC' })
+    await questionnaireTemplateRepo.save(app.db, fixture(), new Date('2026-10-01T12:00:00Z'))
+    app.view(<UpdatePage />)
+
+    const others = await screen.findByRole('region', { name: 'Outras fotos' })
+    const old = within(others).getByRole('listitem', { name: 'Frente' })
+    expect(within(old).getByRole('img', { name: 'Miniatura de Frente' })).toHaveAttribute('src', 'data:image/jpeg;base64,CCCC')
+    expect(within(screen.getByRole('listitem', { name: 'Duplo bíceps de frente' })).getByText('Falta')).toBeInTheDocument()
+    expect((await updateCycleRepo.byId(app.db, CYCLE_ID))!.photos.map((p) => p.pose)).toEqual(['front'])
   })
 
   it('a photo taken without a connection stays pending in the queue', async () => {
     const user = userEvent.setup()
     await open({ routes: { ...metricsOnline(), 'POST /api/files/upload-url': () => problem(503) } })
-    const front = await screen.findByRole('listitem', { name: 'Frente' })
+    const front = await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
     await user.click(within(front).getByRole('button', { name: 'Tirar foto' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Frente' })
+    const dialog = await screen.findByRole('dialog', { name: 'Duplo bíceps de frente' })
     // A generated image: a few bytes of a colored rectangle, never a real photo.
     const picked = new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x11, 0x22])], 'pose.jpg', { type: 'image/jpeg' })
     await user.upload(within(dialog).getByLabelText('Escolher foto'), picked)
 
-    expect(await within(await screen.findByRole('listitem', { name: 'Frente' })).findByText('Pendente de envio')).toBeInTheDocument()
-    expect((await photoQueue.list()).map((p) => [p.userId, p.cycleId, p.pose])).toEqual([[USER_A, CYCLE_ID, 'front']])
+    expect(await within(await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })).findByText('Pendente de envio')).toBeInTheDocument()
+    expect((await photoQueue.list()).map((p) => [p.userId, p.cycleId, p.pose])).toEqual([[USER_A, CYCLE_ID, 'front_double_biceps']])
   })
 
   it('a format the device cannot convert (HEIC) is refused at capture with a message, and nothing is queued', async () => {
     const user = userEvent.setup({ applyAccept: false })
     await open()
-    const front = await screen.findByRole('listitem', { name: 'Frente' })
+    const front = await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
     await user.click(within(front).getByRole('button', { name: 'Tirar foto' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Frente' })
+    const dialog = await screen.findByRole('dialog', { name: 'Duplo bíceps de frente' })
     // Generated bytes with a HEIC type: jsdom cannot decode it, like a browser without HEIC support.
     const picked = new File([new Uint8Array([0x00, 0x00, 0x00, 0x18, 0x66, 0x74])], 'pose.heic', { type: 'image/heic' })
     await user.upload(within(dialog).getByLabelText('Escolher foto'), picked)
 
     expect(await screen.findByText(UNSUPPORTED_PHOTO_MESSAGE)).toBeInTheDocument()
     expect(await photoQueue.list()).toEqual([])
-    expect(within(screen.getByRole('listitem', { name: 'Frente' })).getByText('Falta')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: 'Duplo bíceps de frente' })).getByText('Falta')).toBeInTheDocument()
   })
 
   it('a photo the server refuses says which pose to take again instead of vanishing', async () => {
     const user = userEvent.setup()
     await open({ routes: { ...metricsOnline(), 'POST /api/files/upload-url': () => problem(415) } })
-    const front = await screen.findByRole('listitem', { name: 'Frente' })
+    const front = await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
     await user.click(within(front).getByRole('button', { name: 'Tirar foto' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Frente' })
+    const dialog = await screen.findByRole('dialog', { name: 'Duplo bíceps de frente' })
     const picked = new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x11, 0x22])], 'pose.jpg', { type: 'image/jpeg' })
     await user.upload(within(dialog).getByLabelText('Escolher foto'), picked)
 
-    expect(await screen.findByText(uploadFailedMessage('Frente'))).toBeInTheDocument()
-    expect(uploadFailedMessage('Frente')).toBe('Não foi possível enviar a foto de Frente. Tente de novo.')
+    expect(await screen.findByText(uploadFailedMessage('Duplo bíceps de frente'))).toBeInTheDocument()
+    expect(uploadFailedMessage('Duplo bíceps de frente')).toBe('Não foi possível enviar a foto de Duplo bíceps de frente. Tente de novo.')
     expect(await photoQueue.list()).toEqual([])
   })
 
@@ -249,7 +266,7 @@ describe('UpdatePage', () => {
   it('in the APK there is no "Gerar PDF", and without share the zip asks for the browser', async () => {
     native.value = true
     const user = userEvent.setup()
-    await open({ seed: { photos: [{ pose: 'front', file_id: '00000000-0000-0000-0000-0000000000f1', taken_at: '2026-10-19T10:00:00Z' }] } })
+    await open({ seed: { photos: [{ pose: 'front_double_biceps', file_id: '00000000-0000-0000-0000-0000000000f1', taken_at: '2026-10-19T10:00:00Z' }] } })
     vi.stubGlobal('navigator', { ...navigator, share: undefined, canShare: undefined, onLine: true })
     await user.click(tab('Revisar e enviar'))
     await within(screen.getByRole('tabpanel')).findByText(MISSED_TEXT)
@@ -276,14 +293,14 @@ describe('UpdatePage', () => {
       periodStart: '2026-09-01',
       periodEnd: '2026-09-30',
       status: 'sent',
-      photos: [{ pose: 'front', file_id: oldFile, taken_at: '2026-09-29T10:00:00Z' }],
+      photos: [{ pose: 'front_double_biceps', file_id: oldFile, taken_at: '2026-09-29T10:00:00Z' }],
     })
-    await photoThumbRepo.put(app.db, { fileId: oldFile, cycleId: PREVIOUS_CYCLE_ID, pose: 'front', dataUrl: 'data:image/jpeg;base64,BBBB' })
+    await photoThumbRepo.put(app.db, { fileId: oldFile, cycleId: PREVIOUS_CYCLE_ID, pose: 'front_double_biceps', dataUrl: 'data:image/jpeg;base64,BBBB' })
     await seedCycle(app.db)
     app.view(<UpdatePage />)
-    const front = await screen.findByRole('listitem', { name: 'Frente' })
+    const front = await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
     await user.click(within(front).getByRole('button', { name: 'Tirar foto' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Frente' })
-    expect(within(dialog).getByRole('img', { name: 'Foto anterior de Frente' })).toHaveAttribute('src', 'data:image/jpeg;base64,BBBB')
+    const dialog = await screen.findByRole('dialog', { name: 'Duplo bíceps de frente' })
+    expect(within(dialog).getByRole('img', { name: 'Foto anterior de Duplo bíceps de frente' })).toHaveAttribute('src', 'data:image/jpeg;base64,BBBB')
   })
 })

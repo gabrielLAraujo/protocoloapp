@@ -40,7 +40,7 @@ public sealed class QuestionnaireTemplateValidatorTests
             ["checkin_notes", "diet_error_pct", "diet_wrong_meals", "items_missed", "items_used", "missed_workouts", "missed_workouts", "strength_changes", "weight"],
             questions.Where(q => q!["fill"] is not null).Select(q => q!["fill"]!.GetValue<string>()).Order(StringComparer.Ordinal).ToList());
         Assert.Equal(
-            ["front", "back", "right_side", "left_side", "abs"],
+            ["front_double_biceps", "front_lat_spread", "side_chest", "back_double_biceps", "back_lat_spread", "side_triceps", "abs_thighs"],
             document["poses"]!.AsArray().Select(p => p!["key"]!.GetValue<string>()).ToList());
         Assert.All(questions.Select(q => q!["fill"]?.GetValue<string>()).OfType<string>(), fill => Assert.Contains(fill, FillMetric.All));
     }
@@ -292,7 +292,7 @@ public sealed class QuestionnaireTemplateValidatorTests
     public void A_repeated_pose_is_an_error()
     {
         var document = Fixture();
-        document["poses"]![1]!["key"] = "front";
+        document["poses"]![1]!["key"] = "front_double_biceps";
 
         Assert.Equal(["document.poses[1].key"], Errors(document));
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FILL_METRICS } from './fillMetrics'
-import { DEFAULT_POSES, parseTemplateJson, posesOf, questionnaireTemplateSchema, type QuestionnaireTemplate } from './questionnaireTemplate'
+import { BODYBUILDING_POSES, DEFAULT_POSES, parseTemplateJson, posesOf, questionnaireTemplateSchema, type QuestionnaireTemplate } from './questionnaireTemplate'
 
 // A glob, not a static import: the fixture lives at the repository root, outside the Docker build context of the front.
 // The server's validator tests run the same file.
@@ -213,7 +213,27 @@ describe('posesOf', () => {
     expect(posesOf(null)).toEqual(DEFAULT_POSES)
     expect(posesOf(base())).toEqual(DEFAULT_POSES)
     expect(posesOf({ ...base(), poses: [{ key: 'front', label: 'Frente' }] })).toEqual([{ key: 'front', label: 'Frente' }])
-    expect(DEFAULT_POSES.map((p) => p.key)).toEqual(['front', 'back', 'right_side', 'left_side', 'abs'])
+  })
+
+  it('the defaults are the mandatory bodybuilding poses, in order', () => {
+    const expected = [
+      { key: 'front_double_biceps', label: 'Duplo bíceps de frente' },
+      { key: 'front_lat_spread', label: 'Expansão dorsal de frente' },
+      { key: 'side_chest', label: 'Peitoral de lado' },
+      { key: 'back_double_biceps', label: 'Duplo bíceps de costas' },
+      { key: 'back_lat_spread', label: 'Expansão dorsal de costas' },
+      { key: 'side_triceps', label: 'Tríceps de lado' },
+      { key: 'abs_thighs', label: 'Abdômen e coxa' },
+    ]
+    expect(posesOf(null)).toEqual(expected)
+    expect(BODYBUILDING_POSES).toEqual(expected)
+    expect(DEFAULT_POSES).toBe(BODYBUILDING_POSES)
+    // Valid as template poses too (the key and label limits of the schema).
+    expect(questionnaireTemplateSchema.safeParse({ ...base(), poses: BODYBUILDING_POSES }).success).toBe(true)
+  })
+
+  it('the example fixture uses the bodybuilding poses', () => {
+    expect(questionnaireTemplateSchema.parse(fixture).poses).toEqual(BODYBUILDING_POSES)
   })
 
   it('FILL_METRICS keeps the contract order', () => {

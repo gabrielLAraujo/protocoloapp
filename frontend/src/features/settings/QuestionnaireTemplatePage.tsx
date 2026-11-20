@@ -3,7 +3,15 @@ import { Link } from 'react-router'
 import { useData } from '../../data/dataContext'
 import type { LocalDb } from '../../data/localDb'
 import { questionnaireTemplateRepo } from '../../data/questionnaireTemplateRepo'
-import { posesOf, type Pose, type QuestionnaireTemplate, type TemplateQuestion } from '../../domain/questionnaireTemplate'
+import { updateCycleRepo } from '../../data/updateCycleRepo'
+import {
+  BODYBUILDING_POSES,
+  posesOf,
+  usesBodybuildingPoses,
+  type Pose,
+  type QuestionnaireTemplate,
+  type TemplateQuestion,
+} from '../../domain/questionnaireTemplate'
 import { Button } from '../../ui/Button'
 import { EmptyState } from '../../ui/EmptyState'
 import { Icon } from '../../ui/Icon'
@@ -12,6 +20,7 @@ import { Sheet } from '../../ui/Sheet'
 import { ACTION_ROW, GROUP_LABEL, buttonClasses, cardClasses } from '../../ui/styles'
 import { inputClass } from '../plans/styles'
 import { useSync } from '../sync/syncContext'
+import { photoQueue } from '../update/photos/photoQueue'
 import { QuestionEditSheet } from './QuestionEditSheet'
 import { downloadBlob, exportTemplate, FILL_LABELS, KIND_LABELS, readTemplateFile, TEMPLATE_FILE_NAME } from './templateFile'
 
@@ -30,6 +39,16 @@ function moved<T>(list: readonly T[], index: number, by: -1 | 1): T[] {
 
 /** Saves with the device clock (outside the component: the clock is read when the user acts, never while rendering). */
 const storeTemplate = (db: LocalDb, t: QuestionnaireTemplate) => questionnaireTemplateRepo.save(db, t, new Date())
+
+/** Whether the open (not sent) update already has photos, sent or still in the queue. */
+async function openUpdateHasPhotos(db: LocalDb): Promise<boolean> {
+  const cycle = await updateCycleRepo.current(db)
+  if (!cycle || cycle.status === 'sent') return false
+  if (cycle.photos.length > 0) return true
+  // No IndexedDB (a locked-down browser): nothing can be queued either.
+  const queued = await photoQueue.list().catch(() => [])
+  return queued.some((p) => p.cycleId === cycle.id)
+}
 
 const without = (drafts: Record<string, string>, key: string) => Object.fromEntries(Object.entries(drafts).filter(([k]) => k !== key))
 
@@ -86,6 +105,8 @@ export function QuestionnaireTemplatePage() {
   const [message, setMessage] = useState<Message | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
   const [replacing, setReplacing] = useState<QuestionnaireTemplate | null>(null)
+  // The confirmation of "Usar poses do fisiculturismo", with whether the open update already has photos.
+  const [switchingPoses, setSwitchingPoses] = useState<{ hasPhotos: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   // A pose label being typed; saved when the field is left.
   const [poseDrafts, setPoseDrafts] = useState<Record<string, string>>({})
@@ -177,6 +198,17 @@ export function QuestionnaireTemplatePage() {
     void savePoses(t, poses.map((p, k) => (k === index ? { ...p, label } : p)), 'Pose salva.').finally(clear)
   }
 
+  const askBodybuildingPoses = async () => {
+    setMessage(null)
+    let hasPhotos = false
+    try {
+      hasPhotos = await openUpdateHasPhotos(db)
+    } catch (error) {
+      console.error('could not read the open update', error instanceof Error ? error.name : 'unknown')
+    }
+    setSwitchingPoses({ hasPhotos })
+  }
+
   const editingQuestion = template && editing ? template.sections[editing.section]?.questions[editing.index] : undefined
 
   return (
@@ -245,7 +277,15 @@ export function QuestionnaireTemplatePage() {
           </div>
 
           <section aria-labelledby="template-poses" className="grid gap-1">
-            <SectionHeader id="template-poses" title="Poses das fotos" />
+            <SectionHeader
+              id="template-poses"
+              title="Poses das fotos"
+              action={
+                <Button size="sm" icon="camera" disabled={busy || usesBodybuildingPoses(poses)} onClick={() => void askBodybuildingPoses()}>
+                  Usar poses do fisiculturismo
+                </Button>
+              }
+            />
             <ol className={cardClasses({ tone: 'list' })}>
               {poses.map((pose, i) => (
                 <li key={pose.key} className="flex min-h-13 items-center gap-3 py-2 pr-2 pl-4">
@@ -283,6 +323,34 @@ export function QuestionnaireTemplatePage() {
           onSave={(q) => void saveQuestion(template, editing, q)}
           onCancel={() => setEditing(null)}
         />
+      )}
+
+      {template && switchingPoses && (
+        <Sheet title="Usar poses do fisiculturismo?" onCancel={() => setSwitchingPoses(null)}>
+          <p className="text-base text-ink">
+            As poses do questionário passam a ser as {BODYBUILDING_POSES.length} obrigatórias do fisiculturismo:{' '}
+            {BODYBUILDING_POSES.map((p) => p.label).join(', ')}.
+          </p>
+          {switchingPoses.hasPhotos && (
+            <p className="text-sm text-muted">
+              A atualização aberta já tem fotos. Elas continuam guardadas e aparecem em “Outras fotos” quando a pose sair da lista.
+            </p>
+          )}
+          <div className={ACTION_ROW}>
+            <Button
+              variant="primary"
+              loading={busy}
+              onClick={() =>
+                void savePoses(template, BODYBUILDING_POSES.map((p) => ({ ...p })), 'Poses do fisiculturismo salvas.').then(
+                  (ok) => ok && setSwitchingPoses(null),
+                )
+              }
+            >
+              Usar estas poses
+            </Button>
+            <Button onClick={() => setSwitchingPoses(null)}>Cancelar</Button>
+          </div>
+        </Sheet>
       )}
 
       {replacing && (
