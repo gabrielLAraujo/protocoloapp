@@ -80,7 +80,7 @@ O E2E `workout.spec.ts` hoje registra um treino offline pelo app, e `hevy.spec.t
 
 ## Decidido depois da revisão
 - A troca do treino do dia fica, como linha pequena no topo da aba Treino.
-- Regra de treino feito: o app conta sessão finalizada ou não com série válida; o servidor (métricas da atualização e marcação do Hevy) segue contando só sessões encerradas. As do Hevy chegam sempre encerradas, então a diferença só afeta treinos antigos do app nunca finalizados; o servidor não muda.
+- Regra de treino feito: sessão finalizada ou não, não excluída, com pelo menos uma série que não seja aquecimento. Vale no app e no servidor (métricas da atualização para o questionário da coach e marcação do treino pelo Hevy), que deixou de exigir sessão encerrada (branch `feat/treino-ajustes`).
 
 ## Para quem for construir
 Layout dos gráficos (seguir o visual clínico e sóbrio e as duas colunas no desktop), nomes de componentes, o que reaproveitar do Resumo e do `ExerciseHistoryPage`.

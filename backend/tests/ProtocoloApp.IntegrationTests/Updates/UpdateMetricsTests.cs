@@ -43,13 +43,13 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         Upsert("adherence_log", Json(
             ("date", Iso(date)), ("target_type", "meal"), ("target_key", key), ("status", status), ("reason", reason), ("note", null)));
 
-    private static SyncChange Session(Guid id, DateOnly date, Guid planVersionId, string dayKey) =>
+    private static SyncChange Session(Guid id, DateOnly date, Guid planVersionId, string dayKey, bool ended = true) =>
         Upsert("workout_session", Json(
             ("date", Iso(date)),
             ("plan_version_id", planVersionId),
             ("workout_day_key", dayKey),
             ("started_at", SyncApi.Past(90)),
-            ("ended_at", SyncApi.Past(70)),
+            ("ended_at", ended ? SyncApi.Past(70) : (DateTimeOffset?)null),
             ("note", null)), id);
 
     private static SyncChange Set(Guid sessionId, Guid exerciseId, int index, decimal weight, int reps, string kind = "normal") =>
@@ -239,6 +239,41 @@ public sealed class UpdateMetricsTests(ApiFactory factory) : IClassFixture<ApiFa
         AssertProperties(note, "date", "note");
         Assert.Equal(Iso(start), note.GetProperty("date").GetString());
         Assert.Equal("Nota de exemplo.", note.GetProperty("note").GetString());
+    }
+
+    [Fact]
+    public async Task A_session_never_finished_with_a_working_set_counts_as_a_workout_done()
+    {
+        using var api = await PlanApi.CreateAsync(factory);
+        var today = Today();
+        var start = today.AddDays(-2);
+
+        // Rotation a, b, off from the first day: start and start+1 are training days, today is off.
+        var protocol = await api.ImportDraftAsync(PlanKind.Protocol);
+        Assert.Equal(HttpStatusCode.OK, (await api.PutAsync(protocol.Id, Protocol(today.AddDays(30)))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(protocol.Id, start)).StatusCode);
+        var workout = await api.ImportDraftAsync();
+        Assert.Equal(HttpStatusCode.OK, (await api.ActivateAsync(workout.Id, start)).StatusCode);
+        var bench = await api.WithDbAsync(db => db.Exercises.AsNoTracking()
+            .SingleAsync(e => e.UserId == api.UserId && e.Name == "Rosca Alternada C/ Halteres"));
+        var cycle = await UpdateApi.SingleCycleAsync(api.Client);
+
+        // Start: never finished, one working set (counts). Start+1: never finished, warm-up only (does not count).
+        var open = Guid.NewGuid();
+        var warmupOnly = Guid.NewGuid();
+        var results = await SyncApi.PushAsync(
+            api.Client,
+            Session(open, start, workout.Id, "a", ended: false),
+            Set(open, bench.Id, 0, 60m, 10),
+            Session(warmupOnly, start.AddDays(1), workout.Id, "b", ended: false),
+            Set(warmupOnly, bench.Id, 0, 20m, 10, "warmup"));
+        Assert.All(results, r => Assert.Equal(SyncResultStatus.Applied, r.Status));
+
+        var workouts = (await MetricsAsync(api.Client, cycle.Id)).GetProperty("missedWorkouts");
+
+        Assert.Equal(2, workouts.GetProperty("planned").GetInt32());
+        Assert.Equal(1, workouts.GetProperty("done").GetInt32());
+        Assert.Equal(new[] { Iso(start.AddDays(1)) }, workouts.GetProperty("missedDates").EnumerateArray().Select(d => d.GetString()));
     }
 
     [Fact]

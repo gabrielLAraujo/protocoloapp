@@ -79,8 +79,8 @@ public sealed class ImportContext(DateOnly syncFrom, TimeZoneInfo zone, TimeProv
 /// brought back (<see cref="ImportOutcome.Dismissed"/>); one removed because Hevy deleted it comes back if Hevy lists it again;</item>
 /// <item>a newer <c>updated_at</c> keeps the session id and replaces every set (old ones soft-deleted);</item>
 /// <item>the workout mark of the date (<c>adherence_log</c> <c>workout/workout</c>, the device's deterministic id) is set to
-/// <c>done</c> when a live finished session of that date has a working set, and a <c>done</c> mark is cleared when none is left
-/// (the device's <c>saveLoggedSession</c> rule);</item>
+/// <c>done</c> when a live session of that date, finished or not, has a working set, and a <c>done</c> mark is cleared when none
+/// is left (the device's rule, <c>workoutRepo.workedOutDates</c>);</item>
 /// <item>template groups (Hevy calls) are fetched before the transaction, and the plan day is chosen before any exercise is
 /// linked, so a skipped workout creates nothing.</item>
 /// </list>
@@ -315,13 +315,14 @@ public static class HevyImporter
     }
 
     /// <summary>
-    /// Keeps the date's workout mark in step with the sessions: <c>done</c> when a live finished session of the date has a
-    /// set that is not a warm-up, otherwise a <c>done</c> mark is cleared (a <c>partial</c>/<c>missed</c> one is left alone).
+    /// Keeps the date's workout mark in step with the sessions: <c>done</c> when a live session of the date, finished or
+    /// not, has a set that is not a warm-up (the app's rule), otherwise a <c>done</c> mark is cleared (a
+    /// <c>partial</c>/<c>missed</c> one is left alone).
     /// </summary>
     private static async Task SyncWorkoutMarkAsync(AppDbContext db, Guid userId, DateOnly date, TimeProvider clock, CancellationToken ct)
     {
         var worked = await db.WorkoutSessions.AnyAsync(
-            s => s.UserId == userId && s.Date == date && s.DeletedAt == null && s.EndedAt != null
+            s => s.UserId == userId && s.Date == date && s.DeletedAt == null
                 && db.SetLogs.Any(l => l.SessionId == s.Id && l.DeletedAt == null && l.Kind != SetKind.Warmup),
             ct);
         var live = await db.AdherenceLogs.FirstOrDefaultAsync(
