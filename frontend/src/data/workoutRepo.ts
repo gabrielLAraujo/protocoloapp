@@ -400,7 +400,7 @@ export const workoutRepo = {
     const rows = await db.query<{ date: string }>(
       `SELECT DISTINCT s.date AS date FROM workout_sessions s
        JOIN set_logs l ON l.session_id = s.id AND l.deleted_at IS NULL AND l.kind <> 'warmup'
-       WHERE s.date >= ? AND s.date <= ? AND s.deleted_at IS NULL AND s.ended_at IS NOT NULL
+       WHERE s.date >= ? AND s.date <= ? AND s.deleted_at IS NULL
        ORDER BY s.date`,
       [from, to],
     )

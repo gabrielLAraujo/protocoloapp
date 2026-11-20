@@ -351,7 +351,7 @@ describe('workoutRepo: origin and RPE', () => {
 })
 
 describe('workoutRepo.workedOutDates', () => {
-  it('lists the days with a finished session holding a live working set', async () => {
+  it('lists the days with a session, finished or not, holding a live working set', async () => {
     const db = await newLocalDb()
     const session = (date: string) => workoutRepo.startSession(db, USER_A, { date, planVersionId: PLAN, dayKey: 'a' }, T0)
 
@@ -378,8 +378,8 @@ describe('workoutRepo.workedOutDates', () => {
       await workoutRepo.finishSession(db, USER_A, s, at(50))
     }
 
-    expect(await workoutRepo.workedOutDates(db, '2026-10-01', '2026-10-31')).toEqual(['2026-10-15', '2026-10-19'])
-    expect(await workoutRepo.workedOutDates(db, '2026-10-16', '2026-10-18')).toEqual([])
+    expect(await workoutRepo.workedOutDates(db, '2026-10-01', '2026-10-31')).toEqual(['2026-10-15', '2026-10-17', '2026-10-19'])
+    expect(await workoutRepo.workedOutDates(db, '2026-10-16', '2026-10-18')).toEqual(['2026-10-17'])
   })
 
   describe('sub-sets', () => {
