@@ -43,7 +43,7 @@ const SIDE_ITEM =
 const sideClass = (active: boolean) =>
   `${SIDE_ITEM} ${active ? 'bg-accent-soft font-semibold text-accent' : 'font-medium text-muted hover:bg-raised hover:text-ink'}`
 
-/** Width of the desktop sidebar: fixed elements (rest timer, toasts) start after it (`lg:left-60`). */
+/** Width of the desktop sidebar: fixed elements (toasts) start after it (`lg:left-60`). */
 const SIDEBAR_WIDTH_CLASS = 'w-60'
 
 /**
@@ -104,8 +104,8 @@ const MENU_ITEM =
   'flex min-h-12 items-center gap-3 rounded-control px-3 text-base font-medium hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent'
 
 /**
- * The main navigation. On the phone, a fixed bottom bar: it publishes its height as `--bottom-nav-height` (the rest-timer
- * bar sits above it) and owns the safe-area padding at the bottom of the screen. On the desktop, the sidebar above (only
+ * The main navigation. On the phone, a fixed bottom bar: it publishes its height as `--bottom-nav-height` (fixed
+ * elements such as toasts sit above it) and owns the safe-area padding at the bottom of the screen. On the desktop, the sidebar above (only
  * one of the two is on the page, so the names are never doubled).
  */
 export function BottomNav({ footer }: { footer?: ReactNode } = {}) {

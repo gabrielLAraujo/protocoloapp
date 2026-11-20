@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { Data } from '../../data/dataContext'
 import { rotationOverrideRepo, type RotationOverrideLocal } from '../../data/rotationOverrideRepo'
@@ -20,6 +20,7 @@ const optionClass =
 /**
  * "Previsto hoje: Treino A · Trocar": what the rotation (with today's swap) asks for today, and the choice of another
  * day of the active plan or "Descanso", saved as today's swap. Without an active plan, a shortcut to the planning.
+ * Opening the choice moves the focus to its first item; closing it (a choice or "Cancelar") brings it back to "Trocar".
  */
 export function DaySwap({
   data,
@@ -37,7 +38,17 @@ export function DaySwap({
   const { syncNow } = useSync()
   const [swapping, setSwapping] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<'save' | 'reload' | null>(null)
+  const panelId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const firstOptionRef = useRef<HTMLButtonElement>(null)
+  const wasSwapping = useRef(false)
+
+  useEffect(() => {
+    if (swapping) firstOptionRef.current?.focus()
+    else if (wasSwapping.current) triggerRef.current?.focus()
+    wasSwapping.current = swapping
+  }, [swapping])
 
   if (plans.length === 0) {
     return (
@@ -58,17 +69,27 @@ export function DaySwap({
 
   const label = resolved.kind === 'off' ? 'Descanso' : (plan.document.days.find((d) => d.key === resolved.dayKey)?.name ?? resolved.dayKey)
 
+  const current = resolved.kind === 'off' ? OFF : resolved.dayKey
+
   async function choose(dayKey: string) {
     setBusy(true)
-    setError(false)
+    setError(null)
     try {
       await rotationOverrideRepo.set(data.db, data.userId, today, dayKey, now())
-      void syncNow()
-      setSwapping(false)
-      await onChanged()
     } catch (e) {
       console.error('could not save the override', e)
-      setError(true)
+      setError('save')
+      setBusy(false)
+      return
+    }
+    void syncNow()
+    setSwapping(false)
+    try {
+      await onChanged()
+    } catch (e) {
+      // The swap is saved: only the screen is out of date.
+      console.error('could not reload after the override', e)
+      setError('reload')
     } finally {
       setBusy(false)
     }
@@ -80,33 +101,46 @@ export function DaySwap({
         <span>
           Previsto hoje: <span className="font-semibold text-ink">{label}</span>
         </span>
-        {!swapping && (
-          <>
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className="min-h-11 font-semibold text-ink underline underline-offset-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-              onClick={() => setSwapping(true)}
-            >
-              Trocar
-            </button>
-          </>
-        )}
+        <span aria-hidden="true">·</span>
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-expanded={swapping}
+          aria-controls={panelId}
+          className="min-h-11 font-semibold text-ink underline underline-offset-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+          onClick={() => setSwapping((open) => !open)}
+        >
+          Trocar
+        </button>
       </p>
       {swapping && (
-        <section aria-label="Trocar o treino de hoje" className="grid gap-1 lg:max-w-md">
+        <section id={panelId} aria-label="Trocar o treino de hoje" className="grid gap-1 lg:max-w-md">
           <SectionHeader title="Trocar o treino de hoje" />
           <ul className={cardClasses({ tone: 'list' })}>
-            {plan.document.days.map((d) => (
+            {plan.document.days.map((d, i) => (
               <li key={d.key}>
-                <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(d.key)}>
+                <button
+                  ref={i === 0 ? firstOptionRef : undefined}
+                  type="button"
+                  className={optionClass}
+                  aria-current={d.key === current ? 'true' : undefined}
+                  disabled={busy}
+                  onClick={() => void choose(d.key)}
+                >
                   <span className="font-medium text-ink">{d.name}</span>
                   {d.notes ? <span className="text-muted">{` — ${d.notes}`}</span> : null}
                 </button>
               </li>
             ))}
             <li>
-              <button type="button" className={optionClass} disabled={busy} onClick={() => void choose(OFF)}>
+              <button
+                ref={plan.document.days.length === 0 ? firstOptionRef : undefined}
+                type="button"
+                className={optionClass}
+                aria-current={current === OFF ? 'true' : undefined}
+                disabled={busy}
+                onClick={() => void choose(OFF)}
+              >
                 <span className="font-medium text-ink">Descanso</span>
               </button>
             </li>
@@ -118,7 +152,7 @@ export function DaySwap({
       )}
       {error && (
         <p role="alert" className="text-sm text-danger">
-          Não foi possível trocar o treino de hoje.
+          {error === 'save' ? 'Não foi possível trocar o treino de hoje.' : 'Treino de hoje trocado, mas não foi possível atualizar a tela.'}
         </p>
       )}
     </div>

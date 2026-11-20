@@ -36,7 +36,7 @@ As fotos da atualização seguem o padrão das **poses obrigatórias do fisicult
 
    Em Configurações → Questionário, um botão **"Usar poses do fisiculturismo"** troca as poses do questionário salvo por essas, com confirmação. O fixture de exemplo usa as mesmas poses (e o teste do back que confere o fixture é ajustado). Guiar = os rótulos novos; sem texto ou imagem extra por pose.
 
-   Fotos já tiradas com chaves antigas: se a atualização aberta tiver foto de uma pose que não está mais na lista, a etapa de fotos mostra essas fotos num bloco "Outras fotos" (só ver e remover), e elas continuam no zip. A confirmação do botão avisa quando a atualização aberta já tem fotos. Na primeira atualização com as poses novas, a câmera não tem a foto anterior de referência (chave nova) — esperado.
+   Fotos já tiradas com chaves antigas: se a atualização aberta tiver foto de uma pose que não está mais na lista, a etapa de fotos mostra essas fotos num bloco "Outras fotos" (só para ver; o servidor não apaga fotos), e elas continuam no zip. A confirmação do botão avisa quando a atualização aberta já tem fotos. Na primeira atualização com as poses novas, a câmera não tem a foto anterior de referência (chave nova) — esperado.
 6. **Atualização geral da documentação:**
    - `docs/backlog.md`: o que está feito (Hevy, horário das refeições, desvios, item que acabou e esta mudança) e o que falta (app nativo iOS).
    - README: as funcionalidades atuais.
@@ -80,6 +80,7 @@ O E2E `workout.spec.ts` hoje registra um treino offline pelo app, e `hevy.spec.t
 
 ## Decidido depois da revisão
 - A troca do treino do dia fica, como linha pequena no topo da aba Treino.
+- Regra de treino feito: o app conta sessão finalizada ou não com série válida; o servidor (métricas da atualização e marcação do Hevy) segue contando só sessões encerradas. As do Hevy chegam sempre encerradas, então a diferença só afeta treinos antigos do app nunca finalizados; o servidor não muda.
 
 ## Para quem for construir
 Layout dos gráficos (seguir o visual clínico e sóbrio e as duas colunas no desktop), nomes de componentes, o que reaproveitar do Resumo e do `ExerciseHistoryPage`.

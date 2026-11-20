@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useData, type Data } from '../../data/dataContext'
 import { exerciseRepo, type ExerciseLocal } from '../../data/exerciseRepo'
 import { planRepo } from '../../data/planRepo'
@@ -35,6 +35,8 @@ interface Loaded {
   plans: WorkoutPlanEntry[]
   overrides: RotationOverrideLocal[]
   stats: TrainingStats
+  /** Without an active protocol the charts cover the last 8 weeks instead of the cycle. */
+  hasProtocol: boolean
   history: SessionSummary[]
   hasMore: boolean
   /** Exercises with at least one set, for the exercise list under the history. */
@@ -73,6 +75,7 @@ async function load(db: Data['db'], today: string): Promise<Loaded> {
     plans,
     overrides,
     stats,
+    hasProtocol: protocol !== null,
     history: page.slice(0, PAGE_SIZE),
     hasMore: page.length > PAGE_SIZE,
     exercises: catalog.filter((e) => done.has(e.id)),
@@ -89,7 +92,12 @@ export function TrainingPage() {
   const today = useToday()
   const { dataVersion } = useSync()
   const location = useLocation()
+  const navigate = useNavigate()
+  // Shown for this visit only: the history entry drops it, so a reload or coming back does not repeat it.
   const [notice] = useState(() => (location.state as TrainingNotice | null)?.notice ?? null)
+  useEffect(() => {
+    if ((location.state as TrainingNotice | null)?.notice) void navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [location.state, location.pathname, location.search, navigate])
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -163,7 +171,8 @@ export function TrainingPage() {
             </Card>
           </section>
 
-          <CycleCalendar days={stats.calendar} />
+          {/* The Treino tab reads no cardio: its calendar carries none, so no cardio legend. */}
+          <CycleCalendar days={stats.calendar} title={loaded.hasProtocol ? 'Calendário do ciclo' : 'Últimas 8 semanas'} showCardio={false} />
 
           <section aria-labelledby="loads-title" className="grid gap-1">
             <SectionHeader id="loads-title" title="Evolução de carga" />

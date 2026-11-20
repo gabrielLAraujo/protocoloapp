@@ -110,7 +110,7 @@ Em **Mais → Atualização** (e no cartão de Hoje a partir de 3 dias antes da 
   com a mesma pose do ciclo anterior por cima da câmera para repetir o enquadramento, temporizador de 5 s e troca de câmera.
   Sem câmera, escolhe-se um arquivo. A foto fica numa fila no aparelho (funciona offline) e sobe para o **R2** quando há
   rede; o aparelho guarda só a miniatura. "Baixar fotos (.zip)" monta o zip no próprio aparelho. Fotos de poses que saíram
-  da lista (as antigas Frente, Costas etc.) aparecem em **Outras fotos**, só para ver e remover, e continuam no zip. Na
+  da lista (as antigas Frente, Costas etc.) aparecem em **Outras fotos**, só para ver, e continuam no zip. Na
   primeira atualização com uma pose nova não há foto anterior por cima da câmera.
 - **Questionário:** montado a partir do **modelo** importado em Configurações. Perguntas ligadas a uma métrica (adesão da
   dieta, treinos perdidos, peso, médias do check-in, notas do ciclo...) chegam respondidas com o selo **Calculado** pelo

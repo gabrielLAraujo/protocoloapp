@@ -16,6 +16,8 @@ const SUB_LABEL: Partial<Record<SetKind, string>> = { drop: 'Drop', rest_pause: 
 interface ExerciseGroup {
   exerciseId: string
   name: string
+  /** The planned exercise key of its first set (where the session keeps the exercise's note); null for one added on the spot. */
+  plannedExerciseKey: string | null
   /** Main sets in order, each with its sub-sets (drops, rest-pauses). */
   sets: { set: SetLocal; subs: SetLocal[] }[]
 }
@@ -28,6 +30,7 @@ function groupSets(sets: SetLocal[], catalog: ExerciseLocal[]): ExerciseGroup[] 
     const group = groups.get(set.exerciseId) ?? {
       exerciseId: set.exerciseId,
       name: catalog.find((e) => e.id === set.exerciseId)?.name ?? 'Exercício',
+      plannedExerciseKey: set.plannedExerciseKey,
       sets: [],
     }
     group.sets.push({ set, subs: sets.filter((s) => s.parentSetId === set.id) })
@@ -40,7 +43,8 @@ function groupSets(sets: SetLocal[], catalog: ExerciseLocal[]): ExerciseGroup[] 
 const load = (s: SetLocal) => `${formatKg(s.weightKg)} kg × ${s.reps}`
 
 /**
- * A session opened from the history, only to view: the sets of each exercise and their RPE, and "Excluir do app". One
+ * A session opened from the history, only to view: the workout's note (Hevy's description), the sets of each exercise
+ * with their RPE and the exercise's note, and "Excluir do app". One
  * imported from Hevy carries the "Hevy" chip (Hevy is where it is corrected); an app session never finished, "Em andamento".
  */
 export function SessionReadView({
@@ -110,37 +114,42 @@ export function SessionReadView({
           {session.endedAt === null && <Chip>Em andamento</Chip>}
         </p>
         {hevy && <p className="text-sm text-muted">Registrado no Hevy. Para corrigir, edite no Hevy.</p>}
+        {session.note && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{session.note}</p>}
       </header>
 
       {sets.length === 0 ? (
         <p className="text-muted">Nenhuma série registrada.</p>
       ) : (
-        groupSets(sets, catalog).map((group) => (
-          <section key={group.exerciseId} aria-label={group.name} className="grid gap-1">
-            <SectionHeader title={group.name} />
-            <ul className={cardClasses({ tone: 'list' })}>
-              {group.sets.map(({ set, subs }, i) => (
-                <li key={set.id}>
-                  <ListRow
-                    leading={i + 1}
-                    title={
-                      <span className="tabular-nums">
-                        {load(set)}
-                        {set.kind === 'warmup' ? ' (aquecimento)' : ''}
-                      </span>
-                    }
-                    subtitle={
-                      subs.length > 0 ? (
-                        <span className="tabular-nums">{subs.map((s) => `${SUB_LABEL[s.kind] ?? s.kind}: ${load(s)}`).join(', ')}</span>
-                      ) : undefined
-                    }
-                    value={set.rpe === null ? undefined : <span className="text-sm text-muted">{formatRpe(set.rpe)}</span>}
-                  />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+        groupSets(sets, catalog).map((group) => {
+          const note = group.plannedExerciseKey === null ? undefined : session.exerciseNotes[group.plannedExerciseKey]
+          return (
+            <section key={group.exerciseId} aria-label={group.name} className="grid gap-1">
+              <SectionHeader title={group.name} />
+              {note && <p className="whitespace-pre-line text-sm text-muted [overflow-wrap:anywhere]">{note}</p>}
+              <ul className={cardClasses({ tone: 'list' })}>
+                {group.sets.map(({ set, subs }, i) => (
+                  <li key={set.id}>
+                    <ListRow
+                      leading={i + 1}
+                      title={
+                        <span className="tabular-nums">
+                          {load(set)}
+                          {set.kind === 'warmup' ? ' (aquecimento)' : ''}
+                        </span>
+                      }
+                      subtitle={
+                        subs.length > 0 ? (
+                          <span className="tabular-nums">{subs.map((s) => `${SUB_LABEL[s.kind] ?? s.kind}: ${load(s)}`).join(', ')}</span>
+                        ) : undefined
+                      }
+                      value={set.rpe === null ? undefined : <span className="text-sm text-muted">{formatRpe(set.rpe)}</span>}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        })
       )}
 
       {confirming ? (

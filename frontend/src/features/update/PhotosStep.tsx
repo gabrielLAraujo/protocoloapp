@@ -7,6 +7,7 @@ import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
 import { cardClasses } from '../../ui/styles'
 import { PoseCamera } from './camera/PoseCamera'
+import { FORMER_POSE_LABELS } from './photos/photoMessages'
 
 type PoseState = 'sent' | 'pending' | 'missing'
 
@@ -45,15 +46,6 @@ function PoseTile({ pose, state, thumb, onTake }: { pose: Pose; state: PoseState
       </div>
     </li>
   )
-}
-
-/** Labels of the poses the app used before the bodybuilding ones, for photos still kept under those keys. */
-const FORMER_POSE_LABELS: Readonly<Record<string, string>> = {
-  front: 'Frente',
-  back: 'Costas',
-  right_side: 'Lado direito',
-  left_side: 'Lado esquerdo',
-  abs: 'Abdômen',
 }
 
 /** A photo of a pose no longer in the template: only to see (it stays in the cycle and in the zip). */

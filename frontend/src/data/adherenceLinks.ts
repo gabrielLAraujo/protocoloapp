@@ -11,7 +11,7 @@ import { workoutRepo } from './workoutRepo'
  * cardio" pushes. Each runs in one transaction: the row, the mark and their outbox entries are committed together or not at all.
  */
 
-/** With a working set in a finished session of `date` its workout is done; without one, a "done" mark is cleared. */
+/** With a working set in a session of `date` (finished or not) its workout is done; without one, a "done" mark is cleared. */
 async function markWorkoutOf(tx: LocalDb, userId: string, date: string, now: Date): Promise<void> {
   const target = { date, targetType: 'workout' as const, targetKey: WORKOUT_KEY }
   if ((await workoutRepo.workedOutDates(tx, date, date)).length > 0) {

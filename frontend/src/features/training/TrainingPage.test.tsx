@@ -56,6 +56,34 @@ describe('TrainingPage', () => {
     await waitFor(() => expect(screen.getByText('Previsto hoje:', { exact: false })).toHaveTextContent('Previsto hoje: Descanso'))
   })
 
+  it('"Trocar" moves the focus into the list and back, and marks the current day', async () => {
+    const app = await setupApp(['/treino'])
+    await seedExercises(app.db)
+    await seedPlan(app.db, ['a', 'b'])
+    const user = userEvent.setup()
+    app.view(<TrainingPage />)
+
+    const trigger = await screen.findByRole('button', { name: 'Trocar' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await user.click(trigger)
+    const panel = screen.getByRole('region', { name: 'Trocar o treino de hoje' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('aria-controls', panel.id)
+    const [first] = within(panel).getAllByRole('button')
+    expect(first).toHaveFocus()
+    expect(within(panel).getByRole('button', { name: /Treino A/ })).toHaveAttribute('aria-current', 'true')
+    expect(within(panel).getByRole('button', { name: /Treino B/ })).not.toHaveAttribute('aria-current')
+
+    await user.click(within(panel).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('region', { name: 'Trocar o treino de hoje' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Trocar' })).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Trocar' }))
+    await user.click(screen.getByRole('button', { name: /Treino B/ }))
+    await waitFor(() => expect(screen.getByText('Previsto hoje:', { exact: false })).toHaveTextContent('Previsto hoje: Treino B'))
+    expect(screen.getByRole('button', { name: 'Trocar' })).toHaveFocus()
+  })
+
   it('shows the weekly bars, the calendar and the load chart of the trained exercises', async () => {
     const app = await setupApp(['/treino'])
     await seedExercises(app.db)
@@ -66,7 +94,12 @@ describe('TrainingPage', () => {
 
     const weeks = await screen.findByRole('list', { name: 'Treinos por semana' })
     expect(within(weeks).getByText(/^Semana de 12\/10: 2 de \d+$/)).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Calendário do ciclo' })).toBeInTheDocument()
+    // Without a protocol the calendar covers the last 8 weeks, and the Treino tab has no cardio to show.
+    expect(screen.getByRole('heading', { name: 'Últimas 8 semanas' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Últimas 8 semanas' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Calendário do ciclo' })).not.toBeInTheDocument()
+    expect(screen.getByText('Treino feito')).toBeInTheDocument()
+    expect(screen.queryByText('Cardio feito')).not.toBeInTheDocument()
 
     const loads = screen.getByRole('region', { name: 'Evolução de carga' })
     expect(within(loads).getByRole('img', { name: /1RM estimado por sessão/ })).toBeInTheDocument()

@@ -19,7 +19,7 @@ import { answersAsText, resolveAnswer } from './answers'
 import { CycleNotesSheet } from './CycleNotesSheet'
 import { loadMetrics, type LoadedMetrics } from './metricsCache'
 import { toJpeg } from './photos/imageTools'
-import { PHOTO_TYPES, UNSUPPORTED_PHOTO_MESSAGE, uploadFailedMessage } from './photos/photoMessages'
+import { FORMER_POSE_LABELS, PHOTO_TYPES, UNSUPPORTED_PHOTO_MESSAGE, uploadFailedMessage } from './photos/photoMessages'
 import { photoQueue } from './photos/photoQueue'
 import { DOWNLOAD_FAILED_MESSAGE, downloadCyclePhotos, PhotosDownloadError } from './photos/photosZip'
 import { PhotosStep } from './PhotosStep'
@@ -202,7 +202,8 @@ export function UpdatePage() {
       const refused = result.refused.filter((r) => r.cycleId === cycleId)
       if (refused.length === 0) return
       const labels = new Map(posesOf(side?.template ?? null).map((p) => [p.key, p.label]))
-      setPhotoError(refused.map((r) => uploadFailedMessage(labels.get(r.pose) ?? r.pose)).join(' '))
+      // A pose no longer in the template (a photo queued before the switch) keeps its former label.
+      setPhotoError(refused.map((r) => uploadFailedMessage(labels.get(r.pose) ?? FORMER_POSE_LABELS[r.pose] ?? r.pose)).join(' '))
     },
     [cycleId, side],
   )

@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { adherenceRepo } from '../../data/adherenceRepo'
@@ -89,6 +89,42 @@ describe('SessionPage', () => {
     expect(rows[0]).toHaveTextContent('RPE 8,5')
     expect(rows[1]).toHaveTextContent('82,5 kg × 7')
     expect(rows[1]).not.toHaveTextContent('RPE')
+  })
+
+  it('shows the workout note under the title and each exercise\'s note under it, only when they exist', async () => {
+    await open((db) =>
+      seedHevySession(db, HEVY, '2026-10-12', BENCH, [[82.5, 8]], 'Peito exemplo', {
+        note: 'Descrição de exemplo do treino',
+        exerciseNotes: { e1: 'Observação de exemplo do supino' },
+      }),
+    )
+
+    const header = (await screen.findByRole('heading', { name: 'Treino A (Peito exemplo)' })).closest('header')!
+    expect(within(header).getByText('Descrição de exemplo do treino')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Supino reto' })).getByText('Observação de exemplo do supino')).toBeInTheDocument()
+  })
+
+  it('without notes, nothing extra shows', async () => {
+    await open((db) => seedPastSession(db, '2026-10-11', BENCH, [[80, 10]]))
+
+    const header = (await screen.findByRole('heading', { name: 'Treino A' })).closest('header')!
+    expect(header.querySelectorAll('p')).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Supino reto' }).querySelectorAll('p')).toHaveLength(0)
+  })
+
+  it('after "Excluir do app" the deleted session is not in the history (back does not return to it) and the notice is shown once', async () => {
+    const { router, user } = await open((db) => seedPastSession(db, '2026-10-11', BENCH, [[80, 10]]))
+
+    await user.click(await screen.findByRole('button', { name: 'Excluir do app' }))
+    await user.click(screen.getByRole('button', { name: 'Sim, excluir' }))
+    expect(await screen.findByText('Treino de 11/10 excluído do app')).toBeInTheDocument()
+    // The notice stays on screen, but the history entry drops it (a reload or coming back does not repeat it).
+    await waitFor(() => expect(router.state.location.state).toBeNull())
+    expect(screen.getByText('Treino de 11/10 excluído do app')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/treino')
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.pathname).toBe('/treino/pending')
   })
 
   it('an unknown session says so, with a link back to /treino', async () => {

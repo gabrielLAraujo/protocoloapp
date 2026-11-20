@@ -156,6 +156,17 @@ describe('UpdatePage', () => {
     expect(await photoQueue.list()).toEqual([])
   })
 
+  it('a refused photo of a former pose names the pose by its label, not its key', async () => {
+    await open({ routes: { ...metricsOnline(), 'POST /api/files/upload-url': () => problem(415) } })
+    await screen.findByRole('listitem', { name: 'Duplo bíceps de frente' })
+    const blob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x11, 0x22])], { type: 'image/jpeg' })
+    await photoQueue.add({ id: '00000000-0000-0000-0000-0000000000f4', userId: USER_A, cycleId: CYCLE_ID, pose: 'front', blob, takenAt: '2026-10-19T10:00:00Z' })
+    window.dispatchEvent(new Event('online'))
+
+    expect(await screen.findByText(uploadFailedMessage('Frente'))).toBeInTheDocument()
+    expect(screen.queryByText(uploadFailedMessage('front'))).not.toBeInTheDocument()
+  })
+
   it('a fill question comes calculated; an edit wins, survives a reload, and "Recalcular" brings the calculation back', async () => {
     const user = userEvent.setup()
     const app = await open()

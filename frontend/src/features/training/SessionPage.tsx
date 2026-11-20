@@ -84,7 +84,8 @@ export function SessionPage() {
         catalog={loaded.catalog}
         onDeleted={() => {
           const state: TrainingNotice = { notice: `Treino de ${formatShortDate(session.date)} excluído do app` }
-          void navigate('/treino', { state })
+          // Replace: going back must not land on the deleted session.
+          void navigate('/treino', { replace: true, state })
         }}
       />
     </div>
