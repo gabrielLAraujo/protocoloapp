@@ -6,7 +6,7 @@ describe('cycleInfo', () => {
 
   it('computes days left and elapsed ratio across a month boundary', () => {
     const info = cycleInfo(protocol, '2026-11-03')
-    expect(info).toEqual({ start: '2026-10-20', end: '2026-11-17', daysLeft: 14, elapsedRatio: 0.5, billingDate: '2026-11-10', overdueDays: 0 })
+    expect(info).toEqual({ start: '2026-10-20', end: '2026-11-17', daysLeft: 14, elapsedRatio: 0.5, billingDate: '2026-11-10', overdueDays: 0, sentOn: null })
   })
 
   it('has no end without updateDate', () => {
@@ -32,5 +32,12 @@ describe('overdueDays', () => {
     expect(cycleInfo(protocol, '2026-11-20').overdueDays).toBe(3)
     expect(cycleInfo(protocol, '2026-11-17').overdueDays).toBe(0)
     expect(cycleInfo({ ...protocol, updateDate: null }, '2026-12-01').overdueDays).toBe(0)
+  })
+})
+
+describe('sentOn', () => {
+  const protocol = { activatedOn: '2026-10-20', updateDate: '2026-11-17', billingDate: null }
+  it('closes the cycle once the update was sent: not overdue while waiting for the new protocol', () => {
+    expect(cycleInfo({ ...protocol, sentOn: '2026-11-16' }, '2026-11-25')).toMatchObject({ sentOn: '2026-11-16', overdueDays: 0, daysLeft: 0, elapsedRatio: 1 })
   })
 })

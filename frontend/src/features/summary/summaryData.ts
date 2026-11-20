@@ -14,7 +14,7 @@ import { clockOf, countsAsPlanned } from '../../domain/targetStatus'
 
 export interface SummaryInput {
   /** The active protocol; null when none was imported yet. `activatedOn` is the local date of its activation. */
-  protocol: { activatedOn: string; document: ProtocolDocument } | null
+  protocol: { activatedOn: string; document: ProtocolDocument; updateSentOn?: string | null } | null
   /** Every workout version that was active at some point. */
   plans: WorkoutPlanAt[]
   overrides: RotationOverrideAt[]
@@ -102,7 +102,7 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
   }
 
   const cycle = cycleInfo(
-    { activatedOn: protocol.activatedOn, updateDate: protocol.document.updateDate ?? null, billingDate: protocol.document.billingDate ?? null },
+    { activatedOn: protocol.activatedOn, updateDate: protocol.document.updateDate ?? null, billingDate: protocol.document.billingDate ?? null, sentOn: protocol.updateSentOn ?? null },
     today,
   )
   const start = cycle.start

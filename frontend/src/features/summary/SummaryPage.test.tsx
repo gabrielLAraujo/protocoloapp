@@ -14,6 +14,7 @@ import { setupApp } from '../testSupport'
 import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
 import { seedGamificationHistory } from '../achievements/testSeed'
 import { loadProgress } from '../progress/progressData'
+import { seedCycle } from '../update/testCycle'
 import { SummaryPage } from './SummaryPage'
 
 // Real loadProgress unless a test makes it fail.
@@ -195,6 +196,26 @@ describe('SummaryPage', () => {
     app.view(<SummaryPage />)
     expect(await screen.findByText('Atualização atrasada há 2 dias')).toBeInTheDocument()
     expect(screen.queryByText(/Faltam/)).not.toBeInTheDocument()
+  })
+
+  it('once the update is sent, waits for the new protocol instead of counting the delay', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-10-25' })
+    await seedCycle(app.db, { periodStart: '2026-10-20', periodEnd: '2026-10-25', status: 'sent', sentAt: new Date(2026, 9, 24, 15).toISOString() })
+    app.view(<SummaryPage />)
+    expect(await screen.findByText('Atualização enviada em 24/10 · aguardando o novo protocolo')).toBeInTheDocument()
+    expect(screen.queryByText(/atrasada/)).not.toBeInTheDocument()
+  })
+
+  it('a sent update of an older protocol does not stop the countdown of the active one', async () => {
+    const app = await setupApp()
+    await seedProtocol(app.db, { updateDate: '2026-12-05' })
+    await seedCycle(app.db, {
+      periodStart: '2026-09-20', periodEnd: '2026-10-19', status: 'sent', sentAt: new Date(2026, 9, 18, 15).toISOString(),
+      protocolVersionId: '7d1f2a10-0000-5000-8000-0000000000c0',
+    })
+    app.view(<SummaryPage />)
+    expect(await screen.findByText('Faltam 39 dias para a atualização')).toBeInTheDocument()
   })
 
   it('applies rotation overrides set before the protocol cycle started, like /treino does', async () => {
