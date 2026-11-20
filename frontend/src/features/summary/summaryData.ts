@@ -72,6 +72,38 @@ export interface SummaryData {
   strength: Record<MuscleGroup, GroupTrends> | null
 }
 
+/**
+ * Dates in `[from, to]` with a workout done: a session (finished or not) with at least one working set. An empty or
+ * warm-up-only session is not a workout.
+ */
+export function workoutDates(sessions: readonly SessionLocal[], sets: readonly SetLocal[], from: string, to: string): Set<string> {
+  const withWorkingSets = new Set(sets.filter((s) => s.kind !== 'warmup').map((s) => s.sessionId))
+  return new Set(sessions.filter((s) => s.date >= from && s.date <= to && withWorkingSets.has(s.id)).map((s) => s.date))
+}
+
+/** Every day of `[from, to]` with its state: planned by the rotation (with overrides), done when in `doneDates`. */
+export function cycleCalendar(args: {
+  from: string
+  to: string
+  today: string
+  plans: WorkoutPlanAt[]
+  overrides: RotationOverrideAt[]
+  doneDates: ReadonlySet<string>
+  cardioDates?: ReadonlySet<string>
+}): CalendarDay[] {
+  const { today, plans, overrides, doneDates, cardioDates } = args
+  return dateRange(args.from, args.to).map((date) => {
+    const planned = resolveDay(date, plans, overrides).kind === 'workout'
+    const done = doneDates.has(date)
+    let state: DayState
+    if (date > today) state = 'future'
+    else if (date === today) state = 'today'
+    else if (done) state = 'done'
+    else state = planned ? 'missed' : 'rest'
+    return { date, state, cardio: cardioDates?.has(date) ?? false, planned, done }
+  })
+}
+
 const round1 = (n: number) => Math.round(n * 10) / 10
 
 /** Mean of the answered values (a part not saved that day leaves its fields null, which do not count). */
@@ -111,23 +143,12 @@ export function buildSummary(input: SummaryInput, today: string): SummaryData {
   const started = start <= statsTo
   const calendarTo = cycle.end ?? (today > start ? today : start)
 
-  // A session counts as a workout done only with at least one working set (an empty or warm-up-only session is not a workout).
-  const withWorkingSets = new Set(input.sets.filter((s) => s.kind !== 'warmup').map((s) => s.sessionId))
-  const sessionDates = new Set(input.sessions.filter((s) => s.date >= start && s.date <= statsTo && withWorkingSets.has(s.id)).map((s) => s.date))
+  const sessionDates = workoutDates(input.sessions, input.sets, start, statsTo)
   const cardioDates = new Set(
     [...input.checkins.filter((c) => c.cardioDone === true).map((c) => c.date), ...(input.cardioMarkDates ?? [])].filter((d) => d >= start && d <= calendarTo),
   )
 
-  const calendar: CalendarDay[] = dateRange(start, calendarTo).map((date) => {
-    const planned = resolveDay(date, input.plans, input.overrides).kind === 'workout'
-    const done = sessionDates.has(date)
-    let state: DayState
-    if (date > today) state = 'future'
-    else if (date === today) state = 'today'
-    else if (done) state = 'done'
-    else state = planned ? 'missed' : 'rest'
-    return { date, state, cardio: cardioDates.has(date), planned, done }
-  })
+  const calendar = cycleCalendar({ from: start, to: calendarTo, today, plans: input.plans, overrides: input.overrides, doneDates: sessionDates, cardioDates })
 
   const plannedDays = started ? plannedWorkoutDays(start, statsTo, input.plans, input.overrides) : []
   const elapsedDays = started ? diffDays(start, statsTo) + 1 : 0
