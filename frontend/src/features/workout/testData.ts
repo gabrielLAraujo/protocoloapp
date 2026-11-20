@@ -2,8 +2,8 @@ import type { SyncRecord } from '../../data/apiClient'
 import type { LocalDb } from '../../data/localDb'
 import { exerciseSync } from '../../data/exerciseRepo'
 import { planVersionSync } from '../../data/planRepo'
-import { setLogSync, workoutRepo, workoutSessionSync } from '../../data/workoutRepo'
-import { USER_A } from '../../test/localDb'
+import { setLogSync, workoutSessionSync } from '../../data/workoutRepo'
+import { seedSession, seedSet } from '../../test/workoutSeed'
 
 /** Fictitious fixtures for the workout screens' tests. */
 export const BENCH = '7d1f2a10-0000-5000-8000-0000000000e1'
@@ -66,16 +66,10 @@ export async function seedPlan(db: LocalDb, items: string[], id = PLAN, tweak?: 
 /** A finished session in the past with the given sets of one exercise: [weight, reps][]. */
 export async function seedPastSession(db: LocalDb, date: string, exerciseId: string, sets: [number, number][], plannedKey = 'e1') {
   const start = new Date(`${date}T12:00:00`)
-  const sessionId = await workoutRepo.startSession(db, USER_A, { date, planVersionId: PLAN, dayKey: 'a' }, start)
+  const sessionId = await seedSession(db, { date, planVersionId: PLAN, dayKey: 'a', startedAt: start })
   for (const [i, [weightKg, reps]] of sets.entries()) {
-    await workoutRepo.logSet(
-      db,
-      USER_A,
-      { sessionId, exerciseId, plannedExerciseKey: plannedKey, setIndex: i, weightKg, reps, kind: 'normal' },
-      new Date(start.getTime() + (i + 1) * 60_000),
-    )
+    await seedSet(db, { sessionId, exerciseId, plannedExerciseKey: plannedKey, setIndex: i, weightKg, reps, completedAt: new Date(start.getTime() + (i + 1) * 60_000) })
   }
-  await workoutRepo.finishSession(db, USER_A, sessionId, new Date(start.getTime() + 3_600_000))
   return sessionId
 }
 

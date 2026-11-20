@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { adherenceRepo } from '../../data/adherenceRepo'
 import { workoutRepo } from '../../data/workoutRepo'
 import { mockFetch } from '../../test/fetch-mock'
-import { USER_A } from '../../test/localDb'
+import { seedSession, seedSet } from '../../test/workoutSeed'
 import { setupApp } from '../testSupport'
 import { BENCH, PLAN, seedExercises, seedHevySession, seedPastSession, seedPlan } from '../workout/testData'
 import { SessionPage } from './SessionPage'
@@ -48,8 +48,8 @@ describe('SessionPage', () => {
 
   it('an open app session shows "Em andamento" and "Excluir do app" deletes it and goes back to /treino', async () => {
     const { db, id, router, user } = await open(async (db) => {
-      const id = await workoutRepo.startSession(db, USER_A, { date: '2026-10-14', planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 14, 9))
-      await workoutRepo.logSet(db, USER_A, { sessionId: id, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 70, reps: 10, kind: 'normal' }, new Date(2026, 9, 14, 9, 5))
+      const id = await seedSession(db, { date: '2026-10-14', planVersionId: PLAN, dayKey: 'a', startedAt: new Date(2026, 9, 14, 9), endedAt: null })
+      await seedSet(db, { sessionId: id, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 70, reps: 10, completedAt: new Date(2026, 9, 14, 9, 5) })
       return id
     })
 

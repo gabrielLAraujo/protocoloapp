@@ -5,10 +5,10 @@ import { dailyCheckinRepo } from '../../data/dailyCheckinRepo'
 import { dietDeviationRepo } from '../../data/dietDeviationRepo'
 import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
-import { workoutRepo } from '../../data/workoutRepo'
 import { addDays, diffDays } from '../../domain/calendarDate'
 import type { ProtocolDocument, WorkoutDocument } from '../../domain/planDocuments'
 import { newLocalDb, USER_A } from '../../test/localDb'
+import { seedSession, seedSet } from '../../test/workoutSeed'
 import { HISTORY_DAYS, loadProgress } from './progressData'
 
 type SyncRecord = components['schemas']['SyncRecord']
@@ -49,9 +49,8 @@ async function seedDay(db: LocalDb, date: string, opts: { meal?: boolean; checki
     await dailyCheckinRepo.saveEvening(db, USER_A, date, { energyDay: 4, anxiety: 2, waterL: 2.5, note: null }, T)
   }
   if (opts.workout) {
-    const session = await workoutRepo.startSession(db, USER_A, { date, planVersionId: WORKOUT_ID, dayKey: 'a' }, T)
-    await workoutRepo.logSet(db, USER_A, { sessionId: session, exerciseId: EXERCISE_ID, plannedExerciseKey: 'x', setIndex: 0, weightKg: 50, reps: 10, kind: 'normal' }, T)
-    await workoutRepo.finishSession(db, USER_A, session, T)
+    const session = await seedSession(db, { date, planVersionId: WORKOUT_ID, dayKey: 'a', startedAt: T, endedAt: T })
+    await seedSet(db, { sessionId: session, exerciseId: EXERCISE_ID, plannedExerciseKey: 'x', setIndex: 0, weightKg: 50, reps: 10, completedAt: T })
   }
 }
 

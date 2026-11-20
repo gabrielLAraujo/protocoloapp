@@ -26,5 +26,5 @@ export function adherenceLogId(userId: string, date: string, targetType: string,
   return v5(`${userId}:adherence:${date}:${targetType}:${targetKey}`, CHECKIN_NAMESPACE)
 }
 
-/** A new random id for records without a natural key (sessions, sets, exercise changes). */
+/** A new random id for records without a natural key (diet deviations, photos, questionnaires). */
 export const newId = (): string => v4()

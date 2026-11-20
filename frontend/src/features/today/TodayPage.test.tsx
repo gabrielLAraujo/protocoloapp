@@ -10,10 +10,10 @@ import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { updateCycleSync } from '../../data/updateCycleRepo'
-import { workoutRepo } from '../../data/workoutRepo'
 import { routes } from '../../routes'
 import { mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
+import { seedSession, seedSet } from '../../test/workoutSeed'
 import { setupApp } from '../testSupport'
 import { BENCH, PLAN, SQUAT, seedExercises, seedHevySession, seedPastSession, seedPlan } from '../workout/testData'
 import { GROUP_LABEL } from '../../ui/styles'
@@ -360,8 +360,8 @@ describe('TodayPage', () => {
 
   it('a session never finished with a working set marks the workout done (same rule as the Treino tab), and the row opens /treino', async () => {
     await render(['a', 'b'], async (db) => {
-      const sessionId = await workoutRepo.startSession(db, USER_A, { date: TODAY, planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 20, 9, 0))
-      await workoutRepo.logSet(db, USER_A, { sessionId, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 60, reps: 10, kind: 'normal' }, new Date(2026, 9, 20, 9, 5))
+      const sessionId = await seedSession(db, { date: TODAY, planVersionId: PLAN, dayKey: 'a', startedAt: new Date(2026, 9, 20, 9, 0), endedAt: null })
+      await seedSet(db, { sessionId, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 60, reps: 10, completedAt: new Date(2026, 9, 20, 9, 5) })
     })
     expect(row('Treino A').getByText('Feito')).toBeInTheDocument()
     expect(row('Treino A').getByRole('link', { name: 'Treino A' })).toHaveAttribute('href', '/treino')
@@ -369,9 +369,8 @@ describe('TodayPage', () => {
 
   it('a session with only warm-up sets does not mark the workout done', async () => {
     await render(['a', 'b'], async (db) => {
-      const sessionId = await workoutRepo.startSession(db, USER_A, { date: TODAY, planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 20, 9, 0))
-      await workoutRepo.logSet(db, USER_A, { sessionId, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 20, reps: 10, kind: 'warmup' }, new Date(2026, 9, 20, 9, 5))
-      await workoutRepo.finishSession(db, USER_A, sessionId, new Date(2026, 9, 20, 10, 0))
+      const sessionId = await seedSession(db, { date: TODAY, planVersionId: PLAN, dayKey: 'a', startedAt: new Date(2026, 9, 20, 9, 0) })
+      await seedSet(db, { sessionId, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 20, reps: 10, kind: 'warmup', completedAt: new Date(2026, 9, 20, 9, 5) })
     })
     expect(row('Treino A').queryByText('Feito')).not.toBeInTheDocument()
   })
