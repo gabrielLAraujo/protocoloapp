@@ -11,10 +11,12 @@ As fotos da atualização seguem o padrão das **poses obrigatórias do fisicult
    - **Calendário do ciclo:** feitos e faltas, o mesmo componente do Resumo (`CycleCalendar`).
    - **Evolução de carga:** os exercícios mais treinados no ciclo, cada um com o gráfico de e1RM que já existe (`E1rmChart`), levando à página do exercício.
 
+   **Troca do treino do dia:** no topo da aba, uma linha pequena "Previsto hoje: Treino A · Trocar", que abre a mesma escolha de dia que existe hoje em "Trocar o treino de hoje" (grava a troca do dia; `rotationOverrideRepo.set`). Sem ficha ativa ou em dia de descanso, mostra o que estiver previsto ou nada.
+
    Abaixo dos gráficos, o histórico de treinos, como o `HistoryPage` de hoje: Hevy e app, mais recentes primeiro.
 2. **Todos os treinos só para leitura.** Abrir um treino mostra a visualização de leitura (`SessionReadView`), também para os antigos feitos no app. Fica "Excluir do app", que já existe para os do Hevy, e passa a valer para todos.
 3. **Sai do app:**
-   - iniciar, registrar, finalizar e descartar treino;
+   - iniciar, registrar, finalizar e descartar treino (a troca do treino do dia continua, ver item 1);
    - timer de descanso e troca de exercício;
    - "Registrar treino de outro dia" (`LogOtherDay`) e a edição de séries (`SessionEditPage` em modo edição);
    - o aviso de duplicado "Manter só um" (`DuplicateSheet`, `duplicates.ts`).
@@ -72,6 +74,12 @@ O E2E `workout.spec.ts` hoje registra um treino offline pelo app, e `hevy.spec.t
 - A lista das 7 poses, com os nomes de pose obrigatória da IFBB, e "Peitoral de lado" e "Tríceps de lado" sem fixar o lado.
 - O número de exercícios no gráfico de carga: os 6 mais treinados no ciclo.
 - "Excluir do app" para todos os treinos, para limpar um registro antigo errado.
+- Sem marcação à mão do treino no Hoje; correção pelo Hevy.
+- Fotos de poses antigas num bloco "Outras fotos"; só os rótulos novos guiam.
+- Treinos antigos em andamento: só leitura e "Excluir do app".
+
+## Decidido depois da revisão
+- A troca do treino do dia fica, como linha pequena no topo da aba Treino.
 
 ## Para quem for construir
 Layout dos gráficos (seguir o visual clínico e sóbrio e as duas colunas no desktop), nomes de componentes, o que reaproveitar do Resumo e do `ExerciseHistoryPage`.
