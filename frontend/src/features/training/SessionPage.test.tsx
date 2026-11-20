@@ -1,0 +1,86 @@
+import { act, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { adherenceRepo } from '../../data/adherenceRepo'
+import { workoutRepo } from '../../data/workoutRepo'
+import { mockFetch } from '../../test/fetch-mock'
+import { USER_A } from '../../test/localDb'
+import { setupApp } from '../testSupport'
+import { BENCH, PLAN, seedExercises, seedHevySession, seedPastSession, seedPlan } from '../workout/testData'
+import { SessionPage } from './SessionPage'
+import { TrainingPage } from './TrainingPage'
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 18, 12, 0))
+  mockFetch({}) // offline
+})
+
+const HEVY = '7d1f2a10-0000-5000-8000-00000000f001'
+
+type Db = Awaited<ReturnType<typeof setupApp>>['db']
+
+/** Seeds the plan, then whatever `seed` returns the id of, and opens `/treino/<that id>`. */
+async function open(seed: (db: Db) => Promise<string>) {
+  const app = await setupApp(['/treino/pending'])
+  await seedExercises(app.db)
+  await seedPlan(app.db, ['a', 'b'])
+  const id = await seed(app.db)
+  const { router } = app.viewRoutes([
+    { path: '/treino', element: <TrainingPage /> },
+    { path: '/treino/:id', element: <SessionPage /> },
+  ])
+  await act(() => router.navigate(`/treino/${id}`))
+  return { ...app, id, router, user: userEvent.setup() }
+}
+
+describe('SessionPage', () => {
+  it('opens a finished app session read-only', async () => {
+    await open((db) => seedPastSession(db, '2026-10-11', BENCH, [[80, 10]]))
+
+    expect(await screen.findByRole('heading', { name: 'Treino A' })).toBeInTheDocument()
+    expect(screen.getByText('Treino de 11/10')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Supino reto' })).getByRole('listitem')).toHaveTextContent('80 kg × 10')
+    expect(screen.queryByText('Hevy')).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Salvar treino' })).not.toBeInTheDocument()
+  })
+
+  it('an open app session shows "Em andamento" and "Excluir do app" deletes it and goes back to /treino', async () => {
+    const { db, id, router, user } = await open(async (db) => {
+      const id = await workoutRepo.startSession(db, USER_A, { date: '2026-10-14', planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 14, 9))
+      await workoutRepo.logSet(db, USER_A, { sessionId: id, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 70, reps: 10, kind: 'normal' }, new Date(2026, 9, 14, 9, 5))
+      return id
+    })
+
+    expect(await screen.findByText('Em andamento')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Excluir do app' }))
+    expect(screen.queryByText(/Ele continua no Hevy/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sim, excluir' }))
+
+    expect(await screen.findByText('Treino de 14/10 excluído do app')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/treino')
+    expect(await workoutRepo.sessionById(db, id)).toBeNull()
+  })
+
+  it('"Excluir do app" on a Hevy session warns it stays in Hevy and clears the day\'s workout mark', async () => {
+    const { db, router, user } = await open((db) => seedHevySession(db, HEVY, '2026-10-12', BENCH, [[82.5, 8, 8.5]], 'Peito exemplo'))
+
+    expect(await screen.findByText('Registrado no Hevy. Para corrigir, edite no Hevy.')).toBeInTheDocument()
+    expect(screen.getByText('Hevy')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Excluir do app' }))
+    expect(screen.getByText(/Ele continua no Hevy/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sim, excluir' }))
+
+    expect(await screen.findByText('Treino de 12/10 excluído do app')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/treino')
+    expect(await workoutRepo.sessionById(db, HEVY)).toBeNull()
+    expect((await adherenceRepo.between(db, '2026-10-12', '2026-10-12')).filter((l) => l.targetType === 'workout' && l.status === 'done')).toEqual([])
+  })
+
+  it('an unknown session says so, with a link back to /treino', async () => {
+    await open(async () => '7d1f2a10-0000-5000-8000-00000000dead')
+    expect(await screen.findByText('Treino não encontrado.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Voltar para o treino/ })).toHaveAttribute('href', '/treino')
+  })
+})

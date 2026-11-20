@@ -53,7 +53,7 @@ const mondayOf = (date: string): string => addDays(date, -DAYS_SINCE_MONDAY[week
  * once it has passed), as the summary; without a protocol, the last 8 weeks (from Monday) up to today.
  * `calendarTo` is the last day of the calendar (the whole cycle, future days included).
  */
-function period(protocol: TrainingStatsInput['protocol'], today: string): { from: string; statsTo: string; calendarTo: string } {
+export function trainingPeriod(protocol: TrainingStatsInput['protocol'], today: string): { from: string; statsTo: string; calendarTo: string } {
   if (!protocol) {
     const from = addDays(mondayOf(today), -7 * (WEEKS_WITHOUT_PROTOCOL - 1))
     return { from, statsTo: today, calendarTo: today }
@@ -118,7 +118,7 @@ function exerciseTrends(input: TrainingStatsInput, from: string, to: string): Ex
  * session (finished or not) that has at least one working (non-warm-up) set.
  */
 export function buildTrainingStats(input: TrainingStatsInput, today: string): TrainingStats {
-  const { from, statsTo, calendarTo } = period(input.protocol, today)
+  const { from, statsTo, calendarTo } = trainingPeriod(input.protocol, today)
   const doneDates = workoutDates(input.sessions, input.sets, from, statsTo)
   const calendar = cycleCalendar({ from, to: calendarTo, today, plans: input.plans, overrides: input.overrides, doneDates })
   if (from > statsTo) return { weeks: [], calendar, trends: [] }

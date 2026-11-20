@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router'
+import { Navigate, type RouteObject } from 'react-router'
 import { AppShell } from './app/AppShell'
 import { AchievementsPage } from './features/achievements/AchievementsPage'
 import { RequireAuth } from './auth/RequireAuth'
@@ -7,9 +7,8 @@ import { EveningCheckinPage } from './features/checkin/EveningCheckinPage'
 import { MorningCheckinPage } from './features/checkin/MorningCheckinPage'
 import { SummaryPage } from './features/summary/SummaryPage'
 import { ExerciseHistoryPage } from './features/workout/ExerciseHistoryPage'
-import { HistoryPage } from './features/workout/HistoryPage'
-import { SessionEditPage } from './features/workout/SessionEditPage'
-import { WorkoutTodayPage } from './features/workout/WorkoutTodayPage'
+import { OldSessionRedirect, SessionPage } from './features/training/SessionPage'
+import { TrainingPage } from './features/training/TrainingPage'
 import { PlanReviewPage } from './features/plans/PlanReviewPage'
 import { PlansPage } from './features/plans/PlansPage'
 import { ProtocolView } from './features/plans/ProtocolView'
@@ -41,10 +40,11 @@ export const routes: RouteObject[] = [
           { path: '/planejamento', element: <PlansPage /> },
           { path: '/planejamento/revisao/:id', element: <PlanReviewPage /> },
           { path: '/planejamento/protocolo', element: <ProtocolView /> },
-          { path: '/treino', element: <WorkoutTodayPage /> },
-          { path: '/treino/historico', element: <HistoryPage /> },
-          { path: '/treino/historico/:id', element: <SessionEditPage /> },
+          { path: '/treino', element: <TrainingPage /> },
+          { path: '/treino/historico', element: <Navigate to="/treino" replace /> },
+          { path: '/treino/historico/:id', element: <OldSessionRedirect /> },
           { path: '/treino/exercicio/:id', element: <ExerciseHistoryPage /> },
+          { path: '/treino/:id', element: <SessionPage /> },
           { path: '/atualizacao', element: <UpdatePage /> },
           { path: '/sync', element: <AttentionList /> },
           { path: '/configuracoes', element: <SettingsPage /> },

@@ -40,8 +40,8 @@ function groupSets(sets: SetLocal[], catalog: ExerciseLocal[]): ExerciseGroup[] 
 const load = (s: SetLocal) => `${formatKg(s.weightKg)} kg × ${s.reps}`
 
 /**
- * A session imported from Hevy, opened from the history: only to view (Hevy is where it is corrected), with the sets of
- * each exercise and their RPE, and "Excluir do app".
+ * A session opened from the history, only to view: the sets of each exercise and their RPE, and "Excluir do app". One
+ * imported from Hevy carries the "Hevy" chip (Hevy is where it is corrected); an app session never finished, "Em andamento".
  */
 export function SessionReadView({
   data,
@@ -93,6 +93,7 @@ export function SessionReadView({
     }
   }
 
+  const hevy = session.source === 'hevy'
   if (failed) return <p role="alert">Não foi possível abrir o treino no aparelho.</p>
   if (!sets) return <p className="text-muted">Carregando o treino…</p>
 
@@ -101,13 +102,14 @@ export function SessionReadView({
       <header className="grid gap-2">
         <h1 className="text-xl font-bold">
           {dayName}
-          {session.externalTitle ? ` (${session.externalTitle})` : ''}
+          {hevy && session.externalTitle ? ` (${session.externalTitle})` : ''}
         </h1>
         <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-muted tabular-nums">
           Treino de {formatShortDate(session.date)}
-          <Chip>Hevy</Chip>
+          {hevy && <Chip>Hevy</Chip>}
+          {session.endedAt === null && <Chip>Em andamento</Chip>}
         </p>
-        <p className="text-sm text-muted">Registrado no Hevy. Para corrigir, edite no Hevy.</p>
+        {hevy && <p className="text-sm text-muted">Registrado no Hevy. Para corrigir, edite no Hevy.</p>}
       </header>
 
       {sets.length === 0 ? (
@@ -143,7 +145,9 @@ export function SessionReadView({
 
       {confirming ? (
         <div role="group" aria-label="Confirmar exclusão" className={cardClasses({ className: 'grid gap-3' })}>
-          <p className="font-medium">Excluir este treino do app? Ele continua no Hevy e não volta na sincronização.</p>
+          <p className="font-medium">
+            {hevy ? 'Excluir este treino do app? Ele continua no Hevy e não volta na sincronização.' : 'Excluir este treino do app? Não dá para desfazer.'}
+          </p>
           <div className={ACTION_ROW}>
             <Button variant="danger" loading={busy} onClick={() => void remove()}>
               Sim, excluir
