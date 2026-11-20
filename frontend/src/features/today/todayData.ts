@@ -40,7 +40,7 @@ export interface RestockItem {
 export interface TodayRow {
   target: DayTarget
   label: string
-  /** The stored mark, or the derived one for workout/check-in (finished session / check-in part saved). */
+  /** The stored mark, or the derived one for workout/check-in (session with a working set / check-in part saved). */
   status: AdherenceStatus | null
   reason: AdherenceReason | null
   note: string | null
@@ -87,7 +87,7 @@ export interface TodaySources {
   logs: AdherenceLogLocal[]
   /** Protocol item marks of the last RESTOCK_WINDOW_DAYS days, today included (the "A repor" card). */
   itemLogs: AdherenceLogLocal[]
-  /** A session of the day was finished with at least one working set. */
+  /** A session of the day (finished or not) has at least one working (non-warm-up) set. */
   workoutDone: boolean
   /** Which parts of the day's check-in are saved (a full check-in from before the split counts as both). */
   checkinParts: CheckinParts
@@ -116,8 +116,8 @@ export async function loadTodaySources(db: LocalDb, date: string): Promise<Today
   // Overrides re-anchor the rotation from each version's activation: load them since the first one (as /treino).
   const overridesFrom = plans.map((p) => p.at.activatedOn).sort()[0] ?? date
   const overrides = await rotationOverrideRepo.between(db, overridesFrom, date)
-  const finished = sessions.filter((s) => s.endedAt !== null)
-  const sets = await Promise.all(finished.map((s) => workoutRepo.setsForSession(db, s.id)))
+  // A session (finished or not) with a working set is the workout done: the same rule as the Treino tab and the summary.
+  const sets = await Promise.all(sessions.map((s) => workoutRepo.setsForSession(db, s.id)))
   return {
     protocol: active?.document ?? null,
     protocolActivatedOn: active?.plan.activatedAt ? localDate(new Date(active.plan.activatedAt)) : null,
@@ -201,7 +201,7 @@ export function buildTodayView(date: string, src: TodaySources): TodayView {
   const workoutTitle = workoutDay?.name.trim() || (plan.workoutDayKey === null ? null : `Treino ${plan.workoutDayKey.toUpperCase()}`)
 
   const rows = plan.targets.map((target): TodayRow => {
-    // The legacy `checkin` mark stands for the evening part; a finished session / saved part makes the target done.
+    // The legacy `checkin` mark stands for the evening part; a session with a working set / saved part makes the target done.
     const { log, status } = resolveTargetStatus(target, find, derived)
     const label = target.type === 'workout' && workoutTitle ? workoutTitle : target.label
     const details = detailsOf(target, src.protocol)

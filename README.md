@@ -14,13 +14,23 @@ offline-first (SQLite no aparelho, sincronização com a API quando há rede).
   números do ciclo (treinos, cardio, sono, água, check-ins), peso e força por grupo muscular.
 - **Planejamento:** importa o PDF do protocolo e da ficha de treino, extrai com a API da Anthropic (`Anthropic__ApiKey`),
   mostra a revisão com diff e campos a conferir, e só ativa depois da sua confirmação. Versões ficam no histórico.
-- **Treino:** treino do dia pela rotação da ficha, registro de séries offline (carga, repetições, tipo), timer de descanso,
-  troca e pulo de exercício, histórico, recordes e evolução de 1RM estimado.
+  Cada refeição do protocolo mostra o horário configurado (o mesmo de Hoje).
+- **Treino (só consulta):** os treinos são registrados no **Hevy** e chegam pela sincronização (ver [Hevy](#hevy)); o app
+  não registra treino. A aba mostra, de cima para baixo: "Previsto hoje" pela rotação da ficha, com **Trocar** para escolher
+  outro dia da ficha ou Descanso; **Treinos por semana** (feitos × previstos no ciclo do protocolo, ou nas últimas 8 semanas
+  sem protocolo); o **Calendário do ciclo** (o mesmo do Resumo); a **Evolução de carga** dos 6 exercícios mais treinados
+  (1RM estimado, levando à página de cada exercício); e o **Histórico**, mais recentes primeiro, com o selo **Hevy**. Um
+  treino abre só para leitura, com "Excluir do app". Treinos antigos feitos pelo app continuam no histórico (os que nunca
+  foram finalizados aparecem como "Em andamento"). Treino feito = sessão com pelo menos uma série que não seja aquecimento,
+  a mesma regra de Hoje e do Resumo.
 - **Hoje:** o dia em ordem de horário (refeições, itens do protocolo, cardio, treino e check-in), marcação Feito / Parcial /
-  Não fiz com motivo, atrasados em destaque. O Resumo mostra a adesão do ciclo (Dieta e Itens do protocolo).
+  Não fiz com motivo, atrasados em destaque. Um item do protocolo pode ser marcado como **Acabou**, e vai para o cartão
+  "A repor"; o que se comeu fora do plano entra como **desvio** e conta na adesão da dieta. O treino fica Feito sozinho
+  quando o treino do dia chega do Hevy; esqueceu, corrige no Hevy. As setas levam aos **dias anteriores** para corrigir
+  marcações e check-ins. O Resumo mostra a adesão do ciclo (Dieta e Itens do protocolo).
 - **Lembretes** por notificação (Web Push) nos horários de cada item, configuráveis em Configurações → Horários.
 - **Check-in em partes:** **Manhã** (sono, disposição ao acordar, intestino, peso opcional) e **Noite** (disposição no dia,
-  ansiedade, água, observações), cada uma salva sozinha a partir da sua linha em Hoje (ou de Mais → Check-in de hoje). O
+  ansiedade, Estresse, Psicológico, água, observações), cada uma salva sozinha a partir da sua linha em Hoje (ou de Mais → Check-in de hoje). O
   cardio fica só no item Cardio de Hoje, com os minutos feitos. O Resumo conta um check-in quando as duas partes do dia
   foram salvas. Tudo funciona offline e sincroniza quando há rede.
 - **Gamificação:** em Hoje, o **anel do dia** (o % do que estava previsto para o dia inteiro; Parcial vale meio) com
@@ -28,6 +38,9 @@ offline-first (SQLite no aparelho, sincronização com a API quando há rede).
   previsto); o card **Semana** com as metas da semana (dieta e itens do protocolo ≥ 90%, todos os treinos, cardio previsto, água, check-ins completos). Em Mais →
   **Conquistas**, a sequência atual e o recorde e as medalhas conquistadas e a conquistar. O Resumo ganha a seção
   "Constância".
+- **Atualização:** fotos nas 7 poses obrigatórias do fisiculturismo, questionário preenchido pelas métricas do ciclo e envio
+  (ver [Atualização](#atualização-questionário-e-fotos)). Marcar como enviada fecha o ciclo no Resumo até o novo protocolo
+  chegar.
 
 ### Atualizar todos os aparelhos antes do check-in em partes
 
@@ -69,7 +82,7 @@ lê o mesmo arquivo pelo servidor e abre um novo rascunho.
 
 ## Treino inteligente
 
-A ficha de treino é lida com mais estrutura e a revisão e o treino do dia aproveitam isso.
+A ficha de treino é lida com mais estrutura, e a revisão, a rotação e a ligação com os treinos do Hevy aproveitam isso.
 
 - **Importação estruturada:** cada exercício da ficha ganha **grupamento muscular** e **par no catálogo** (o exercício
   equivalente do ExerciseDB, com demonstração) a partir de um dicionário pt-BR de exercícios
@@ -85,22 +98,20 @@ A ficha de treino é lida com mais estrutura e a revisão e o treino do dia apro
   (até 60 GIFs, 90 dias). Uso pessoal; confira os termos do ExerciseDB antes de qualquer outro uso. No app nativo
   (Android e iOS) não há service worker, então **não há GIF offline** lá: sem internet aparece só o link "Ver no YouTube".
   Sem catálogo (sincronização desligada ou ainda não concluída) o app funciona igual, sem os GIFs.
-- **Técnicas no treino:** a série com drop ganha, depois de concluída, as linhas "Drop 1", "Drop 2" com a carga sugerida
-  (cerca de 20% menos que a anterior); rest-pause gera linhas com a mesma carga e descanso curto. Elas contam no volume mas
-  não em recordes. Bi-set agrupa os dois exercícios num bloco que alterna as séries e só descansa depois do par. SST usa os
-  intervalos curtos da ficha como descanso entre as séries.
 - **Ao atualizar:** atualize o app em todos os aparelhos (PWA: "Atualizar"; Android: APK novo) antes de importar uma ficha
-  nova. Uma versão antiga que abrir e salvar um rascunho novo descarta as técnicas e os pares do catálogo, e conta as
-  sub-séries como séries normais nos recordes.
+  nova. Uma versão antiga que abrir e salvar um rascunho novo descarta as técnicas e os pares do catálogo.
 
 ## Atualização (questionário e fotos)
 
 Em **Mais → Atualização** (e no cartão de Hoje a partir de 3 dias antes da data), a atualização do ciclo em três etapas:
 
-- **Fotos:** uma por pose (Frente, Costas, Lado direito, Lado esquerdo, Abdômen, ou as do modelo), com a mesma pose do ciclo
-  anterior por cima da câmera para repetir o enquadramento, temporizador de 5 s e troca de câmera. Sem câmera, escolhe-se um
-  arquivo. A foto fica numa fila no aparelho (funciona offline) e sobe para o **R2** quando há rede; o aparelho guarda só a
-  miniatura. "Baixar fotos (.zip)" monta o zip no próprio aparelho.
+- **Fotos:** uma por pose, nas 7 poses obrigatórias do fisiculturismo (Duplo bíceps de frente, Expansão dorsal de frente,
+  Peitoral de lado, Duplo bíceps de costas, Expansão dorsal de costas, Tríceps de lado, Abdômen e coxa) ou nas do modelo,
+  com a mesma pose do ciclo anterior por cima da câmera para repetir o enquadramento, temporizador de 5 s e troca de câmera.
+  Sem câmera, escolhe-se um arquivo. A foto fica numa fila no aparelho (funciona offline) e sobe para o **R2** quando há
+  rede; o aparelho guarda só a miniatura. "Baixar fotos (.zip)" monta o zip no próprio aparelho. Fotos de poses que saíram
+  da lista (as antigas Frente, Costas etc.) aparecem em **Outras fotos**, só para ver, e continuam no zip. Na
+  primeira atualização com uma pose nova não há foto anterior por cima da câmera.
 - **Questionário:** montado a partir do **modelo** importado em Configurações. Perguntas ligadas a uma métrica (adesão da
   dieta, treinos perdidos, peso, médias do check-in, notas do ciclo...) chegam respondidas com o selo **Calculado** pelo
   servidor e podem ser editadas (a edição vale) ou recalculadas; as demais são livres, com "Ver notas do ciclo" à mão. O
@@ -121,7 +132,8 @@ aparelhos. Para carregá-lo:
    `weight`, `checkin_notes`); `poses` opcional.
 2. No app, **Configurações → Questionário de atualização → Importar JSON** e escolha o arquivo. Um arquivo inválido é
    recusado com a mensagem do erro e o modelo atual fica intacto; importar de novo pede "Substituir o modelo atual?".
-3. Ajuste perguntas, "Preencher com" e poses ali mesmo; "Exportar JSON" guarda uma cópia.
+3. Ajuste perguntas, "Preencher com" e poses ali mesmo; "Usar poses do fisiculturismo" troca as poses do modelo pelas 7
+   obrigatórias (com confirmação, que avisa se a atualização aberta já tem fotos). "Exportar JSON" guarda uma cópia.
 
 Guarde o arquivo **fora do repositório** (nunca o commite). O `npm run privacy` e o `.gitignore` não sabem reconhecer um
 JSON de perguntas reais: o cuidado é seu.
@@ -130,8 +142,9 @@ JSON de perguntas reais: o cuidado é seu.
 
 Em **Configurações → Hevy**, a chave da API do Hevy (conta **Pro**; no site do Hevy, Settings → Developer) liga a importação:
 os treinos do Hevy chegam como sessões encerradas, a cada 30 minutos (`Hevy__IntervalMinutes`) e em "Sincronizar agora",
-contam como treino feito em Hoje e no Resumo e aparecem no Histórico com o selo **Hevy** (o mesmo treino registrado no app e
-no Hevy ganha o aviso "Manter só um"). O dia da ficha vem do título do treino, ou dos exercícios em comum, ou da rotação.
+contam como treino feito em Hoje, no Resumo e nos gráficos da aba Treino e aparecem no histórico da aba Treino com o selo
+**Hevy**. É a única forma de registrar treino: o app só consulta. "Excluir do app" apaga o treino no aparelho e ele não
+volta na próxima sincronização. O dia da ficha vem do título do treino, ou dos exercícios em comum, ou da rotação.
 Exercícios sem par viram provisórios para confirmar em "Exercícios do Hevy para confirmar".
 
 A chave vai uma vez ao servidor, que a guarda cifrada (AES-GCM) com `Integrations__EncryptionKey` (32 bytes em base64,
@@ -152,6 +165,9 @@ passo no [runbook](docs/runbooks/deploy-coolify.md#10-hevy-importação-de-trein
 | Plano da Atualização | [docs/superpowers/plans/2026-10-23-atualizacao.md](docs/superpowers/plans/2026-10-23-atualizacao.md) |
 | Spec da sincronização com o Hevy | [docs/superpowers/specs/2026-10-24-hevy-design.md](docs/superpowers/specs/2026-10-24-hevy-design.md) |
 | Plano da sincronização com o Hevy | [docs/superpowers/plans/2026-10-24-hevy.md](docs/superpowers/plans/2026-10-24-hevy.md) |
+| Spec do Treino só para consulta e poses | [docs/superpowers/specs/2026-11-20-treino-consulta-design.md](docs/superpowers/specs/2026-11-20-treino-consulta-design.md) |
+| Plano do Treino só para consulta e poses | [docs/superpowers/plans/2026-11-20-treino-consulta.md](docs/superpowers/plans/2026-11-20-treino-consulta.md) |
+| Backlog (feito e pendente) | [docs/backlog.md](docs/backlog.md) |
 | Plano da Fundação | [docs/superpowers/plans/2026-10-18-fundacao.md](docs/superpowers/plans/2026-10-18-fundacao.md) |
 | Deploy no Coolify (passo a passo) | [docs/runbooks/deploy-coolify.md](docs/runbooks/deploy-coolify.md) |
 | CI, APK e release | [docs/ci/README.md](docs/ci/README.md) |
@@ -208,11 +224,11 @@ Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inc
 - **Backend:** build, testes (Testcontainers), checagem das migrations e do `openapi.json`.
 - **Frontend:** lint, testes e build.
 - **Docker image:** o mesmo build que o Coolify faz.
-- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores: importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`,
-  lidos no navegador pelo leitor local), treino registrado offline e Resumo; um PDF sem texto e o botão "Ler com IA"; depois, uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do
-  Resumo; em seguida (projeto `today`, com o protocolo já ativo), o check-in em partes salvo offline (Manhã, depois Noite) que
-  sincroniza com um segundo navegador, sobe o anel do dia e conta 1 check-in completo no Resumo. Esse teste pressupõe o
-  banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje. No mesmo projeto, a conexão com o Hevy (chave de teste), "Sincronizar agora" com 1 treino fictício importado, o selo "Hevy" no Histórico, o treino feito em Hoje e "Remover". Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Três stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs`, `storage-stub.mjs` e `hevy-stub.mjs`)
+- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores. Primeiro (projeto `chromium`): o app aberto offline com o check-in da Noite salvo (`offline.spec.ts`);
+  a importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`, lidos no navegador pelo leitor local), a aba Treino só de consulta com "Previsto hoje" e a troca do dia (e a volta), e o Resumo; um PDF sem texto e o botão "Ler com IA".
+  Em seguida (projeto `today`, com o protocolo e a ficha já ativos): a conexão com o Hevy (chave de teste), "Sincronizar agora" com 1 treino fictício importado, o selo "Hevy" no histórico da aba Treino (sem duplicado) e a leitura do treino, o treino feito em Hoje e "Remover";
+  o check-in em partes salvo offline (Manhã, depois Noite) que sincroniza com um segundo navegador, sobe o anel do dia e conta 1 check-in completo no Resumo (pressupõe o banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje);
+  uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do Resumo, a refeição de ontem e a linha do treino em Hoje, que só leva à aba Treino; e o ciclo da Atualização. Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Três stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs`, `storage-stub.mjs` e `hevy-stub.mjs`)
   fazem o papel da API da Anthropic, do bucket R2 e da API do Hevy (`Anthropic__BaseUrl`, `R2__ServiceUrl`, `Hevy__BaseUrl`, com `Integrations__EncryptionKey` de teste e o agendador do Hevy desligado); nada de rede externa.
 - **Android APK:** APK de debug como artifact; na `main`, o job **Android release** publica o APK assinado numa GitHub Release.
 

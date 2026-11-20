@@ -30,10 +30,12 @@
     }
   ],
   "poses": [
-    { "key": "front", "label": "Frente" },
-    { "key": "back", "label": "Costas" },
-    { "key": "right_side", "label": "Lado direito" },
-    { "key": "left_side", "label": "Lado esquerdo" },
-    { "key": "abs", "label": "Abdômen" }
+    { "key": "front_double_biceps", "label": "Duplo bíceps de frente" },
+    { "key": "front_lat_spread", "label": "Expansão dorsal de frente" },
+    { "key": "side_chest", "label": "Peitoral de lado" },
+    { "key": "back_double_biceps", "label": "Duplo bíceps de costas" },
+    { "key": "back_lat_spread", "label": "Expansão dorsal de costas" },
+    { "key": "side_triceps", "label": "Tríceps de lado" },
+    { "key": "abs_thighs", "label": "Abdômen e coxa" }
   ]
 }

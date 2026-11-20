@@ -2,9 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { questionnaireTemplateRepo } from '../../data/questionnaireTemplateRepo'
-import { questionnaireTemplateSchema, type QuestionnaireTemplate } from '../../domain/questionnaireTemplate'
+import { BODYBUILDING_POSES, questionnaireTemplateSchema, type QuestionnaireTemplate } from '../../domain/questionnaireTemplate'
 import { mockFetch } from '../../test/fetch-mock'
 import { setupApp } from '../testSupport'
+import { seedCycle } from '../update/testCycle'
 import { QuestionnaireTemplatePage } from './QuestionnaireTemplatePage'
 import { readTemplateFile } from './templateFile'
 
@@ -13,9 +14,10 @@ const files = import.meta.glob<unknown>('../../../../fixtures/questionnaire-temp
 const fixture = (): QuestionnaireTemplate => questionnaireTemplateSchema.parse(structuredClone(Object.values(files)[0]))
 const fixtureFile = () => new File([JSON.stringify(fixture())], 'modelo.json', { type: 'application/json' })
 
-async function open(existing?: QuestionnaireTemplate) {
+async function open(existing?: QuestionnaireTemplate, cycle?: Parameters<typeof seedCycle>[1]) {
   mockFetch({})
   const app = await setupApp()
+  if (cycle) await seedCycle(app.db, cycle)
   if (existing) await questionnaireTemplateRepo.save(app.db, existing, new Date('2026-10-20T12:00:00Z'))
   const runOnce = vi.spyOn(app.engine, 'runOnce').mockResolvedValue(undefined as never)
   app.view(<QuestionnaireTemplatePage />)
@@ -240,12 +242,14 @@ describe('QuestionnaireTemplatePage', () => {
 
     const label = screen.getByLabelText('Rótulo da pose 1')
     await userEvent.clear(label)
-    await userEvent.type(label, 'Frente relaxada')
+    await userEvent.type(label, 'Duplo bíceps relaxado')
     await userEvent.tab()
-    await waitFor(async () => expect((await stored(db))!.poses[0]).toEqual({ key: 'front', label: 'Frente relaxada' }))
+    await waitFor(async () => expect((await stored(db))!.poses[0]).toEqual({ key: 'front_double_biceps', label: 'Duplo bíceps relaxado' }))
 
     await userEvent.click(screen.getByRole('button', { name: 'Descer pose 1' }))
-    await waitFor(async () => expect((await stored(db))!.poses.map((p) => p.key).slice(0, 2)).toEqual(['back', 'front']))
+    await waitFor(async () =>
+      expect((await stored(db))!.poses.map((p) => p.key).slice(0, 2)).toEqual(['front_lat_spread', 'front_double_biceps']),
+    )
   })
 
   it('an empty pose label is not saved', async () => {
@@ -255,8 +259,64 @@ describe('QuestionnaireTemplatePage', () => {
     await userEvent.tab()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('O rótulo da pose precisa ter de 1 a 40 caracteres.')
-    expect(screen.getByLabelText('Rótulo da pose 2')).toHaveValue('Costas')
-    expect((await stored(db))!.poses[1]!.label).toBe('Costas')
+    expect(screen.getByLabelText('Rótulo da pose 2')).toHaveValue('Expansão dorsal de frente')
+    expect((await stored(db))!.poses[1]!.label).toBe('Expansão dorsal de frente')
+  })
+
+  describe('"Usar poses do fisiculturismo"', () => {
+    // A template saved before the bodybuilding poses (invented labels, like the fixture's).
+    const withOldPoses = (): QuestionnaireTemplate => ({
+      ...fixture(),
+      poses: [
+        { key: 'front', label: 'Frente' },
+        { key: 'back', label: 'Costas' },
+      ],
+    })
+    const PHOTO = { pose: 'front', file_id: '00000000-0000-0000-0000-0000000000f1', taken_at: '2026-10-19T10:00:00Z' }
+    const WARNING = 'A atualização aberta já tem fotos'
+
+    it('asks first; cancelling keeps the poses, confirming saves the 7 bodybuilding poses', async () => {
+      const { db, runOnce } = await open(withOldPoses())
+
+      await userEvent.click(screen.getByRole('button', { name: 'Usar poses do fisiculturismo' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Usar poses do fisiculturismo?' })
+      expect(within(dialog).queryByText(WARNING, { exact: false })).not.toBeInTheDocument()
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect((await stored(db))!.poses).toEqual(withOldPoses().poses)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Usar poses do fisiculturismo' }))
+      await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Usar estas poses' }))
+
+      await waitFor(async () => expect((await stored(db))!.poses).toEqual(BODYBUILDING_POSES))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByText('Poses do fisiculturismo salvas.')).toBeInTheDocument()
+      expect(screen.getByLabelText('Rótulo da pose 7')).toHaveValue('Abdômen e coxa')
+      // The questions stay as they were.
+      expect(keysOf(await stored(db))).toEqual(keysOf(fixture()))
+      await waitFor(() => expect(runOnce).toHaveBeenCalled())
+    })
+
+    it('warns when the open update already has photos', async () => {
+      await open(withOldPoses(), { photos: [PHOTO] })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Usar poses do fisiculturismo' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Usar poses do fisiculturismo?' })
+      expect(await within(dialog).findByText(WARNING, { exact: false })).toBeInTheDocument()
+    })
+
+    it('a sent update does not count as open', async () => {
+      await open(withOldPoses(), { photos: [PHOTO], status: 'sent', sentAt: '2026-10-23T12:00:00Z' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Usar poses do fisiculturismo' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Usar poses do fisiculturismo?' })
+      expect(within(dialog).queryByText(WARNING, { exact: false })).not.toBeInTheDocument()
+    })
+
+    it('is disabled when the template already uses them', async () => {
+      await open(fixture())
+      expect(screen.getByRole('button', { name: 'Usar poses do fisiculturismo' })).toBeDisabled()
+    })
   })
 
   it('"Exportar JSON" downloads a file that imports back the same template', async () => {

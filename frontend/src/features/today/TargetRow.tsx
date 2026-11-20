@@ -37,8 +37,9 @@ function Meta({ row, late, id }: { row: TodayRow; late: boolean; id?: string }) 
 
 /**
  * One compact row of the day. Meals, protocol items and cardio are marked here: the check marks "Feito" (tapping it
- * again clears), "⋯" opens the item's sheet (details, Parcial, Não fiz), as does tapping the name. The workout and the
- * check-in parts are done elsewhere (/treino, /checkin/manha, /checkin/noite): the whole row links there.
+ * again clears), "⋯" opens the item's sheet (details, Parcial, Não fiz), as does tapping the name. The workout is not
+ * marked by hand: its status comes from the sessions synced from Hevy, and the whole row links to the Treino tab
+ * (/treino, only to look things up). The check-in parts are done on their own screens (/checkin/manha, /checkin/noite).
  */
 export function TargetRow({
   row,

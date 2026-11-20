@@ -92,14 +92,14 @@ test('imports the example questionnaire, answers it, sends a photo, copies the t
   await expect(page).toHaveURL(/\/atualizacao$/)
   await expect(page.getByRole('heading', { name: 'Atualização', level: 1 })).toBeVisible()
 
-  // Fotos: "Frente" through the file fallback; the thumbnail shows once the storage stub has it and the API confirmed it.
-  const front = page.getByRole('listitem', { name: 'Frente' })
+  // Fotos: "Duplo bíceps de frente" through the file fallback; the thumbnail shows once the storage stub has it and the API confirmed it.
+  const front = page.getByRole('listitem', { name: 'Duplo bíceps de frente' })
   await front.getByRole('button', { name: /Tirar foto|Refazer/ }).click()
-  const camera = page.getByRole('dialog', { name: 'Frente' })
+  const camera = page.getByRole('dialog', { name: 'Duplo bíceps de frente' })
   await expect(camera.getByRole('alert')).toHaveText('Câmera indisponível. Escolha uma foto.')
   await camera.locator('input[type="file"]').setInputFiles({ name: 'frente.png', mimeType: 'image/png', buffer: solidPng(120, 160, [64, 128, 192]) })
   await expect(camera).toHaveCount(0)
-  await expect(front.getByRole('img', { name: 'Miniatura de Frente' })).toBeVisible()
+  await expect(front.getByRole('img', { name: 'Miniatura de Duplo bíceps de frente' })).toBeVisible()
   await expect(front.getByText('Enviada', { exact: true })).toBeVisible()
   await expectSynced(page)
 
@@ -136,7 +136,7 @@ test('imports the example questionnaire, answers it, sends a photo, copies the t
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Atualização', level: 1 })).toBeVisible()
   await expect(page.getByText(/^Enviada em \d{2}\/\d{2}$/)).toBeVisible()
-  await expect(page.getByRole('listitem', { name: 'Frente' }).getByRole('img', { name: 'Miniatura de Frente' })).toBeVisible()
+  await expect(page.getByRole('listitem', { name: 'Duplo bíceps de frente' }).getByRole('img', { name: 'Miniatura de Duplo bíceps de frente' })).toBeVisible()
   await page.getByRole('tab', { name: /Revisar e enviar/ }).click()
   await expect(page.getByRole('definition').filter({ hasText: /^Normal$/ })).toBeVisible()
 

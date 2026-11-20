@@ -38,11 +38,11 @@ describe('UpdateCard', () => {
     await open('2026-10-20', {
       periodEnd: '2026-10-23',
       answers: { diet_hunger: 'Normal', workout_rating: ' ' },
-      photos: [{ pose: 'front', file_id: '00000000-0000-0000-0000-0000000000f1', taken_at: '2026-10-19T10:00:00Z' }],
+      photos: [{ pose: 'front_double_biceps', file_id: '00000000-0000-0000-0000-0000000000f1', taken_at: '2026-10-19T10:00:00Z' }],
     })
     expect(await screen.findByRole('heading', { name: 'Atualização em 3 dias' })).toBeInTheDocument()
     // 9 fill questions and the one with a default count as answered, plus the hunger one; the blank rating does not.
-    expect(screen.getByText('Fotos 1 de 5 · Respostas 11 de 12')).toBeInTheDocument()
+    expect(screen.getByText('Fotos 1 de 7 · Respostas 11 de 12')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Abrir atualização' })).toHaveAttribute('href', '/atualizacao')
   })
 
@@ -55,7 +55,7 @@ describe('UpdateCard', () => {
   it('stays while late and leaves once sent', async () => {
     const app = await open('2026-10-25', { periodEnd: '2026-10-23' }, false)
     expect(await screen.findByRole('heading', { name: 'Atualização atrasada há 2 dias' })).toBeInTheDocument()
-    expect(screen.getByText('Fotos 0 de 5')).toBeInTheDocument()
+    expect(screen.getByText('Fotos 0 de 7')).toBeInTheDocument()
 
     await updateCycleRepo.markSent(app.db, '00000000-0000-0000-0000-000000000001', {}, new Date('2026-10-25T12:00:00Z'))
     app.rerenderApp(<UpdateCard key="again" today="2026-10-25" />)

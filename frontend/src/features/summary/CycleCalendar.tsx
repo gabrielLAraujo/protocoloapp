@@ -31,8 +31,12 @@ function describe(day: CalendarDay): string {
   return parts.join(', ')
 }
 
-/** Weekly grid (Mon-Sun) of the cycle. State is shown by symbol (and the today ring), never by color alone. */
-export function CycleCalendar({ days }: { days: CalendarDay[] }) {
+/**
+ * Weekly grid (Mon-Sun) of the cycle. State is shown by symbol (and the today ring), never by color alone.
+ * `title` names the section and the table (the Treino tab without a protocol shows the last weeks, not a cycle);
+ * `showCardio: false` leaves out the "Cardio feito" legend, for a calendar whose days carry no cardio.
+ */
+export function CycleCalendar({ days, title = 'Calendário do ciclo', showCardio = true }: { days: CalendarDay[]; title?: string; showCardio?: boolean }) {
   if (days.length === 0) return null
   const lead = WEEKDAY_INDEX[weekdayOf(days[0].date)]
   const cells: (CalendarDay | null)[] = [...Array<null>(lead).fill(null), ...days]
@@ -41,9 +45,9 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
 
   return (
     <section aria-labelledby="calendar-title" className="grid gap-1">
-      <SectionHeader id="calendar-title" title="Calendário do ciclo" />
+      <SectionHeader id="calendar-title" title={title} />
       <Card padding="sm" className="grid gap-3">
-      <div role="table" aria-label="Calendário do ciclo" className="grid gap-1">
+      <div role="table" aria-label={title} className="grid gap-1">
         <div role="row" className="grid grid-cols-7 gap-1 text-center text-xs text-muted">
           {HEADERS.map((h) => (
             <span key={h} role="columnheader">{h}</span>
@@ -79,7 +83,7 @@ export function CycleCalendar({ days }: { days: CalendarDay[] }) {
         <li><span aria-hidden="true" className="font-bold text-danger">✗</span> Treino não feito</li>
         <li><span aria-hidden="true" className="font-bold">–</span> Descanso</li>
         <li><span aria-hidden="true" className="font-bold">•</span> Hoje, treino previsto</li>
-        <li><span aria-hidden="true" className="inline-block size-2 rounded-full bg-muted" /> Cardio feito</li>
+        {showCardio && <li><span aria-hidden="true" className="inline-block size-2 rounded-full bg-muted" /> Cardio feito</li>}
       </ul>
       </Card>
     </section>

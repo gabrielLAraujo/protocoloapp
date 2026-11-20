@@ -7,6 +7,7 @@ import { Chip } from '../../ui/Chip'
 import { Icon } from '../../ui/Icon'
 import { cardClasses } from '../../ui/styles'
 import { PoseCamera } from './camera/PoseCamera'
+import { FORMER_POSE_LABELS } from './photos/photoMessages'
 
 type PoseState = 'sent' | 'pending' | 'missing'
 
@@ -47,9 +48,37 @@ function PoseTile({ pose, state, thumb, onTake }: { pose: Pose; state: PoseState
   )
 }
 
+/** A photo of a pose no longer in the template: only to see (it stays in the cycle and in the zip). */
+function OtherPhotoTile({ pose, state, thumb }: { pose: Pose; state: Exclude<PoseState, 'missing'>; thumb: string | null }) {
+  const labelId = useId()
+  const chip = STATE_CHIP[state]
+  return (
+    <li aria-labelledby={labelId} className={cardClasses({ padding: 'none', className: 'grid overflow-hidden' })}>
+      <div className="relative aspect-[3/4] border-b border-line bg-raised">
+        {thumb ? (
+          <img src={thumb} alt={`Miniatura de ${pose.label}`} className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <span aria-hidden="true" className="absolute inset-0 grid place-items-center text-muted/70">
+            <Icon name={state === 'pending' ? 'upload' : 'camera'} size={28} strokeWidth={1.6} />
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 p-3">
+        <h3 id={labelId} className="text-sm font-semibold [overflow-wrap:anywhere]">
+          {pose.label}
+        </h3>
+        <Chip tone={chip.tone} className="whitespace-normal!">
+          {chip.text}
+        </Chip>
+      </div>
+    </li>
+  )
+}
+
 /**
  * Fotos: one tile per pose of the template, with the thumbnail once sent, "Pendente de envio" while it waits in the
- * queue, and the camera with the same pose of the previous cycle laid over it.
+ * queue, and the camera with the same pose of the previous cycle laid over it. Photos of poses that left the template
+ * (the former default poses, say) show under "Outras fotos", only to see.
  */
 export function PhotosStep({
   cycle,
@@ -70,6 +99,7 @@ export function PhotosStep({
   error: string | null
 }) {
   const [camera, setCamera] = useState<{ pose: Pose; overlay: string | null } | null>(null)
+  const othersId = useId()
 
   const stateOf = (pose: string): PoseState =>
     pending.has(pose) ? 'pending' : cycle.photos.some((p) => p.pose === pose) ? 'sent' : 'missing'
@@ -85,6 +115,8 @@ export function PhotosStep({
   }
 
   const done = poses.filter((p) => stateOf(p.key) !== 'missing').length
+  const listed = new Set(poses.map((p) => p.key))
+  const otherKeys = [...new Set([...cycle.photos.map((p) => p.pose), ...pending])].filter((key) => !listed.has(key))
 
   return (
     <div className="grid gap-4">
@@ -107,6 +139,24 @@ export function PhotosStep({
           />
         ))}
       </ul>
+      {otherKeys.length > 0 && (
+        <section aria-labelledby={othersId} className="grid gap-2">
+          <h2 id={othersId} className="text-sm font-semibold text-ink">
+            Outras fotos
+          </h2>
+          <p className="text-sm text-muted">Fotos de poses que não estão mais na lista. Continuam no .zip das fotos.</p>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {otherKeys.map((key) => (
+              <OtherPhotoTile
+                key={key}
+                pose={{ key, label: FORMER_POSE_LABELS[key] ?? key }}
+                state={pending.has(key) ? 'pending' : 'sent'}
+                thumb={thumbs.get(key)?.dataUrl ?? null}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
       {camera && (
         <PoseCamera
           pose={camera.pose}

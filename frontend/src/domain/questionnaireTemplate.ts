@@ -109,14 +109,23 @@ export interface Pose {
   label: string
 }
 
+/** The mandatory poses of bodybuilding (IFBB), in the order they are shown on stage. */
+export const BODYBUILDING_POSES: readonly Pose[] = Object.freeze([
+  { key: 'front_double_biceps', label: 'Duplo bíceps de frente' },
+  { key: 'front_lat_spread', label: 'Expansão dorsal de frente' },
+  { key: 'side_chest', label: 'Peitoral de lado' },
+  { key: 'back_double_biceps', label: 'Duplo bíceps de costas' },
+  { key: 'back_lat_spread', label: 'Expansão dorsal de costas' },
+  { key: 'side_triceps', label: 'Tríceps de lado' },
+  { key: 'abs_thighs', label: 'Abdômen e coxa' },
+])
+
 /** The poses used when the template brings none. */
-export const DEFAULT_POSES: readonly Pose[] = [
-  { key: 'front', label: 'Frente' },
-  { key: 'back', label: 'Costas' },
-  { key: 'right_side', label: 'Lado direito' },
-  { key: 'left_side', label: 'Lado esquerdo' },
-  { key: 'abs', label: 'Abdômen' },
-]
+export const DEFAULT_POSES: readonly Pose[] = BODYBUILDING_POSES
+
+/** Whether `poses` are exactly the bodybuilding poses (same keys, labels and order). */
+export const usesBodybuildingPoses = (poses: readonly Pose[]): boolean =>
+  poses.length === BODYBUILDING_POSES.length && poses.every((p, i) => p.key === BODYBUILDING_POSES[i]!.key && p.label === BODYBUILDING_POSES[i]!.label)
 
 export function posesOf(t: QuestionnaireTemplate | null): Pose[] {
   return t && t.poses.length > 0 ? t.poses.map((p) => ({ ...p })) : DEFAULT_POSES.map((p) => ({ ...p }))

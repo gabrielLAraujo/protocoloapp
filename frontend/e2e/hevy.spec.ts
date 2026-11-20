@@ -2,7 +2,7 @@ import { expect, test, type Page, type Response } from '@playwright/test'
 import { login } from './support/auth.ts'
 
 // Runs after the `chromium` project (playwright.config.ts, project `today`): workout.spec.ts activated the fictitious sheet
-// today (day A, "Treino A - Exemplo", is today's) and logged an app session for it. CI points the API at the Hevy stand-in
+// today (day A, "Treino A - Exemplo", is today's); nothing has logged a session (the app only looks workouts up). CI points the API at the Hevy stand-in
 // (e2e/fixtures/hevy-stub.mjs, Hevy__BaseUrl) with a test-only Integrations__EncryptionKey and the scheduler off
 // (Hevy__Enabled=false), so only "Sincronizar agora" reaches it. The stub serves one fictitious workout dated today, titled
 // like day A, with one exercise of the sheet and one new. Assumes the fresh database CI starts per run.
@@ -58,13 +58,28 @@ test('connects Hevy, imports a workout, sees it in the history and on Hoje, then
   // The exercise the sheet does not have waits for confirmation.
   await expect(main.getByRole('link', { name: 'Exercícios do Hevy para confirmar (1)', exact: true })).toBeVisible()
 
-  // Histórico: the imported session carries the "Hevy" chip; the app session workout.spec.ts logged today is the same day.
+  // Treino: the history has the imported session only (no app session, so no duplicate), with the exact "Hevy" chip; its
+  // sets feed the load chart of the sheet's exercise.
   await nav(page, 'Treino').click()
-  await page.getByRole('link', { name: 'Histórico de treinos' }).click()
-  await expect(page.getByRole('heading', { name: 'Histórico de treinos' })).toBeVisible()
-  const sessions = page.getByRole('region', { name: 'Sessões' })
-  await expect(sessions.getByText('Hevy', { exact: true })).toBeVisible()
-  await expect(sessions.getByText('Treino registrado no app e no Hevy', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Treino', exact: true })).toBeVisible()
+  const history = page.getByRole('region', { name: 'Histórico', exact: true })
+  const rows = history.getByRole('link')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.getByText('Hevy', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Evolução de carga', exact: true }).getByRole('link', { name: /^Exercicio Ficticio Alfa/ })).toBeVisible()
+
+  // Opening it shows the read-only view: the Hevy chip, its sets (the warm-up marked) and "Excluir do app", nothing to edit.
+  await rows.click()
+  await expect(page).toHaveURL(/\/treino\/[^/]+$/)
+  await expect(page.getByRole('heading', { level: 1, name: new RegExp(`^${DAY}`) })).toBeVisible()
+  await expect(main.getByText('Hevy', { exact: true })).toBeVisible()
+  await expect(main.getByText('Registrado no Hevy. Para corrigir, edite no Hevy.', { exact: true })).toBeVisible()
+  const alfa = main.getByRole('region', { name: 'Exercicio Ficticio Alfa', exact: true })
+  await expect(alfa.getByText('20 kg × 12 (aquecimento)', { exact: true })).toBeVisible()
+  await expect(alfa.getByText('50 kg × 10', { exact: true })).toBeVisible()
+  await expect(alfa.getByText('52,5 kg × 8', { exact: true })).toBeVisible()
+  await expect(main.getByRole('button', { name: 'Excluir do app', exact: true })).toBeVisible()
+  await expect(main.getByRole('textbox')).toHaveCount(0)
 
   // Hoje: the workout of the day is done.
   await nav(page, 'Hoje').click()

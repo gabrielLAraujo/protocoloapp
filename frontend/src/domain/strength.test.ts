@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ExerciseLocal } from '../data/exerciseRepo'
 import type { SessionLocal, SetLocal } from '../data/workoutRepo'
-import { bestSet, e1rm, sessionPRs, strengthByGroup } from './strength'
+import { bestSet, e1rm, strengthByGroup } from './strength'
 
 let n = 0
 const set = (sessionId: string, exerciseId: string, weightKg: number, reps: number, kind: SetLocal['kind'] = 'normal'): SetLocal => ({
@@ -31,36 +31,11 @@ describe('bestSet', () => {
     expect(bestSet([set('s', 'x', 50, 5, 'warmup')])).toBeNull()
     expect(bestSet([])).toBeNull()
   })
-})
 
-describe('sessionPRs', () => {
-  const history = [set('h', 'x', 100, 5), set('h', 'x', 80, 10)]
-
-  it('drops and rest-pauses (sub-sets) never make a record or the best set', () => {
+  it('drops and rest-pauses (sub-sets) are never the best set', () => {
     const parent = set('c', 'x', 90, 5)
     const sub = { ...set('c', 'x', 120, 12, 'rest_pause'), parentSetId: parent.id }
-    expect(sessionPRs([parent, sub], history)).toEqual([])
     expect(bestSet([parent, sub])).toBe(parent)
-    // Nor in the history it is compared with.
-    expect(sessionPRs([set('c', 'x', 105, 5)], [...history, { ...set('h', 'x', 150, 5, 'drop'), parentSetId: 'p' }])).toHaveLength(2)
-  })
-
-  it('flags max weight and max e1RM', () => {
-    const cur = [set('c', 'x', 110, 3)]
-    const prs = sessionPRs(cur, history)
-    expect(prs.map((p) => p.kind).sort()).toEqual(['maxE1rm', 'maxWeight'].sort())
-    expect(prs.find((p) => p.kind === 'maxWeight')).toMatchObject({ exerciseId: 'x', value: 110, previous: 100 })
-  })
-
-  it('flags only e1RM when weight is not higher', () => {
-    const prs = sessionPRs([set('c', 'x', 90, 12)], history)
-    expect(prs.map((p) => p.kind)).toEqual(['maxE1rm'])
-  })
-
-  it('ignores warm-ups, no history and non-records', () => {
-    expect(sessionPRs([set('c', 'x', 300, 1, 'warmup')], history)).toEqual([])
-    expect(sessionPRs([set('c', 'new', 50, 10)], history)).toEqual([])
-    expect(sessionPRs([set('c', 'x', 70, 8)], history)).toEqual([])
   })
 })
 
@@ -102,12 +77,7 @@ describe('strengthByGroup', () => {
   })
 })
 
-describe('sessionPRs edge cases', () => {
-  const history = [set('h', 'x', 100, 5)]
-  it('skips 0-rep sets and ties within epsilon', () => {
-    expect(sessionPRs([set('c', 'x', 500, 0)], history)).toEqual([])
-    expect(sessionPRs([set('c', 'x', 100.005, 5)], history)).toEqual([])
-  })
+describe('strengthByGroup edge cases', () => {
   it('worst only holds negative deltas', () => {
     const ex = ['a', 'b', 'c'].map((id) => exercise(id, id, 'back'))
     const ss = [session('s1', '2026-10-20'), session('s2', '2026-10-27')]

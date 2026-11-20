@@ -6,7 +6,7 @@ import { addDays, isCalendarDate } from '../../domain/calendarDate'
 import { useSync } from '../sync/syncContext'
 import { useToday } from '../workout/useToday'
 
-/** The query parameter that picks another day (`?dia=yyyy-MM-dd`) on Hoje, the check-ins and /treino. */
+/** The query parameter that picks another day (`?dia=yyyy-MM-dd`) on Hoje and the check-ins. */
 export const DAY_PARAM = 'dia'
 
 /** How far back a day can be fixed when no update cycle is in progress. */

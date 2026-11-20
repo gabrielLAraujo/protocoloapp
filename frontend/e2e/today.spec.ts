@@ -7,6 +7,8 @@ import { login } from './support/auth.ts'
 // counts today's targets that are marked even before their time, so marking the meal makes Dieta > 0%. The protocol's
 // cycle starts yesterday (workout.spec.ts), so Hoje can go back one day.
 const MEAL = 'Refeicao 1'
+// Day A of the sheet workout.spec.ts activated today: today's workout.
+const DAY = 'Treino A - Exemplo'
 
 const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
 
@@ -90,7 +92,7 @@ function saoPauloDay(offset: number): { iso: string; short: string } {
   return { iso, short: `${d}/${m}` }
 }
 
-test("fixes yesterday: marks yesterday's meal and logs a workout for yesterday", async ({ page }) => {
+test("fixes yesterday's meal; today's workout row only links to the Treino tab", async ({ page }) => {
   const yesterday = saoPauloDay(-1)
 
   await login(page)
@@ -113,25 +115,14 @@ test("fixes yesterday: marks yesterday's meal and logs a workout for yesterday",
   await expect(page).toHaveURL(/\/hoje$/)
   await expect(page.getByRole('heading', { name: 'Hoje' })).toBeVisible()
 
-  // Treino: a workout forgotten yesterday, logged without the rest timer and saved finished on that day.
-  await nav(page, 'Treino').click()
-  await page.getByRole('button', { name: 'Registrar treino de outro dia' }).click()
-  const form = page.getByRole('region', { name: 'Registrar treino de outro dia' })
-  await expect(form.getByLabel('Data do treino')).toHaveValue(yesterday.iso)
-  await form.getByRole('button', { name: /Treino A - Exemplo/ }).click()
-  await expect(page.getByText(`Registro do treino de ${yesterday.short}`)).toBeVisible()
-  const card = page.getByRole('region', { name: 'Exercicio Ficticio Alfa' })
-  await card.getByLabel('Carga da série 1 (kg)').fill('55')
-  await card.getByLabel('Repetições da série 1').fill('10')
-  await card.getByRole('button', { name: 'Concluir série 1' }).click()
-  await expect(card.getByRole('button', { name: 'Editar série 1' })).toBeVisible()
-  await expect(page.getByText(/^Descanso \d/)).toHaveCount(0)
-  await page.getByRole('button', { name: 'Salvar treino' }).click()
-  await expect(page.getByText(`Treino de ${yesterday.short} salvo`)).toBeVisible()
-  await expectSynced(page)
-
-  // Histórico lists it on yesterday's date.
-  await page.getByRole('link', { name: 'Histórico de treinos' }).click()
-  const [y, m, d] = yesterday.iso.split('-')
-  await expect(page.getByRole('region', { name: 'Sessões' }).getByText(`${d}/${m}/${y}`)).toBeVisible()
+  // The workout is not marked by hand (its status comes from the sessions synced from Hevy): the row is a link to the
+  // Treino tab, which only looks things up. (hevy.spec.ts, earlier in this project, already made it "Feito".)
+  const items = page.getByRole('list', { name: 'Itens de hoje' })
+  const workout = items.getByRole('link', { name: DAY, exact: true })
+  await expect(workout).toBeVisible()
+  await expect(items.getByRole('group', { name: `Marcar ${DAY}` })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Registrar treino de outro dia' })).toHaveCount(0)
+  await workout.click()
+  await expect(page).toHaveURL(/\/treino$/)
+  await expect(page.getByText(`Previsto hoje: ${DAY}`, { exact: true })).toBeVisible()
 })

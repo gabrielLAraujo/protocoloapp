@@ -81,9 +81,18 @@ export async function seedPastSession(db: LocalDb, date: string, exerciseId: str
 
 /**
  * A finished session imported from Hevy (as the pull writes it), day `a` of PLAN, with the given sets of one exercise:
- * [weight, reps, rpe?][]; the sets are `${id}-0`, `${id}-1`…
+ * [weight, reps, rpe?][]; the sets are `${id}-0`, `${id}-1`… (planned exercise `e1`). `notes`: the workout's note and the
+ * per-exercise notes (planned exercise key -> text).
  */
-export async function seedHevySession(db: LocalDb, id: string, date: string, exerciseId: string, sets: [number, number, number?][], title = 'Treino de exemplo') {
+export async function seedHevySession(
+  db: LocalDb,
+  id: string,
+  date: string,
+  exerciseId: string,
+  sets: [number, number, number?][],
+  title = 'Treino de exemplo',
+  notes: { note?: string; exerciseNotes?: Record<string, string> } = {},
+) {
   const start = `${date}T12:00:00.000Z`
   await workoutSessionSync.applyRemote(
     db,
@@ -93,7 +102,8 @@ export async function seedHevySession(db: LocalDb, id: string, date: string, exe
       workout_day_key: 'a',
       started_at: start,
       ended_at: `${date}T13:00:00.000Z`,
-      note: null,
+      note: notes.note ?? null,
+      notes: notes.exerciseNotes ?? null,
       source: 'hevy',
       external_title: title,
     }),

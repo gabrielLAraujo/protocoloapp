@@ -64,6 +64,13 @@ describe('downloadCyclePhotos', () => {
     for (const c of calls.filter((c) => c.path.startsWith('/get/'))) expect(c.headers.get('authorization')).toBeNull()
   })
 
+  it('a photo of a pose outside the list still goes in the zip, after the listed ones, named by its key', async () => {
+    mockFetch(routes())
+    const files = await unzip(await downloadCyclePhotos(cycle(), newTestApi(), [{ key: 'front_double_biceps' }, { key: 'back' }]))
+    expect(Object.keys(files)).toEqual(['01-back.jpg', '02-front.jpg'])
+    expect([...files['02-front.jpg']!]).toEqual([...bytes(1)])
+  })
+
   it('without poses keeps the cycle order', async () => {
     mockFetch(routes())
     const files = await unzip(await downloadCyclePhotos(cycle(), newTestApi()))

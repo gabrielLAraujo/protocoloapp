@@ -71,9 +71,9 @@ export function ExerciseHistoryPage() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-1">
-        <Link to="/treino/historico" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
+        <Link to="/treino" className={buttonClasses({ variant: 'ghost', size: 'sm', className: '-ml-3 w-fit' })}>
           <Icon name="chevronLeft" size={18} />
-          Voltar para o histórico
+          Voltar para o treino
         </Link>
         <h1 className="text-xl font-bold">{exercise?.name ?? 'Exercício'}</h1>
         {exercise && <ExerciseMedia catalogId={exercise.catalogId} name={exercise.name} size="card" />}
