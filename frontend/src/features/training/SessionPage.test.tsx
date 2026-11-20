@@ -78,6 +78,19 @@ describe('SessionPage', () => {
     expect((await adherenceRepo.between(db, '2026-10-12', '2026-10-12')).filter((l) => l.targetType === 'workout' && l.status === 'done')).toEqual([])
   })
 
+  it('shows a Hevy session read-only, with its sets and RPE', async () => {
+    await open((db) => seedHevySession(db, HEVY, '2026-10-12', BENCH, [[82.5, 8, 8.5], [82.5, 7]]))
+
+    expect(await screen.findByText('Registrado no Hevy. Para corrigir, edite no Hevy.')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    const rows = within(screen.getByRole('region', { name: 'Supino reto' })).getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('82,5 kg × 8')
+    expect(rows[0]).toHaveTextContent('RPE 8,5')
+    expect(rows[1]).toHaveTextContent('82,5 kg × 7')
+    expect(rows[1]).not.toHaveTextContent('RPE')
+  })
+
   it('an unknown session says so, with a link back to /treino', async () => {
     await open(async () => '7d1f2a10-0000-5000-8000-00000000dead')
     expect(await screen.findByText('Treino não encontrado.')).toBeInTheDocument()

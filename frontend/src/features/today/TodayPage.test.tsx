@@ -10,11 +10,12 @@ import type { LocalDb } from '../../data/localDb'
 import { planVersionSync } from '../../data/planRepo'
 import { scheduleRepo } from '../../data/scheduleRepo'
 import { updateCycleSync } from '../../data/updateCycleRepo'
+import { workoutRepo } from '../../data/workoutRepo'
 import { routes } from '../../routes'
 import { mockFetch } from '../../test/fetch-mock'
 import { USER_A } from '../../test/localDb'
 import { setupApp } from '../testSupport'
-import { BENCH, seedExercises, seedPastSession, seedPlan } from '../workout/testData'
+import { BENCH, PLAN, SQUAT, seedExercises, seedHevySession, seedPastSession, seedPlan } from '../workout/testData'
 import { GROUP_LABEL } from '../../ui/styles'
 import { TodayPage } from './TodayPage'
 
@@ -357,6 +358,24 @@ describe('TodayPage', () => {
     expect(row('Check-in da noite').getByText('Feito')).toBeInTheDocument()
   })
 
+  it('a session never finished with a working set marks the workout done (same rule as the Treino tab), and the row opens /treino', async () => {
+    await render(['a', 'b'], async (db) => {
+      const sessionId = await workoutRepo.startSession(db, USER_A, { date: TODAY, planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 20, 9, 0))
+      await workoutRepo.logSet(db, USER_A, { sessionId, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 60, reps: 10, kind: 'normal' }, new Date(2026, 9, 20, 9, 5))
+    })
+    expect(row('Treino A').getByText('Feito')).toBeInTheDocument()
+    expect(row('Treino A').getByRole('link', { name: 'Treino A' })).toHaveAttribute('href', '/treino')
+  })
+
+  it('a session with only warm-up sets does not mark the workout done', async () => {
+    await render(['a', 'b'], async (db) => {
+      const sessionId = await workoutRepo.startSession(db, USER_A, { date: TODAY, planVersionId: PLAN, dayKey: 'a' }, new Date(2026, 9, 20, 9, 0))
+      await workoutRepo.logSet(db, USER_A, { sessionId, exerciseId: BENCH, plannedExerciseKey: 'e1', setIndex: 0, weightKg: 20, reps: 10, kind: 'warmup' }, new Date(2026, 9, 20, 9, 5))
+      await workoutRepo.finishSession(db, USER_A, sessionId, new Date(2026, 9, 20, 10, 0))
+    })
+    expect(row('Treino A').queryByText('Feito')).not.toBeInTheDocument()
+  })
+
   it('a check-in mark from before the split (key checkin) shows the evening part done, not the morning one', async () => {
     const app = await setupApp()
     await seedProtocol(app.db)
@@ -586,10 +605,17 @@ describe('TodayPage on another day', () => {
     expect(await today(db)).toEqual([])
   })
 
-  it('the check-in and workout rows of a past day open that day', async () => {
+  it('the check-in rows of a past day open that day; the workout row opens the Treino tab (consultation only)', async () => {
     await renderAt(`/hoje?dia=${YESTERDAY}`)
     expect(screen.getByRole('link', { name: 'Check-in da manhã' })).toHaveAttribute('href', `/checkin/manha?dia=${YESTERDAY}`)
     expect(screen.getByRole('link', { name: 'Check-in da noite' })).toHaveAttribute('href', `/checkin/noite?dia=${YESTERDAY}`)
+    expect(screen.getByRole('link', { name: 'Treino B' })).toHaveAttribute('href', '/treino')
+  })
+
+  it('a past day with a Hevy session shows the workout done, linking to /treino', async () => {
+    await renderAt(`/hoje?dia=${YESTERDAY}`, (db) => seedHevySession(db, '7d1f2a10-0000-5000-8000-0000000000f9', YESTERDAY, SQUAT, [[100, 6]]))
+    expect(row('Treino B').getByText('Feito')).toBeInTheDocument()
+    expect(row('Treino B').getByRole('link', { name: 'Treino B' })).toHaveAttribute('href', '/treino')
   })
 
   it('water and an extra meal are saved on the past day', async () => {

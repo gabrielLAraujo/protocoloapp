@@ -22,14 +22,6 @@ export function bestSet(sets: SetLog[]): SetLog | null {
   return best
 }
 
-export interface PR {
-  exerciseId: string
-  kind: 'maxWeight' | 'maxE1rm'
-  value: number
-  previous: number
-  setId: string
-}
-
 function byExercise(sets: SetLog[]): Map<string, SetLog[]> {
   const map = new Map<string, SetLog[]>()
   for (const s of sets) {
@@ -39,30 +31,6 @@ function byExercise(sets: SetLog[]): Map<string, SetLog[]> {
     map.set(s.exerciseId, list)
   }
   return map
-}
-
-const EPSILON = 0.01
-
-/**
- * `history` must NOT contain the current session's sets (filter by session before calling).
- * Records set in the current session versus the history: per exercise, a heavier set (`maxWeight`) and a higher e1RM
- * (`maxE1rm`). An exercise with no history has nothing to beat, so it yields no PR. Warm-ups and sets with 0 reps never count; a record must beat the old value by more than 0.01.
- */
-export function sessionPRs(current: SetLog[], history: SetLog[]): PR[] {
-  const counts = (s: SetLog) => s.reps > 0
-  const past = byExercise(history.filter(counts))
-  const prs: PR[] = []
-  for (const [exerciseId, sets] of byExercise(current.filter(counts))) {
-    const before = past.get(exerciseId)
-    if (!before) continue
-    const prevWeight = Math.max(...before.map((s) => s.weightKg))
-    const prevE1rm = Math.max(...before.map(setE1rm))
-    const heaviest = sets.reduce((a, b) => (b.weightKg > a.weightKg ? b : a))
-    if (heaviest.weightKg > prevWeight + EPSILON) prs.push({ exerciseId, kind: 'maxWeight', value: heaviest.weightKg, previous: prevWeight, setId: heaviest.id })
-    const top = bestSet(sets)
-    if (top && setE1rm(top) > prevE1rm + EPSILON) prs.push({ exerciseId, kind: 'maxE1rm', value: setE1rm(top), previous: prevE1rm, setId: top.id })
-  }
-  return prs
 }
 
 export interface Trend {

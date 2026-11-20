@@ -5,50 +5,11 @@ import type { LocalDb } from './localDb'
 import { workoutRepo } from './workoutRepo'
 
 /**
- * Writes that keep `adherence_log` in step with the screens that already record the same fact (a finished workout, each
- * part of the check-in, cardio on the check-in). The server skips a reminder only when an adherence log exists for the target and
+ * Writes that keep `adherence_log` in step with the screens that already record the same fact (a workout deleted from
+ * the app, each part of the check-in, cardio on the check-in). The server skips a reminder only when an adherence log exists for the target and
  * day, so these marks are what silence the "Hora do treino" / "Check-in da manhã" / "Check-in da noite" / "Hora do
  * cardio" pushes. Each runs in one transaction: the row, the mark and their outbox entries are committed together or not at all.
  */
-
-/**
- * Ends the session at `endedAt` and, when it has at least one working (non-warm-up) set, marks the workout of its day
- * done. An empty session is not a workout done (same rule as /treino and the summary).
- */
-export async function finishSessionAndMark(db: LocalDb, userId: string, sessionId: string, endedAt: Date, now: Date): Promise<void> {
-  await db.transaction(async (tx) => {
-    await workoutRepo.finishSession(tx, userId, sessionId, endedAt)
-    const [session] = await tx.query<{ date: string }>('SELECT date FROM workout_sessions WHERE id = ? AND deleted_at IS NULL', [sessionId])
-    const [count] = await tx.query<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM set_logs WHERE session_id = ? AND deleted_at IS NULL AND kind <> 'warmup'",
-      [sessionId],
-    )
-    if (!session || Number(count?.n ?? 0) === 0) return
-    await adherenceRepo.mark(tx, userId, { date: session.date, targetType: 'workout', targetKey: WORKOUT_KEY, status: 'done' }, now)
-  })
-}
-
-/**
- * "Salvar treino" of a workout logged afterwards or corrected from the history: ends an open session at its last set
- * (or its start without sets), then keeps the day's workout mark in step with the sets. With a working set the workout of
- * its date is done; without one, a "done" mark is cleared unless another finished session of that date has working sets.
- */
-export async function saveLoggedSession(db: LocalDb, userId: string, sessionId: string, now: Date): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [session] = await tx.query<{ date: string; started_at: string; ended_at: string | null }>(
-      'SELECT date, started_at, ended_at FROM workout_sessions WHERE id = ? AND deleted_at IS NULL',
-      [sessionId],
-    )
-    if (!session) throw new Error('Session not found.')
-    if (session.ended_at === null) {
-      const [last] = await tx.query<{ at: string | null }>('SELECT MAX(completed_at) AS at FROM set_logs WHERE session_id = ? AND deleted_at IS NULL', [
-        sessionId,
-      ])
-      await workoutRepo.finishSession(tx, userId, sessionId, new Date(last?.at ?? session.started_at))
-    }
-    await markWorkoutOf(tx, userId, session.date, now)
-  })
-}
 
 /** With a working set in a finished session of `date` its workout is done; without one, a "done" mark is cleared. */
 async function markWorkoutOf(tx: LocalDb, userId: string, date: string, now: Date): Promise<void> {
@@ -62,7 +23,7 @@ async function markWorkoutOf(tx: LocalDb, userId: string, date: string, now: Dat
 }
 
 /**
- * Deletes a session from the app with its sets and exercise changes ("Excluir do app", "Manter só um"): each set goes
+ * Deletes a session from the app with its sets and exercise changes ("Excluir do app"): each set goes
  * through the normal set delete (its sub-sets first), each live change through the normal change undo, then the session,
  * all queued in the outbox; then the day's workout mark follows what is
  * left on that date. No-op when the session is already gone.

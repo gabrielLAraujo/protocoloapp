@@ -185,21 +185,6 @@ const PATHS = {
       <path d="m9 12.5-3.5 3.5L9 19.5" />
     </>
   ),
-  skip: (
-    <>
-      <path d="m5 6 8 6-8 6z" />
-      <path d="M18 6v12" />
-    </>
-  ),
-  trophy: (
-    <>
-      <path d="M7.5 4h9v5a4.5 4.5 0 0 1-9 0z" />
-      <path d="M7.5 6H4.5v1.5A3 3 0 0 0 7.6 10.5" />
-      <path d="M16.5 6h3v1.5a3 3 0 0 1-3.1 3" />
-      <path d="M12 13.5V17" />
-      <path d="M8.5 20.5h7l-.8-3.5H9.3z" />
-    </>
-  ),
   scale: (
     <>
       <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
