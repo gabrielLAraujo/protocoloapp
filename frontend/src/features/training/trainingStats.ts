@@ -19,6 +19,8 @@ export interface TrainingStatsInput {
 export interface WeekBar {
   /** Monday of the week (yyyy-MM-dd). */
   weekStart: string
+  /** First day of the week inside the period (yyyy-MM-dd): the Monday, or the period's first day when it starts mid-week. */
+  from: string
   /** Days of the week (inside the period) with a workout done. */
   done: number
   /** Days of the week (inside the period) the rotation asks for a workout. */
@@ -49,9 +51,10 @@ const DAYS_SINCE_MONDAY: Record<Weekday, number> = { mon: 0, tue: 1, wed: 2, thu
 const mondayOf = (date: string): string => addDays(date, -DAYS_SINCE_MONDAY[weekdayOf(date)])
 
 /**
- * The period of the stats: the cycle of the active protocol (from its activation up to today, or up to the update date
- * once it has passed), as the summary; without a protocol, the last 8 weeks (from Monday) up to today.
- * `calendarTo` is the last day of the calendar (the whole cycle, future days included).
+ * The period of the stats: the cycle of the active protocol, from its activation up to today; past the update date (the
+ * new protocol has not arrived yet) it goes on up to today, planned by the same plan. Without a protocol, the last 8
+ * weeks (from Monday) up to today. `calendarTo` is the last day of the calendar (the whole cycle, future days included,
+ * or today once the update date has passed).
  */
 export function trainingPeriod(protocol: TrainingStatsInput['protocol'], today: string): { from: string; statsTo: string; calendarTo: string } {
   if (!protocol) {
@@ -63,8 +66,9 @@ export function trainingPeriod(protocol: TrainingStatsInput['protocol'], today: 
     today,
   )
   const from = cycle.start
-  const statsTo = cycle.end && cycle.end < today ? cycle.end : today
-  const calendarTo = cycle.end ?? (today > from ? today : from)
+  const statsTo = today
+  const end = cycle.end ?? today
+  const calendarTo = [end, today, from].reduce((a, b) => (b > a ? b : a))
   return { from, statsTo, calendarTo }
 }
 
@@ -77,7 +81,7 @@ function weekBars(from: string, to: string, doneDates: ReadonlySet<string>, inpu
     const planned = plannedWorkoutDays(first, last, input.plans, input.overrides).length
     let done = 0
     for (const d of doneDates) if (d >= first && d <= last) done++
-    weeks.push({ weekStart, done, planned })
+    weeks.push({ weekStart, from: first, done, planned })
   }
   return weeks
 }
