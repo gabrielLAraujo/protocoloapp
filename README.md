@@ -224,11 +224,11 @@ Rotas úteis: `GET /health` (liveness, só o Postgres), `GET /health/ready` (inc
 - **Backend:** build, testes (Testcontainers), checagem das migrations e do `openapi.json`.
 - **Frontend:** lint, testes e build.
 - **Docker image:** o mesmo build que o Coolify faz.
-- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores: importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`,
-  lidos no navegador pelo leitor local), a aba Treino com "Previsto hoje" e a troca do dia, e o Resumo; um PDF sem texto e o botão "Ler com IA"; depois, uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do
-  Resumo; em seguida (projeto `today`, com o protocolo já ativo), o check-in em partes salvo offline (Manhã, depois Noite) que
-  sincroniza com um segundo navegador, sobe o anel do dia e conta 1 check-in completo no Resumo. Esse teste pressupõe o
-  banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje. No mesmo projeto, a conexão com o Hevy (chave de teste), "Sincronizar agora" com 1 treino fictício importado, o selo "Hevy" no histórico da aba Treino e a leitura do treino, o treino feito em Hoje e "Remover". Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Três stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs`, `storage-stub.mjs` e `hevy-stub.mjs`)
+- **E2E smoke:** Playwright com a API real publicada, Postgres 18 e dois navegadores. Primeiro (projeto `chromium`): o app aberto offline com o check-in da Noite salvo (`offline.spec.ts`);
+  a importação de um protocolo e de uma ficha (PDFs fictícios gerados em memória por `frontend/e2e/fixtures/make-pdfs.mjs`, lidos no navegador pelo leitor local), a aba Treino só de consulta com "Previsto hoje" e a troca do dia (e a volta), e o Resumo; um PDF sem texto e o botão "Ler com IA".
+  Em seguida (projeto `today`, com o protocolo e a ficha já ativos): a conexão com o Hevy (chave de teste), "Sincronizar agora" com 1 treino fictício importado, o selo "Hevy" no histórico da aba Treino (sem duplicado) e a leitura do treino, o treino feito em Hoje e "Remover";
+  o check-in em partes salvo offline (Manhã, depois Noite) que sincroniza com um segundo navegador, sobe o anel do dia e conta 1 check-in completo no Resumo (pressupõe o banco novo de cada run e que `offline.spec.ts` salvou só a Noite de hoje);
+  uma refeição marcada offline em Hoje que sincroniza e aparece na Dieta do Resumo, a refeição de ontem e a linha do treino em Hoje, que só leva à aba Treino; e o ciclo da Atualização. Por último, capturas das telas principais (claro e escuro, 390×844) no artifact `screenshots`. Três stubs em Node (`frontend/e2e/fixtures/anthropic-stub.mjs`, `storage-stub.mjs` e `hevy-stub.mjs`)
   fazem o papel da API da Anthropic, do bucket R2 e da API do Hevy (`Anthropic__BaseUrl`, `R2__ServiceUrl`, `Hevy__BaseUrl`, com `Integrations__EncryptionKey` de teste e o agendador do Hevy desligado); nada de rede externa.
 - **Android APK:** APK de debug como artifact; na `main`, o job **Android release** publica o APK assinado numa GitHub Release.
 

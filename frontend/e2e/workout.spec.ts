@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { expect, test, type BrowserContext, type Page, type Response } from '@playwright/test'
+import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 // @ts-expect-error plain JS fixture builder, no types
 import { protocolPdf, scannedPdf, workoutPdf } from './fixtures/make-pdfs.mjs'
 import { login } from './support/auth.ts'
@@ -32,8 +32,6 @@ function saoPauloDate(offset: number): string {
 }
 
 const pdfFile = (name: string, buffer: Buffer) => ({ name, mimeType: 'application/pdf', buffer })
-
-const isPush = (response: Response) => response.url().includes('/api/sync/push') && response.request().method() === 'POST'
 
 /** Waits for the header to say "Sincronizado" with nothing pending (the label only shows after a complete, successful run). */
 async function expectSynced(page: Page) {
@@ -76,9 +74,10 @@ async function activate(page: Page, title: 'Protocolo' | 'Treino') {
   await expect(page.getByRole('region', { name: title }).getByText(/^Ativo desde/)).toBeVisible()
 }
 
-// Assumes a fresh database (CI starts one per run): the summary expects exactly one finished workout today. The browser
-// timezone (America/Sao_Paulo, playwright.config.ts) matches the stub's "today" (UTC-3), so midnight cannot split them.
-test('imports a workout plan, logs a session offline and sees it in the summary', async ({ browser }) => {
+// Assumes a fresh database (CI starts one per run): no session exists yet (workouts are logged in Hevy; hevy.spec.ts imports
+// one later). The other projects depend on what this test leaves: the protocol active with its cycle from yesterday and
+// the sheet active today with day A ("Treino A - Exemplo") as today's workout.
+test('imports the protocol and a workout plan, sees today on the Treino tab, swaps the day and back', async ({ browser }) => {
   const context = await browser.newContext()
   await stubGif(context)
   const page = await context.newPage()
@@ -120,6 +119,10 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   await expect(page.getByText('Supino reto').first()).toBeVisible()
   // The draft kept the dictionary's catalog link (the server has the item), so activation gives the exercise its media.
   await expect(page.getByText('Par: barbell bench press')).toBeVisible()
+  // ...and its demonstration (the GIF comes from ExerciseDB's site; here, the stub).
+  const pair = page.getByRole('listitem').filter({ hasText: 'Par: barbell bench press' })
+  await expect(pair.getByRole('button', { name: 'Ampliar demonstração de Supino reto' })).toBeVisible()
+  await expect(pair.locator(`img[src="${GIF_URL}"]`)).toHaveCount(1)
   await stepToActivate(page)
   await activate(page, 'Treino')
 
@@ -127,74 +130,43 @@ test('imports a workout plan, logs a session offline and sees it in the summary'
   const after = (await (await page.request.get(`${ANTHROPIC_STUB}/__requests`)).json()) as StubRequest[]
   expect(after.length).toBe(before.length)
 
-  // The rotation is anchored on the activation date, so day A is today whatever the weekday.
+  // The rotation is anchored on the activation date, so day A is today whatever the weekday. The Treino tab only looks
+  // things up: today's planned day with its swap, the charts and the history (empty: nothing was logged yet).
+  await expectSynced(page)
   await nav(page, 'Treino').click()
-  await expect(page.getByRole('heading', { name: 'Treino A - Exemplo' })).toBeVisible()
-  const planned = page.getByRole('list', { name: 'Exercícios do dia' })
-  await expect(planned.getByText('Exercicio Ficticio Alfa')).toBeVisible()
-  await expect(planned.getByText('Exercicio Ficticio Gama')).toBeVisible()
-  await expect(planned.getByText('Supino reto')).toBeVisible()
-  // The activation sync brought the new exercises to the device before the session starts.
+  await expect(page).toHaveURL(/\/treino$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Treino', exact: true })).toBeVisible()
+  await expect(page.getByText('Previsto hoje: Treino A - Exemplo', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Começar treino' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { level: 2, name: 'Treinos por semana' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Treinos por semana' }).getByText(/^Semana de \d{2}\/\d{2}: 0 de [1-9]\d*$/)).toHaveCount(1)
+  await expect(page.getByRole('table', { name: 'Calendário do ciclo' }).locator('[aria-label*="hoje, treino previsto"]')).toBeVisible()
+  await expect(page.getByText('Sem cargas registradas no período.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Histórico', exact: true }).getByText('Nenhum treino registrado ainda.')).toBeVisible()
+
+  // "Trocar": today's swap to day B is saved (and synced); then back to day A, which the other projects expect today.
+  await page.getByRole('button', { name: 'Trocar', exact: true }).click()
+  const swap = page.getByRole('region', { name: 'Trocar o treino de hoje' })
+  await expect(swap.getByRole('button', { name: 'Descanso', exact: true })).toBeVisible()
+  await swap.getByRole('button', { name: /^Treino B - Exemplo/ }).click()
+  await expect(swap).toHaveCount(0)
+  await expect(page.getByText('Previsto hoje: Treino B - Exemplo', { exact: true })).toBeVisible()
   await expectSynced(page)
-  await page.getByRole('button', { name: 'Começar treino' }).click()
-
-  const card = page.getByRole('region', { name: 'Exercicio Ficticio Alfa' })
-  await expect(card.getByLabel('Carga da série 1 (kg)')).toBeVisible()
-
-  // The catalog pair shows as a demonstration box in the card (the GIF comes from ExerciseDB's site; here, the stub).
-  const supino = page.getByRole('region', { name: 'Supino reto' })
-  await expect(supino.getByRole('button', { name: 'Ampliar demonstração de Supino reto' })).toBeVisible()
-  await expect(supino.locator(`img[src="${GIF_URL}"]`)).toHaveCount(1)
-  await expect(supino.getByRole('button', { name: 'Drop', exact: true })).toBeVisible()
-
-  // A set with a drop: ticking the main set opens the "Drop 1" row with the suggested load (-20 %), ticking it saves it.
-  await supino.getByLabel('Carga da série 1 (kg)').fill('50')
-  await supino.getByLabel('Repetições da série 1').fill('12')
-  await supino.getByRole('button', { name: 'Concluir série 1' }).click()
-  await expect(supino.getByRole('button', { name: 'Editar série 1' })).toBeVisible()
-  await expect(supino.getByLabel('Carga do drop 1 da série 1 (kg)')).toHaveCount(0)
-  await supino.getByLabel('Carga da série 2 (kg)').fill('60')
-  await supino.getByLabel('Repetições da série 2').fill('8')
-  await supino.getByRole('button', { name: 'Concluir série 2' }).click()
-  await expect(supino.getByRole('button', { name: 'Editar série 2' })).toBeVisible()
-  await expect(supino.getByLabel('Carga do drop 1 da série 2 (kg)')).toHaveValue('48')
-  await supino.getByLabel('Repetições do drop 1 da série 2').fill('10')
-  await supino.getByRole('button', { name: 'Concluir drop 1 da série 2' }).click()
-  await expect(supino.getByRole('button', { name: 'Editar drop 1 da série 2' })).toBeVisible()
-
-  // Offline: two sets are saved on the device only.
-  await context.setOffline(true)
-  await card.getByLabel('Carga da série 1 (kg)').fill('60')
-  await card.getByLabel('Repetições da série 1').fill('10')
-  await card.getByRole('button', { name: 'Concluir série 1' }).click()
-  await expect(card.getByRole('button', { name: 'Editar série 1' })).toBeVisible()
-  await card.getByLabel('Carga da série 2 (kg)').fill('62,5')
-  await card.getByLabel('Repetições da série 2').fill('8')
-  await card.getByRole('button', { name: 'Concluir série 2' }).click()
-  await expect(card.getByRole('button', { name: 'Editar série 2' })).toBeVisible()
-
-  await page.getByRole('button', { name: 'Finalizar treino' }).click()
-  await page.getByRole('button', { name: 'Sim, finalizar' }).click()
-  await expect(page.getByRole('heading', { name: 'Treino finalizado' })).toBeVisible()
-  await page.getByRole('button', { name: 'Concluir', exact: true }).click()
-  await expect(page.getByText('Offline —')).toBeVisible()
-
-  // Back online: the session and its sets are pushed.
-  const pushed = page.waitForResponse(isPush)
-  await context.setOffline(false)
-  await page.getByRole('button', { name: 'Sincronizar agora' }).click()
-  expect((await pushed).status()).toBe(200)
+  await page.getByRole('button', { name: 'Trocar', exact: true }).click()
+  await swap.getByRole('button', { name: /^Treino A - Exemplo/ }).click()
+  await expect(swap).toHaveCount(0)
+  await expect(page.getByText('Previsto hoje: Treino A - Exemplo', { exact: true })).toBeVisible()
   await expectSynced(page)
 
-  // The summary counts the workout and marks today as done.
+  // The summary: today is planned (day A) and nothing is done yet.
   await nav(page, 'Resumo').click()
   await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible()
   await expect(page.getByText(/Faltam \d+ dias para a atualização/)).toBeVisible()
   // "Treinos": the figure (first <dd>) is the count done, the caption says how many were planned.
   const workouts = page.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Treinos$/ }) }).locator('dd')
-  await expect(workouts.first()).toHaveText('1')
+  await expect(workouts.first()).toHaveText('0')
   await expect(workouts.nth(1)).toHaveText('de 1 previsto')
-  await expect(page.locator('[aria-label*="hoje, treino feito"]')).toBeVisible()
+  await expect(page.locator('[aria-label*="hoje, treino previsto"]')).toBeVisible()
 
   await context.close()
 })

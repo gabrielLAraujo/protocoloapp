@@ -4,8 +4,8 @@ import { login } from './support/auth.ts'
 // Screenshots of the main screens, light and dark, at iPhone size (390x844), then a few in light theme at desktop size
 // (1280x800, the sidebar layout from 1024 px): the viewport as it looks (fixed header and bottom nav)
 // and the whole page (bottom nav hidden, it would sit in the middle of a full-page capture). Runs after the other specs
-// (project `screenshots` in playwright.config.ts depends on them), so the fictitious protocol, workout and session they
-// created are on screen. Only reads: nothing is marked or saved. CI uploads the folder as the `screenshots` artifact; the
+// (project `screenshots` in playwright.config.ts depends on them), so the fictitious protocol and workout plan they
+// activated and the session hevy.spec.ts imported from the Hevy stand-in are on screen. Only reads: nothing is marked or saved. CI uploads the folder as the `screenshots` artifact; the
 // PNGs are never committed (.gitignore).
 const OUT = 'e2e-screenshots'
 const HIDE_NAV = 'nav[aria-label="Navegação principal"] { display: none !important; }'
@@ -64,7 +64,14 @@ test('screenshots of the main screens, light and dark', async ({ browser }) => {
 
   await nav(page, 'Treino').click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  const sessionRow = page.getByRole('region', { name: 'Histórico', exact: true }).getByRole('link').first()
+  await expect(sessionRow).toBeVisible()
   await shoot(page, '3-treino')
+
+  // The imported session, read-only.
+  await sessionRow.click()
+  await expect(page.getByRole('button', { name: 'Excluir do app', exact: true })).toBeVisible()
+  await shoot(page, '3b-treino-sessao')
 
   await nav(page, 'Planejamento').click()
   await expect(page.getByRole('heading', { name: 'Planejamento' })).toBeVisible()
