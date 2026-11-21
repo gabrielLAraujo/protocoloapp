@@ -16,8 +16,9 @@ minutos do servidor.
 - Fotos lado a lado (antes à esquerda, depois à direita), com a data de cada atualização.
 - Botão "Analisar com IA": a IA compara as duas fotos e devolve marcações (círculos com rótulo curto) sobre a foto
   **depois** e um resumo de 3 a 5 pontos do que melhorou (e, se houver, o que manteve ou piorou, em tom neutro).
-- O app desenha as marcações sobre as fotos e permite **salvar a imagem de comparação** (PNG com as duas fotos, as
-  marcações, as datas e a pose) no aparelho.
+- O app desenha as marcações sobre as fotos e permite **salvar a imagem de comparação** no aparelho: PNG com a pose, as
+  duas fotos com as datas, as marcações numeradas e o resumo numerado embaixo (o número liga marca e item). Salvar usa o
+  mesmo padrão do zip de fotos (`navigator.share` no celular, download na web).
 - A análise fica guardada no servidor por par de fotos (`file_id` antes + `file_id` depois): abrir de novo não gasta
   tokens. "Analisar de novo" refaz e substitui.
 - Hevy: o app pede uma sincronização do Hevy ao abrir, ao voltar do fundo e ao entrar na aba Treino, no máximo uma vez a
@@ -28,7 +29,8 @@ minutos do servidor.
 - Não altera nem gera imagem do corpo; a foto é a original, só com desenho por cima.
 - Não envia nada à coach nem muda o fluxo da Atualização (questionário, fotos, zip, PDF).
 - Não mede o corpo (sem medidas estimadas, % de gordura ou nota).
-- Não funciona offline (a análise precisa do servidor); as fotos lado a lado funcionam com as fotos já baixadas.
+- Não funciona offline: a tela busca as fotos inteiras pela URL assinada e a análise pelo servidor. Sem rede, mostra a
+  miniatura local se houver, ou um aviso.
 
 ## Antiobjetivos
 
@@ -70,23 +72,37 @@ minutos do servidor.
 - As duas fotos têm de ser do usuário (arquivos dele em ciclos dele); senão 404. Erros em problem details.
 - Nova tabela `photo_comparisons` (migration), uma linha por par (único em `user_id, before_file_id, after_file_id`);
   "Analisar de novo" substitui.
-- Reaproveitar o `AnthropicClient` (mesma chave/modelo de `Anthropic:*`), estendendo-o para mandar imagens (blocos
-  `image` base64) além de PDF. Reduzir as fotos no servidor se passarem do limite da API.
-- Os erros da IA seguem o padrão do "Ler com IA" (sem crédito, indisponível, timeout).
+- Reaproveitar o `AnthropicClient` (mesma chave/modelo de `Anthropic:*`), estendendo-o para aceitar uma lista de anexos
+  (`image` ou `document`, com `media_type`) e a descrição do tool por chamada; a lógica de nova tentativa/crédito do
+  `PlanExtractor` vira um helper compartilhado. `max_tokens` baixo (~2000) na comparação.
+- Sem biblioteca de imagem no back: o cliente já reduz as fotos no envio (JPEG, lado maior ≤ 2560 px). O servidor confere
+  o tamanho de cada foto e devolve 413 se passar do limite da API.
+- Validação: `pose` tem de bater com a pose dos dois `file_id` em ciclos não apagados do usuário (jsonb
+  `update_cycles.photos`) e arquivos `Photo` confirmados dele; senão 404. Antes = depois → 400; "antes" de ciclo
+  posterior ao "depois" → 400 (o front não deixa escolher).
+- Erros em problem details com a extensão `code`: `no_credits` e `unavailable` → 503, `timeout` → 504, resposta
+  inválida/recusada → 502, imagem grande demais → 413. O front traduz o `code` para pt-BR. (O "Ler com IA" devolve 201
+  com rascunho vazio; aqui não há rascunho, por isso o mapeamento próprio.)
 - A análise **não** entra no payload de sync nem no `update_cycle`; é só leitura por endpoint.
 
 ### Hevy ao abrir
 
-- O cliente chama o endpoint de sincronização do Hevy já existente ("Sincronizar agora") nos três momentos, com trava de 5
-  minutos guardada no aparelho; em seguida roda a sincronização local (`syncNow`). Falhas são silenciosas (o status do
-  Hevy nas Configurações continua mostrando o erro).
+- O cliente chama `POST /api/integrations/hevy/sync` (o mesmo do "Sincronizar agora") nos três momentos, com trava de 5
+  minutos guardada no aparelho (localStorage com try/catch) que conta para qualquer tentativa, inclusive 404/409/erro e o
+  botão manual. Depois de 200, roda `syncNow()`. Falhas são silenciosas (o status nas Configurações mostra o erro). Sem
+  intervalo mínimo no servidor (usuário único; o lock por usuário já evita execuções simultâneas).
+- E2E: o `hevy.spec.ts` assume que só "Sincronizar agora" chega ao stub; desligar a sincronização ao abrir no E2E (flag de
+  build/ambiente) ou ajustar o spec.
 
 ## Restrições
 
 - Regras do `CLAUDE.md`: código em inglês, UI em pt-BR, problem details, nada de payload em logs, versões só em
   `Directory.Packages.props`, `openapi.json` regenerado e versionado, sem dado real em fixtures (fotos de teste
   fictícias, já existentes em `**/fixtures/**`).
-- E2E: a IA não é chamada no CI; usar o mesmo stub/abordagem do "Ler com IA".
+- E2E: a IA não é chamada no CI; o stub `frontend/e2e/fixtures/anthropic-stub.mjs` ganha resposta para o novo tool e
+  registra os blocos `image` (quantidade, tipo, hash), sem o conteúdo. As fotos de teste são PNG gerados em memória, como
+  no `update.spec.ts`.
+- As fotos vão para a API da Anthropic só quando o Gabriel toca em "Analisar com IA" (ele autorizou usar a IA para isso).
 
 ## Fica para o builder
 
