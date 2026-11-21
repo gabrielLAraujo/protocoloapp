@@ -55,8 +55,8 @@ describe('buildTrainingStats', () => {
     // Week of the 19th: Mon 19, Tue 20, Thu 22 planned (3); done on the 19th and 22nd.
     const s = buildTrainingStats(input(withSets('2026-10-19', '2026-10-22')), TODAY)
     expect(s.weeks).toEqual([
-      { weekStart: '2026-10-19', done: 2, planned: 3 },
-      { weekStart: '2026-10-26', done: 0, planned: 2 },
+      { weekStart: '2026-10-19', from: '2026-10-19', done: 2, planned: 3 },
+      { weekStart: '2026-10-26', from: '2026-10-26', done: 0, planned: 2 },
     ])
   })
 
@@ -65,7 +65,7 @@ describe('buildTrainingStats', () => {
       input({ sessions: [session('2026-10-19'), session('2026-10-20')], sets: [set('s-2026-10-19'), set('s-2026-10-20', { kind: 'warmup' })] }),
       TODAY,
     )
-    expect(s.weeks[0]).toEqual({ weekStart: '2026-10-19', done: 1, planned: 3 })
+    expect(s.weeks[0]).toMatchObject({ weekStart: '2026-10-19', done: 1, planned: 3 })
     expect(s.calendar.find((d) => d.date === '2026-10-20')?.state).toBe('missed')
   })
 
@@ -75,7 +75,7 @@ describe('buildTrainingStats', () => {
       input({ overrides: [{ date: '2026-10-21', dayKey: 'a' }, { date: '2026-10-22', dayKey: 'off' }, { date: '2026-10-23', dayKey: 'a' }] }),
       TODAY,
     )
-    expect(s.weeks[0]).toEqual({ weekStart: '2026-10-19', done: 0, planned: 4 })
+    expect(s.weeks[0]).toMatchObject({ weekStart: '2026-10-19', done: 0, planned: 4 })
     expect(s.calendar.find((d) => d.date === '2026-10-22')?.planned).toBe(false)
   })
 
@@ -88,15 +88,31 @@ describe('buildTrainingStats', () => {
   it('a cycle starting mid-week only counts its own days in the first week', () => {
     // Starts on Tuesday 20: Monday 19 is outside (neither planned nor done).
     const s = buildTrainingStats(input({ protocol: { activatedOn: '2026-10-20', document: protocolDoc }, ...withSets('2026-10-19', '2026-10-20') }), TODAY)
-    expect(s.weeks[0]).toEqual({ weekStart: '2026-10-19', done: 1, planned: 2 })
+    expect(s.weeks[0]).toEqual({ weekStart: '2026-10-19', from: '2026-10-20', done: 1, planned: 2 })
+    expect(s.weeks[1]).toMatchObject({ weekStart: '2026-10-26', from: '2026-10-26' })
     expect(s.calendar[0].date).toBe('2026-10-20')
   })
 
-  it('stops at the update date once the cycle is over', () => {
+  it('past the update date, before the new protocol arrives, goes on up to today with the same rotation', () => {
     const doc = { ...protocolDoc, updateDate: '2026-10-22' }
-    const s = buildTrainingStats(input({ protocol: { activatedOn: '2026-10-19', document: doc }, ...withSets('2026-10-19', '2026-10-26') }), TODAY)
-    expect(s.weeks).toEqual([{ weekStart: '2026-10-19', done: 1, planned: 3 }])
-    expect(s.calendar.at(-1)?.date).toBe('2026-10-22')
+    const exercises = [exercise('e1', 'Supino')]
+    const s = buildTrainingStats(input({ protocol: { activatedOn: '2026-10-19', document: doc }, exercises, ...withSets('2026-10-19', '2026-10-26') }), TODAY)
+    expect(s.weeks).toEqual([
+      { weekStart: '2026-10-19', from: '2026-10-19', done: 1, planned: 3 },
+      // Mon 26 and Tue 27 (today) still planned by the same plan.
+      { weekStart: '2026-10-26', from: '2026-10-26', done: 1, planned: 2 },
+    ])
+    expect(s.calendar.at(-1)?.date).toBe(TODAY)
+    expect(s.calendar.find((d) => d.date === '2026-10-26')).toMatchObject({ planned: true, state: 'done' })
+    expect(s.calendar.find((d) => d.date === '2026-10-23')).toMatchObject({ planned: false, state: 'rest' })
+    expect(s.trends[0]?.points.map((p) => p.date)).toEqual(['2026-10-19', '2026-10-26'])
+  })
+
+  it('past the update date with the update already sent also goes on up to today', () => {
+    const doc = { ...protocolDoc, updateDate: '2026-10-22' }
+    const s = buildTrainingStats(input({ protocol: { activatedOn: '2026-10-19', document: doc, updateSentOn: '2026-10-22' }, ...withSets('2026-10-26') }), TODAY)
+    expect(s.weeks.at(-1)).toEqual({ weekStart: '2026-10-26', from: '2026-10-26', done: 1, planned: 2 })
+    expect(s.calendar.at(-1)?.date).toBe(TODAY)
   })
 
   it('before the cycle starts there are no weeks', () => {
@@ -108,8 +124,8 @@ describe('buildTrainingStats', () => {
   it('without a protocol uses the last 8 weeks up to today', () => {
     const s = buildTrainingStats(input({ protocol: null, ...withSets('2026-09-06', '2026-09-07', '2026-10-26') }), TODAY)
     expect(s.weeks).toHaveLength(8)
-    expect(s.weeks[0]).toEqual({ weekStart: '2026-09-07', done: 1, planned: 3 })
-    expect(s.weeks.at(-1)).toEqual({ weekStart: '2026-10-26', done: 1, planned: 2 })
+    expect(s.weeks[0]).toEqual({ weekStart: '2026-09-07', from: '2026-09-07', done: 1, planned: 3 })
+    expect(s.weeks.at(-1)).toEqual({ weekStart: '2026-10-26', from: '2026-10-26', done: 1, planned: 2 })
     expect(s.calendar[0].date).toBe('2026-09-07')
     expect(s.calendar.at(-1)?.date).toBe(TODAY)
     // The 6th (a Sunday, before the 8 weeks) is out.

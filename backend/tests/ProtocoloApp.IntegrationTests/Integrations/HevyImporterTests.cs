@@ -353,8 +353,10 @@ public sealed class HevyImporterTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.False(await api.WithDbAsync(db => db.Exercises.AnyAsync(e => e.UserId == api.UserId && e.Name == "Exercicio Inventado Hevy")));
     }
 
-    [Fact]
-    public async Task Deleting_the_hevy_session_keeps_the_mark_when_an_app_session_of_the_day_has_working_sets()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Deleting_the_hevy_session_keeps_the_mark_when_an_app_session_of_the_day_finished_or_not_has_working_sets(bool ended)
     {
         var s = await NewUserAsync();
         using var api = s.Api;
@@ -368,7 +370,8 @@ public sealed class HevyImporterTests(ApiFactory factory) : IClassFixture<ApiFac
                 ["plan_version_id"] = s.PlanVersionId,
                 ["workout_day_key"] = "a",
                 ["started_at"] = SyncApi.Past(90),
-                ["ended_at"] = SyncApi.Past(70),
+                // Never finished counts too: the same rule as the app.
+                ["ended_at"] = ended ? SyncApi.Past(70) : (DateTimeOffset?)null,
                 ["note"] = null,
             }), SyncApi.Past(60)),
             new SyncChange("set_log", Guid.NewGuid(), SyncOp.Upsert, JsonSerializer.SerializeToElement(new Dictionary<string, object?>

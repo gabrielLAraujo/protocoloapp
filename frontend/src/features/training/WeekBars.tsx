@@ -3,7 +3,8 @@ import type { WeekBar } from './trainingStats'
 
 /**
  * Workouts done and planned per week: one row per week with a block per workout (filled = done, outlined = planned and
- * not done) and "2/3" on the right. Each row also says it in words for screen readers ("Semana de 12/10: 2 de 3").
+ * not done) and "2/3" on the right. Each row also says it in words for screen readers ("Semana de 12/10: 2 de 3"). The date
+ * is the week's first day inside the period: the Monday, or the period's first day when it starts mid-week.
  */
 export function WeekBars({ weeks }: { weeks: WeekBar[] }) {
   if (weeks.every((w) => w.done === 0 && w.planned === 0)) return <p className="text-sm text-muted">Nenhum treino previsto ou feito no período.</p>
@@ -15,9 +16,9 @@ export function WeekBars({ weeks }: { weeks: WeekBar[] }) {
           const blocks = Math.max(w.done, w.planned)
           return (
             <li key={w.weekStart} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3">
-              <span className="sr-only">{`Semana de ${formatShortDate(w.weekStart)}: ${w.done} de ${w.planned}`}</span>
+              <span className="sr-only">{`Semana de ${formatShortDate(w.from)}: ${w.done} de ${w.planned}`}</span>
               <span aria-hidden="true" className="text-xs text-muted tabular-nums">
-                {formatShortDate(w.weekStart)}
+                {formatShortDate(w.from)}
               </span>
               <span aria-hidden="true" className="flex gap-1">
                 {Array.from({ length: blocks }, (_, i) => (

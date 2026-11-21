@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { newLocalDb, USER_A } from '../test/localDb'
+import { seedChange, seedSession, seedSet } from '../test/workoutSeed'
 import { WORKOUT_KEY } from '../domain/dayPlan'
 import { deleteSessionAndMark, saveEveningAndMark, saveMorningAndMark, setCardio } from './adherenceLinks'
 import { adherenceRepo } from './adherenceRepo'
@@ -98,18 +99,12 @@ describe('saveMorningAndMark / saveEveningAndMark', () => {
 
 describe('deleteSessionAndMark', () => {
   const session = async (db: Awaited<ReturnType<typeof newLocalDb>>, at: Date, sets: number) => {
-    const id = await workoutRepo.startSession(db, USER_A, { date: DAY, planVersionId: PLAN, dayKey: 'a' }, at)
-    for (let i = 0; i < sets; i++) {
-      const setId = await workoutRepo.logSet(
-        db,
-        USER_A,
-        { sessionId: id, exerciseId: EXERCISE, plannedExerciseKey: 'e1', setIndex: i, weightKg: 50, reps: 10, kind: 'normal' },
-        new Date(at.getTime() + (i + 1) * 60_000),
-      )
-      if (i === 0) await workoutRepo.logSubSet(db, USER_A, { parentSetId: setId, kind: 'drop', ordinal: 1, weightKg: 30, reps: 8 }, new Date(at.getTime() + 90_000))
-    }
     const end = new Date(at.getTime() + 3_600_000)
-    await workoutRepo.finishSession(db, USER_A, id, end)
+    const id = await seedSession(db, { date: DAY, planVersionId: PLAN, dayKey: 'a', startedAt: at, endedAt: end })
+    for (let i = 0; i < sets; i++) {
+      const setId = await seedSet(db, { sessionId: id, exerciseId: EXERCISE, plannedExerciseKey: 'e1', setIndex: i, weightKg: 50, reps: 10, completedAt: new Date(at.getTime() + (i + 1) * 60_000) })
+      if (i === 0) await seedSet(db, { sessionId: id, exerciseId: EXERCISE, plannedExerciseKey: 'e1', setIndex: i, weightKg: 30, reps: 8, kind: 'drop', parentSetId: setId, completedAt: new Date(at.getTime() + 90_000) })
+    }
     await adherenceRepo.mark(db, USER_A, { date: DAY, targetType: 'workout', targetKey: WORKOUT_KEY, status: 'done' }, end)
     return id
   }
@@ -137,8 +132,8 @@ describe('deleteSessionAndMark', () => {
   it('also deletes the exercise changes (swaps) of the session through the outbox, in the same transaction', async () => {
     const db = await newLocalDb()
     const id = await session(db, T0, 1)
-    const swap = await workoutRepo.recordChange(db, USER_A, { sessionId: id, plannedExerciseKey: 'e1', action: 'swapped', replacementExerciseId: EXERCISE }, later(100_000))
-    await workoutRepo.recordChange(db, USER_A, { sessionId: id, plannedExerciseKey: 'e2', action: 'skipped' }, later(110_000))
+    const swap = await seedChange(db, { sessionId: id, plannedExerciseKey: 'e1', action: 'swapped', replacementExerciseId: EXERCISE, at: later(100_000) })
+    await seedChange(db, { sessionId: id, plannedExerciseKey: 'e2', action: 'skipped', at: later(110_000) })
     await workoutRepo.removeChange(db, USER_A, swap, later(120_000))
     const before = (await outbox.due(db, later(10_000_000), 500)).length
 
@@ -157,7 +152,7 @@ describe('deleteSessionAndMark', () => {
     ])
   })
 
-  it('keeps the day done when another finished session of that date counts', async () => {
+  it('keeps the day done when another session of that date counts', async () => {
     const db = await newLocalDb()
     await session(db, T0, 1)
     const other = await session(db, later(7_200_000), 1)

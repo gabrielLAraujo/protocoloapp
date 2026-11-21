@@ -4,13 +4,13 @@ Itens pedidos e ainda não especificados. Cada um vira spec + plano quando entra
 
 ## Pendente
 
-- **App nativo iOS:** gerar o app para iPhone com o Capacitor (a mesma base do APK Android). Com conta Apple grátis, o app
-  instalado pelo Xcode expira em 7 dias e precisa ser reinstalado; para distribuir pelo TestFlight é preciso o Apple
-  Developer Program (US$ 99/ano). Até lá, o iPhone usa o app web instalado na Tela de Início (ver
-  [Lembretes no iPhone](../README.md#lembretes-no-iphone)).
+Nada no momento.
 
 ## Feito
 
+- **Ajustes da aba Treino** (branch `feat/treino-ajustes`): gráficos até hoje quando a atualização atrasa, rótulo da
+  primeira semana com a data de início real, servidor contando treino não finalizado com série válida (como o app) e
+  remoção do código de registro de treino que sobrou.
 - **Treino só para consulta e poses de fisiculturismo** (branch `feat/treino-consulta`): a aba Treino passa a mostrar a
   troca do treino do dia, treinos por semana, calendário do ciclo, evolução de carga e o histórico só para leitura; sai o
   registro de treino pelo app. As poses padrão da Atualização viram as 7 obrigatórias do fisiculturismo

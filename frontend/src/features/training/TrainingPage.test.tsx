@@ -3,10 +3,9 @@ import userEvent from '@testing-library/user-event'
 import type { RouteObject } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { rotationOverrideRepo } from '../../data/rotationOverrideRepo'
-import { workoutRepo } from '../../data/workoutRepo'
 import { routes } from '../../routes'
 import { mockFetch } from '../../test/fetch-mock'
-import { USER_A } from '../../test/localDb'
+import { seedSession } from '../../test/workoutSeed'
 import { setupApp } from '../testSupport'
 import { BENCH, PLAN, seedExercises, seedHevySession, seedPastSession, seedPlan } from '../workout/testData'
 import { TrainingPage } from './TrainingPage'
@@ -112,7 +111,7 @@ describe('TrainingPage', () => {
     await seedExercises(app.db)
     await seedPlan(app.db, ['a', 'b'])
     await seedHevySession(app.db, HEVY, '2026-10-12', BENCH, [[82.5, 8]], 'Peito exemplo')
-    const open = await workoutRepo.startSession(app.db, USER_A, { date: '2026-10-14', planVersionId: PLAN, dayKey: 'b' }, new Date(2026, 9, 14, 9))
+    const open = await seedSession(app.db, { date: '2026-10-14', planVersionId: PLAN, dayKey: 'b', startedAt: new Date(2026, 9, 14, 9), endedAt: null })
     app.view(<TrainingPage />)
 
     const list = await screen.findByRole('region', { name: 'Histórico' })

@@ -105,12 +105,11 @@ public static class UpdateMetricsLoader
             .OrderBy(c => c.CreatedAt)
             .ToListAsync(ct);
 
-        // A finished session with at least one live working (non-warm-up) set. Unlike the app (workoutRepo.workedOutDates,
-        // which also counts a session never finished), the server counts only ended sessions: Hevy sessions always arrive
-        // ended, so the difference only touches old app sessions that were never finished.
+        // A live session, finished or not, with at least one live working (non-warm-up) set: the same rule as the app
+        // (workoutRepo.workedOutDates) and the Hevy workout mark.
         var sessionsWithWork = sets.Where(s => s.Kind != SetKind.Warmup).Select(s => s.SessionId).ToHashSet();
         var workedOut = sessions
-            .Where(s => s.EndedAt != null && sessionsWithWork.Contains(s.Id))
+            .Where(s => sessionsWithWork.Contains(s.Id))
             .Select(s => s.Date)
             .ToHashSet();
 
